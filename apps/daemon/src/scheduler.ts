@@ -125,7 +125,7 @@ export class Scheduler {
 
   start(): void {
     this.stopping = false;
-    this.recover();
+    void this.recover();
     this.timer = setInterval(() => {
       void this.tick();
     }, 350);
@@ -272,7 +272,7 @@ export class Scheduler {
     return 'rejected';
   }
 
-  private recover(): void {
+  private async recover(): Promise<void> {
     for (const project of this.store.listProjects()) {
       for (const task of this.store.listTasks(project.id)) {
         if (task.status === 'running' && task.parentId !== null) {
@@ -296,6 +296,21 @@ export class Scheduler {
         const worker = this.store.getWorkerByTask(task.id);
         if (worker && (worker.status === 'starting' || worker.status === 'running')) {
           this.store.updateWorker(worker.id, { status: 'failed' });
+        }
+        // 已结算任务不再需要 worktree；失败/阻塞任务保留现场供排查与续跑。
+        if (worker && (task.status === 'done' || task.status === 'cancelled')) {
+          try {
+            await this.worktrees.remove(project.path, worker.worktreePath);
+            this.emit(task.id, worker.id, 'worktree.removed', {
+              path: worker.worktreePath,
+              reason: 'settled_orphan',
+            });
+          } catch (error) {
+            this.emit(task.id, worker.id, 'worktree.remove_failed', {
+              path: worker.worktreePath,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
     }

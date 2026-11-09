@@ -259,6 +259,10 @@ export interface ReviewSpec {
   reviewer_role?: RoleName;
 }
 
+export const DELEGATION_MODES = ['fixed', 'reassign', 'open'] as const;
+/** fixed = 编制在规划期固定（v1 唯一允许值）；其余两档留给后续版本。 */
+export type DelegationMode = (typeof DELEGATION_MODES)[number];
+
 /** 任务单契约。字段与 PRD 附录 A 保持一致。 */
 export interface TaskContract {
   task_id: string;
@@ -268,6 +272,8 @@ export interface TaskContract {
   plan_revision?: number;
   /** 谁决定的分工：planner = 结构派生；user = 手动；steward = 仅调整执行者。 */
   delegated_by?: 'planner' | 'user' | 'steward';
+  /** 委派模式；v1 只允许 fixed，缺省即 fixed。 */
+  delegation_mode?: DelegationMode;
   /** 断点续跑提示，由 adapter 自行解释（通常是 worktree 快照/分支）。 */
   checkpoint?: string;
   title: string;

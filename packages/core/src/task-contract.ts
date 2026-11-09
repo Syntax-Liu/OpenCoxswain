@@ -1,6 +1,7 @@
 import {
   ACCEPTANCE_POLICIES,
   ACCEPTANCE_TYPES,
+  DELEGATION_MODES,
   DELIVERABLE_PROFILES,
   DELIVERABLE_TYPES,
   EVIDENCE_KINDS,
@@ -152,6 +153,13 @@ export function validateTaskContract(value: unknown): TaskContractValidation {
     !ACCEPTANCE_POLICIES.includes(value.acceptance_policy as never)
   ) {
     errors.push('acceptance_policy 非法');
+  }
+  if (value.delegation_mode !== undefined) {
+    if (!DELEGATION_MODES.includes(value.delegation_mode as never)) {
+      errors.push('delegation_mode 非法');
+    } else if (value.delegation_mode !== 'fixed') {
+      errors.push('delegation_mode 当前仅支持 fixed');
+    }
   }
   if (
     value.deliverable_profile !== undefined &&

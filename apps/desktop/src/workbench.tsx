@@ -7,6 +7,7 @@ import type {
   EventRecord,
   Evidence,
   Project,
+  RoleName,
   Task,
   TaskEdge,
   TaskStageView,
@@ -33,6 +34,9 @@ export interface Workbench {
   busy: boolean;
   onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
   onTaskAction: (action: TaskAction, note?: string) => void;
+  onTaskActionFor: (taskId: string, action: TaskAction) => void;
+  onReassign: (taskId: string, role: RoleName) => void;
+  onApproval: (approvalId: string, status: 'approved' | 'rejected') => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
   onInput: (taskId: string, text: string) => void;
   onWorkerAction: (worker: Worker, action: WorkerAction) => void;

@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import type {
-  AcceptanceDecision,
-  AcceptanceRecord,
-  Evidence,
-  Task,
-  TaskEdge,
-  TaskInput,
-  TaskStage,
-  TaskStageView,
+import {
+  ROLE_NAMES,
+  type AcceptanceDecision,
+  type AcceptanceRecord,
+  type Evidence,
+  type RoleName,
+  type Task,
+  type TaskEdge,
+  type TaskInput,
+  type TaskStage,
+  type TaskStageView,
 } from '@opencoxswain/shared';
 import type { TaskAction } from '../api.js';
 import { ROLE_LABELS, StatusChip } from '../ui.js';
@@ -25,6 +27,7 @@ interface Props {
   onAction: (action: TaskAction) => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
   onInput: (taskId: string, text: string) => void;
+  onReassign: (taskId: string, role: RoleName) => void;
 }
 
 const STAGE_LABELS: Record<TaskStage['kind'], string> = {
@@ -91,6 +94,90 @@ function latestInput(inputs: TaskInput[], taskId: string): TaskInput | null {
   return inputs.filter((input) => input.taskId === taskId).at(-1) ?? null;
 }
 
+/** 任务依赖图：按拓扑深度分层，只做可视化，不改变调度。 */
+function DagView({ tasks, edges }: { tasks: Task[]; edges: TaskEdge[] }): JSX.Element | null {
+  if (tasks.length < 2) return null;
+  const ids = new Set(tasks.map((task) => task.id));
+  const depth = new Map<string, number>();
+  const visit = (id: string, seen: Set<string>): number => {
+    const cached = depth.get(id);
+    if (cached !== undefined) return cached;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const deps = edges.filter((edge) => edge.toTaskId === id && ids.has(edge.fromTaskId));
+    const value =
+      deps.length === 0 ? 0 : Math.max(...deps.map((edge) => visit(edge.fromTaskId, new Set(seen)) + 1));
+    depth.set(id, value);
+    return value;
+  };
+  for (const task of tasks) visit(task.id, new Set());
+  const layers: Task[][] = [];
+  for (const task of tasks) {
+    const level = depth.get(task.id) ?? 0;
+    (layers[level] ??= []).push(task);
+  }
+  const titles = new Map(tasks.map((task) => [task.id, task.title]));
+  return (
+    <div className="dag">
+      <p className="hint">依赖图：自上而下分层，同层可并行。</p>
+      {layers.map((layer, level) => (
+        <div className="dag-level" key={level}>
+          {level > 0 ? <span className="dag-arrow">↓</span> : null}
+          <div className="dag-layer">
+            {layer.map((task) => {
+              const deps = edges
+                .filter((edge) => edge.toTaskId === task.id && ids.has(edge.fromTaskId))
+                .map((edge) => titles.get(edge.fromTaskId))
+                .filter(Boolean)
+                .join('、');
+              return (
+                <span
+                  key={task.id}
+                  className={`dag-node status-${task.status}`}
+                  title={deps ? `依赖：${deps}` : '无依赖'}
+                >
+                  {task.title}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReassignBox({
+  task,
+  busy,
+  onReassign,
+}: {
+  task: Task;
+  busy: boolean;
+  onReassign: (taskId: string, role: RoleName) => void;
+}): JSX.Element {
+  const [role, setRole] = useState<RoleName>(task.contract.assignee?.role ?? 'implementer');
+  return (
+    <div className="row wrap reassign">
+      <select
+        value={role}
+        disabled={busy}
+        onChange={(event) => setRole(event.target.value as RoleName)}
+      >
+        {ROLE_NAMES.map((name) => (
+          <option key={name} value={name}>
+            {ROLE_LABELS[name]}
+          </option>
+        ))}
+      </select>
+      <button disabled={busy} onClick={() => onReassign(task.id, role)}>
+        重派
+      </button>
+      <span className="hint">仅清理 worktree 后重新执行，不做文件级回滚。</span>
+    </div>
+  );
+}
+
 export function TaskTree({
   root,
   children,
@@ -103,6 +190,7 @@ export function TaskTree({
   onAction,
   onAcceptance,
   onInput,
+  onReassign,
 }: Props): JSX.Element {
   if (!root) {
     return (
@@ -186,6 +274,8 @@ export function TaskTree({
           ) : null}
         </article>
 
+        <DagView tasks={children} edges={edges} />
+
         <div className="subtasks">
           {children.map((task, index) => {
             const deps = edges
@@ -222,6 +312,9 @@ export function TaskTree({
                 </dl>
                 {task.status === 'running' ? (
                   <InputBox taskId={task.id} busy={busy} onSend={onInput} />
+                ) : null}
+                {task.status === 'failed' || task.status === 'blocked' ? (
+                  <ReassignBox task={task} busy={busy} onReassign={onReassign} />
                 ) : null}
               </article>
             );

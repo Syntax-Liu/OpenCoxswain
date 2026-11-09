@@ -5,8 +5,10 @@ import type {
   Capability,
   CreatePlanRequest,
   CreateProjectRequest,
+  RoleName,
   TaskReplay,
 } from '@opencoxswain/shared';
+import { ROLE_NAMES } from '@opencoxswain/shared';
 import { capabilityDiff, projectCapabilities } from '@opencoxswain/core';
 import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
@@ -228,6 +230,12 @@ export async function apply(ctx: PluginContext): Promise<void> {
       }
     });
   }
+
+  http.route('POST', '/api/tasks/:id/reassign', async (request) => {
+    const body = request.body as { role?: RoleName; note?: string };
+    if (!body.role || !ROLE_NAMES.includes(body.role)) throw new AppError('role 非法');
+    return { json: await steward.reassignTask(taskIdOf(request), body.role, body.note) };
+  });
 
   http.route('POST', '/api/tasks/:id/acceptance', async (request) => {
     const body = request.body as {

@@ -581,6 +581,12 @@ export class Store {
       .run(assigneeId, now(), id);
   }
 
+  updateTaskContract(id: string, contract: Task['contract']): void {
+    this.db
+      .prepare('UPDATE tasks SET contract_json = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(contract), now(), id);
+  }
+
   private mapTask(row: Row): Task {
     return {
       id: text(row, 'id'),

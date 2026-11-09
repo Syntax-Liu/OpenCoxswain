@@ -4,6 +4,7 @@ import type {
   CreatePlanRequest,
   CreateProjectRequest,
   Project,
+  RoleName,
   Task,
   WorkbenchSnapshot,
 } from '@opencoxswain/shared';
@@ -14,7 +15,7 @@ export const DAEMON_URL =
     '',
   );
 
-export type TaskAction = 'approve' | 'reject' | 'cancel' | 'pause' | 'resume';
+export type TaskAction = 'approve' | 'reject' | 'cancel' | 'pause' | 'resume' | 'retry';
 export type WorkerAction = 'pause' | 'resume' | 'terminate';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -69,6 +70,23 @@ export const api = {
     return request<Task>(`/api/tasks/${taskId}/acceptance`, {
       method: 'POST',
       body: JSON.stringify({ decisions }),
+    });
+  },
+
+  reassignTask(taskId: string, role: RoleName, note?: string): Promise<Task> {
+    return request<Task>(`/api/tasks/${taskId}/reassign`, {
+      method: 'POST',
+      body: JSON.stringify({ role, note }),
+    });
+  },
+
+  decideApproval(
+    approvalId: string,
+    status: 'approved' | 'rejected',
+  ): Promise<unknown> {
+    return request(`/api/approvals/${approvalId}/decide`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
     });
   },
 

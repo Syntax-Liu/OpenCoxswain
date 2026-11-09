@@ -165,6 +165,7 @@ export interface StorageService {
   insertMandate(mandate: TaskMandate): void;
   getLatestMandate(taskId: string): TaskMandate | null;
   listTaskMandates(taskId: string): TaskMandate[];
+  updateTaskContract(id: string, contract: Task['contract']): void;
   insertSideEffect(input: {
     taskId: string;
     workerId: string | null;
@@ -360,6 +361,7 @@ export interface StewardService {
   pauseTask(taskId: string): Promise<Task>;
   resumeTask(taskId: string): Promise<Task>;
   retryTask(taskId: string): Task;
+  reassignTask(taskId: string, role: RoleName, note?: string): Promise<Task>;
   decideAcceptance(
     taskId: string,
     decisions: AcceptanceDecision[],

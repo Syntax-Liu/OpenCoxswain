@@ -2,7 +2,7 @@
 
 本地优先的 Windows AI 总管。你只对总管说话；总管把目标拆成结构化任务单和 DAG，派给在独立 git worktree 里干活的 AI 员工，盯进度、做验收，最后按固定三块汇报：待你决策 / 未通过的检查 / 交付产物。
 
-当前版本 `0.10.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，运行中可投递消息并由规则监察兜底；v0.9.0 补齐验收闭环（AcceptancePolicy / DeliverableProfile / 来源链校验 / 内容级 diff）、运行租约与孤儿恢复、任务级授权链；v0.10.0 补上副作用台账与能力化授权，桌面壳待接入。
+当前版本 `0.11.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，运行中可投递消息并由规则监察兜底；v0.9.0 补齐验收闭环（AcceptancePolicy / DeliverableProfile / 来源链校验 / 内容级 diff）、运行租约与孤儿恢复、任务级授权链；v0.10.0 补上副作用台账与能力化授权；v0.11.0 补齐委派与恢复（任务树重派、孤儿 worktree 清理、DAG 可视化、待决策收件箱），桌面壳待接入。
 
 ## 快速开始
 
@@ -51,7 +51,7 @@ docs/
   super-agent-adoption.md
 ```
 
-## 当前能力（v0.10.0）
+## 当前能力（v0.11.0）
 
 已实现：
 
@@ -75,6 +75,11 @@ docs/
 - 副作用台账：`fs.write` / `fs.delete` / `proc.exec` / `net.send` 在工具调用边界先落 `pending` 再执行，收到结果后结算为 `succeeded`，审批拒绝记为 `rejected`；幂等键为 `sha256(taskId + tool + 规范化参数)`，文件写/删与外发按幂等键去重，进程执行只记账；`GET /api/tasks/:id/side-effects` 与回放可查全部动作。外发一律需要审批且标记为不可逆。
 - 项目授权三问：创建项目只问工作目录、能否联网、能否外发；默认允许联网读取、禁止外发。员工声明的能力与项目边界取交集后写入 Mandate，缺能力时在派单前拒绝。
 - 可补偿而非全量回滚：文件写/删标记为可补偿，进程与外发标记为不可逆；不提供文件快照或 VM checkpoint，回滚能力分级为可追溯 / 可补偿 / 仅 git 内可回滚。
+- 任务树重派：`failed` / `blocked` 子任务可改派给其他编制角色；同编制只换人，跨编制自动重签 `TaskMandate` 并落 `task.reassigned`，仅清理 worktree 后重新执行，不做文件级回滚。
+- 委派模式：v1 只接受 `delegation_mode = fixed`，Planner 与手工任务单一致；其他模式在契约校验阶段以 `delegation_mode` 错误拒绝，不进入派单。
+- 孤儿 worktree 清理：重启恢复时只清理 `done` / `cancelled` 任务的 worktree；`failed` / `blocked` 保留现场供排查，清理失败落 `worktree.remove_failed`。
+- DAG 可视化：任务树按依赖拓扑分层，同层可并行，`status-*` 直接反映 blocked / failed / running，子任务失败时就地显示重派入口。
+- 待决策收件箱：左栏聚合待审批、失败/阻塞子任务、根任务待开工与待验收事项，每条都能直接操作（批准 / 退回 / 重试 / 取消 / 重派）。
 - 逐条验收：`POST /api/tasks/:id/acceptance` 要求每个未通过验收项单独给结论和理由，缺结论返回 409、缺理由返回 400；不再有「一键全部通过」入口。
 - 验收留痕：evidence 与 acceptance_records 落库，记录交付物、证据摘要、验收标准、验收人（系统/人）与结论，可回放。
 - 阶段视图：`GET /api/tasks?stage=person|working|idle` 与工作台「在等谁」标签，明确当前是等人、等依赖还是执行中。

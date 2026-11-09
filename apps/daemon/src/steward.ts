@@ -23,7 +23,9 @@ import {
   type CreateProjectRequest,
   type Evidence,
   type Project,
+  type RoleName,
   type Task,
+  type TaskContract,
   type TaskInput,
   type TaskMandate,
   type TaskReplay,
@@ -368,24 +370,55 @@ export class Steward implements StewardService {
     return this.requireTask(task.id);
   }
 
-  private requeue(task: Task, message: string): void {
+  /** 任务树重派：只清空当前 worktree 并重新排队，不做文件级快照回滚。 */
+  async reassignTask(taskId: string, role: RoleName, note?: string): Promise<Task> {
+    const task = this.requireTask(taskId);
+    if (task.parentId === null) throw new AppError('根任务不可重派，请重新生成任务单');
+    if (!['failed', 'blocked'].includes(task.status)) {
+      throw new AppError('只有失败或阻塞的子任务可以重派');
+    }
+    if (!this.employees.get(role)) throw new AppError(`员工 ${role} 未安装`, 404);
+    const current = task.contract.assignee;
+    if (!current) throw new AppError('任务缺少执行者信息，无法重派');
+    const fromRole = current.role;
+    const contract: TaskContract = {
+      ...task.contract,
+      assignee: { ...current, role },
+      delegated_by: 'user',
+    };
+    this.store.updateTaskContract(task.id, contract);
+    const event = this.store.appendEvent({
+      taskId: task.id,
+      type: 'task.reassigned',
+      payload: { fromRole, toRole: role, note: note?.trim() || null },
+    });
+    this.bus.publish(event);
+    this.requeue({ ...task, contract }, `任务「${task.title}」已重派给「${role}」。`, fromRole !== role);
+    return this.requireTask(task.id);
+  }
+
+  private requeue(task: Task, message: string, forceMandate = false): void {
     if (task.status === 'blocked') this.transition(task.id, 'failed', 'scheduler');
     if (this.store.getTask(task.id)?.status === 'failed') {
       this.transition(task.id, 'queued', 'user');
     }
-    this.issueMandateFor(task, 'user');
+    this.issueMandateFor(task, 'user', forceMandate);
     this.announce(task.projectId, message, task.id);
   }
 
   /** 派发前签发授权；已有未过期凭证时不重复签发。 */
-  private issueMandateFor(task: Task, issuedBy: TaskMandate['issuedBy']): void {
+  private issueMandateFor(
+    task: Task,
+    issuedBy: TaskMandate['issuedBy'],
+    force = false,
+  ): void {
     if (task.parentId === null) return;
     const role = task.contract.assignee?.role;
     if (!role) return;
     const project = this.store.getProject(task.projectId);
     if (!project) return;
     const existing = this.store.getLatestMandate(task.id);
-    if (issuedBy === 'user' && existing && existing.expiresAt > now()) return;
+    if (!force && issuedBy === 'user' && existing && existing.expiresAt > now()) return;
     const employee = this.employees.get(role);
     const granted = projectCapabilities(project);
     const capabilities = (employee?.capabilities ?? []).filter((capability) =>

@@ -320,6 +320,28 @@ label.choice input {
   min-height: 0;
 }
 
+.workspace-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-col.center > .panel,
+.workspace-col.right > .panel {
+  flex: 1 1 auto;
+}
+
+.workspace-col.left > .panel.inbox {
+  flex: 0 1 auto;
+  max-height: 42%;
+}
+
+.workspace-col.left > .panel.task-tree {
+  flex: 1 1 auto;
+}
+
 .panel {
   display: flex;
   flex-direction: column;
@@ -516,6 +538,115 @@ label.choice input {
   font-family: 'Cascadia Mono', Consolas, monospace;
   font-size: 11px;
   color: var(--accent);
+}
+
+/* ---------- 依赖图 ---------- */
+
+.dag {
+  margin: 10px 0 2px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.dag .hint {
+  margin: 0 0 8px;
+}
+
+.dag-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dag-layer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.dag-node {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dag-node.status-done {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #8fe3b6;
+}
+
+.dag-node.status-running {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dag-node.status-awaiting_review,
+.dag-node.status-awaiting_approval {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: var(--warn);
+}
+
+.dag-node.status-failed,
+.dag-node.status-blocked {
+  border-color: rgba(255, 112, 112, 0.45);
+  color: #ff9b9b;
+}
+
+.dag-arrow {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.reassign {
+  margin-top: 8px;
+}
+
+.reassign select {
+  width: auto;
+  padding: 5px 8px;
+}
+
+/* ---------- 待决策收件箱 ---------- */
+
+.inbox {
+  overflow: auto;
+}
+
+.inbox-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+
+.inbox-item:last-child {
+  border-bottom: none;
+}
+
+.inbox-item strong {
+  display: block;
+  font-size: 12px;
+}
+
+.inbox-item p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 /* ---------- 对话 ---------- */

@@ -40,3 +40,12 @@ test('预算至少需要一项正数', () => {
   const result = validateTaskContract(validContract({ budget: {} }));
   assert.equal(result.ok, false);
 });
+
+test('委派模式 v1 只接受 fixed', () => {
+  assert.equal(validateTaskContract(validContract({ delegation_mode: 'fixed' })).ok, true);
+  const reassign = validateTaskContract(validContract({ delegation_mode: 'reassign' }));
+  assert.equal(reassign.ok, false);
+  if (!reassign.ok) {
+    assert.ok(reassign.errors.some((error) => error.includes('delegation_mode')));
+  }
+});

@@ -321,7 +321,15 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 5. 静态回退可见：`WorkbenchSnapshot.planner` 暴露规划模式，工作台顶部常驻「规划 · LLM / 静态回退」标识。
 6. `pnpm build`、`pnpm test`（core 37 + daemon 28）、`pnpm e2e` 均通过。
 
+已完成（v0.11.0）：
+
+1. 委派与恢复：新增 `DelegationMode`（v1 只接受 `fixed`）并在任务单校验阶段拒绝其他取值；`POST /api/tasks/:id/reassign` 支持把 `failed` / `blocked` 子任务改派给其他编制角色，跨编制自动重签 `TaskMandate` 并落 `task.reassigned`。
+2. 孤儿 worktree 清理：调度器重启恢复时对 `done` / `cancelled` 任务移除 worktree，`failed` / `blocked` 保留现场；清理失败落 `worktree.remove_failed`。
+3. 工作台：`panel.inbox` 聚合待审批、失败/阻塞子任务、根任务待开工与待验收；任务树新增 DAG 拓扑分层视图与就地重派入口；左中右三列布局。
+4. `pnpm test`（core 38 + daemon 29）、`pnpm e2e` 均通过。
+
 下一步（P3 剩余）：
 
-1. 任务树审计视图、待决策收件箱。
-2. 记忆层、进程级插件隔离与 Tauri 2 桌面壳。
+1. 记忆层（`packages/memory` + FTS5 + 记忆检查器 + 「我参考了这些记忆」）。
+2. 产物 diff 逐文件审阅、任务模板、首次引导。
+3. 进程级插件隔离与 Tauri 2 桌面壳。

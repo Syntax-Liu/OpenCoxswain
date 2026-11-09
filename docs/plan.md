@@ -112,6 +112,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 验收自证与逐条验收（已完成，v0.7.0）：`finish()` 不再采信员工自报，command 由系统在 worktree 内重跑、diff 用 git 复算，rubric/human 一律交人；`POST /api/tasks/:id/acceptance` 要求逐条给出结论与理由，验收单包含交付物、证据摘要、验收标准、验收人与结论并落库；删除 `/accept` 批量盖章；`GET /api/tasks?stage=` 与工作台「在等谁」标签落地阶段视图。
 - 运行中输入与规则监察（已完成，v0.8.0）：`POST /api/tasks/:id/inputs` 在运行时支持时立即送达，否则诚实排队并在下次派发注入，人的消息不受并发上限约束；`supervisor.rules` 插件按规则检查越权、空转、心跳、重复、停滞、预算与长尾，动作落 `supervision_actions` 并可回放，重复触发升级暂停，空转完成直接判失败。
 - 授权与副作用（已完成，v0.10.0）：任务授权从「写路径枚举」升级为能力化 `TaskMandate`（能力集合 + 根目录 + 可执行角色），员工包声明 `capabilities`，项目创建只问工作目录 / 能否联网 / 能否外发，安装前可查能力差异；`fs.write` / `fs.delete` / `proc.exec` / `net.send` 先记账后执行并落 `side_effects` 台账，幂等键去重，外发一律审批且不可逆；回滚能力明确为可追溯 / 可补偿 / 仅 git 内可回滚。
+- 委派与恢复（已完成，v0.11.0）：`DelegationMode` v1 只接受 `fixed`；`failed` / `blocked` 子任务可重派，跨编制自动重签 `TaskMandate` 并落 `task.reassigned`；重启恢复时清理 `done` / `cancelled` 的孤儿 worktree，失败/阻塞保留现场；工作台新增任务树 DAG 分层视图与待决策收件箱。
 
 **交付物**：满足 PRD v0 五条验收剧本；可回放覆盖率 100%。
 
@@ -120,8 +121,10 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 员工插件包（已完成，v0.6.0）：`employees` 服务 + `employee:use` / `employee:provide` 权限；四个内置员工（调研员/实施员/校验员/撰写员）由独立 Manifest 注册角色、技能、工具白名单、权限与默认验收标准；调度器删除硬编码 `ROLE_TEMPLATES`，Planner 只读判定与验收默认值均取自员工包；`GET /api/employees` 与工作台展示五件套。
 - `packages/memory`：`user_profile.md` / `project_memory.md` / `decisions.md` / `lessons.md` + SQLite FTS5。
 - 写入门槛、来源追溯、冲突处理、混合检索（关键词 + 时间衰减；embedding 后置）。
-- 记忆检查器、待决策收件箱、DAG 可视化、产物 diff 逐文件审阅、任务模板、首次引导。
+- 记忆检查器、产物 diff 逐文件审阅、任务模板、首次引导。
 - 总管展示「我参考了这些记忆」。
+
+已提前完成（v0.11.0）：待决策收件箱、任务树 DAG 可视化、任务重派入口。
 
 **交付物**：新项目不用重讲技术栈即可产出符合习惯的任务单；旧约束能被识别为不适用。
 

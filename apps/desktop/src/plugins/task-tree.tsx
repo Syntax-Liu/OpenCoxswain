@@ -17,6 +17,7 @@ function TaskTreePanel(): JSX.Element {
       onAction={workbench.onTaskAction}
       onAcceptance={workbench.onAcceptance}
       onInput={workbench.onInput}
+      onReassign={workbench.onReassign}
     />
   );
 }

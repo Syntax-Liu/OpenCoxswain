@@ -3,6 +3,7 @@ import type {
   AcceptanceDecision,
   Assistant,
   Project,
+  RoleName,
   Task,
   Worker,
   WorkbenchSnapshot,
@@ -105,6 +106,18 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     void run(() => api.taskAction(root.id, action, note));
   };
 
+  const onTaskActionFor = (taskId: string, action: TaskAction): void => {
+    void run(() => api.taskAction(taskId, action));
+  };
+
+  const onReassign = (taskId: string, role: RoleName): void => {
+    void run(() => api.reassignTask(taskId, role));
+  };
+
+  const onApproval = (approvalId: string, status: 'approved' | 'rejected'): void => {
+    void run(() => api.decideApproval(approvalId, status));
+  };
+
   const onAcceptance = (decisions: AcceptanceDecision[]): void => {
     if (!root) return;
     void run(() => api.decideAcceptance(root.id, decisions));
@@ -184,6 +197,9 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     busy,
     onPlan,
     onTaskAction,
+    onTaskActionFor,
+    onReassign,
+    onApproval,
     onAcceptance,
     onInput,
     onWorkerAction,
@@ -242,9 +258,15 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
         </header>
 
         <main className="workspace">
-          <PanelSlot registry={registry} slot="left" />
-          <PanelSlot registry={registry} slot="center" />
-          <PanelSlot registry={registry} slot="right" />
+          <div className="workspace-col left">
+            <PanelSlot registry={registry} slot="left" />
+          </div>
+          <div className="workspace-col center">
+            <PanelSlot registry={registry} slot="center" />
+          </div>
+          <div className="workspace-col right">
+            <PanelSlot registry={registry} slot="right" />
+          </div>
         </main>
 
         <Inspector tabs={bottomTabs} />
