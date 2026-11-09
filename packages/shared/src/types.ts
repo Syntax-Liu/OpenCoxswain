@@ -458,6 +458,66 @@ export interface PlannerStatus {
   reason: string | null;
 }
 
+export const MEMORY_KINDS = ['profile', 'project', 'decision', 'lesson'] as const;
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+
+/** 一条记忆：文本 + 来源 + 适用范围；supersededBy 表示已被新结论取代。 */
+export interface MemoryEntry {
+  id: string;
+  projectId: string | null;
+  kind: MemoryKind;
+  key: string | null;
+  text: string;
+  source: string;
+  createdAt: number;
+  updatedAt: number;
+  lastUsedAt: number | null;
+  useCount: number;
+  supersededBy: string | null;
+}
+
+export interface MemoryCandidate {
+  kind: MemoryKind;
+  text: string;
+  source: string;
+  projectId?: string | null;
+  key?: string | null;
+}
+
+export type MemoryWriteResult =
+  | {
+      action: 'created' | 'deduped' | 'superseded';
+      entry: MemoryEntry;
+      supersededId?: string;
+    }
+  | { action: 'rejected'; reason: string };
+
+export interface MemoryMatch {
+  entry: MemoryEntry;
+  score: number;
+  matched: string[];
+  reason: string;
+}
+
+export interface MemoryIssue {
+  code: 'secret_like' | 'duplicate' | 'conflict' | 'stale' | 'no_source';
+  severity: 'warn' | 'info';
+  message: string;
+  entryId: string | null;
+}
+
+export interface MemoryStats {
+  total: number;
+  byKind: Record<MemoryKind, number>;
+  issues: number;
+  lastUsedAt: number | null;
+}
+
+export interface MemoryReport {
+  stats: MemoryStats;
+  issues: MemoryIssue[];
+}
+
 export interface WorkbenchSnapshot {
   projects: Project[];
   project: Project | null;
@@ -477,6 +537,7 @@ export interface WorkbenchSnapshot {
   summary: string | null;
   runtime: RuntimeStatus;
   planner: PlannerStatus;
+  memory: MemoryStats;
 }
 
 export interface SubtaskDraft {

@@ -119,10 +119,11 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 ### P3：v1 记忆 + 完整工作台（M3）
 
 - 员工插件包（已完成，v0.6.0）：`employees` 服务 + `employee:use` / `employee:provide` 权限；四个内置员工（调研员/实施员/校验员/撰写员）由独立 Manifest 注册角色、技能、工具白名单、权限与默认验收标准；调度器删除硬编码 `ROLE_TEMPLATES`，Planner 只读判定与验收默认值均取自员工包；`GET /api/employees` 与工作台展示五件套。
-- `packages/memory`：`user_profile.md` / `project_memory.md` / `decisions.md` / `lessons.md` + SQLite FTS5。
-- 写入门槛、来源追溯、冲突处理、混合检索（关键词 + 时间衰减；embedding 后置）。
-- 记忆检查器、产物 diff 逐文件审阅、任务模板、首次引导。
-- 总管展示「我参考了这些记忆」。
+- `packages/memory`（已完成，v0.12.0）：SQLite（FTS5）为唯一事实来源，Markdown 快照导出 `user_profile.md` / `project_memory.md` / `decisions.md` / `lessons.md`；中文二元组索引 + 关键词覆盖率与时间衰减混合排序。
+- 写入门槛（已完成，v0.12.0）：来源必需、拒绝临时指令/疑似密钥/过短内容；同键新结论取代旧记忆，重复内容去重；冲突与取代过程可审计。
+- 记忆检查器（已完成，v0.12.0）：`GET /api/memory/check` 报告重复、无来源、疑似密钥、同键冲突与陈旧条目。
+- 总管展示「我参考了这些记忆」（已完成，v0.12.0）：任务单消息固定段落 + `memory.used` 事件；LLM Planner 提示词注入命中记忆；创建项目时识别技术栈。
+- 产物 diff 逐文件审阅、任务模板、首次引导。
 
 已提前完成（v0.11.0）：待决策收件箱、任务树 DAG 可视化、任务重派入口。
 

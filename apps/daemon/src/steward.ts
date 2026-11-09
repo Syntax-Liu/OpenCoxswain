@@ -22,6 +22,7 @@ import {
   type CreatePlanRequest,
   type CreateProjectRequest,
   type Evidence,
+  type MemoryKind,
   type Project,
   type RoleName,
   type Task,
@@ -35,12 +36,14 @@ import {
 import type {
   EmployeeRegistry,
   EventService,
+  MemoryService,
   PlannerService,
   RuntimeRegistry,
   SchedulerService,
   StewardService,
   StorageService,
 } from '@opencoxswain/plugin-api';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AppError } from './errors.js';
 import { inspectRepo } from './git.js';
@@ -54,6 +57,7 @@ export interface StewardOptions {
   runtimes: RuntimeRegistry;
   scheduler: SchedulerService;
   employees: EmployeeRegistry;
+  memory: MemoryService;
 }
 
 export class Steward implements StewardService {
@@ -63,6 +67,7 @@ export class Steward implements StewardService {
   private readonly runtimes: RuntimeRegistry;
   private readonly scheduler: SchedulerService;
   private readonly employees: EmployeeRegistry;
+  private readonly memory: MemoryService;
   private readonly announced = new Set<string>();
 
   constructor(options: StewardOptions) {
@@ -72,6 +77,7 @@ export class Steward implements StewardService {
     this.runtimes = options.runtimes;
     this.scheduler = options.scheduler;
     this.employees = options.employees;
+    this.memory = options.memory;
   }
 
   async snapshot(projectId?: string | null): Promise<WorkbenchSnapshot> {
@@ -102,6 +108,7 @@ export class Steward implements StewardService {
         summary: null,
         runtime,
         planner,
+        memory: this.memory.stats(null),
       };
     }
 
@@ -127,6 +134,7 @@ export class Steward implements StewardService {
       summary: root ? this.summary(root.id) : null,
       runtime,
       planner,
+      memory: this.memory.stats(project.id),
     };
   }
 
@@ -190,6 +198,16 @@ export class Steward implements StewardService {
       allowNetwork: request.allowNetwork ?? true,
       allowExternalSend: request.allowExternalSend ?? false,
     });
+    const stack = detectStack(repo.root);
+    if (stack) {
+      this.memory.remember({
+        kind: 'project',
+        key: 'stack',
+        text: `项目「${project.name}」技术栈：${stack}`,
+        source: `scan:${repo.root}`,
+        projectId: project.id,
+      });
+    }
     this.announce(
       project.id,
       [
@@ -275,6 +293,25 @@ export class Steward implements StewardService {
     });
     this.bus.publish(planEvent);
 
+    const references = this.memory.recall(plan.root.goal, {
+      projectId: project.id,
+      limit: 5,
+    });
+    if (references.length > 0) {
+      this.bus.publish(
+        this.store.appendEvent({
+          taskId: root.id,
+          type: 'memory.used',
+          payload: {
+            items: references.map((match) => ({
+              id: match.entry.id,
+              kind: match.entry.kind,
+              reason: match.reason,
+            })),
+          },
+        }),
+      );
+    }
     const budget = plan.root.budget;
     const budgetText = [
       budget.usd !== undefined ? `$${budget.usd.toFixed(2)}` : null,
@@ -291,6 +328,13 @@ export class Steward implements StewardService {
         '子任务：',
         ...children.map((child, index) => `${index + 1}. [${child.contract.assignee?.role}] ${child.title}`),
         `预算：${budgetText}`,
+        '## 我参考了这些记忆',
+        ...(references.length > 0
+          ? references.map(
+              (match) =>
+                `- [${MEMORY_KIND_LABELS[match.entry.kind]}] ${match.entry.text}（来源：${match.entry.source}）`,
+            )
+          : ['本次没有命中相关记忆。']),
         '确认后我会派发员工，开工前不会写你的仓库。',
       ].join('\n'),
       root.id,
@@ -328,6 +372,14 @@ export class Steward implements StewardService {
     this.transition(root.id, 'planning', 'user');
     for (const child of this.store.listChildren(root.id)) {
       if (!isTerminal(child.status)) this.transition(child.id, 'cancelled', 'user');
+    }
+    if (note?.trim()) {
+      this.memory.remember({
+        kind: 'lesson',
+        text: `用户打回了任务「${root.title}」：${note.trim()}`,
+        source: `reject:${root.id}`,
+        projectId: root.projectId,
+      });
     }
     this.announce(
       root.projectId,
@@ -576,12 +628,31 @@ export class Steward implements StewardService {
 
     const settled = this.requireTask(root.id);
     if (settled.status === 'failed') {
+      const reasons = tree
+        .flatMap((task) => this.store.listTaskAcceptance(task.id))
+        .filter((record) => record.verdict === 'failed' && record.note?.trim())
+        .map((record) => record.note!.trim());
+      this.memory.remember({
+        kind: 'lesson',
+        text: `任务「${root.title}」验收未通过${reasons.length > 0 ? `：${reasons.join('；')}` : '，需要人工排查原因'}`,
+        source: `acceptance:${root.id}`,
+        projectId: root.projectId,
+      });
       this.announce(
         root.projectId,
         `## 待你决策\n\n任务「${root.title}」验收未通过，已停在 failed。\n- 可修正后重试，或取消任务。`,
         root.id,
       );
       return settled;
+    }
+
+    if (settled.status === 'done') {
+      this.memory.remember({
+        kind: 'decision',
+        text: `任务「${root.title}」已通过验收：${root.goal}`,
+        source: `acceptance:${root.id}`,
+        projectId: root.projectId,
+      });
     }
 
     const summary = this.summary(root.id);
@@ -776,4 +847,59 @@ export class Steward implements StewardService {
     if (!task) throw new AppError(`任务不存在：${id}`, 404);
     return task;
   }
+}
+
+const MEMORY_KIND_LABELS: Record<MemoryKind, string> = {
+  profile: '偏好',
+  project: '项目',
+  decision: '决策',
+  lesson: '教训',
+};
+
+const FRAMEWORKS: Array<[string, string]> = [
+  ['react', 'React'],
+  ['vue', 'Vue'],
+  ['next', 'Next.js'],
+  ['svelte', 'Svelte'],
+  ['express', 'Express'],
+  ['fastify', 'Fastify'],
+];
+
+/** 轻量识别技术栈，只读几个标记文件，不执行任何命令。 */
+function detectStack(repoRoot: string): string | null {
+  const read = (name: string): string | null => {
+    const file = path.join(repoRoot, name);
+    if (!existsSync(file)) return null;
+    try {
+      return readFileSync(file, 'utf8').slice(0, 8192);
+    } catch {
+      return null;
+    }
+  };
+  const found: string[] = [];
+  const pkgRaw = read('package.json');
+  if (pkgRaw) {
+    try {
+      const pkg = JSON.parse(pkgRaw) as {
+        packageManager?: string;
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+      const parts = ['Node.js'];
+      if (pkg.packageManager) parts.push(pkg.packageManager.split('@')[0] ?? '');
+      else if (existsSync(path.join(repoRoot, 'pnpm-lock.yaml'))) parts.push('pnpm');
+      if (deps.typescript) parts.push('TypeScript');
+      for (const [dep, label] of FRAMEWORKS) {
+        if (deps[dep]) parts.push(label);
+      }
+      found.push(parts.filter(Boolean).join(' / '));
+    } catch {
+      found.push('Node.js');
+    }
+  }
+  if (read('Cargo.toml')) found.push('Rust');
+  if (read('go.mod')) found.push('Go');
+  if (read('pyproject.toml') || read('requirements.txt')) found.push('Python');
+  return found.length > 0 ? found.join('；') : null;
 }

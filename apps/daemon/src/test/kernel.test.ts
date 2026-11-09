@@ -37,6 +37,7 @@ function configFor(homeDir: string): OpenCoxswainConfig {
     dbPath: path.join(homeDir, 'test.db'),
     worktreesDir: path.join(homeDir, 'worktrees'),
     artifactsDir: path.join(homeDir, 'artifacts'),
+    memoryDir: path.join(homeDir, 'memory'),
     pluginsDir: path.join(homeDir, 'plugins'),
     maxConcurrency: 1,
     defaultRuntime: 'mock',

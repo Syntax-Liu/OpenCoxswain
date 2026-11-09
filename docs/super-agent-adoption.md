@@ -636,6 +636,7 @@ export interface StorageService {
 | v0.9.0（已发布） | 验收闭环（AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff）+ §5.4 委派固化 + §5.5.1 Mandate + §5.6 租约与孤儿恢复（G5/G6） | 需要 planner schema 变更、storage 迁移 | `runs` 新增租约字段、`task_mandates` 落库，旧库自动迁移到 user_version=4；`validateDelegation` 接入 `tickProject`，不再有死代码 |
 | v0.10.0（已发布） | 能力化 Mandate（capabilities + root + roles）+ 项目授权三问 + SideEffect 台账（先记账后执行、幂等键、net.send 审批不可逆）+ capability diff + 静态回退可见 | §5.5.1 的授权链、storage 迁移 | 员工包 `permissions` 直接改为 `capabilities`，不保留兼容层；`task_mandates` 重建、`side_effects` 落库，旧库自动迁移到 user_version=5 |
 | v0.11.0（已发布） | `DelegationMode = fixed` 契约校验 + 任务树重派（跨编制重签 Mandate）+ 孤儿 worktree 清理 + DAG 可视化 + 待决策收件箱 | v0.9.0 的租约与 Mandate、v0.10.0 的副作用台账 | 重派只清理 worktree 后重新执行，不做文件级回滚；`failed` / `blocked` 的 worktree 保留现场 |
+| v0.12.0（已发布） | `packages/memory`：SQLite FTS5 + Markdown 快照、写入门槛、同键取代、混合检索、记忆检查器；Planner 注入与总管「我参考了这些记忆」；项目创建识别技术栈 | P3 记忆层目标、§5.6 记忆条目 | 记忆必须带来源；不存临时指令与密钥；Markdown 是导出快照而非事实来源；embedding 后置，不做进程外服务 |
 
 规则：全部是新增能力，按 SemVer 升 minor；若删除旧 `acceptance` 表读取路径，属移除功能，需在 v1.0 前统一处理，不单独升 major。
 

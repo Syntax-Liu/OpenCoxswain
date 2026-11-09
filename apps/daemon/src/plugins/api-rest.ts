@@ -5,10 +5,12 @@ import type {
   Capability,
   CreatePlanRequest,
   CreateProjectRequest,
+  MemoryCandidate,
+  MemoryKind,
   RoleName,
   TaskReplay,
 } from '@opencoxswain/shared';
-import { ROLE_NAMES } from '@opencoxswain/shared';
+import { MEMORY_KINDS, ROLE_NAMES } from '@opencoxswain/shared';
 import { capabilityDiff, projectCapabilities } from '@opencoxswain/core';
 import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
@@ -118,6 +120,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const config = ctx.service('config');
   const secrets = ctx.service('secrets');
   const employees = ctx.service('employees');
+  const memory = ctx.service('memory');
 
   http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
 
@@ -144,6 +147,49 @@ export async function apply(ctx: PluginContext): Promise<void> {
         ),
       },
     };
+  });
+
+  http.route('GET', '/api/memory', async ({ query }) => {
+    const projectId = query.get('projectId');
+    const keyword = query.get('q')?.trim();
+    if (keyword) {
+      return { json: { matches: memory.recall(keyword, { projectId, limit: 20 }) } };
+    }
+    return {
+      json: {
+        stats: memory.stats(projectId),
+        report: memory.report(projectId),
+        entries: memory.list(projectId),
+      },
+    };
+  });
+
+  http.route('GET', '/api/memory/check', async ({ query }) => ({
+    json: memory.report(query.get('projectId')),
+  }));
+
+  http.route('POST', '/api/memory', async ({ body }) => {
+    const input = body as Partial<MemoryCandidate>;
+    const kind = input.kind;
+    if (!kind || !MEMORY_KINDS.includes(kind as MemoryKind)) {
+      throw new AppError(`记忆类型非法：${String(kind)}`);
+    }
+    const result = memory.remember({
+      kind: kind as MemoryKind,
+      text: typeof input.text === 'string' ? input.text : '',
+      source: typeof input.source === 'string' && input.source.trim() ? input.source : 'user:manual',
+      projectId: input.projectId ?? null,
+      key: input.key ?? null,
+    });
+    if (result.action === 'rejected') throw new AppError(result.reason);
+    return { status: 201, json: result };
+  });
+
+  http.route('DELETE', '/api/memory/:id', async ({ params }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少记忆 id');
+    if (!memory.remove(id)) throw new AppError('记忆不存在', 404);
+    return { json: { ok: true } };
   });
 
   http.route('GET', '/api/secrets', async () => {

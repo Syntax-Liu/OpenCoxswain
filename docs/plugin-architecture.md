@@ -328,8 +328,15 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. 工作台：`panel.inbox` 聚合待审批、失败/阻塞子任务、根任务待开工与待验收；任务树新增 DAG 拓扑分层视图与就地重派入口；左中右三列布局。
 4. `pnpm test`（core 38 + daemon 29）、`pnpm e2e` 均通过。
 
+已完成（v0.12.0）：
+
+1. 记忆库插件 `memory.store`：提供 `memory` 服务，SQLite + FTS5 为事实来源，Markdown 快照导出到 `memoryDir`；权限拆为 `memory:read` / `memory:write` / `memory:provide`。
+2. 写入门槛与冲突处理：来源必需，拒绝临时指令、疑似密钥与过短内容；同键新结论取代旧记忆，重复内容去重。
+3. 记忆消费：LLM Planner 注入命中记忆；总管消息固定「我参考了这些记忆」并落 `memory.used`；项目创建时只读标记文件识别技术栈。
+4. 记忆检查器与工作台「记忆」页：`GET /api/memory/check`、`GET/POST/DELETE /api/memory`，支持搜索、新增与删除。
+5. `pnpm test`（core 38 + memory 11 + daemon 30）、`pnpm e2e` 均通过。
+
 下一步（P3 剩余）：
 
-1. 记忆层（`packages/memory` + FTS5 + 记忆检查器 + 「我参考了这些记忆」）。
-2. 产物 diff 逐文件审阅、任务模板、首次引导。
-3. 进程级插件隔离与 Tauri 2 桌面壳。
+1. 产物 diff 逐文件审阅、任务模板、首次引导。
+2. 进程级插件隔离与 Tauri 2 桌面壳。

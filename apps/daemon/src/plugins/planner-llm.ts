@@ -8,6 +8,7 @@ import type {
   AcceptanceCriterion,
   CreatePlanRequest,
   Deliverable,
+  MemoryMatch,
   PlannerStatus,
   Project,
   RoleName,
@@ -32,6 +33,13 @@ const ACCEPTANCE_TYPES: ReadonlySet<string> = new Set([
 
 const DELIVERABLE_TYPES: ReadonlySet<string> = new Set(['diff', 'file', 'report', 'link']);
 
+const MEMORY_LABELS: Record<MemoryMatch['entry']['kind'], string> = {
+  profile: '偏好',
+  project: '项目',
+  decision: '决策',
+  lesson: '教训',
+};
+
 const SYSTEM_PROMPT = [
   '你是 OpenCoxswain 的总管 Planner。你只输出 JSON，不输出任何解释。',
   '把用户目标拆成 2-5 个可独立执行、带依赖关系的子任务。每个子任务由一名 AI 员工在独立 git worktree 中执行。',
@@ -44,6 +52,7 @@ const SYSTEM_PROMPT = [
 interface LlmPlannerOptions {
   engine: Planner;
   resolveKey: () => Promise<{ key: string; source: SecretSource }>;
+  recall: (query: string, projectId: string) => MemoryMatch[];
   baseUrl: string;
   model: string;
   timeoutMs: number;
@@ -76,11 +85,13 @@ export class LlmPlanner implements PlannerService {
     }
 
     try {
-      const subtasks = await this.draft(request, key);
+      const references = this.options.recall(request.goal, project.id);
+      const subtasks = await this.draft(request, key, references);
       this.options.notify('planner.llm.used', {
         model: this.options.model,
         subtasks: subtasks.length,
         keySource: source,
+        memories: references.map((match) => match.entry.id),
       });
       return this.options.engine.plan(project, { ...request, subtasks });
     } catch (error) {
@@ -90,7 +101,11 @@ export class LlmPlanner implements PlannerService {
     }
   }
 
-  private async draft(request: CreatePlanRequest, apiKey: string): Promise<SubtaskDraft[]> {
+  private async draft(
+    request: CreatePlanRequest,
+    apiKey: string,
+    references: MemoryMatch[],
+  ): Promise<SubtaskDraft[]> {
     const url = `${this.options.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const response = await fetch(url, {
       method: 'POST',
@@ -104,7 +119,7 @@ export class LlmPlanner implements PlannerService {
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: this.userPrompt(request) },
+          { role: 'user', content: this.userPrompt(request, references) },
         ],
       }),
       signal: AbortSignal.timeout(this.options.timeoutMs),
@@ -137,7 +152,7 @@ export class LlmPlanner implements PlannerService {
     return drafts;
   }
 
-  private userPrompt(request: CreatePlanRequest): string {
+  private userPrompt(request: CreatePlanRequest, references: MemoryMatch[] = []): string {
     const budget = request.budget;
     return [
       `目标：${request.goal}`,
@@ -151,6 +166,15 @@ export class LlmPlanner implements PlannerService {
             .join(' / ')}`
         : null,
       request.acceptanceCommand ? `验收命令：${request.acceptanceCommand}` : null,
+      references.length > 0
+        ? [
+            '',
+            '已知记忆（可能相关；不适用的请忽略，不要虚构）：',
+            ...references.map(
+              (match) => `- [${MEMORY_LABELS[match.entry.kind]}] ${match.entry.text}`,
+            ),
+          ].join('\n')
+        : null,
       '',
       '输出 JSON，结构如下：',
       '{"subtasks":[{"title":"实施：…","goal":"…","role":"implementer","dependsOn":[],"writeScope":["src/"],"acceptance":[{"id":"ac1","type":"command","desc":"测试通过","check":"npm test"}],"deliverables":[{"type":"diff","scope":"src/"}]}]}',
@@ -258,6 +282,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
     employees,
   });
   const secrets = ctx.service('secrets');
+  const memory = ctx.service('memory');
   const baseUrl = (
     process.env.OPENCOXSWAIN_LLM_BASE_URL ?? 'https://api.deepseek.com/v1'
   ).trim();
@@ -272,6 +297,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
         const source = key ? await secrets.source('llm_api_key') : 'none';
         return { key, source };
       },
+      recall: (query, projectId) => memory.recall(query, { projectId, limit: 5 }),
       baseUrl,
       model,
       timeoutMs: 30_000,

@@ -68,6 +68,19 @@ try {
   });
   console.log(`项目：${project.name}（${project.defaultBranch}）`);
 
+  step('写入长期记忆');
+  const remembered = await call('/api/memory', {
+    method: 'POST',
+    body: JSON.stringify({
+      kind: 'profile',
+      text: '夜间模式相关改动必须保持切换立即生效',
+      projectId: project.id,
+    }),
+  });
+  assert.equal(remembered.action, 'created');
+  const memory = await call(`/api/memory?projectId=${project.id}`);
+  assert.ok(memory.entries.length >= 1, '记忆应写入并可列出');
+
   step('总管生成任务单');
   const planned = await call(`/api/projects/${project.id}/plan`, {
     method: 'POST',
@@ -103,6 +116,13 @@ try {
   });
   assert.equal(planned.root.status, 'awaiting_approval');
   console.log(`任务单：${planned.children.length} 个子任务，等待确认`);
+  const plannedSnapshot = await call('/api/bootstrap');
+  const planMessage = plannedSnapshot.messages
+    .filter((item) => item.role === 'assistant')
+    .at(-1);
+  assert.match(planMessage.content, /我参考了这些记忆/, '规划消息应展示引用记忆');
+  assert.match(planMessage.content, /夜间模式/, '应引用刚写入的记忆');
+  assert.ok(plannedSnapshot.memory.total >= 1, '快照应携带记忆统计');
 
   step('用户确认开工');
   await call(`/api/tasks/${planned.root.id}/approve`, { method: 'POST' });

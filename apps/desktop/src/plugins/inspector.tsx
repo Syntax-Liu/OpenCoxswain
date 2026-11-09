@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { ArtifactRecord, Assistant, EventRecord } from '@opencoxswain/shared';
+import type {
+  ArtifactRecord,
+  Assistant,
+  EventRecord,
+  MemoryEntry,
+  MemoryKind,
+  MemoryReport,
+} from '@opencoxswain/shared';
+import { MEMORY_KINDS } from '@opencoxswain/shared';
 import { api, errorText } from '../api.js';
 import {
   formatDateTime,
@@ -314,10 +322,140 @@ function SettingsTab(): JSX.Element {
   );
 }
 
+const MEMORY_LABELS: Record<MemoryKind, string> = {
+  profile: '偏好',
+  project: '项目',
+  decision: '决策',
+  lesson: '教训',
+};
+
+function MemoryTab(): JSX.Element {
+  const { project, snapshot } = useWorkbench();
+  const [entries, setEntries] = useState<MemoryEntry[]>([]);
+  const [report, setReport] = useState<MemoryReport | null>(null);
+  const [kind, setKind] = useState<MemoryKind>('profile');
+  const [text, setText] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .memory(project.id)
+      .then((data) => {
+        if (!alive) return;
+        setEntries(data.entries);
+        setReport(data.report);
+      })
+      .catch((caught: unknown) => {
+        if (alive) setNotice(errorText(caught));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [project.id, tick]);
+
+  const add = async (): Promise<void> => {
+    if (!text.trim()) return;
+    try {
+      const result = await api.rememberMemory({
+        kind,
+        text: text.trim(),
+        source: 'user:manual',
+        projectId: project.id,
+      });
+      setNotice(
+        result.action === 'superseded'
+          ? '已写入并取代同键旧记忆'
+          : result.action === 'deduped'
+            ? '已有相同记忆，未重复写入'
+            : '已记住',
+      );
+      setText('');
+      setTick((value) => value + 1);
+    } catch (caught) {
+      setNotice(errorText(caught));
+    }
+  };
+
+  const remove = async (id: string): Promise<void> => {
+    try {
+      await api.removeMemory(id);
+      setTick((value) => value + 1);
+    } catch (caught) {
+      setNotice(errorText(caught));
+    }
+  };
+
+  const stats = report?.stats ?? snapshot.memory;
+
+  return (
+    <div className="memory">
+      <div className="memory-stats">
+        <span>共 {stats.total} 条</span>
+        {MEMORY_KINDS.map((item) => (
+          <span key={item} className="muted">
+            {MEMORY_LABELS[item]} {stats.byKind[item]}
+          </span>
+        ))}
+        <span className={stats.issues > 0 ? 'warn' : 'muted'}>检查项 {stats.issues}</span>
+      </div>
+      <div className="settings-block">
+        <h3>记一条</h3>
+        <div className="row">
+          <select value={kind} onChange={(event) => setKind(event.target.value as MemoryKind)}>
+            {MEMORY_KINDS.map((item) => (
+              <option key={item} value={item}>
+                {MEMORY_LABELS[item]}
+              </option>
+            ))}
+          </select>
+          <input
+            value={text}
+            placeholder="例如：偏好 pnpm 工作区；提交信息用中文"
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void add();
+            }}
+          />
+          <button className="ghost" onClick={() => void add()} disabled={!text.trim()}>
+            记住
+          </button>
+        </div>
+        <p className="muted">写入有门槛：拒绝临时指令、疑似密钥与过短内容。</p>
+      </div>
+      {notice ? <p className="notice">{notice}</p> : null}
+      {report && report.issues.length > 0 ? (
+        <ul className="memory-issues">
+          {report.issues.map((issue, index) => (
+            <li key={`${issue.code}-${index}`} className={issue.severity}>
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <ul className="memory-list">
+        {entries.map((entry) => (
+          <li key={entry.id}>
+            <span className="memory-kind">{MEMORY_LABELS[entry.kind]}</span>
+            <span className="memory-text">{entry.text}</span>
+            <span className="muted">{entry.source}</span>
+            <button className="ghost" onClick={() => void remove(entry.id)}>
+              删除
+            </button>
+          </li>
+        ))}
+        {entries.length === 0 ? <li className="muted">还没有记忆。</li> : null}
+      </ul>
+    </div>
+  );
+}
+
 export const inspectorTabPlugins: UiPlugin[] = [
   { id: 'inspector.timeline', title: '时间线', slot: 'bottom', order: 10, render: TimelineTab },
   { id: 'inspector.artifacts', title: '产物', slot: 'bottom', order: 20, render: ArtifactsTab },
   { id: 'inspector.summary', title: '汇总', slot: 'bottom', order: 30, render: SummaryTab },
   { id: 'inspector.cost', title: '花费', slot: 'bottom', order: 40, render: CostTab },
+  { id: 'inspector.memory', title: '记忆', slot: 'bottom', order: 45, render: MemoryTab },
   { id: 'inspector.settings', title: '设置', slot: 'bottom', order: 50, render: SettingsTab },
 ];

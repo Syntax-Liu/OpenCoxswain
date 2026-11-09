@@ -304,6 +304,52 @@ label.choice input {
   background: rgba(255, 112, 112, 0.08);
 }
 
+.memory-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.memory-list,
+.memory-issues {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.memory-list li,
+.memory-issues li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  font-size: 12px;
+}
+
+.memory-kind {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft, rgba(90, 130, 255, 0.18));
+  font-size: 11px;
+}
+
+.memory-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.memory-issues .warn {
+  color: var(--warn, #c9821c);
+}
+
 .runtime.warn {
   color: var(--warn, #f2c66d);
   border-color: rgba(242, 198, 109, 0.35);

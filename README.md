@@ -51,7 +51,7 @@ docs/
   super-agent-adoption.md
 ```
 
-## 当前能力（v0.11.0）
+## 当前能力（v0.12.0）
 
 已实现：
 
@@ -80,6 +80,10 @@ docs/
 - 孤儿 worktree 清理：重启恢复时只清理 `done` / `cancelled` 任务的 worktree；`failed` / `blocked` 保留现场供排查，清理失败落 `worktree.remove_failed`。
 - DAG 可视化：任务树按依赖拓扑分层，同层可并行，`status-*` 直接反映 blocked / failed / running，子任务失败时就地显示重派入口。
 - 待决策收件箱：左栏聚合待审批、失败/阻塞子任务、根任务待开工与待验收事项，每条都能直接操作（批准 / 退回 / 重试 / 取消 / 重派）。
+- 记忆层：`packages/memory` 以 SQLite（FTS5）为唯一事实来源，中文按二元组切分索引，检索为关键词覆盖率 + 时间衰减混合排序；Markdown 快照导出到 `memory/`（`user_profile.md` / `decisions.md` / `lessons.md`，项目级 `projects/<id>/`），文件头标注自动生成。
+- 写入门槛：记忆必须带来源，拒绝临时指令（「这次…」）、疑似密钥与过短内容；同键新结论自动取代旧记忆，旧记录不再参与检索；重复内容直接去重。
+- 记忆消费：LLM Planner 提示词注入命中的记忆；总管在任务单消息中固定输出「我参考了这些记忆」并落 `memory.used` 事件；创建项目时轻量识别技术栈写入项目记忆（只读标记文件，不执行命令）。
+- 记忆检查器：`GET /api/memory/check` 报告重复、无来源、疑似密钥、同键冲突与一年未使用的陈旧记忆；工作台「记忆」页可搜索、手动新增与删除。
 - 逐条验收：`POST /api/tasks/:id/acceptance` 要求每个未通过验收项单独给结论和理由，缺结论返回 409、缺理由返回 400；不再有「一键全部通过」入口。
 - 验收留痕：evidence 与 acceptance_records 落库，记录交付物、证据摘要、验收标准、验收人（系统/人）与结论，可回放。
 - 阶段视图：`GET /api/tasks?stage=person|working|idle` 与工作台「在等谁」标签，明确当前是等人、等依赖还是执行中。
@@ -93,7 +97,7 @@ docs/
 未实现（按计划在后续阶段接入）：
 
 - Tauri 2 桌面壳与安装包。
-- 记忆层、多项目、IM 入口。
+- 多项目、IM 入口、产物 diff 逐文件审阅、任务模板、首次引导。
 
 ## 运行时与 Planner 配置
 

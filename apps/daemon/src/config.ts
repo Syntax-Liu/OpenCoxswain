@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.9.0';
+export const APP_VERSION = '0.12.0';
 
 export type DaemonConfig = OpenCoxswainConfig;
 
@@ -27,6 +27,7 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
     dbPath: overrides.dbPath ?? path.join(homeDir, 'opencoxswain.db'),
     worktreesDir: overrides.worktreesDir ?? path.join(homeDir, 'worktrees'),
     artifactsDir: overrides.artifactsDir ?? path.join(homeDir, 'artifacts'),
+    memoryDir: overrides.memoryDir ?? path.join(homeDir, 'memory'),
     pluginsDir:
       overrides.pluginsDir ??
       process.env.OPENCOXSWAIN_PLUGINS ??

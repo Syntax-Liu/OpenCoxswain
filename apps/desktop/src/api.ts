@@ -3,6 +3,11 @@ import type {
   Assistant,
   CreatePlanRequest,
   CreateProjectRequest,
+  MemoryCandidate,
+  MemoryEntry,
+  MemoryMatch,
+  MemoryReport,
+  MemoryWriteResult,
   Project,
   RoleName,
   Task,
@@ -42,6 +47,26 @@ export const api = {
   snapshot(projectId?: string): Promise<WorkbenchSnapshot> {
     const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
     return request<WorkbenchSnapshot>(`/api/bootstrap${query}`);
+  },
+
+  memory(
+    projectId: string,
+  ): Promise<{ report: MemoryReport; entries: MemoryEntry[] }> {
+    return request(`/api/memory?projectId=${encodeURIComponent(projectId)}`);
+  },
+
+  memorySearch(projectId: string, q: string): Promise<{ matches: MemoryMatch[] }> {
+    return request(
+      `/api/memory?projectId=${encodeURIComponent(projectId)}&q=${encodeURIComponent(q)}`,
+    );
+  },
+
+  rememberMemory(body: MemoryCandidate): Promise<MemoryWriteResult> {
+    return request('/api/memory', { method: 'POST', body: JSON.stringify(body) });
+  },
+
+  removeMemory(id: string): Promise<{ ok: boolean }> {
+    return request(`/api/memory/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 
   createProject(body: CreateProjectRequest): Promise<Project> {

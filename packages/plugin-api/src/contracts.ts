@@ -15,6 +15,12 @@ import type {
   EventRecord,
   Evidence,
   Message,
+  MemoryCandidate,
+  MemoryEntry,
+  MemoryMatch,
+  MemoryReport,
+  MemoryStats,
+  MemoryWriteResult,
   PlannerStatus,
   Project,
   DeliverableProfile,
@@ -82,6 +88,9 @@ export type Permission =
   | 'supervisor:provide'
   | 'mandate:read'
   | 'mandate:issue'
+  | 'memory:read'
+  | 'memory:write'
+  | 'memory:provide'
   | 'ui:panel';
 
 export interface OpenCoxswainConfig {
@@ -92,6 +101,8 @@ export interface OpenCoxswainConfig {
   dbPath: string;
   worktreesDir: string;
   artifactsDir: string;
+  /** 记忆库目录：SQLite 数据库与导出的 Markdown 快照。 */
+  memoryDir: string;
   pluginsDir: string;
   maxConcurrency: number;
   /** 任务默认运行时（mock / opencode）。 */
@@ -320,6 +331,19 @@ export interface PlannerService {
   status(): PlannerStatus | Promise<PlannerStatus>;
 }
 
+/**
+ * 记忆库：写入经过门槛校验，检索为关键词 + 时间衰减混合排序。
+ * SQLite 为唯一事实来源，Markdown 只是导出快照。
+ */
+export interface MemoryService {
+  remember(candidate: MemoryCandidate): MemoryWriteResult;
+  recall(query: string, options?: { projectId?: string | null; limit?: number }): MemoryMatch[];
+  list(projectId?: string | null): MemoryEntry[];
+  remove(id: string): boolean;
+  report(projectId?: string | null): MemoryReport;
+  stats(projectId?: string | null): MemoryStats;
+}
+
 export type SecretSource = 'vault' | 'env' | 'none';
 
 /**
@@ -419,6 +443,7 @@ export interface ServiceMap {
   verification: VerificationService;
   supervisor: SupervisionService;
   planner: PlannerService;
+  memory: MemoryService;
   scheduler: SchedulerService;
   steward: StewardService;
   secrets: SecretsService;

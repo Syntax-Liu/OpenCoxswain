@@ -49,6 +49,10 @@ const SERVICE_RULES: Record<
     provider: ['supervisor:provide'],
   },
   planner: { required: ['planner:use'], provider: ['planner:use'] },
+  memory: {
+    required: ['memory:read'],
+    provider: ['memory:provide', 'memory:read', 'memory:write', 'fs:data'],
+  },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },
   secrets: {
