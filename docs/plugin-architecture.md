@@ -105,7 +105,7 @@ interface PluginContext {
 | `storage` | SQLite 持久化 | `storage.sqlite` | `storage:read`、`storage:write` |
 | `worktrees` | 创建/删除任务 worktree | `worktree.git` | `fs:worktree`、`process:spawn` |
 | `runtimes` | 运行时注册表与健康检查 | `runtime.registry` | `runtime:use` |
-| `planner` | 目标 → 任务契约 | `planner.static`（P1 再加 `planner.llm`） | `planner:use` |
+| `planner` | 目标 → 任务契约 | `planner.llm`（无 Key 时回退静态引擎） | `planner:use` |
 | `scheduler` | 派发、暂停、恢复、终止 | `scheduler` | `scheduler:control` |
 | `steward` | 总管编排与快照 | `steward` | `steward:call` |
 | `http` | 路由注册、监听、关闭 | `transport.http` | `http:route` |
@@ -180,7 +180,8 @@ P1 插件与内核同进程运行，Node 原生模块无法被语言层真正拦
 | `worktree.ts` + `git.ts` | `worktree.git` | `worktrees` | `config` | `fs:worktree`、`process:spawn` |
 | 新 | `runtime.registry` | `runtimes` | — | `runtime:provide` |
 | `MockRuntimeAdapter` | `runtime.mock` | — | `runtimes` | `runtime:use`、`runtime:provide`、`fs:worktree`、`process:spawn` |
-| `planner.ts` 静态实现 | `planner.static` | `planner` | — | `planner:use` |
+| `OpenCodeRuntimeAdapter` | `runtime.opencode` | — | `runtimes` | `runtime:use`、`runtime:provide`、`fs:worktree`、`process:spawn` |
+| `planner.ts` 静态引擎 | `planner.llm`（有 Key 调 LLM，否则用同一引擎静态拆分） | `planner` | `config`、`events` | `planner:use`、`events:publish` |
 | `scheduler.ts` | `scheduler` | `scheduler` | `storage`、`events`、`config`、`runtimes`、`worktrees` | `scheduler:control`、`storage:read/write`、`events:publish`、`runtime:use`、`fs:worktree`、`process:spawn` |
 | `steward.ts` | `steward` | `steward` | `storage`、`events`、`planner`、`scheduler`、`runtimes` | `steward:call`、`storage:read/write`、`events:publish`、`planner:use`、`scheduler:control`、`runtime:use` |
 | `server.ts` 的 HTTP 壳 | `transport.http` | `http` | `config`、`events` | `net:listen`、`http:route` |
@@ -223,7 +224,7 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 1. `loadConfig()`。
 2. 创建内核，注册 `config`、`events`。
 3. 读取内置清单 + 外部 `plugin.json`，合并、校验、拓扑排序。
-4. 依次加载：`storage.sqlite` → `worktree.git` → `runtime.registry` → `runtime.mock` → `planner.static` → `scheduler` → `steward` → `transport.http` → `api.rest` → `transport.sse`。
+4. 依次加载：`storage.sqlite` → `worktree.git` → `runtime.registry` → `runtime.mock` → `runtime.opencode` → `planner.llm` → `scheduler` → `steward` → `transport.http` → `api.rest` → `transport.sse`。
 5. `kernel.start()`：并行触发 `kernel.ready`；调度器启动、HTTP 监听。
 6. `startDaemon()` 返回 `{ config, port, close }`。
 
@@ -257,8 +258,15 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 内核单测覆盖拓扑排序、缺失依赖、权限拒绝、回滚卸载、重复服务与清单覆盖；`pnpm test`、`pnpm e2e` 通过。
 3. 桌面端 `UiRegistry` + `WorkbenchProvider` 落地，三栏与五个检查器标签均通过同一个 `register` 加载。
 
-下一步（v0.3.0）：
+已完成（v0.3.0）：
 
-1. OpenCode Windows spike：确认安装、headless 调用、事件流、权限模式与 Windows 兼容性。
-2. `runtime.opencode` 插件：把 OpenCode 的事件映射到 `RuntimeAdapter`。
-3. `planner.llm` 插件：BYOK，至少支持 OpenAI 兼容与 DeepSeek 官方端点；无 Key 时回退 `planner.static`。
+1. OpenCode Windows spike 完结，结论与替代路线见 [spike-opencode.md](spike-opencode.md)。
+2. `runtime.opencode` 插件接入桌面版 CLI；与 `runtime.mock` 走同一个注册契约，无内建分支。
+3. `planner.llm` 替换 `planner.static`：有 Key 走 OpenAI 兼容端点，无 Key / 超时 / 解析失败回退同一静态引擎；`PlannerService.plan` 允许异步。
+4. 新增配置项 `defaultRuntime`、`defaultModel`、`opencodeBin`；`pnpm test`、`pnpm e2e`、`pnpm e2e:opencode` 均通过。
+
+下一步（P2）：
+
+1. 真实模型成本入账、预算硬停与危险动作人审。
+2. 密钥迁移到 Windows Credential Manager / DPAPI。
+3. 进程级插件隔离与 Tauri 2 桌面壳。

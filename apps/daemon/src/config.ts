@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.3.0';
 
 export type DaemonConfig = OpenCoxswainConfig;
 
@@ -33,5 +33,10 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
       path.join(homeDir, 'plugins'),
     maxConcurrency:
       Number.isFinite(maxConcurrency) && maxConcurrency > 0 ? maxConcurrency : 2,
+    defaultRuntime:
+      (overrides.defaultRuntime ?? process.env.OPENCOXSWAIN_DEFAULT_RUNTIME ?? 'mock').trim() ||
+      'mock',
+    defaultModel: (overrides.defaultModel ?? process.env.OPENCOXSWAIN_DEFAULT_MODEL ?? '').trim(),
+    opencodeBin: (overrides.opencodeBin ?? process.env.OPENCOXSWAIN_OPENCODE_BIN ?? '').trim(),
   };
 }

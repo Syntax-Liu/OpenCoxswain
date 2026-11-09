@@ -330,7 +330,7 @@ export class Scheduler {
         taskId: task.id,
         worktree: worker.worktreePath,
         role: ROLE_TEMPLATES[worker.role],
-        model: modelConfig(worker.model),
+        model: modelConfig(worker.runtime, worker.model),
         approvalPolicy: APPROVAL_POLICY,
         env: { OPENCOXSWAIN_ARTIFACTS_DIR: this.config.artifactsDir },
       });
@@ -477,9 +477,9 @@ function isReadOnly(task: Task): boolean {
   return role === 'verifier' || role === 'researcher';
 }
 
-function modelConfig(model: string): ModelConfig {
+function modelConfig(runtime: string, model: string): ModelConfig {
   return {
-    provider: 'mock',
+    provider: runtime,
     model,
     apiKeyRef: 'none',
     maxTokens: 32_000,

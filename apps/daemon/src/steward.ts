@@ -151,7 +151,7 @@ export class Steward implements StewardService {
       throw new AppError('已有进行中的任务，请先完成或取消', 409);
     }
 
-    const plan = this.planner.plan(project, request);
+    const plan = await this.planner.plan(project, request);
     const createdAt = now();
 
     const root: Task = {

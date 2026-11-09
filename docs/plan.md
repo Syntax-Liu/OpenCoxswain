@@ -20,16 +20,16 @@
 
 | 层 | 选型 | 实施说明 |
 | --- | --- | --- |
-| 桌面壳 | Tauri 2 | Phase 2 接入并构建；本机暂无 Rust/MSVC 工具链，Phase 1 先用浏览器验证同一套 React 工作台。 |
+| 桌面壳 | Tauri 2 | 放在最后一阶段接入并构建；本机暂无 Rust/MSVC 工具链，P1/P2 先用浏览器验证同一套 React 工作台。 |
 | UI | React 18 + TypeScript + Vite | 不引入组件库，工作台样式手写 CSS，避免额外依赖。 |
 | 本地 Daemon | Node 22 + TypeScript | `engines >= 22`；当前验证环境为 Node 24 LTS，仅使用 Node 22 已支持的 API。 |
 | 数据库 | SQLite + FTS5 | 使用 Node 内置 `node:sqlite`（Node 22.5+），零原生依赖；已实测 FTS5 可用。 |
 | HTTP/事件 | `node:http` + SSE | PRD 允许 WebSocket/SSE；v0 用 SSE，单向事件流足够。 |
-| 运行时 | OpenCode（首发） | Phase 1 用 `MockRuntimeAdapter` 跑通闭环；Phase 2 做 OpenCode Windows spike，失败则回退 CLI 包装。 |
+| 运行时 | OpenCode（首发） | v0.3.0 已接入桌面版 CLI（`runtime.opencode`，`run --standalone --format json`）；Mock 保留为测试替身。见 [spike-opencode.md](spike-opencode.md)。 |
 | 包管理 | pnpm workspace | 与 PRD CI 一致；monorepo。 |
 | 测试 | `node:test` | 不引入测试框架，降低依赖。 |
 | 校验 | 手写契约校验器 | 按 PRD 附录字段逐项校验，不引入 JSON Schema 运行时依赖。 |
-| 密钥 | Windows Credential Manager / DPAPI | Phase 2 随真实模型接入实现；v0 不落任何明文密钥。 |
+| 密钥 | Windows Credential Manager / DPAPI | v0.3.0 先走环境变量 BYOK，不落明文；P2 迁移到 Credential Manager。 |
 | 打包 | NSIS / MSI + Tauri Updater | Phase 2 之后。 |
 
 ## 3. 模块划分
@@ -69,7 +69,7 @@ docs/
   - SQLite 迁移与仓储（projects/tasks/task_edges/workers/runs/events/artifacts/approvals/budgets/model_calls/messages）。
   - Worktree 管理：`git worktree add/remove`，中文/空格路径按参数数组传参，文件锁重试。
   - 调度器：依赖就绪、并发上限（默认 2）、写域互斥、预算检查、状态推进。
-  - 总管服务：计划生成（Phase 1 为静态/启发式 Planner，Phase 2 接 LLM）、审批、汇总、事件广播。
+  - 总管服务：计划生成（v0.3.0 起 `planner.llm` 可调真实模型，无 Key/失败时回退静态引擎）、审批、汇总、事件广播。
   - HTTP API + SSE；只监听 loopback。
 - **desktop**：三栏工作台（项目/任务树、总管对话、员工看板）+ 底部时间线/产物/汇总/花费；首次使用引导。
 
@@ -93,9 +93,9 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 ### P1：插件化内核 + 真实执行体（M0 + M1 前半）
 
 - 插件架构落地（已完成，v0.2.0）：按 [plugin-architecture.md](plugin-architecture.md) 把 Mock 运行时、静态 Planner、调度器、总管、存储、worktree、HTTP/SSE、REST API 与工作台面板改为插件；内核只保留生命周期、事件总线、权限与状态机；e2e 全流程保持通过。
-- OpenCode Windows spike：`opencode serve`/SDK 与 CLI 两条路线，记录稳定性结论。
-- 实现 `OpenCodeRuntimeAdapter` 插件，保留 Mock 作为测试替身。
-- 接入 LLM Planner（OpenAI 兼容、BYO Key），Key 走 Credential Manager/DPAPI；无 Key 时回退静态 Planner。
+- OpenCode Windows spike（已完成，v0.3.0）：桌面版 2.2.6 CLI 的 `run --standalone --format json` 路线实测可用，无需用户 Key；结论与坑记录在 [spike-opencode.md](spike-opencode.md)。
+- 实现 `OpenCodeRuntimeAdapter` 插件（已完成，v0.3.0）：`runtime.opencode` 与 Mock 同路径注册；JSONL 映射到 `RuntimeEvent`，每会话隔离 XDG 目录，进程树可终止。
+- 接入 LLM Planner（已完成，v0.3.0）：`planner.llm` 使用 OpenAI 兼容端点（默认 DeepSeek），BYO Key 走环境变量；无 Key、超时或解析失败自动回退静态拆分。Key 存入 Credential Manager/DPAPI 仍待 P2。
 - 跑通真实仓库的「修夜间模式」剧本；补危险动作人审（delete/push/publish/pay/external_send）。
 - Windows 专项：中文/空格路径、长路径、worktree 清理、进程清理。
 - Tauri 2 桌面壳放在 P1 最后一步：本机暂无 Rust/MSVC 时不阻塞上述工作，浏览器继续验证同一套 React 工作台。
@@ -182,8 +182,8 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 | 1 | v0 摘要写 2–4 个子任务，功能表写 2–5 | 通用上限按 2–5；v0 剧本按 2–4 演示。 |
 | 2 | PRD 指定 Node 22，本机 winget 仅提供 Node 24 | `engines >= 22`，只使用 Node 22 已有 API；不改变技术选型。 |
 | 3 | v0 明确不做记忆，但总管白名单含记忆工具 | v0 只注册 5 个执行类工具；记忆工具随 P3 注册，不做空壳。 |
-| 4 | OpenCode 首发，但本机未安装且无 Rust/MSVC | P0 用 Mock 适配器验证闭环与接口；P1 做 OpenCode spike 与 Tauri 构建。 |
-| 5 | 总管需要 LLM，但 P0 无可用 Key | P0 用 `StaticPlanner`（用户给出的子任务）+ `HeuristicPlanner` 兜底；Planner 接口预留，P1 接 LLM。 |
+| 4 | OpenCode 首发，但本机未安装且无 Rust/MSVC | P0 用 Mock 适配器验证闭环与接口；v0.3.0 已用桌面版 CLI 完成 spike 与适配；Tauri 构建放到最后阶段。 |
+| 5 | 总管需要 LLM，但无可用 Key | 无 Key 时 `planner.llm` 内部回退静态拆分；有 Key 时才发生费用。 |
 | 6 | 许可证 PRD 标注「建议，待最终确认」 | 暂按 Apache-2.0 放置 LICENSE，保留最终确认项。 |
 | 7 | 日预算、合并/冲突在 v0 清单中未逐条展开 | 日预算 P0 做最小实现；顺序合并与冲突转人审放 P2。 |
 | 8 | `docs/adr/`、CONTRIBUTING 等开源文档 | 随 P1 发布流程补齐；P0 只保留 README，避免空文档。 |
@@ -192,12 +192,13 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 
 - SemVer；v1 前保持 `0.x`。新增功能升 minor，移除功能升 major，修复升 patch。
 - 初始版本 `0.1.0`。
-- 主分支 `main`；每个阶段完成后打 tag（P0 为 `v0.1.0`）。
+- 主分支 `main`；每个阶段完成后打 tag（`v0.1.0` P0、`v0.2.0` 插件化内核、`v0.3.0` OpenCode 运行时 + LLM Planner）。
 
 ## 8. 验证方式
 
 - `pnpm typecheck`：全仓 TypeScript 严格检查。
 - `pnpm test`：core 单元测试 + daemon 集成测试（临时 SQLite + 临时 git 仓库）。
 - `pnpm e2e`：脚本走完 v0 剧本，断言状态、事件、汇总、预算。
+- `pnpm e2e:opencode`：可选的真实链路验证（需要本机 OpenCode CLI）；临时仓库里让真实员工写文件并断言 diff，未安装时跳过。
 - `pnpm dev`：Daemon + Vite 工作台；浏览器人工验证看板与暂停/审批。
 - P1 起增加 Tauri 构建检查与 Windows 专项清单。

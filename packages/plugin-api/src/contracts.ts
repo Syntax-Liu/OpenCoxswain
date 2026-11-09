@@ -64,6 +64,12 @@ export interface OpenCoxswainConfig {
   artifactsDir: string;
   pluginsDir: string;
   maxConcurrency: number;
+  /** 任务默认运行时（mock / opencode）。 */
+  defaultRuntime: string;
+  /** 覆盖默认模型；空字符串表示使用运行时默认模型。 */
+  defaultModel: string;
+  /** OpenCode CLI 显式路径；空字符串表示自动发现。 */
+  opencodeBin: string;
 }
 
 export interface StorageService {
@@ -175,7 +181,7 @@ export interface PlanResult {
 }
 
 export interface PlannerService {
-  plan(project: Project, request: CreatePlanRequest): PlanResult;
+  plan(project: Project, request: CreatePlanRequest): PlanResult | Promise<PlanResult>;
 }
 
 export interface SchedulerService {

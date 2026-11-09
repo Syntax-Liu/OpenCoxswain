@@ -2,7 +2,7 @@
 
 本地优先的 Windows AI 总管。你只对总管说话；总管把目标拆成结构化任务单和 DAG，派给在独立 git worktree 里干活的 AI 员工，盯进度、做验收，最后按固定三块汇报：待你决策 / 未通过的检查 / 交付产物。
 
-当前版本 `0.1.0`，处于实施计划的 P0：可运行纵切与工程骨架。
+当前版本 `0.3.0`，处于实施计划的 P1：插件化内核已就绪，OpenCode 运行时与 LLM Planner 已接入，桌面壳待接入。
 
 ## 快速开始
 
@@ -30,23 +30,27 @@ pnpm dev
 | `pnpm typecheck` | 全仓 TypeScript 严格检查 |
 | `pnpm test` | core 单元测试 + daemon 端到端集成测试 |
 | `pnpm e2e` | 独立跑一遍 v0 剧本并打印进度 |
+| `pnpm e2e:opencode` | 可选：用本机 OpenCode CLI 跑真实员工链路（未安装时跳过） |
 
 ## 目录
 
 ```
 apps/
   daemon/      # 本地核心：HTTP/SSE、SQLite、调度器、总管编排、worktree
-  desktop/     # React 18 + TypeScript + Vite 工作台（P1 加 Tauri 2 壳）
+  desktop/     # React 18 + TypeScript + Vite 工作台（桌面壳在后续阶段接入）
 packages/
   shared/      # ID、时间、领域类型与 API DTO
   core/        # 任务契约、状态机、DAG、预算、汇总、工具白名单
-  adapters/    # RuntimeAdapter 接口 + Mock 运行时
+  adapters/    # RuntimeAdapter 接口 + Mock / OpenCode 适配器
+  plugin-api/  # 插件契约：Manifest、PluginContext、服务表、权限
 docs/
   prd/         # PRD 原文（tex + pdf）
   plan.md      # 分阶段实施计划与取舍
+  plugin-architecture.md
+  spike-opencode.md
 ```
 
-## P0 能力边界
+## 当前能力（v0.3.0）
 
 已实现：
 
@@ -55,18 +59,35 @@ docs/
 - 每任务独立 worktree 与分支；调度器按依赖/并发/写域派发。
 - 审批开工、打回、暂停/继续/终止、验收。
 - Mock 运行时：真实写文件、跑验收命令、产出 diff 与报告，离线可跑。
+- OpenCode 运行时：调用桌面版 CLI 执行真实任务，JSONL 事件映射、会话隔离、进程树终止。
+- LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分。
 - 浏览器工作台：对话、任务树、员工看板、时间线、产物、汇总、花费、设置。
 
-未实现（按计划在 P1+ 接入）：
+未实现（按计划在 P2+ 接入）：
 
-- OpenCode 运行时、LLM Planner、真实模型 BYOK。
 - Tauri 2 桌面壳与安装包。
 - 记忆层、多项目、IM 入口。
+- 密钥托管（Credential Manager / DPAPI）与危险动作人审。
+
+## 运行时与 Planner 配置
+
+| 环境变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `OPENCOXSWAIN_DEFAULT_RUNTIME` | `mock` | 任务默认可执行体：`mock` / `opencode` |
+| `OPENCOXSWAIN_OPENCODE_BIN` | 自动发现 | OpenCode CLI 路径；默认找桌面版 `opencode-cli.exe` |
+| `OPENCOXSWAIN_DEFAULT_MODEL` | 空 | 覆盖角色默认模型，如 `provider/model` |
+| `OPENCOXSWAIN_LLM_API_KEY` / `DEEPSEEK_API_KEY` | 空 | Planner 的 API Key；为空时静态拆分 |
+| `OPENCOXSWAIN_LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
+| `OPENCOXSWAIN_LLM_MODEL` | `deepseek-chat` | Planner 模型 |
+
+OpenCode 桌面版 CLI 的实测结论、坑与替代路线见 [docs/spike-opencode.md](docs/spike-opencode.md)。
 
 ## 文档
 
 - [PRD 原文](docs/prd/OpenCoxswain-PRD.tex)
 - [实施计划](docs/plan.md)
+- [插件架构](docs/plugin-architecture.md)
+- [OpenCode Spike](docs/spike-opencode.md)
 
 ## 许可证
 

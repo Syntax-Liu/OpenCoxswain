@@ -42,7 +42,16 @@ function defaultDeliverables(role: RoleName, scope?: string): Deliverable[] {
   }
 }
 
+export interface PlannerOptions {
+  /** 任务派发使用的运行时，默认 mock。 */
+  runtime?: string;
+  /** 覆盖角色默认模型；为空时 mock 使用 mock-<role>，其他运行时使用其默认模型。 */
+  model?: string;
+}
+
 export class Planner {
+  constructor(private readonly options: PlannerOptions = {}) {}
+
   plan(project: Project, request: CreatePlanRequest): PlanResult {
     const goal = request.goal?.trim();
     if (!goal) throw new Error('goal 不能为空');
@@ -204,8 +213,8 @@ export class Planner {
       write_scope: writeScope,
       assignee: {
         role: draft.role,
-        runtime: 'mock',
-        model: `mock-${draft.role}`,
+        runtime: this.options.runtime ?? 'mock',
+        model: this.modelFor(draft.role),
       },
       budget,
       review: {
@@ -213,6 +222,12 @@ export class Planner {
         reviewer_role: 'verifier',
       },
     };
+  }
+
+  private modelFor(role: RoleName): string {
+    const override = this.options.model?.trim();
+    if (override) return override;
+    return (this.options.runtime ?? 'mock') === 'mock' ? `mock-${role}` : '';
   }
 
   private mergeDeliverables(children: TaskContract[]): Deliverable[] {

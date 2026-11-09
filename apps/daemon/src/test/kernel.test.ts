@@ -39,6 +39,9 @@ function configFor(homeDir: string): OpenCoxswainConfig {
     artifactsDir: path.join(homeDir, 'artifacts'),
     pluginsDir: path.join(homeDir, 'plugins'),
     maxConcurrency: 1,
+    defaultRuntime: 'mock',
+    defaultModel: '',
+    opencodeBin: '',
   };
 }
 
