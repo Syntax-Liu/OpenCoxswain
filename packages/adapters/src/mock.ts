@@ -16,6 +16,7 @@ import type {
   RuntimeSession,
   SessionOptions,
 } from './adapter.js';
+import { classifyAction } from './guard.js';
 import {
   collectArtifacts,
   commitChanges,
@@ -24,8 +25,14 @@ import {
   judgeCriterion,
 } from './tooling.js';
 
+interface MockAction {
+  tool: string;
+  input?: unknown;
+}
+
 interface MockInput {
   files?: Array<{ path: string; content: string }>;
+  actions?: MockAction[];
   command?: string;
   fail?: boolean;
   cost?: Partial<CostLedger>;
@@ -55,7 +62,8 @@ function delay(ms: number): Promise<void> {
 /** 离线可跑的运行时替身：真实 worktree 写文件、跑命令、产出 diff。 */
 export class MockRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'mock';
-  readonly version = '0.3.0';
+  readonly version = '0.4.0';
+  readonly supportsApprovalGate = true;
 
   private readonly sessions = new Map<string, MockSession>();
   private readonly commandTimeoutMs: number;
@@ -138,6 +146,75 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
       return;
     }
 
+    const totalCost = this.costFor(input);
+    const files = input?.files ?? [];
+    const parts = files.length + 1;
+    let costIndex = 0;
+    let emittedCost: CostLedger = { tokensIn: 0, tokensOut: 0, usd: 0, minutes: 0 };
+    const nextCost = (): CostLedger => {
+      costIndex += 1;
+      const last = costIndex >= parts;
+      const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
+      const round2 = (value: number): number => Math.round(value * 100) / 100;
+      const slice: CostLedger = last
+        ? {
+            tokensIn: totalCost.tokensIn - emittedCost.tokensIn,
+            tokensOut: totalCost.tokensOut - emittedCost.tokensOut,
+            usd: round4(totalCost.usd - emittedCost.usd),
+            minutes: round2(totalCost.minutes - emittedCost.minutes),
+          }
+        : {
+            tokensIn: Math.round(totalCost.tokensIn / parts),
+            tokensOut: Math.round(totalCost.tokensOut / parts),
+            usd: round4(totalCost.usd / parts),
+            minutes: round2(totalCost.minutes / parts),
+          };
+      emittedCost = {
+        tokensIn: emittedCost.tokensIn + slice.tokensIn,
+        tokensOut: emittedCost.tokensOut + slice.tokensOut,
+        usd: round4(emittedCost.usd + slice.usd),
+        minutes: round2(emittedCost.minutes + slice.minutes),
+      };
+      return slice;
+    };
+
+    yield await emit({ type: 'cost', at: now(), cost: nextCost() });
+
+    for (const action of input?.actions ?? []) {
+      await this.waitWhilePaused(session);
+      if (session.cancelled) return;
+      yield await emit({ type: 'tool_call', at: now(), tool: action.tool, input: action.input ?? null });
+      const category = classifyAction(action.tool, action.input);
+      if (category && session.options.gate) {
+        const decision = await session.options.gate.request({
+          tool: action.tool,
+          input: action.input ?? null,
+          category,
+        });
+        if (decision === 'rejected') {
+          yield await emit({
+            type: 'tool_result',
+            at: now(),
+            tool: action.tool,
+            output: { ok: false, rejected: true },
+          });
+          yield await emit({
+            type: 'error',
+            at: now(),
+            message: `危险动作被拒绝：${action.tool}（${category}）`,
+            retryable: false,
+          });
+          return;
+        }
+      }
+      yield await emit({
+        type: 'tool_result',
+        at: now(),
+        tool: action.tool,
+        output: { ok: true, simulated: true },
+      });
+    }
+
     if (session.options.role.readOnly) {
       yield await emit({
         type: 'message',
@@ -145,7 +222,7 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
         text: `${session.options.role.name} 以只读方式运行，不修改 worktree。`,
       });
     } else {
-      for (const file of input?.files ?? []) {
+      for (const file of files) {
         await this.waitWhilePaused(session);
         if (session.cancelled) return;
         const targetPath = path.resolve(session.worktree, file.path);
@@ -162,6 +239,7 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
         await mkdir(path.dirname(targetPath), { recursive: true });
         await writeFile(targetPath, file.content, 'utf8');
         yield await emit({ type: 'tool_result', at: now(), tool: 'file_write', output: { ok: true } });
+        yield await emit({ type: 'cost', at: now(), cost: nextCost() });
       }
       const committed = await commitChanges(session.worktree, `opencoxswain: ${task.title}`);
       if (committed) {

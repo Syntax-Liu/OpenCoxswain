@@ -29,7 +29,7 @@
 | 包管理 | pnpm workspace | 与 PRD CI 一致；monorepo。 |
 | 测试 | `node:test` | 不引入测试框架，降低依赖。 |
 | 校验 | 手写契约校验器 | 按 PRD 附录字段逐项校验，不引入 JSON Schema 运行时依赖。 |
-| 密钥 | Windows Credential Manager / DPAPI | v0.3.0 先走环境变量 BYOK，不落明文；P2 迁移到 Credential Manager。 |
+| 密钥 | Windows Credential Manager / DPAPI | v0.4.0 已接入 `secrets.dpapi` 插件：按当前用户 DPAPI 加密落盘，读取优先仓库、回退环境变量；`cmdkey` 无法读回密钥，故未采用 Credential Manager。 |
 | 打包 | NSIS / MSI + Tauri Updater | Phase 2 之后。 |
 
 ## 3. 模块划分
@@ -95,8 +95,8 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 插件架构落地（已完成，v0.2.0）：按 [plugin-architecture.md](plugin-architecture.md) 把 Mock 运行时、静态 Planner、调度器、总管、存储、worktree、HTTP/SSE、REST API 与工作台面板改为插件；内核只保留生命周期、事件总线、权限与状态机；e2e 全流程保持通过。
 - OpenCode Windows spike（已完成，v0.3.0）：桌面版 2.2.6 CLI 的 `run --standalone --format json` 路线实测可用，无需用户 Key；结论与坑记录在 [spike-opencode.md](spike-opencode.md)。
 - 实现 `OpenCodeRuntimeAdapter` 插件（已完成，v0.3.0）：`runtime.opencode` 与 Mock 同路径注册；JSONL 映射到 `RuntimeEvent`，每会话隔离 XDG 目录，进程树可终止。
-- 接入 LLM Planner（已完成，v0.3.0）：`planner.llm` 使用 OpenAI 兼容端点（默认 DeepSeek），BYO Key 走环境变量；无 Key、超时或解析失败自动回退静态拆分。Key 存入 Credential Manager/DPAPI 仍待 P2。
-- 跑通真实仓库的「修夜间模式」剧本；补危险动作人审（delete/push/publish/pay/external_send）。
+- 接入 LLM Planner（已完成，v0.3.0）：`planner.llm` 使用 OpenAI 兼容端点（默认 DeepSeek），BYO Key；无 Key、超时或解析失败自动回退静态拆分。v0.4.0 起 Key 优先从 DPAPI 仓库读取，环境变量仅作回退。
+- 跑通真实仓库的「修夜间模式」剧本；危险动作人审（delete/push/publish/pay/external_send）已完成，见 v0.4.0。
 - Windows 专项：中文/空格路径、长路径、worktree 清理、进程清理。
 - Tauri 2 桌面壳放在 P1 最后一步：本机暂无 Rust/MSVC 时不阻塞上述工作，浏览器继续验证同一套 React 工作台。
 
@@ -104,6 +104,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 
 ### P2：v0 收口与内测（M1 后半 + M2）
 
+- 安全护栏（已完成，v0.4.0）：运行时成本实时累计，任务/项目日预算超限立即取消会话、冻结任务并产出「待你决策」；delete / push / publish / pay / external_send 建审批记录并冻结会话，批准后继续或重新排队；`secrets.dpapi` 托管 LLM Key。
 - DAG 2–5 子任务、写域冲突、顺序合并、冲突转人审。
 - 暂停/终止/接管、失败重试矩阵（原员工重试 → 换强模型 → 拆任务 → 问人）。
 - 日预算、成本报表、回放导出、崩溃恢复。
@@ -152,7 +153,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 全局并发默认 2，可配置；超限排队。
 - 写域重叠的任务不并行；未声明写域视为与所有写任务冲突。
 - 校验员只读，不参与写域互斥。
-- 预算 70% 记警告事件，100% 硬停并转 `blocked`。
+- 预算 70% 记警告事件，100% 硬停：v0.4.0 起在运行中按 `cost` 事件实时累计，超限立即取消会话、转 `blocked` 并产出待决策消息；项目日预算同样在 tick 中实时核对并中止活跃会话。
 
 ### 5.4 总管工具白名单
 
@@ -166,8 +167,11 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 ### 5.6 人审与预算
 
 - 危险动作（删除、push、发布、付款、外发、安装系统级依赖）一律建 `approvals` 记录，阻塞等待。
-- 单任务预算硬上限 + 项目日预算；成本按 `model_calls` 汇总。
-- 事件 append-only；所有 API 变更写事件。
+  - 能在执行前挂起的运行时（Mock）通过 `ApprovalGate` 在动作前冻结，批准后原会话继续、拒绝则终止。
+  - 外部进程运行时（OpenCode）无法在执行前阻断：调度器在 `tool_call` 事件边界识别后立即取消会话、冻结任务；批准后任务重新排队，已批准的同名动作自动放行。
+- 单任务预算硬上限 + 项目日预算；成本按 `model_calls` 汇总，运行中按运行时 `cost` 事件实时累计；硬停时先落账已发生成本再中止。
+- 事件 append-only；所有 API 变更写事件。审批通过 `GET /api/bootstrap` 暴露，决策走 `POST /api/approvals/:id/decide`。
+- 密钥：`secrets` 服务优先读 DPAPI 仓库（`<home>/secrets/*.bin`，当前用户加密），未命中回退 `OPENCOXSWAIN_LLM_API_KEY` / `DEEPSEEK_API_KEY`；HTTP 只暴露来源，不返回密钥。
 
 ### 5.7 Worktree
 
@@ -192,7 +196,7 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 
 - SemVer；v1 前保持 `0.x`。新增功能升 minor，移除功能升 major，修复升 patch。
 - 初始版本 `0.1.0`。
-- 主分支 `main`；每个阶段完成后打 tag（`v0.1.0` P0、`v0.2.0` 插件化内核、`v0.3.0` OpenCode 运行时 + LLM Planner）。
+- 主分支 `main`；每个阶段完成后打 tag（`v0.1.0` P0、`v0.2.0` 插件化内核、`v0.3.0` OpenCode 运行时 + LLM Planner、`v0.4.0` 预算硬停 + 危险动作人审 + DPAPI 密钥托管）。
 
 ## 8. 验证方式
 
@@ -200,5 +204,6 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 - `pnpm test`：core 单元测试 + daemon 集成测试（临时 SQLite + 临时 git 仓库）。
 - `pnpm e2e`：脚本走完 v0 剧本，断言状态、事件、汇总、预算。
 - `pnpm e2e:opencode`：可选的真实链路验证（需要本机 OpenCode CLI）；临时仓库里让真实员工写文件并断言 diff，未安装时跳过。
+- 安全护栏测试：`budget.test.ts` 断言运行中超限即停并产出待决策；`approval.test.ts` 断言批准后继续、拒绝后终止；`secrets.test.ts` 断言 DPAPI 密文落盘与环境变量回退。
 - `pnpm dev`：Daemon + Vite 工作台；浏览器人工验证看板与暂停/审批。
 - P1 起增加 Tauri 构建检查与 Windows 专项清单。

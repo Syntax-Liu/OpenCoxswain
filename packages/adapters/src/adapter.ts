@@ -1,9 +1,11 @@
 import type {
   ArtifactRef,
+  CostLedger,
   RoleName,
   TaskContract,
   WorkerResult,
 } from '@opencoxswain/shared';
+import type { ApprovalGate } from './guard.js';
 
 export interface RoleTemplate {
   name: RoleName;
@@ -32,6 +34,8 @@ export interface SessionOptions {
   model: ModelConfig;
   approvalPolicy: ApprovalPolicy;
   env: Record<string, string>;
+  /** 危险动作闸门；支持原生闸门的运行时在动作执行前调用。 */
+  gate?: ApprovalGate;
 }
 
 export interface RuntimeSession {
@@ -54,6 +58,7 @@ export type RuntimeEvent =
   | { type: 'tool_call'; at: number; tool: string; input: unknown }
   | { type: 'tool_result'; at: number; tool: string; output: unknown }
   | { type: 'artifact'; at: number; artifact: ArtifactRef }
+  | { type: 'cost'; at: number; cost: CostLedger }
   | { type: 'progress'; at: number; percent: number; note?: string }
   | { type: 'error'; at: number; message: string; retryable: boolean }
   | { type: 'finished'; at: number; result: WorkerResult };
@@ -61,6 +66,8 @@ export type RuntimeEvent =
 export interface RuntimeAdapter {
   readonly name: string;
   readonly version: string;
+  /** 是否能在动作执行前挂起并等待人审；false 时由调度器在事件边界冻结。 */
+  readonly supportsApprovalGate: boolean;
 
   createSession(opts: SessionOptions): Promise<RuntimeSession>;
   send(session: RuntimeSession, task: TaskContract): AsyncIterable<RuntimeEvent>;

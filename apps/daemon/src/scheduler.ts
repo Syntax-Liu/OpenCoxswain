@@ -10,6 +10,7 @@ import {
   type TransitionActor,
 } from '@opencoxswain/core';
 import type {
+  Approval,
   CostLedger,
   EventRecord,
   Project,
@@ -19,14 +20,18 @@ import type {
   Worker,
   WorkerResult,
 } from '@opencoxswain/shared';
-import { emptyCost } from '@opencoxswain/core';
+import { addCost, emptyCost } from '@opencoxswain/core';
+import { newId } from '@opencoxswain/shared';
 import type {
+  ActionRequest,
+  ApprovalGate,
   ApprovalPolicy,
   ModelConfig,
   RoleTemplate,
   RuntimeAdapter,
   RuntimeSession,
 } from '@opencoxswain/adapters';
+import { actionKey, classifyAction } from '@opencoxswain/adapters';
 import type {
   EventService,
   OpenCoxswainConfig,
@@ -41,6 +46,8 @@ interface ActiveRun {
   adapter: RuntimeAdapter;
   session: RuntimeSession;
   cancelled: boolean;
+  liveCost: CostLedger;
+  warned: boolean;
 }
 
 const ROLE_TEMPLATES: Record<RoleName, RoleTemplate> = {
@@ -93,6 +100,7 @@ export class Scheduler {
   private readonly active = new Map<string, ActiveRun>();
   private readonly dispatching = new Set<string>();
   private readonly budgetNotified = new Set<string>();
+  private readonly taskWarned = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
 
@@ -187,18 +195,13 @@ export class Scheduler {
     }).length;
     if (projectActive >= project.maxConcurrency) return;
 
-    const dailyCost = this.store.sumProjectCostSince(project.id, startOfDay());
+    const dailyCost =
+      this.store.sumProjectCostSince(project.id, startOfDay()) + this.liveProjectCost(project.id);
     if (dailyCost >= project.dailyBudgetUsd) {
       const key = `${project.id}:${startOfDay()}`;
-      if (!this.budgetNotified.has(key)) {
-        this.budgetNotified.add(key);
-        this.emit(null, null, 'budget.exceeded', {
-          projectId: project.id,
-          scope: 'daily',
-          used: dailyCost,
-          limit: project.dailyBudgetUsd,
-        });
-      }
+      const first = !this.budgetNotified.has(key);
+      if (first) this.budgetNotified.add(key);
+      await this.abortProjectRuns(project, dailyCost, first);
       return;
     }
 
@@ -242,6 +245,7 @@ export class Scheduler {
 
       const cost = this.store.sumTaskCost(task.id);
       const budget = evaluateBudget(task.contract.budget, cost);
+      if (budget.status === 'warning') this.warnTaskBudget(task, budget.reasons.join('；'));
       if (budget.status === 'exceeded') {
         this.blockTask(task, budget.reasons.join('；'));
         continue;
@@ -293,7 +297,7 @@ export class Scheduler {
     }
 
     const worker: Worker = {
-      id: `wrk_${task.id.slice(4, 16)}`,
+      id: newId('wrk'),
       taskId: task.id,
       role: assignee.role,
       runtime: assignee.runtime,
@@ -315,16 +319,22 @@ export class Scheduler {
       branch: worker.branch,
       worktree: worker.worktreePath,
     });
-    this.store.insertRun(`run_${worker.id.slice(4, 16)}`, worker.id, 1);
+    const runId = newId('run');
+    this.store.insertRun(runId, worker.id, 1);
 
-    void this.run(task, worker, adapter);
+    void this.run(task, worker, adapter, runId);
   }
 
-  private async run(task: Task, worker: Worker, adapter: RuntimeAdapter): Promise<void> {
+  private async run(
+    task: Task,
+    worker: Worker,
+    adapter: RuntimeAdapter,
+    runId: string,
+  ): Promise<void> {
     let session: RuntimeSession | null = null;
     let result: WorkerResult | null = null;
     let errorMessage: string | null = null;
-    const runId = `run_${worker.id.slice(4, 16)}`;
+    let aborted = false;
     try {
       session = await adapter.createSession({
         taskId: task.id,
@@ -333,6 +343,7 @@ export class Scheduler {
         model: modelConfig(worker.runtime, worker.model),
         approvalPolicy: APPROVAL_POLICY,
         env: { OPENCOXSWAIN_ARTIFACTS_DIR: this.config.artifactsDir },
+        gate: this.createGate(task, worker),
       });
       const run: ActiveRun = {
         taskId: task.id,
@@ -340,6 +351,8 @@ export class Scheduler {
         adapter,
         session,
         cancelled: false,
+        liveCost: emptyCost(),
+        warned: false,
       };
       this.active.set(task.id, run);
       this.store.updateWorker(worker.id, { status: 'running', sessionRef: session.id });
@@ -353,6 +366,42 @@ export class Scheduler {
         }
         this.emit(task.id, worker.id, `runtime.${event.type}`, event);
 
+        if (event.type === 'cost') {
+          run.liveCost = addCost(run.liveCost, event.cost);
+          this.store.updateWorker(worker.id, { cost: run.liveCost });
+          if (await this.enforceTaskBudget(task, worker, run)) {
+            aborted = true;
+            await adapter.cancel(session);
+            break;
+          }
+          continue;
+        }
+
+        if (event.type === 'tool_call' && !adapter.supportsApprovalGate) {
+          const category = classifyAction(event.tool, event.input);
+          if (category && !this.hasApprovedAction(task, event.tool, event.input)) {
+            this.requestApproval(task, worker, {
+              tool: event.tool,
+              input: event.input,
+              category,
+            });
+            this.flushLiveCost(worker, run);
+            await adapter.cancel(session);
+            this.emit(task.id, worker.id, 'worker.frozen', {
+              reason: 'dangerous_action',
+              tool: event.tool,
+              category,
+            });
+            this.fail(
+              task.id,
+              worker.id,
+              `危险动作（${category}）已冻结：批准后任务会重新排队执行。`,
+            );
+            aborted = true;
+            break;
+          }
+        }
+
         if (event.type === 'finished') {
           result = event.result;
           await this.finish(task, worker, event.result);
@@ -365,7 +414,7 @@ export class Scheduler {
         }
       }
 
-      if (!result && !errorMessage) {
+      if (!result && !errorMessage && !aborted && !run.cancelled) {
         errorMessage = '员工结束但没有返回结果';
         this.fail(task.id, worker.id, errorMessage);
       }
@@ -383,6 +432,186 @@ export class Scheduler {
       this.store.finishRun(runId, result, errorMessage);
       this.active.delete(task.id);
       this.dispatching.delete(task.id);
+    }
+  }
+
+  private createGate(task: Task, worker: Worker): ApprovalGate {
+    return {
+      request: async (action) => {
+        if (this.hasApprovedAction(task, action.tool, action.input)) return 'approved';
+        const approval = this.requestApproval(task, worker, action);
+        for (;;) {
+          const current = this.store.getApproval(approval.id);
+          if (!current || current.status === 'rejected') return 'rejected';
+          if (current.status === 'approved') return 'approved';
+          const latest = this.store.getTask(task.id);
+          if (
+            !latest ||
+            latest.status === 'cancelled' ||
+            latest.status === 'failed' ||
+            latest.status === 'blocked'
+          ) {
+            this.store.decideApproval(approval.id, 'rejected', 'system');
+            return 'rejected';
+          }
+          await delay(200);
+        }
+      },
+    };
+  }
+
+  private requestApproval(task: Task, worker: Worker, action: ActionRequest): Approval {
+    const approval = this.store.insertApproval({
+      taskId: task.id,
+      type: `action:${action.category}`,
+      requestedBy: worker.id,
+      payload: { tool: action.tool, input: action.input ?? null, category: action.category },
+    });
+    this.emit(task.id, worker.id, 'approval.requested', {
+      approvalId: approval.id,
+      type: approval.type,
+      tool: action.tool,
+      category: action.category,
+      input: action.input,
+    });
+    this.store.insertMessage({
+      projectId: task.projectId,
+      role: 'assistant',
+      content: [
+        '## 待你决策',
+        `员工「${worker.role}」请求执行危险动作（${action.category}），已冻结等待审批。`,
+        `工具：${action.tool}`,
+        `动作：${describeAction(action.input)}`,
+        `批准后继续执行；拒绝则任务按拒绝处理。审批 ID：${approval.id}`,
+      ].join('\n'),
+    });
+    return approval;
+  }
+
+  private hasApprovedAction(task: Task, tool: string, input: unknown): boolean {
+    const key = actionKey({ tool, input });
+    return this.store
+      .listApprovals(task.projectId)
+      .some(
+        (approval) =>
+          approval.taskId === task.id &&
+          approval.status === 'approved' &&
+          approval.type.startsWith('action:') &&
+          actionKey(
+            approval.payload as unknown as { tool: string; input: unknown },
+          ) === key,
+      );
+  }
+
+  private async enforceTaskBudget(
+    task: Task,
+    worker: Worker,
+    run: ActiveRun,
+  ): Promise<boolean> {
+    const latest = this.store.getTask(task.id);
+    if (!latest || latest.status !== 'running') return false;
+
+    const used = addCost(this.store.sumTaskCost(task.id), run.liveCost);
+    const evaluation = evaluateBudget(task.contract.budget, used);
+    if (evaluation.status === 'warning' && !run.warned) {
+      run.warned = true;
+      this.warnTaskBudget(task, evaluation.reasons.join('；'));
+    }
+    if (evaluation.status !== 'exceeded') return false;
+
+    this.flushLiveCost(worker, run);
+    this.emit(task.id, worker.id, 'budget.exceeded', {
+      scope: 'task',
+      reasons: evaluation.reasons,
+      used,
+      budget: task.contract.budget,
+    });
+    this.store.insertMessage({
+      projectId: task.projectId,
+      role: 'assistant',
+      content: [
+        '## 待你决策',
+        `任务「${task.title}」触发预算硬停，已立即停止执行：`,
+        ...evaluation.reasons.map((reason) => `- ${reason}`),
+        '- 调整任务预算后重新生成任务单，或取消该任务。',
+      ].join('\n'),
+    });
+    if (latest.status === 'running') this.transition(task.id, 'blocked', 'scheduler');
+    this.store.updateWorker(worker.id, { status: 'terminated', cost: run.liveCost });
+    this.emit(task.id, worker.id, 'worker.status', { status: 'terminated' });
+    return true;
+  }
+
+  private flushLiveCost(worker: Worker, run: ActiveRun): void {
+    if (run.liveCost.usd > 0 || run.liveCost.tokensIn > 0 || run.liveCost.tokensOut > 0) {
+      this.store.insertModelCall({
+        workerId: worker.id,
+        model: worker.model,
+        cost: run.liveCost,
+      });
+    }
+    this.store.updateWorker(worker.id, { cost: run.liveCost });
+  }
+
+  private warnTaskBudget(task: Task, reason: string): void {
+    if (this.taskWarned.has(task.id)) return;
+    this.taskWarned.add(task.id);
+    this.emit(task.id, null, 'budget.warning', {
+      scope: 'task',
+      reason,
+      budget: task.contract.budget,
+    });
+  }
+
+  private liveProjectCost(projectId: string): number {
+    let usd = 0;
+    for (const run of this.active.values()) {
+      const task = this.store.getTask(run.taskId);
+      if (task?.projectId === projectId) usd += run.liveCost.usd;
+    }
+    return usd;
+  }
+
+  private async abortProjectRuns(
+    project: Project,
+    dailyCost: number,
+    notify: boolean,
+  ): Promise<void> {
+    const runs = [...this.active.values()].filter(
+      (run) => this.store.getTask(run.taskId)?.projectId === project.id,
+    );
+    if (notify) {
+      this.emit(null, null, 'budget.exceeded', {
+        projectId: project.id,
+        scope: 'daily',
+        used: dailyCost,
+        limit: project.dailyBudgetUsd,
+      });
+    }
+    for (const run of runs) {
+      const task = this.store.getTask(run.taskId);
+      if (!task) continue;
+      run.cancelled = true;
+      await run.adapter.cancel(run.session).catch(() => undefined);
+      const worker = this.store.getWorker(run.workerId);
+      if (worker) this.flushLiveCost(worker, run);
+      this.store.updateWorker(run.workerId, { status: 'terminated' });
+      this.emit(task.id, run.workerId, 'budget.exceeded', {
+        scope: 'daily',
+        used: dailyCost,
+        limit: project.dailyBudgetUsd,
+      });
+      if (task.status === 'running') this.transition(task.id, 'blocked', 'scheduler');
+      this.store.insertMessage({
+        projectId: project.id,
+        role: 'assistant',
+        content: [
+          '## 待你决策',
+          `项目「${project.name}」触发日预算硬停：今日已用 $${dailyCost.toFixed(2)} / 上限 $${project.dailyBudgetUsd.toFixed(2)}。`,
+          `任务「${task.title}」已立即停止执行。`,
+          '- 提高日预算后重新生成任务单，或等预算窗口重置。',
+        ].join('\n'),
+      });
     }
   }
 
@@ -436,6 +665,16 @@ export class Scheduler {
       scope: 'task',
       reason,
       budget: task.contract.budget,
+    });
+    this.store.insertMessage({
+      projectId: task.projectId,
+      role: 'assistant',
+      content: [
+        '## 待你决策',
+        `任务「${task.title}」未派发：预算已用尽。`,
+        `- ${reason}`,
+        '- 调整任务预算后重新生成任务单，或取消该任务。',
+      ].join('\n'),
     });
     if (task.status === 'queued') {
       this.transition(task.id, 'running', 'scheduler');
@@ -491,4 +730,16 @@ function startOfDay(): number {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   return date.getTime();
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function describeAction(input: unknown): string {
+  if (typeof input === 'string') return input.slice(0, 200);
+  if (typeof input !== 'object' || input === null) return String(input ?? '');
+  const record = input as Record<string, unknown>;
+  const text = record.command ?? record.cmd ?? record.script ?? record.path ?? record.url;
+  return typeof text === 'string' ? text.slice(0, 200) : JSON.stringify(input).slice(0, 200);
 }

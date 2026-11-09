@@ -426,6 +426,20 @@ export class Steward implements StewardService {
       payload: { approvalId: id, status },
     });
     this.bus.publish(event);
+
+    if (approval.type.startsWith('action:')) {
+      const task = this.store.getTask(approval.taskId);
+      if (task && status === 'approved' && task.status === 'failed') {
+        this.transition(task.id, 'queued', 'user');
+        this.announce(
+          task.projectId,
+          `已批准危险动作，任务「${task.title}」重新排队执行。`,
+          task.id,
+        );
+      } else if (task && status === 'rejected') {
+        this.announce(task.projectId, `已拒绝危险动作，任务「${task.title}」不会继续执行。`, task.id);
+      }
+    }
     return approval;
   }
 

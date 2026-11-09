@@ -164,7 +164,9 @@ export interface OpenCodeOptions {
  */
 export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'opencode';
-  readonly version = '0.3.0';
+  readonly version = '0.4.0';
+  /** 外部 CLI 进程无法在执行前挂起，危险动作由调度器在事件边界冻结。 */
+  readonly supportsApprovalGate = false;
 
   private readonly sessions = new Map<string, OpenCodeSession>();
   private readonly binPath: string;
@@ -325,9 +327,17 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
         }
 
         if (type === 'step_finish') {
-          usd += Number(record.part?.cost) || 0;
-          tokensIn += Number(record.part?.tokens?.input) || 0;
-          tokensOut += Number(record.part?.tokens?.output) || 0;
+          const stepUsd = Number(record.part?.cost) || 0;
+          const stepIn = Number(record.part?.tokens?.input) || 0;
+          const stepOut = Number(record.part?.tokens?.output) || 0;
+          usd += stepUsd;
+          tokensIn += stepIn;
+          tokensOut += stepOut;
+          yield await emit({
+            type: 'cost',
+            at: now(),
+            cost: { tokensIn: stepIn, tokensOut: stepOut, usd: round(stepUsd, 4), minutes: 0 },
+          });
           continue;
         }
 

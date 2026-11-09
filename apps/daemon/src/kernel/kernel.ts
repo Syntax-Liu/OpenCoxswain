@@ -39,6 +39,10 @@ const SERVICE_RULES: Record<
   planner: { required: ['planner:use'], provider: ['planner:use'] },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },
+  secrets: {
+    required: ['secrets:read'],
+    provider: ['secrets:provide', 'fs:data'],
+  },
   http: { required: ['http:route'], provider: ['net:listen', 'http:route'] },
 };
 

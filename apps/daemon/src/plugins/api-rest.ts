@@ -28,6 +28,37 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const steward = ctx.service('steward');
   const runtimes = ctx.service('runtimes');
   const config = ctx.service('config');
+  const secrets = ctx.service('secrets');
+
+  http.route('GET', '/api/secrets', async () => {
+    const source = await secrets.source('llm_api_key');
+    return {
+      json: {
+        backend: secrets.backend,
+        llm: { configured: source !== 'none', source },
+      },
+    };
+  });
+
+  http.route('PUT', '/api/secrets/llm', async ({ body }) => {
+    const apiKey = (body as { apiKey?: string }).apiKey?.trim();
+    if (!apiKey) throw new AppError('请提供 apiKey');
+    await secrets.set('llm_api_key', apiKey);
+    return {
+      json: { backend: secrets.backend, llm: { configured: true, source: 'vault' } },
+    };
+  });
+
+  http.route('DELETE', '/api/secrets/llm', async () => {
+    await secrets.remove('llm_api_key');
+    const source = await secrets.source('llm_api_key');
+    return {
+      json: {
+        backend: secrets.backend,
+        llm: { configured: source !== 'none', source },
+      },
+    };
+  });
 
   http.route('GET', '/api/health', async () => {
     const status = await runtimes.health();

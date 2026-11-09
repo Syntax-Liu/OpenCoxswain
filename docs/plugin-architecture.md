@@ -108,6 +108,7 @@ interface PluginContext {
 | `planner` | 目标 → 任务契约 | `planner.llm`（无 Key 时回退静态引擎） | `planner:use` |
 | `scheduler` | 派发、暂停、恢复、终止 | `scheduler` | `scheduler:control` |
 | `steward` | 总管编排与快照 | `steward` | `steward:call` |
+| `secrets` | 密钥读写与来源查询（DPAPI 优先，环境变量回退） | `secrets.dpapi` | `secrets:read` |
 | `http` | 路由注册、监听、关闭 | `transport.http` | `http:route` |
 
 ## 5. 发现与加载
@@ -151,6 +152,8 @@ interface PluginContext {
 | `planner:use` | 调用 Planner |
 | `scheduler:control` | 暂停/恢复/终止任务 |
 | `steward:call` | 调用总管服务 |
+| `secrets:read` / `secrets:write` | 读取/写入托管密钥 |
+| `secrets:provide` | 提供密钥托管服务 |
 | `http:route` | 注册 HTTP/SSE 路由 |
 | `net:listen` | 监听本地端口 |
 | `ui:panel` | 注册界面面板/检查器 |
@@ -181,11 +184,12 @@ P1 插件与内核同进程运行，Node 原生模块无法被语言层真正拦
 | 新 | `runtime.registry` | `runtimes` | — | `runtime:provide` |
 | `MockRuntimeAdapter` | `runtime.mock` | — | `runtimes` | `runtime:use`、`runtime:provide`、`fs:worktree`、`process:spawn` |
 | `OpenCodeRuntimeAdapter` | `runtime.opencode` | — | `runtimes` | `runtime:use`、`runtime:provide`、`fs:worktree`、`process:spawn` |
-| `planner.ts` 静态引擎 | `planner.llm`（有 Key 调 LLM，否则用同一引擎静态拆分） | `planner` | `config`、`events` | `planner:use`、`events:publish` |
+| 新 | `secrets.dpapi` | `secrets` | `config` | `secrets:provide`、`secrets:read`、`secrets:write`、`fs:data` |
+| `planner.ts` 静态引擎 | `planner.llm`（有 Key 调 LLM，否则用同一引擎静态拆分） | `planner` | `config`、`events`、`secrets` | `planner:use`、`events:publish`、`secrets:read` |
 | `scheduler.ts` | `scheduler` | `scheduler` | `storage`、`events`、`config`、`runtimes`、`worktrees` | `scheduler:control`、`storage:read/write`、`events:publish`、`runtime:use`、`fs:worktree`、`process:spawn` |
 | `steward.ts` | `steward` | `steward` | `storage`、`events`、`planner`、`scheduler`、`runtimes` | `steward:call`、`storage:read/write`、`events:publish`、`planner:use`、`scheduler:control`、`runtime:use` |
 | `server.ts` 的 HTTP 壳 | `transport.http` | `http` | `config`、`events` | `net:listen`、`http:route` |
-| `server.ts` 的 REST 路由 | `api.rest` | — | `config`、`http`、`storage`、`steward`、`runtimes` | `http:route`、`storage:read`、`steward:call`、`runtime:use`、`fs:data` |
+| `server.ts` 的 REST 路由 | `api.rest` | — | `config`、`http`、`storage`、`steward`、`runtimes`、`secrets` | `http:route`、`storage:read`、`steward:call`、`runtime:use`、`secrets:read`、`secrets:write`、`fs:data` |
 | `server.ts` 的 `/api/events` | `transport.sse` | — | `http`、`storage`、`events` | `http:route`、`storage:read`、`events:read` |
 | `apps/desktop` 三栏 + 检查器 | 八个 UI 插件（3 个面板 + 5 个检查器标签） | — | UI Registry | `ui:panel` |
 
@@ -224,7 +228,7 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 1. `loadConfig()`。
 2. 创建内核，注册 `config`、`events`。
 3. 读取内置清单 + 外部 `plugin.json`，合并、校验、拓扑排序。
-4. 依次加载：`storage.sqlite` → `worktree.git` → `runtime.registry` → `runtime.mock` → `runtime.opencode` → `planner.llm` → `scheduler` → `steward` → `transport.http` → `api.rest` → `transport.sse`。
+4. 依次加载：`storage.sqlite` → `worktree.git` → `runtime.registry` → `runtime.mock` → `runtime.opencode` → `secrets.dpapi` → `planner.llm` → `scheduler` → `steward` → `transport.http` → `api.rest` → `transport.sse`。
 5. `kernel.start()`：并行触发 `kernel.ready`；调度器启动、HTTP 监听。
 6. `startDaemon()` 返回 `{ config, port, close }`。
 
@@ -265,8 +269,14 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. `planner.llm` 替换 `planner.static`：有 Key 走 OpenAI 兼容端点，无 Key / 超时 / 解析失败回退同一静态引擎；`PlannerService.plan` 允许异步。
 4. 新增配置项 `defaultRuntime`、`defaultModel`、`opencodeBin`；`pnpm test`、`pnpm e2e`、`pnpm e2e:opencode` 均通过。
 
-下一步（P2）：
+已完成（v0.4.0）：
 
-1. 真实模型成本入账、预算硬停与危险动作人审。
-2. 密钥迁移到 Windows Credential Manager / DPAPI。
-3. 进程级插件隔离与 Tauri 2 桌面壳。
+1. 运行时 `cost` 事件接入调度器：任务/项目日预算运行中实时核对，超限取消会话、冻结任务并产出待决策消息；硬停前先落账已发生成本。
+2. `ApprovalGate` 危险动作闸门：Mock 在执行前冻结，OpenCode 在 `tool_call` 边界冻结；五类动作建 `approvals`，批准后继续或重新排队。
+3. `secrets.dpapi` 插件提供 `secrets` 服务，LLM Key 按当前 Windows 用户加密落盘；`GET/PUT/DELETE /api/secrets/llm` 只暴露来源不返回密钥。
+4. `pnpm test`、`pnpm e2e`、`pnpm e2e:opencode` 均通过。
+
+下一步（P2 剩余）：
+
+1. 失败重试矩阵、合并冲突转人审、成本报表与回放导出。
+2. 进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。

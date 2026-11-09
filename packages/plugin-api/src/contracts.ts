@@ -50,6 +50,9 @@ export type Permission =
   | 'planner:use'
   | 'scheduler:control'
   | 'steward:call'
+  | 'secrets:read'
+  | 'secrets:write'
+  | 'secrets:provide'
   | 'http:route'
   | 'net:listen'
   | 'ui:panel';
@@ -132,6 +135,13 @@ export interface StorageService {
   listArtifacts(projectId: string): ArtifactRecord[];
   listTaskArtifacts(taskId: string): ArtifactRecord[];
   getArtifact(id: string): ArtifactRecord | null;
+  insertApproval(input: {
+    taskId: string;
+    type: string;
+    requestedBy: string;
+    payload: unknown;
+  }): Approval;
+  getApproval(id: string): Approval | null;
   listApprovals(projectId: string): Approval[];
   decideApproval(id: string, status: 'approved' | 'rejected', decidedBy: string): Approval;
   insertMessage(input: {
@@ -182,6 +192,20 @@ export interface PlanResult {
 
 export interface PlannerService {
   plan(project: Project, request: CreatePlanRequest): PlanResult | Promise<PlanResult>;
+}
+
+export type SecretSource = 'vault' | 'env' | 'none';
+
+/**
+ * 密钥托管：`get` 先读本地加密仓库，未命中再看环境变量；
+ * 仓库实现保证明文不落盘（Windows 使用 DPAPI）。
+ */
+export interface SecretsService {
+  readonly backend: string;
+  get(name: string): Promise<string | null>;
+  source(name: string): Promise<SecretSource>;
+  set(name: string, value: string): Promise<void>;
+  remove(name: string): Promise<void>;
 }
 
 export interface SchedulerService {
@@ -256,6 +280,7 @@ export interface ServiceMap {
   planner: PlannerService;
   scheduler: SchedulerService;
   steward: StewardService;
+  secrets: SecretsService;
   http: HttpService;
 }
 

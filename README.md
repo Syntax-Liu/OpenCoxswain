@@ -2,7 +2,7 @@
 
 本地优先的 Windows AI 总管。你只对总管说话；总管把目标拆成结构化任务单和 DAG，派给在独立 git worktree 里干活的 AI 员工，盯进度、做验收，最后按固定三块汇报：待你决策 / 未通过的检查 / 交付产物。
 
-当前版本 `0.3.0`，处于实施计划的 P1：插件化内核已就绪，OpenCode 运行时与 LLM Planner 已接入，桌面壳待接入。
+当前版本 `0.4.0`，处于实施计划的 P2：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审与 DPAPI 密钥托管已接入，桌面壳待接入。
 
 ## 快速开始
 
@@ -50,7 +50,7 @@ docs/
   spike-opencode.md
 ```
 
-## 当前能力（v0.3.0）
+## 当前能力（v0.4.0）
 
 已实现：
 
@@ -58,16 +58,19 @@ docs/
 - SQLite 持久化（`node:sqlite`），事件 append-only，可回放、可导出。
 - 每任务独立 worktree 与分支；调度器按依赖/并发/写域派发。
 - 审批开工、打回、暂停/继续/终止、验收。
+- 预算硬停：运行中实时累计成本，任务或项目日预算超限立即停止执行并产出「待你决策」。
+- 危险动作人审：delete / push / publish / pay / external_send 在建审批记录后冻结，等待批准或拒绝；支持原生闸门的运行时在执行前挂起。
+- DPAPI 密钥托管：LLM Key 按当前 Windows 用户加密落盘，读取优先仓库、回退环境变量；明文不写入文件。
 - Mock 运行时：真实写文件、跑验收命令、产出 diff 与报告，离线可跑。
 - OpenCode 运行时：调用桌面版 CLI 执行真实任务，JSONL 事件映射、会话隔离、进程树终止。
 - LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分。
 - 浏览器工作台：对话、任务树、员工看板、时间线、产物、汇总、花费、设置。
 
-未实现（按计划在 P2+ 接入）：
+未实现（按计划在后续阶段接入）：
 
 - Tauri 2 桌面壳与安装包。
 - 记忆层、多项目、IM 入口。
-- 密钥托管（Credential Manager / DPAPI）与危险动作人审。
+- 失败重试矩阵、合并冲突转人审、成本报表与回放导出。
 
 ## 运行时与 Planner 配置
 
@@ -76,11 +79,22 @@ docs/
 | `OPENCOXSWAIN_DEFAULT_RUNTIME` | `mock` | 任务默认可执行体：`mock` / `opencode` |
 | `OPENCOXSWAIN_OPENCODE_BIN` | 自动发现 | OpenCode CLI 路径；默认找桌面版 `opencode-cli.exe` |
 | `OPENCOXSWAIN_DEFAULT_MODEL` | 空 | 覆盖角色默认模型，如 `provider/model` |
-| `OPENCOXSWAIN_LLM_API_KEY` / `DEEPSEEK_API_KEY` | 空 | Planner 的 API Key；为空时静态拆分 |
+| `OPENCOXSWAIN_LLM_API_KEY` / `DEEPSEEK_API_KEY` | 空 | Planner 的 API Key；DPAPI 仓库未命中时回退到这两个变量 |
 | `OPENCOXSWAIN_LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
 | `OPENCOXSWAIN_LLM_MODEL` | `deepseek-chat` | Planner 模型 |
 
 OpenCode 桌面版 CLI 的实测结论、坑与替代路线见 [docs/spike-opencode.md](docs/spike-opencode.md)。
+
+密钥推荐写入 DPAPI 仓库（按当前 Windows 用户加密，明文不落盘）：
+
+```bash
+curl -X PUT http://127.0.0.1:47821/api/secrets/llm \
+  -H "Content-Type: application/json" \
+  -d '{"apiKey":"sk-..."}'
+curl http://127.0.0.1:47821/api/secrets
+```
+
+`GET /api/secrets` 只返回来源（`vault` / `env` / `none`）与后端类型，不返回密钥。删除用 `DELETE /api/secrets/llm`。
 
 ## 文档
 

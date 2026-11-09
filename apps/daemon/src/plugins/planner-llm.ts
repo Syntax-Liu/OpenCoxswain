@@ -2,6 +2,7 @@ import type {
   PlanResult,
   PlannerService,
   PluginContext,
+  SecretSource,
 } from '@opencoxswain/plugin-api';
 import type {
   AcceptanceCriterion,
@@ -40,7 +41,7 @@ const SYSTEM_PROMPT = [
 
 interface LlmPlannerOptions {
   engine: Planner;
-  apiKey: string;
+  resolveKey: () => Promise<{ key: string; source: SecretSource }>;
   baseUrl: string;
   model: string;
   timeoutMs: number;
@@ -52,15 +53,25 @@ export class LlmPlanner implements PlannerService {
 
   async plan(project: Project, request: CreatePlanRequest): Promise<PlanResult> {
     const hasDrafts = (request.subtasks?.length ?? 0) > 0;
-    if (!this.options.apiKey || hasDrafts) {
+    if (hasDrafts) {
+      return this.options.engine.plan(project, request);
+    }
+
+    const { key, source } = await this.options.resolveKey();
+    if (!key) {
+      this.options.notify('planner.fallback', {
+        reason: '未配置 LLM Key，使用静态拆分',
+        source: 'none',
+      });
       return this.options.engine.plan(project, request);
     }
 
     try {
-      const subtasks = await this.draft(request);
+      const subtasks = await this.draft(request, key);
       this.options.notify('planner.llm.used', {
         model: this.options.model,
         subtasks: subtasks.length,
+        keySource: source,
       });
       return this.options.engine.plan(project, { ...request, subtasks });
     } catch (error) {
@@ -70,13 +81,13 @@ export class LlmPlanner implements PlannerService {
     }
   }
 
-  private async draft(request: CreatePlanRequest): Promise<SubtaskDraft[]> {
+  private async draft(request: CreatePlanRequest, apiKey: string): Promise<SubtaskDraft[]> {
     const url = `${this.options.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.options.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: this.options.model,
@@ -214,14 +225,10 @@ function normalizeDeliverable(value: unknown): Deliverable | null {
   return { type: type as Deliverable['type'], ...(scope ? { scope } : {}) };
 }
 
-export function apply(ctx: PluginContext): void {
+export async function apply(ctx: PluginContext): Promise<void> {
   const config = ctx.config;
   const engine = new Planner({ runtime: config.defaultRuntime, model: config.defaultModel });
-  const apiKey = (
-    process.env.OPENCOXSWAIN_LLM_API_KEY ??
-    process.env.DEEPSEEK_API_KEY ??
-    ''
-  ).trim();
+  const secrets = ctx.service('secrets');
   const baseUrl = (
     process.env.OPENCOXSWAIN_LLM_BASE_URL ?? 'https://api.deepseek.com/v1'
   ).trim();
@@ -231,7 +238,11 @@ export function apply(ctx: PluginContext): void {
     'planner',
     new LlmPlanner({
       engine,
-      apiKey,
+      resolveKey: async () => {
+        const key = (await secrets.get('llm_api_key')) ?? '';
+        const source = key ? await secrets.source('llm_api_key') : 'none';
+        return { key, source };
+      },
       baseUrl,
       model,
       timeoutMs: 30_000,
@@ -239,7 +250,12 @@ export function apply(ctx: PluginContext): void {
     }),
   );
 
-  if (!apiKey) {
-    ctx.log('未配置 LLM Key（OPENCOXSWAIN_LLM_API_KEY / DEEPSEEK_API_KEY），使用静态拆分');
+  const source = await secrets.source('llm_api_key');
+  if (source === 'none') {
+    ctx.log(
+      '未配置 LLM Key（DPAPI 密钥仓库 / OPENCOXSWAIN_LLM_API_KEY / DEEPSEEK_API_KEY），使用静态拆分',
+    );
+  } else {
+    ctx.log(`LLM Key 来源：${source}`);
   }
 }

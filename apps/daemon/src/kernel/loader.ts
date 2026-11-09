@@ -17,6 +17,7 @@ const SERVICE_KEYS: ServiceKey[] = [
   'planner',
   'scheduler',
   'steward',
+  'secrets',
   'http',
 ];
 
@@ -34,6 +35,9 @@ const PERMISSIONS: Permission[] = [
   'planner:use',
   'scheduler:control',
   'steward:call',
+  'secrets:read',
+  'secrets:write',
+  'secrets:provide',
   'http:route',
   'net:listen',
   'ui:panel',
