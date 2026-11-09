@@ -259,6 +259,22 @@ export interface CreateProjectRequest {
   maxConcurrency?: number;
 }
 
+export interface CostBreakdownRow {
+  key: string;
+  usd: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+export interface ProjectCostReport {
+  totalUsd: number;
+  tokensIn: number;
+  tokensOut: number;
+  byModel: CostBreakdownRow[];
+  byTask: Array<{ taskId: string; title: string; usd: number }>;
+  daily: Array<{ day: string; usd: number }>;
+}
+
 export interface TaskReplay {
   task: Task;
   children: Task[];

@@ -1,12 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
-import type { Approval, Task, WorkbenchSnapshot } from '@opencoxswain/shared';
+import type {
+  Approval,
+  ProjectCostReport,
+  Task,
+  WorkbenchSnapshot,
+} from '@opencoxswain/shared';
 import { makeDaemon, makeRepo, waitFor } from './helpers.js';
 
 async function setup(action: { tool: string; input: unknown }) {
   const fixture = await makeRepo({ 'a.txt': 'x\n' });
-  const { app, call } = await makeDaemon(fixture.home);
+  const { app, call, text } = await makeDaemon(fixture.home);
   const project = await call<{ id: string }>('/api/projects', {
     method: 'POST',
     body: JSON.stringify({ path: fixture.repo }),
@@ -43,7 +48,15 @@ async function setup(action: { tool: string; input: unknown }) {
     },
   );
   await call(`/api/tasks/${planned.root.id}/approve`, { method: 'POST' });
-  return { fixture, app, call, rootId: planned.root.id, childId: planned.children[0]!.id };
+  return {
+    fixture,
+    app,
+    call,
+    text,
+    projectId: project.id,
+    rootId: planned.root.id,
+    childId: planned.children[0]!.id,
+  };
 }
 
 async function pendingApproval(
@@ -93,6 +106,24 @@ test('危险动作人审：批准后继续执行', async () => {
       done.approvals.find((item) => item.id === approval.id)?.status,
       'approved',
     );
+
+    const costs = await context.call<ProjectCostReport>(
+      `/api/projects/${context.projectId}/costs`,
+    );
+    assert.ok(costs.totalUsd > 0, '项目成本报表汇总运行成本');
+    assert.ok(costs.byModel.length > 0, '成本报表按模型分组');
+    assert.ok(
+      costs.byTask.some((row) => row.taskId === context.childId),
+      '成本报表包含实施任务',
+    );
+    assert.ok(costs.daily.length > 0, '成本报表按日分组');
+
+    const replay = await context.text(
+      `/api/tasks/${context.rootId}/replay?format=markdown`,
+    );
+    assert.match(replay, /^# 验证危险动作人审/m);
+    assert.match(replay, /## 事件时间线/);
+    assert.match(replay, /## 子任务/);
   } finally {
     await context.app.close();
     await rm(context.fixture.temp, { recursive: true, force: true }).catch(() => undefined);

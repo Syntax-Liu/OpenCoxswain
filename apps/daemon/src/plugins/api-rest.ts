@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { CreatePlanRequest, CreateProjectRequest } from '@opencoxswain/shared';
+import type { CreatePlanRequest, CreateProjectRequest, TaskReplay } from '@opencoxswain/shared';
 import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
 
-const TASK_ACTIONS = ['approve', 'reject', 'cancel', 'accept', 'pause', 'resume'] as const;
+const TASK_ACTIONS = ['approve', 'reject', 'cancel', 'accept', 'pause', 'resume', 'retry'] as const;
 const WORKER_ACTIONS = ['pause', 'resume', 'terminate'] as const;
 
 function isWithin(root: string, target: string): boolean {
@@ -14,6 +14,40 @@ function isWithin(root: string, target: string): boolean {
     normalizedTarget === normalizedRoot ||
     normalizedTarget.startsWith(`${normalizedRoot}${path.sep}`)
   );
+}
+
+function replayMarkdown(replay: TaskReplay): string {
+  const budget = replay.task.contract.budget;
+  return [
+    `# ${replay.task.title}`,
+    '',
+    `- 状态：${replay.task.status}`,
+    `- 目标：${replay.task.goal}`,
+    `- 预算：${JSON.stringify(budget)}`,
+    '',
+    '## 子任务',
+    ...replay.children.map((child) => `- [${child.status}] ${child.title}（${child.contract.assignee?.role ?? '未分配'}）`),
+    '',
+    '## 员工',
+    ...replay.workers.map(
+      (worker) =>
+        `- ${worker.role} / ${worker.runtime} ${worker.model}：${worker.status}，$${worker.cost.usd.toFixed(4)}`,
+    ),
+    '',
+    '## 审批',
+    ...replay.approvals.map((approval) => `- ${approval.type}：${approval.status}`),
+    '',
+    '## 产物',
+    ...replay.artifacts.map((artifact) => `- ${artifact.type} ${artifact.path}`),
+    '',
+    '## 事件时间线',
+    ...replay.events.map(
+      (event) => `- ${new Date(event.createdAt).toISOString()} ${event.type}`,
+    ),
+    '',
+    '## 汇总',
+    replay.summary ?? '（无）',
+  ].join('\n');
 }
 
 function taskIdOf(request: HttpRouteRequest): string {
@@ -111,6 +145,8 @@ export async function apply(ctx: PluginContext): Promise<void> {
           return { json: await steward.pauseTask(id) };
         case 'resume':
           return { json: await steward.resumeTask(id) };
+        case 'retry':
+          return { json: steward.retryTask(id) };
       }
     });
   }
@@ -119,9 +155,20 @@ export async function apply(ctx: PluginContext): Promise<void> {
     json: { summary: steward.summary(taskIdOf(request)) },
   }));
 
-  http.route('GET', '/api/tasks/:id/replay', async (request) => ({
-    json: steward.replay(taskIdOf(request)),
-  }));
+  http.route('GET', '/api/tasks/:id/replay', async (request) => {
+    const replay = steward.replay(taskIdOf(request));
+    if (request.query.get('format') === 'markdown') {
+      return { text: replayMarkdown(replay) };
+    }
+    return { json: replay };
+  });
+
+  http.route('GET', '/api/projects/:id/costs', async ({ params }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少项目 id');
+    if (!store.getProject(id)) throw new AppError('项目不存在', 404);
+    return { json: store.projectCostReport(id) };
+  });
 
   for (const action of WORKER_ACTIONS) {
     http.route('POST', `/api/workers/:id/${action}`, async ({ params }) => {

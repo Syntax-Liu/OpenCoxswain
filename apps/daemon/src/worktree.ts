@@ -11,13 +11,21 @@ async function exists(target: string): Promise<boolean> {
   return (await stat(target).catch(() => null)) !== null;
 }
 
+export class MergeConflictError extends Error {
+  constructor(readonly ref: string, detail: string) {
+    super(`合并 ${ref} 产生冲突：${detail}`);
+    this.name = 'MergeConflictError';
+  }
+}
+
 export class WorktreeManager {
   constructor(private readonly root: string) {}
 
+  /** `baseRefs` 按依赖顺序合并；多依赖时在新 worktree 内逐个 merge，冲突则中止并抛出。 */
   async create(
     project: Project,
     task: Task,
-    baseRef?: string,
+    baseRefs: string[] = [],
   ): Promise<{ path: string; branch: string }> {
     const target = path.join(this.root, project.id, task.id);
     const branch = `opencoxswain/${task.id}`;
@@ -27,7 +35,8 @@ export class WorktreeManager {
       await this.remove(project.path, target);
     }
 
-    const base = baseRef ?? project.defaultBranch;
+    const bases = baseRefs.length > 0 ? baseRefs : [project.defaultBranch];
+    const base = bases[0]!;
     let result = await runGit(project.path, ['worktree', 'add', '-b', branch, target, base]);
     if (result.code !== 0) {
       result = await runGit(project.path, ['worktree', 'add', target, branch]);
@@ -38,6 +47,15 @@ export class WorktreeManager {
     }
     if (result.code !== 0) {
       throw new Error(`创建 worktree 失败：${result.stderr.trim() || result.stdout.trim()}`);
+    }
+
+    for (const ref of bases.slice(1)) {
+      const merge = await runGit(target, ['merge', '--no-ff', '--no-edit', ref]);
+      if (merge.code !== 0) {
+        await runGit(target, ['merge', '--abort']);
+        await this.remove(project.path, target);
+        throw new MergeConflictError(ref, (merge.stderr || merge.stdout).trim().slice(0, 500));
+      }
     }
     return { path: target, branch };
   }

@@ -10,6 +10,7 @@ import type {
   EventRecord,
   Message,
   Project,
+  ProjectCostReport,
   RuntimeStatus,
   Task,
   TaskContract,
@@ -153,6 +154,7 @@ export interface StorageService {
   insertModelCall(input: { workerId: string; model: string; cost: CostLedger }): void;
   sumTaskCost(taskId: string): CostLedger;
   sumProjectCostSince(projectId: string, since: number): number;
+  projectCostReport(projectId: string): ProjectCostReport;
 }
 
 export interface EventService {
@@ -167,7 +169,7 @@ export interface WorktreeService {
   create(
     project: Project,
     task: Task,
-    baseRef?: string,
+    baseRefs?: string[],
   ): Promise<{ path: string; branch: string }>;
   remove(repoPath: string, worktreePath: string): Promise<void>;
 }
@@ -228,6 +230,7 @@ export interface StewardService {
   cancelTask(taskId: string): Promise<Task>;
   pauseTask(taskId: string): Promise<Task>;
   resumeTask(taskId: string): Promise<Task>;
+  retryTask(taskId: string): Task;
   acceptTask(taskId: string): Task;
   summary(taskId: string): string;
   replay(taskId: string): TaskReplay;

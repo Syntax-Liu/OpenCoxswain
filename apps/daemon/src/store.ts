@@ -10,6 +10,7 @@ import {
   type EventRecord,
   type Message,
   type Project,
+  type ProjectCostReport,
   type Task,
   type TaskEdge,
   type TaskStatus,
@@ -910,5 +911,58 @@ export class Store {
       )
       .get(projectId, since) as Row;
     return number(row, 'usd');
+  }
+
+  projectCostReport(projectId: string): ProjectCostReport {
+    const from = `FROM model_calls m
+      JOIN workers w ON w.id = m.worker_id
+      JOIN tasks t ON t.id = w.task_id
+      WHERE t.project_id = ?`;
+    const total = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(m.tokens_in), 0) AS tokens_in,
+                COALESCE(SUM(m.tokens_out), 0) AS tokens_out,
+                COALESCE(SUM(m.cost), 0) AS usd ${from}`,
+      )
+      .get(projectId) as Row;
+    const byModel = this.db
+      .prepare(
+        `SELECT m.model AS key,
+                COALESCE(SUM(m.tokens_in), 0) AS tokens_in,
+                COALESCE(SUM(m.tokens_out), 0) AS tokens_out,
+                COALESCE(SUM(m.cost), 0) AS usd ${from}
+         GROUP BY m.model ORDER BY usd DESC`,
+      )
+      .all(projectId) as Row[];
+    const byTask = this.db
+      .prepare(
+        `SELECT t.id AS key, t.title AS title, COALESCE(SUM(m.cost), 0) AS usd ${from}
+         GROUP BY t.id ORDER BY usd DESC`,
+      )
+      .all(projectId) as Row[];
+    const daily = this.db
+      .prepare(
+        `SELECT strftime('%Y-%m-%d', m.created_at / 1000, 'unixepoch', 'localtime') AS day,
+                COALESCE(SUM(m.cost), 0) AS usd ${from}
+         GROUP BY day ORDER BY day`,
+      )
+      .all(projectId) as Row[];
+    return {
+      totalUsd: number(total, 'usd'),
+      tokensIn: number(total, 'tokens_in'),
+      tokensOut: number(total, 'tokens_out'),
+      byModel: byModel.map((row) => ({
+        key: text(row, 'key'),
+        usd: number(row, 'usd'),
+        tokensIn: number(row, 'tokens_in'),
+        tokensOut: number(row, 'tokens_out'),
+      })),
+      byTask: byTask.map((row) => ({
+        taskId: text(row, 'key'),
+        title: text(row, 'title'),
+        usd: number(row, 'usd'),
+      })),
+      daily: daily.map((row) => ({ day: text(row, 'day'), usd: number(row, 'usd') })),
+    };
   }
 }

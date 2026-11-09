@@ -292,6 +292,23 @@ export class Steward implements StewardService {
     return this.transition(task.id, previous, 'user');
   }
 
+  retryTask(taskId: string): Task {
+    const task = this.requireTask(taskId);
+    if (task.status !== 'failed' && task.status !== 'blocked') {
+      throw new AppError('只有失败或阻塞的任务可以重试');
+    }
+    this.requeue(task, `任务「${task.title}」已重新排队执行。`);
+    return this.requireTask(task.id);
+  }
+
+  private requeue(task: Task, message: string): void {
+    if (task.status === 'blocked') this.transition(task.id, 'failed', 'scheduler');
+    if (this.store.getTask(task.id)?.status === 'failed') {
+      this.transition(task.id, 'queued', 'user');
+    }
+    this.announce(task.projectId, message, task.id);
+  }
+
   acceptTask(taskId: string): Task {
     const root = this.requireTask(taskId);
     if (root.parentId !== null || root.status !== 'awaiting_review') {
@@ -427,17 +444,23 @@ export class Steward implements StewardService {
     });
     this.bus.publish(event);
 
-    if (approval.type.startsWith('action:')) {
+    if (approval.type.startsWith('action:') || approval.type === 'merge_conflict') {
       const task = this.store.getTask(approval.taskId);
-      if (task && status === 'approved' && task.status === 'failed') {
-        this.transition(task.id, 'queued', 'user');
-        this.announce(
-          task.projectId,
-          `已批准危险动作，任务「${task.title}」重新排队执行。`,
-          task.id,
+      if (task && status === 'approved' && (task.status === 'failed' || task.status === 'blocked')) {
+        this.requeue(
+          task,
+          approval.type === 'merge_conflict'
+            ? `已确认冲突处理，任务「${task.title}」重新排队执行。`
+            : `已批准危险动作，任务「${task.title}」重新排队执行。`,
         );
       } else if (task && status === 'rejected') {
-        this.announce(task.projectId, `已拒绝危险动作，任务「${task.title}」不会继续执行。`, task.id);
+        this.announce(
+          task.projectId,
+          approval.type === 'merge_conflict'
+            ? `已拒绝冲突处理，任务「${task.title}」不会继续执行。`
+            : `已拒绝危险动作，任务「${task.title}」不会继续执行。`,
+          task.id,
+        );
       }
     }
     return approval;

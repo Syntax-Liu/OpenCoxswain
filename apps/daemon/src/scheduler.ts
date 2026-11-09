@@ -39,6 +39,7 @@ import type {
   StorageService,
   WorktreeService,
 } from '@opencoxswain/plugin-api';
+import { MergeConflictError } from './worktree.js';
 
 interface ActiveRun {
   taskId: string;
@@ -82,6 +83,9 @@ const APPROVAL_POLICY: ApprovalPolicy = {
 };
 
 const SETTLED: TaskStatus[] = ['done', 'awaiting_review', 'failed', 'cancelled'];
+
+/** 可重试错误的最大尝试次数（含首次）。 */
+const MAX_ATTEMPTS = 2;
 
 export interface SchedulerOptions {
   store: StorageService;
@@ -281,18 +285,22 @@ export class Scheduler {
       return;
     }
 
-    let baseRef: string | undefined;
+    const baseRefs: string[] = [];
     for (const dependency of dependenciesOf(task.id, edges)) {
       const worker = this.store.getWorkerByTask(dependency);
-      if (worker?.branch) baseRef = worker.branch;
+      if (worker?.branch && !baseRefs.includes(worker.branch)) baseRefs.push(worker.branch);
     }
 
     let worktree: { path: string; branch: string };
     try {
-      worktree = await this.worktrees.create(project, task, baseRef);
+      worktree = await this.worktrees.create(project, task, baseRefs);
     } catch (error) {
       this.dispatching.delete(task.id);
-      this.fail(task.id, null, error instanceof Error ? error.message : String(error));
+      if (error instanceof MergeConflictError) {
+        this.requestMergeReview(task, baseRefs, error);
+      } else {
+        this.fail(task.id, null, error instanceof Error ? error.message : String(error));
+      }
       return;
     }
 
@@ -335,88 +343,125 @@ export class Scheduler {
     let result: WorkerResult | null = null;
     let errorMessage: string | null = null;
     let aborted = false;
+    let retryable = false;
+    let attempt = 0;
+    let pendingRunId: string | null = runId;
     try {
-      session = await adapter.createSession({
-        taskId: task.id,
-        worktree: worker.worktreePath,
-        role: ROLE_TEMPLATES[worker.role],
-        model: modelConfig(worker.runtime, worker.model),
-        approvalPolicy: APPROVAL_POLICY,
-        env: { OPENCOXSWAIN_ARTIFACTS_DIR: this.config.artifactsDir },
-        gate: this.createGate(task, worker),
-      });
-      const run: ActiveRun = {
-        taskId: task.id,
-        workerId: worker.id,
-        adapter,
-        session,
-        cancelled: false,
-        liveCost: emptyCost(),
-        warned: false,
-      };
-      this.active.set(task.id, run);
-      this.store.updateWorker(worker.id, { status: 'running', sessionRef: session.id });
-      this.emit(task.id, worker.id, 'worker.status', { status: 'running' });
+      for (;;) {
+        attempt += 1;
+        session = await adapter.createSession({
+          taskId: task.id,
+          worktree: worker.worktreePath,
+          role: ROLE_TEMPLATES[worker.role],
+          model: modelConfig(worker.runtime, worker.model),
+          approvalPolicy: APPROVAL_POLICY,
+          env: { OPENCOXSWAIN_ARTIFACTS_DIR: this.config.artifactsDir },
+          gate: this.createGate(task, worker),
+        });
+        const run: ActiveRun = {
+          taskId: task.id,
+          workerId: worker.id,
+          adapter,
+          session,
+          cancelled: false,
+          liveCost: emptyCost(),
+          warned: false,
+        };
+        this.active.set(task.id, run);
+        this.store.updateWorker(worker.id, { status: 'running', sessionRef: session.id });
+        this.emit(task.id, worker.id, 'worker.status', { status: 'running' });
 
-      for await (const event of adapter.send(session, task.contract)) {
-        const current = this.store.getTask(task.id);
-        if (run.cancelled || current?.status === 'cancelled') {
-          await adapter.cancel(session);
-          break;
-        }
-        this.emit(task.id, worker.id, `runtime.${event.type}`, event);
-
-        if (event.type === 'cost') {
-          run.liveCost = addCost(run.liveCost, event.cost);
-          this.store.updateWorker(worker.id, { cost: run.liveCost });
-          if (await this.enforceTaskBudget(task, worker, run)) {
-            aborted = true;
+        for await (const event of adapter.send(session, task.contract)) {
+          const current = this.store.getTask(task.id);
+          if (run.cancelled || current?.status === 'cancelled') {
             await adapter.cancel(session);
+            aborted = true;
             break;
           }
+          this.emit(task.id, worker.id, `runtime.${event.type}`, event);
+
+          if (event.type === 'cost') {
+            run.liveCost = addCost(run.liveCost, event.cost);
+            this.store.updateWorker(worker.id, { cost: run.liveCost });
+            if (await this.enforceTaskBudget(task, worker, run)) {
+              aborted = true;
+              await adapter.cancel(session);
+              break;
+            }
+            continue;
+          }
+
+          if (event.type === 'tool_call' && !adapter.supportsApprovalGate) {
+            const category = classifyAction(event.tool, event.input);
+            if (category && !this.hasApprovedAction(task, event.tool, event.input)) {
+              this.requestApproval(task, worker, {
+                tool: event.tool,
+                input: event.input,
+                category,
+              });
+              this.flushLiveCost(worker, run);
+              await adapter.cancel(session);
+              this.emit(task.id, worker.id, 'worker.frozen', {
+                reason: 'dangerous_action',
+                tool: event.tool,
+                category,
+              });
+              this.fail(
+                task.id,
+                worker.id,
+                `危险动作（${category}）已冻结：批准后任务会重新排队执行。`,
+              );
+              aborted = true;
+              break;
+            }
+          }
+
+          if (event.type === 'finished') {
+            result = event.result;
+            break;
+          }
+          if (event.type === 'error') {
+            errorMessage = event.message;
+            retryable = event.retryable;
+            break;
+          }
+        }
+
+        if (result) {
+          await this.finish(task, worker, result);
+          break;
+        }
+
+        await adapter.dispose(session).catch(() => undefined);
+        session = null;
+        this.active.delete(task.id);
+
+        if (aborted || run.cancelled) break;
+        if (!errorMessage) errorMessage = '员工结束但没有返回结果';
+
+        this.flushLiveCost(worker, run);
+        run.liveCost = emptyCost();
+
+        if (retryable && attempt < MAX_ATTEMPTS) {
+          if (pendingRunId) this.store.finishRun(pendingRunId, null, errorMessage);
+          pendingRunId = newId('run');
+          this.store.insertRun(pendingRunId, worker.id, attempt + 1);
+          this.emit(task.id, worker.id, 'worker.retrying', {
+            attempt: attempt + 1,
+            message: errorMessage,
+          });
+          this.store.updateWorker(worker.id, { status: 'starting' });
+          errorMessage = null;
+          retryable = false;
+          await delay(300);
           continue;
         }
 
-        if (event.type === 'tool_call' && !adapter.supportsApprovalGate) {
-          const category = classifyAction(event.tool, event.input);
-          if (category && !this.hasApprovedAction(task, event.tool, event.input)) {
-            this.requestApproval(task, worker, {
-              tool: event.tool,
-              input: event.input,
-              category,
-            });
-            this.flushLiveCost(worker, run);
-            await adapter.cancel(session);
-            this.emit(task.id, worker.id, 'worker.frozen', {
-              reason: 'dangerous_action',
-              tool: event.tool,
-              category,
-            });
-            this.fail(
-              task.id,
-              worker.id,
-              `危险动作（${category}）已冻结：批准后任务会重新排队执行。`,
-            );
-            aborted = true;
-            break;
-          }
-        }
-
-        if (event.type === 'finished') {
-          result = event.result;
-          await this.finish(task, worker, event.result);
-          break;
-        }
-        if (event.type === 'error') {
-          errorMessage = event.message;
-          this.fail(task.id, worker.id, event.message);
-          break;
-        }
-      }
-
-      if (!result && !errorMessage && !aborted && !run.cancelled) {
-        errorMessage = '员工结束但没有返回结果';
         this.fail(task.id, worker.id, errorMessage);
+        if (!errorMessage.includes('危险动作被拒绝')) {
+          this.escalate(task, worker, errorMessage, retryable);
+        }
+        break;
       }
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : String(error);
@@ -427,12 +472,69 @@ export class Scheduler {
         retryable: false,
       });
       this.fail(task.id, worker.id, errorMessage);
+      this.escalate(task, worker, errorMessage, false);
     } finally {
       if (session) await adapter.dispose(session).catch(() => undefined);
-      this.store.finishRun(runId, result, errorMessage);
+      if (pendingRunId) this.store.finishRun(pendingRunId, result, errorMessage);
       this.active.delete(task.id);
       this.dispatching.delete(task.id);
     }
+  }
+
+  private escalate(
+    task: Task,
+    worker: Worker,
+    message: string,
+    retryable: boolean,
+  ): void {
+    this.emit(task.id, worker.id, 'task.escalated', {
+      reason: retryable ? 'retry_exhausted' : 'runtime_error',
+      message,
+    });
+    this.store.insertMessage({
+      projectId: task.projectId,
+      role: 'assistant',
+      content: [
+        '## 待你决策',
+        retryable
+          ? `任务「${task.title}」自动重试 ${MAX_ATTEMPTS} 次后仍失败：`
+          : `任务「${task.title}」执行失败：`,
+        `- ${message}`,
+        `- 修好后调用 POST /api/tasks/${task.id}/retry 重新执行，或取消任务。`,
+      ].join('\n'),
+    });
+  }
+
+  private requestMergeReview(
+    task: Task,
+    refs: string[],
+    error: MergeConflictError,
+  ): void {
+    const approval = this.store.insertApproval({
+      taskId: task.id,
+      type: 'merge_conflict',
+      requestedBy: 'scheduler',
+      payload: { refs, detail: error.message },
+    });
+    this.emit(task.id, null, 'merge.conflict', {
+      approvalId: approval.id,
+      refs,
+      detail: error.message,
+    });
+    this.store.insertMessage({
+      projectId: task.projectId,
+      role: 'assistant',
+      content: [
+        '## 待你决策',
+        `任务「${task.title}」合并依赖分支时发生冲突，尚未开始执行。`,
+        `- ${error.message}`,
+        `- 在仓库中手动合并 ${refs.join('、')} 后批准并重试，或取消任务。审批 ID：${approval.id}`,
+      ].join('\n'),
+    });
+    if (task.status === 'queued') {
+      this.transition(task.id, 'running', 'scheduler');
+    }
+    this.transition(task.id, 'blocked', 'scheduler');
   }
 
   private createGate(task: Task, worker: Worker): ApprovalGate {

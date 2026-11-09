@@ -33,6 +33,7 @@ export async function makeRepo(files: Record<string, string>): Promise<RepoFixtu
 export interface DaemonFixture {
   app: Awaited<ReturnType<typeof startDaemon>>;
   call: <T>(url: string, init?: RequestInit) => Promise<T>;
+  text: (url: string) => Promise<string>;
 }
 
 export async function makeDaemon(home: string): Promise<DaemonFixture> {
@@ -53,7 +54,12 @@ export async function makeDaemon(home: string): Promise<DaemonFixture> {
     if (!response.ok) throw new Error(`${response.status}: ${text}`);
     return JSON.parse(text) as T;
   };
-  return { app, call };
+  const text = async (url: string): Promise<string> => {
+    const response = await fetch(`${base}${url}`);
+    if (!response.ok) throw new Error(`${response.status}: ${await response.text()}`);
+    return response.text();
+  };
+  return { app, call, text };
 }
 
 export async function waitFor<T>(

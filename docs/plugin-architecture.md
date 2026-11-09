@@ -276,7 +276,14 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. `secrets.dpapi` 插件提供 `secrets` 服务，LLM Key 按当前 Windows 用户加密落盘；`GET/PUT/DELETE /api/secrets/llm` 只暴露来源不返回密钥。
 4. `pnpm test`、`pnpm e2e`、`pnpm e2e:opencode` 均通过。
 
+已完成（v0.5.0）：
+
+1. 失败重试：运行时返回 `retryable` 错误时同一任务内自动重试（最多 2 次尝试），耗尽后升级「待你决策」；`POST /api/tasks/:id/retry` 支持用户手动重排队。
+2. 顺序合并与冲突转人审：`WorktreeService.create` 接收依赖分支列表，逐个 `git merge --no-ff`；冲突抛 `MergeConflictError`，调度器建 `merge_conflict` 审批并将任务转 `blocked`。
+3. 成本报表：`GET /api/projects/:id/costs` 输出总量与按模型/任务/日分组。
+4. 回放导出：`GET /api/tasks/:id/replay?format=markdown` 输出完整回放。
+5. `pnpm test`、`pnpm e2e` 均通过。
+
 下一步（P2 剩余）：
 
-1. 失败重试矩阵、合并冲突转人审、成本报表与回放导出。
-2. 进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。
+1. 进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。

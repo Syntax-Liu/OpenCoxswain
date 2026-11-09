@@ -164,7 +164,7 @@ export interface OpenCodeOptions {
  */
 export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'opencode';
-  readonly version = '0.4.0';
+  readonly version = '0.5.0';
   /** 外部 CLI 进程无法在执行前挂起，危险动作由调度器在事件边界冻结。 */
   readonly supportsApprovalGate = false;
 
