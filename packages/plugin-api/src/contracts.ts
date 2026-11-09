@@ -1,14 +1,19 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
+  AcceptanceCriterion,
+  AcceptanceDecision,
+  AcceptanceRecord,
   AcceptanceResult,
   Approval,
   ArtifactRecord,
+  ArtifactRef,
   Assistant,
   CostLedger,
   CreatePlanRequest,
   CreateProjectRequest,
   EmployeeDefinition,
   EventRecord,
+  Evidence,
   Message,
   Project,
   ProjectCostReport,
@@ -61,6 +66,8 @@ export type Permission =
   | 'net:listen'
   | 'employee:use'
   | 'employee:provide'
+  | 'verification:run'
+  | 'verification:provide'
   | 'ui:panel';
 
 export interface OpenCoxswainConfig {
@@ -79,6 +86,8 @@ export interface OpenCoxswainConfig {
   defaultModel: string;
   /** OpenCode CLI 显式路径；空字符串表示自动发现。 */
   opencodeBin: string;
+  /** 系统复核 command 验收的超时（毫秒）。 */
+  commandTimeoutMs: number;
 }
 
 export interface StorageService {
@@ -120,8 +129,12 @@ export interface StorageService {
   ): Worker;
   insertRun(id: string, workerId: string, attempt: number): void;
   finishRun(id: string, result: WorkerResult | null, error: string | null): void;
-  setAcceptance(taskId: string, results: AcceptanceResult[]): void;
-  listAcceptance(taskId: string): AcceptanceResult[];
+  insertEvidence(items: Evidence[]): void;
+  upsertAcceptance(records: AcceptanceRecord[]): void;
+  listTaskAcceptance(taskId: string): AcceptanceRecord[];
+  listProjectAcceptance(projectId: string): AcceptanceRecord[];
+  listTaskEvidence(taskId: string): Evidence[];
+  listProjectEvidence(projectId: string): Evidence[];
   appendEvent(input: {
     taskId: string | null;
     workerId?: string | null;
@@ -186,6 +199,25 @@ export interface RuntimeRegistry {
   health(): Promise<RuntimeStatus>;
 }
 
+export interface VerifyInput {
+  taskId: string;
+  worktree: string;
+  criteria: AcceptanceCriterion[];
+  artifacts: ArtifactRef[];
+  /** 子任务当前分支的基线，用于复算 diff。 */
+  baseRef?: string;
+}
+
+export interface VerificationResult {
+  records: AcceptanceRecord[];
+  evidence: Evidence[];
+}
+
+/** 验收复核：只依据可复现证据给结论，不采信执行者自报。 */
+export interface VerificationService {
+  verify(input: VerifyInput): Promise<VerificationResult>;
+}
+
 /** 员工注册表：每个角色只允许一个员工插件占用，后者注册即报错。 */
 export interface EmployeeRegistry {
   register(definition: Omit<EmployeeDefinition, 'pluginId'>, pluginId: string): () => void;
@@ -243,7 +275,11 @@ export interface StewardService {
   pauseTask(taskId: string): Promise<Task>;
   resumeTask(taskId: string): Promise<Task>;
   retryTask(taskId: string): Task;
-  acceptTask(taskId: string): Task;
+  decideAcceptance(
+    taskId: string,
+    decisions: AcceptanceDecision[],
+    judgedByUser?: string,
+  ): Task;
   summary(taskId: string): string;
   replay(taskId: string): TaskReplay;
   decideApproval(id: string, status: 'approved' | 'rejected'): Approval;
@@ -293,6 +329,7 @@ export interface ServiceMap {
   worktrees: WorktreeService;
   runtimes: RuntimeRegistry;
   employees: EmployeeRegistry;
+  verification: VerificationService;
   planner: PlannerService;
   scheduler: SchedulerService;
   steward: StewardService;

@@ -9,8 +9,12 @@ function TaskTreePanel(): JSX.Element {
       root={workbench.root}
       children={workbench.children}
       edges={workbench.edges}
+      records={workbench.acceptance}
+      evidence={workbench.evidence}
+      stages={workbench.stages}
       busy={workbench.busy}
       onAction={workbench.onTaskAction}
+      onAcceptance={workbench.onAcceptance}
     />
   );
 }

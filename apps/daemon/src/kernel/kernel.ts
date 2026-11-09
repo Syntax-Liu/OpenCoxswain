@@ -40,6 +40,10 @@ const SERVICE_RULES: Record<
     required: ['employee:use'],
     provider: ['employee:provide'],
   },
+  verification: {
+    required: ['verification:run'],
+    provider: ['verification:provide'],
+  },
   planner: { required: ['planner:use'], provider: ['planner:use'] },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },

@@ -2,7 +2,7 @@
 
 本地优先的 Windows AI 总管。你只对总管说话；总管把目标拆成结构化任务单和 DAG，派给在独立 git worktree 里干活的 AI 员工，盯进度、做验收，最后按固定三块汇报：待你决策 / 未通过的检查 / 交付产物。
 
-当前版本 `0.6.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，桌面壳待接入。
+当前版本 `0.7.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，桌面壳待接入。
 
 ## 快速开始
 
@@ -48,9 +48,10 @@ docs/
   plan.md      # 分阶段实施计划与取舍
   plugin-architecture.md
   spike-opencode.md
+  super-agent-adoption.md
 ```
 
-## 当前能力（v0.6.0）
+## 当前能力（v0.7.0）
 
 已实现：
 
@@ -64,8 +65,12 @@ docs/
 - 失败重试矩阵：运行时返回可重试错误时自动重试一次，仍失败则升级「待你决策」；用户可 `POST /api/tasks/:id/retry` 重新排队。
 - 顺序合并与冲突转人审：多依赖任务在新 worktree 内按依赖顺序合并分支，冲突时中止并建 `merge_conflict` 审批，不触碰用户主分支。
 - 成本报表：`GET /api/projects/:id/costs` 汇总总成本、按模型/任务/日分组。
-- 回放导出：`GET /api/tasks/:id/replay?format=markdown` 导出任务标题、子任务、员工、审批、产物、事件时间线与汇总。
+- 回放导出：`GET /api/tasks/:id/replay?format=markdown` 导出任务标题、子任务、员工、审批、产物、验收结论与证据、事件时间线与汇总。
 - 员工插件包：角色 + 技能 + 工具白名单 + 权限 + 默认验收标准五件套由插件注册；调研员/实施员/校验员/撰写员均走同一加载路径，`GET /api/employees` 可查看已安装员工，调度器与 Planner 不再内置角色。
+- 验收自证：员工自报只作审计；`command` 验收由系统在 worktree 内独立重跑，`diff` 用 git 复算，`rubric` / `human` 一律留给人。
+- 逐条验收：`POST /api/tasks/:id/acceptance` 要求每个未通过验收项单独给结论和理由，缺结论返回 409、缺理由返回 400；不再有「一键全部通过」入口。
+- 验收留痕：evidence 与 acceptance_records 落库，记录交付物、证据摘要、验收标准、验收人（系统/人）与结论，可回放。
+- 阶段视图：`GET /api/tasks?stage=person|working|idle` 与工作台「在等谁」标签，明确当前是等人、等依赖还是执行中。
 - Mock 运行时：真实写文件、跑验收命令、产出 diff 与报告，离线可跑。
 - OpenCode 运行时：调用桌面版 CLI 执行真实任务，JSONL 事件映射、会话隔离、进程树终止。
 - LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分。

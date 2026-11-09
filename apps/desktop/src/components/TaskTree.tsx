@@ -1,16 +1,57 @@
-import type { Task, TaskEdge } from '@opencoxswain/shared';
+import type {
+  AcceptanceDecision,
+  AcceptanceRecord,
+  Evidence,
+  Task,
+  TaskEdge,
+  TaskStage,
+  TaskStageView,
+} from '@opencoxswain/shared';
 import type { TaskAction } from '../api.js';
 import { ROLE_LABELS, StatusChip } from '../ui.js';
+import { AcceptancePanel } from './AcceptancePanel.js';
 
 interface Props {
   root: Task | null;
   children: Task[];
   edges: TaskEdge[];
+  records: AcceptanceRecord[];
+  evidence: Evidence[];
+  stages: TaskStageView[];
   busy: boolean;
   onAction: (action: TaskAction) => void;
+  onAcceptance: (decisions: AcceptanceDecision[]) => void;
 }
 
-export function TaskTree({ root, children, edges, busy, onAction }: Props): JSX.Element {
+const STAGE_LABELS: Record<TaskStage['kind'], string> = {
+  person: '等你处理',
+  working: '执行中',
+  idle: '等待中',
+};
+
+function stageText(stage: TaskStage | undefined): string {
+  if (!stage) return '';
+  switch (stage.kind) {
+    case 'person':
+      return stage.reason === 'review' ? '等你验收' : '等你处理';
+    case 'working':
+      return stage.reason === 'running' ? '执行中' : '排队中';
+    case 'idle':
+      return stage.reason === 'waiting_dependency' ? '等依赖' : '等待中';
+  }
+}
+
+export function TaskTree({
+  root,
+  children,
+  edges,
+  records,
+  evidence,
+  stages,
+  busy,
+  onAction,
+  onAcceptance,
+}: Props): JSX.Element {
   if (!root) {
     return (
       <section className="panel task-tree">
@@ -27,14 +68,12 @@ export function TaskTree({ root, children, edges, busy, onAction }: Props): JSX.
   const titleOf = new Map<string, string>();
   for (const task of [root, ...children]) titleOf.set(task.id, task.title);
 
+  const stageOf = new Map(stages.map((view) => [view.taskId, view.stage]));
   const canCancel = !['done', 'cancelled'].includes(root.status);
   const actions: Array<{ action: TaskAction; label: string; kind?: string }> = [];
   if (root.status === 'awaiting_approval') {
     actions.push({ action: 'approve', label: '确认开工', kind: 'primary' });
     actions.push({ action: 'reject', label: '打回' });
-  }
-  if (root.status === 'awaiting_review') {
-    actions.push({ action: 'accept', label: '验收通过', kind: 'primary' });
   }
   if (root.status === 'running' || root.status === 'queued') {
     actions.push({ action: 'pause', label: '暂停' });
@@ -48,6 +87,9 @@ export function TaskTree({ root, children, edges, busy, onAction }: Props): JSX.
     <section className="panel task-tree">
       <header className="panel-header">
         <h2>任务树</h2>
+        <span className="stage-label" data-stage={stageOf.get(root.id)?.kind}>
+          {stageText(stageOf.get(root.id))}
+        </span>
         <StatusChip status={root.status} />
       </header>
       <div className="panel-body">
@@ -93,6 +135,7 @@ export function TaskTree({ root, children, edges, busy, onAction }: Props): JSX.
                 <header>
                   <span className="index">{String(index + 1).padStart(2, '0')}</span>
                   <h4>{task.title}</h4>
+                  <span className="stage-label">{stageText(stageOf.get(task.id))}</span>
                   <StatusChip status={task.status} />
                 </header>
                 <p className="goal">{task.goal}</p>
@@ -120,6 +163,16 @@ export function TaskTree({ root, children, edges, busy, onAction }: Props): JSX.
             );
           })}
         </div>
+
+        {root.status === 'awaiting_review' ? (
+          <AcceptancePanel
+            tasks={[root, ...children]}
+            records={records}
+            evidence={evidence}
+            busy={busy}
+            onSubmit={onAcceptance}
+          />
+        ) : null}
       </div>
     </section>
   );

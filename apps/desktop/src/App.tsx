@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  AcceptanceDecision,
   Assistant,
   Project,
   Task,
@@ -89,6 +90,9 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const events =
     snapshot?.events.filter((event) => event.taskId === null || treeIds.has(event.taskId)) ?? [];
   const artifacts = snapshot?.artifacts.filter((item) => treeIds.has(item.taskId)) ?? [];
+  const acceptance = snapshot?.acceptance.filter((item) => treeIds.has(item.taskId)) ?? [];
+  const evidence = snapshot?.evidence.filter((item) => treeIds.has(item.taskId)) ?? [];
+  const stages = snapshot?.stages.filter((view) => treeIds.has(view.taskId)) ?? [];
 
   const onPlan = async (goal: string, acceptanceCommand?: string): Promise<boolean> => {
     const project = snapshot?.project;
@@ -99,6 +103,11 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const onTaskAction = (action: TaskAction, note?: string): void => {
     if (!root) return;
     void run(() => api.taskAction(root.id, action, note));
+  };
+
+  const onAcceptance = (decisions: AcceptanceDecision[]): void => {
+    if (!root) return;
+    void run(() => api.decideAcceptance(root.id, decisions));
   };
 
   const onWorkerAction = (worker: Worker, action: WorkerAction): void => {
@@ -164,10 +173,14 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     workers,
     events,
     artifacts,
+    acceptance,
+    evidence,
+    stages,
     summary: snapshot.summary,
     busy,
     onPlan,
     onTaskAction,
+    onAcceptance,
     onWorkerAction,
     onProjectSettings,
     onAssistant,

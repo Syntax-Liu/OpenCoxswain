@@ -2,12 +2,13 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   newId,
   now,
-  type AcceptanceResult,
+  type AcceptanceRecord,
   type Approval,
   type ArtifactRecord,
   type Assistant,
   type CostLedger,
   type EventRecord,
+  type Evidence,
   type Message,
   type Project,
   type ProjectCostReport,
@@ -42,6 +43,32 @@ function parseJson<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
+
+const ACCEPTANCE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS evidence (
+  id           TEXT PRIMARY KEY,
+  task_id      TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  criterion_id TEXT NOT NULL,
+  kind         TEXT NOT NULL,
+  ref          TEXT NOT NULL,
+  digest       TEXT NOT NULL,
+  produced_by  TEXT NOT NULL,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_task ON evidence(task_id);
+
+CREATE TABLE IF NOT EXISTS acceptance_records (
+  task_id        TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  criterion_id   TEXT NOT NULL,
+  verdict        TEXT NOT NULL,
+  evidence_ids   TEXT NOT NULL,
+  judged_by      TEXT NOT NULL,
+  judged_by_user TEXT,
+  note           TEXT,
+  at             INTEGER NOT NULL,
+  PRIMARY KEY (task_id, criterion_id)
+);
+`;
 
 const SCHEMA = `
 CREATE TABLE projects (
@@ -111,13 +138,27 @@ CREATE TABLE runs (
   error       TEXT
 );
 
-CREATE TABLE task_acceptance (
-  task_id      TEXT NOT NULL,
+CREATE TABLE evidence (
+  id           TEXT PRIMARY KEY,
+  task_id      TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   criterion_id TEXT NOT NULL,
-  status       TEXT NOT NULL,
-  evidence     TEXT,
-  judged_by    TEXT NOT NULL,
-  updated_at   INTEGER NOT NULL,
+  kind         TEXT NOT NULL,
+  ref          TEXT NOT NULL,
+  digest       TEXT NOT NULL,
+  produced_by  TEXT NOT NULL,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX idx_evidence_task ON evidence(task_id);
+
+CREATE TABLE acceptance_records (
+  task_id        TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  criterion_id   TEXT NOT NULL,
+  verdict        TEXT NOT NULL,
+  evidence_ids   TEXT NOT NULL,
+  judged_by      TEXT NOT NULL,
+  judged_by_user TEXT,
+  note           TEXT,
+  at             INTEGER NOT NULL,
   PRIMARY KEY (task_id, criterion_id)
 );
 
@@ -187,11 +228,15 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 1) return;
+    if (version >= 2) return;
     this.db.exec('BEGIN;');
     try {
-      this.db.exec(SCHEMA);
-      this.db.exec('PRAGMA user_version = 1;');
+      if (version < 1) {
+        this.db.exec(SCHEMA);
+      } else {
+        this.db.exec(ACCEPTANCE_SCHEMA);
+      }
+      this.db.exec('PRAGMA user_version = 2;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -565,40 +610,91 @@ export class Store {
     return row ? parseJson<WorkerResult | null>(row.result_json, null) : null;
   }
 
-  // ---------- acceptance ----------
+  // ---------- acceptance & evidence ----------
 
-  setAcceptance(taskId: string, results: AcceptanceResult[]): void {
+  insertEvidence(items: Evidence[]): void {
     const statement = this.db.prepare(
-      `INSERT INTO task_acceptance (task_id, criterion_id, status, evidence, judged_by, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(task_id, criterion_id) DO UPDATE SET
-         status = excluded.status,
-         evidence = excluded.evidence,
-         judged_by = excluded.judged_by,
-         updated_at = excluded.updated_at`,
+      `INSERT INTO evidence (id, task_id, criterion_id, kind, ref, digest, produced_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO NOTHING`,
     );
-    for (const result of results) {
+    for (const item of items) {
       statement.run(
-        taskId,
-        result.criterionId,
-        result.status,
-        result.evidence ?? null,
-        result.judgedBy,
-        now(),
+        item.id,
+        item.taskId,
+        item.criterionId,
+        item.kind,
+        item.ref,
+        item.digest,
+        item.producedBy,
+        item.createdAt,
       );
     }
   }
 
-  listAcceptance(taskId: string): AcceptanceResult[] {
+  upsertAcceptance(records: AcceptanceRecord[]): void {
+    const statement = this.db.prepare(
+      `INSERT INTO acceptance_records
+         (task_id, criterion_id, verdict, evidence_ids, judged_by, judged_by_user, note, at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(task_id, criterion_id) DO UPDATE SET
+         verdict = excluded.verdict,
+         evidence_ids = excluded.evidence_ids,
+         judged_by = excluded.judged_by,
+         judged_by_user = excluded.judged_by_user,
+         note = excluded.note,
+         at = excluded.at`,
+    );
+    for (const record of records) {
+      statement.run(
+        record.taskId,
+        record.criterionId,
+        record.verdict,
+        JSON.stringify(record.evidenceIds),
+        record.judgedBy,
+        record.judgedByUser ?? null,
+        record.note ?? null,
+        record.at,
+      );
+    }
+  }
+
+  listTaskAcceptance(taskId: string): AcceptanceRecord[] {
     const rows = this.db
-      .prepare('SELECT * FROM task_acceptance WHERE task_id = ? ORDER BY criterion_id ASC')
+      .prepare('SELECT * FROM acceptance_records WHERE task_id = ? ORDER BY criterion_id ASC')
       .all(taskId) as Row[];
-    return rows.map((row) => ({
-      criterionId: text(row, 'criterion_id'),
-      status: text(row, 'status') as AcceptanceResult['status'],
-      evidence: nullableText(row, 'evidence') ?? undefined,
-      judgedBy: text(row, 'judged_by') as AcceptanceResult['judgedBy'],
-    }));
+    return rows.map(toAcceptanceRecord);
+  }
+
+  listProjectAcceptance(projectId: string): AcceptanceRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT a.* FROM acceptance_records a
+         JOIN tasks t ON t.id = a.task_id
+         WHERE t.project_id = ?
+         ORDER BY t.created_at ASC, a.criterion_id ASC`,
+      )
+      .all(projectId) as Row[];
+    return rows.map(toAcceptanceRecord);
+  }
+
+  listTaskEvidence(taskId: string): Evidence[] {
+    const rows = this.db
+      .prepare('SELECT * FROM evidence WHERE task_id = ? ORDER BY created_at ASC')
+      .all(taskId) as Row[];
+    return rows.map(toEvidence);
+  }
+
+  listProjectEvidence(projectId: string): Evidence[] {
+    const rows = this.db
+      .prepare(
+        `SELECT e.* FROM evidence e
+         JOIN tasks t ON t.id = e.task_id
+         WHERE t.project_id = ?
+         ORDER BY e.created_at ASC`,
+      )
+      .all(projectId) as Row[];
+    return rows.map(toEvidence);
   }
 
   // ---------- events ----------
@@ -965,4 +1061,30 @@ export class Store {
       daily: daily.map((row) => ({ day: text(row, 'day'), usd: number(row, 'usd') })),
     };
   }
+}
+
+function toAcceptanceRecord(row: Row): AcceptanceRecord {
+  return {
+    taskId: text(row, 'task_id'),
+    criterionId: text(row, 'criterion_id'),
+    verdict: text(row, 'verdict') as AcceptanceRecord['verdict'],
+    evidenceIds: parseJson<string[]>(row.evidence_ids, []),
+    judgedBy: text(row, 'judged_by') as AcceptanceRecord['judgedBy'],
+    judgedByUser: nullableText(row, 'judged_by_user') ?? undefined,
+    note: nullableText(row, 'note') ?? undefined,
+    at: number(row, 'at'),
+  };
+}
+
+function toEvidence(row: Row): Evidence {
+  return {
+    id: text(row, 'id'),
+    taskId: text(row, 'task_id'),
+    criterionId: text(row, 'criterion_id'),
+    kind: text(row, 'kind') as Evidence['kind'],
+    ref: text(row, 'ref'),
+    digest: text(row, 'digest'),
+    producedBy: text(row, 'produced_by') as Evidence['producedBy'],
+    createdAt: number(row, 'created_at'),
+  };
 }

@@ -42,6 +42,7 @@ function configFor(homeDir: string): OpenCoxswainConfig {
     defaultRuntime: 'mock',
     defaultModel: '',
     opencodeBin: '',
+    commandTimeoutMs: 120000,
   };
 }
 

@@ -128,8 +128,30 @@ try {
   const content = await fetch(`${base}/api/artifacts/${artifact.id}`).then((res) => res.text());
   console.log(content.split('\n').slice(0, 8).join('\n'));
 
-  step('用户验收');
-  const accepted = await call(`/api/tasks/${planned.root.id}/accept`, { method: 'POST' });
+  step('用户逐条验收');
+  const decisions = snapshot.tasks
+    .filter((task) => task.id === planned.root.id || task.parentId === planned.root.id)
+    .flatMap((task) =>
+      task.contract.acceptance_criteria
+        .filter(
+          (criterion) =>
+            snapshot.acceptance.find(
+              (record) =>
+                record.taskId === task.id &&
+                record.criterionId === criterion.id &&
+                record.verdict === 'passed',
+            ) === undefined,
+        )
+        .map((criterion) => ({
+          criterionId: `${task.id}:${criterion.id}`,
+          verdict: 'passed',
+          note: 'e2e：人工确认结果符合目标',
+        })),
+    );
+  const accepted = await call(`/api/tasks/${planned.root.id}/acceptance`, {
+    method: 'POST',
+    body: JSON.stringify({ decisions }),
+  });
   assert.equal(accepted.status, 'done');
 
   step('回放');

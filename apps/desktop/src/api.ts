@@ -1,4 +1,5 @@
 import type {
+  AcceptanceDecision,
   Assistant,
   CreatePlanRequest,
   CreateProjectRequest,
@@ -13,7 +14,7 @@ export const DAEMON_URL =
     '',
   );
 
-export type TaskAction = 'approve' | 'reject' | 'cancel' | 'accept' | 'pause' | 'resume';
+export type TaskAction = 'approve' | 'reject' | 'cancel' | 'pause' | 'resume';
 export type WorkerAction = 'pause' | 'resume' | 'terminate';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -62,6 +63,13 @@ export const api = {
   taskAction(taskId: string, action: TaskAction, note?: string): Promise<Task> {
     const body = action === 'reject' ? JSON.stringify({ note }) : undefined;
     return request<Task>(`/api/tasks/${taskId}/${action}`, { method: 'POST', body });
+  },
+
+  decideAcceptance(taskId: string, decisions: AcceptanceDecision[]): Promise<Task> {
+    return request<Task>(`/api/tasks/${taskId}/acceptance`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions }),
+    });
   },
 
   workerAction(workerId: string, action: WorkerAction): Promise<unknown> {

@@ -1,11 +1,15 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type {
+  AcceptanceDecision,
+  AcceptanceRecord,
   ArtifactRecord,
   Assistant,
   EventRecord,
+  Evidence,
   Project,
   Task,
   TaskEdge,
+  TaskStageView,
   Worker,
   WorkbenchSnapshot,
 } from '@opencoxswain/shared';
@@ -22,10 +26,14 @@ export interface Workbench {
   workers: Worker[];
   events: EventRecord[];
   artifacts: ArtifactRecord[];
+  acceptance: AcceptanceRecord[];
+  evidence: Evidence[];
+  stages: TaskStageView[];
   summary: string | null;
   busy: boolean;
   onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
   onTaskAction: (action: TaskAction, note?: string) => void;
+  onAcceptance: (decisions: AcceptanceDecision[]) => void;
   onWorkerAction: (worker: Worker, action: WorkerAction) => void;
   onProjectSettings: (patch: {
     dailyBudgetUsd: number;

@@ -1,12 +1,17 @@
 import {
   assertTransition,
   buildSummary,
+  computeStage,
+  dependenciesOf,
   isTerminal,
   type TransitionActor,
 } from '@opencoxswain/core';
 import {
+  newId,
   now,
   type AcceptanceCriterion,
+  type AcceptanceDecision,
+  type AcceptanceRecord,
   type AcceptanceResult,
   type Approval,
   type ArtifactRef,
@@ -14,9 +19,11 @@ import {
   type CostLedger,
   type CreatePlanRequest,
   type CreateProjectRequest,
+  type Evidence,
   type Project,
   type Task,
   type TaskReplay,
+  type TaskStageView,
   type WorkbenchSnapshot,
 } from '@opencoxswain/shared';
 import type {
@@ -79,17 +86,21 @@ export class Steward implements StewardService {
         messages: [],
         artifacts: [],
         employees: this.employees.list(),
+        acceptance: [],
+        evidence: [],
+        stages: [],
         summary: null,
         runtime,
       };
     }
 
     const root = this.activeRoot(project.id);
+    const tasks = this.store.listTasks(project.id);
     return {
       projects,
       project,
       assistant,
-      tasks: this.store.listTasks(project.id),
+      tasks,
       edges: this.store.listEdges(project.id),
       workers: this.store.listWorkers(project.id),
       events: this.store.listRecentEvents(project.id, 200),
@@ -97,9 +108,30 @@ export class Steward implements StewardService {
       messages: this.store.listMessages(project.id),
       artifacts: this.store.listArtifacts(project.id),
       employees: this.employees.list(),
+      acceptance: this.store.listProjectAcceptance(project.id),
+      evidence: this.store.listProjectEvidence(project.id),
+      stages: this.stages(project.id, tasks),
       summary: root ? this.summary(root.id) : null,
       runtime,
     };
+  }
+
+  /** 「在等谁」：依赖未完成 → idle；其余按状态映射，不改状态机。 */
+  private stages(projectId: string, tasks: Task[]): TaskStageView[] {
+    const edges = this.store.listEdges(projectId);
+    return tasks.map((task) => {
+      const dependencyPending = dependenciesOf(task.id, edges).some((dependencyId) => {
+        const dependency = this.store.getTask(dependencyId);
+        return dependency ? !isTerminal(dependency.status) : false;
+      });
+      return {
+        taskId: task.id,
+        stage: computeStage({
+          status: task.status,
+          dependencyPending,
+        }),
+      };
+    });
   }
 
   activeRoot(projectId: string): Task | null {
@@ -315,42 +347,123 @@ export class Steward implements StewardService {
     this.announce(task.projectId, message, task.id);
   }
 
-  acceptTask(taskId: string): Task {
+  /**
+   * 逐条验收：每条未通过的验收项都必须带结论与理由，不接受“一键全部通过”。
+   * 系统已复核的证据不会被覆盖；人的结论作为新的判定记录留档。
+   */
+  decideAcceptance(
+    taskId: string,
+    decisions: AcceptanceDecision[],
+    judgedByUser = '本机用户',
+  ): Task {
     const root = this.requireTask(taskId);
     if (root.parentId !== null || root.status !== 'awaiting_review') {
       throw new AppError('该任务当前不在待验收状态');
     }
     const tree = [root, ...this.store.listChildren(root.id)];
-    const unresolved: string[] = [];
+    const provided = new Map<string, AcceptanceDecision>();
+    for (const decision of decisions) {
+      const key = decision.criterionId.trim();
+      if (!key) throw new AppError('criterionId 不能为空');
+      const note = decision.note?.trim();
+      if (!note) throw new AppError(`验收项 ${key} 必须填写判断理由`, 400);
+      if (decision.verdict !== 'passed' && decision.verdict !== 'failed') {
+        throw new AppError(`验收项 ${key} 的结论只能是 passed 或 failed`, 400);
+      }
+      if (provided.has(key)) throw new AppError(`验收项 ${key} 重复提交`, 400);
+      provided.set(key, { ...decision, note });
+    }
+
+    const missing: string[] = [];
+    const records: AcceptanceRecord[] = [];
+    const evidence: Evidence[] = [];
+    const at = now();
 
     for (const task of tree) {
       const existing = new Map(
-        this.store.listAcceptance(task.id).map((result) => [result.criterionId, result]),
+        this.store.listTaskAcceptance(task.id).map((record) => [record.criterionId, record]),
       );
       for (const criterion of task.contract.acceptance_criteria) {
-        const result = existing.get(criterion.id);
-        if (result && result.status !== 'unverified') continue;
-        if (criterion.type === 'human' || criterion.type === 'rubric') {
-          this.store.setAcceptance(task.id, [
-            {
-              criterionId: criterion.id,
-              status: 'passed',
-              evidence: '用户验收通过',
-              judgedBy: 'human',
-            },
-          ]);
-        } else {
-          unresolved.push(`${task.title} / ${criterion.id}`);
+        const key = `${task.id}:${criterion.id}`;
+        const current = existing.get(criterion.id);
+        if (current?.verdict === 'passed') continue;
+        const decision = provided.get(key);
+        if (!decision) {
+          missing.push(key);
+          continue;
         }
+        const note = decision.note;
+        const item: Evidence = {
+          id: newId('ev'),
+          taskId: task.id,
+          criterionId: criterion.id,
+          kind: 'human_note',
+          ref: note,
+          digest: `human:${note}`,
+          producedBy: 'human',
+          createdAt: at,
+        };
+        evidence.push(item);
+        records.push({
+          taskId: task.id,
+          criterionId: criterion.id,
+          verdict: decision.verdict,
+          evidenceIds: [item.id],
+          judgedBy: 'human',
+          judgedByUser,
+          note,
+          at,
+        });
       }
     }
 
-    if (unresolved.length > 0) {
-      throw new AppError(`还有验收项未验证，不能完成：${unresolved.join('；')}`, 409);
+    if (missing.length > 0) {
+      throw new AppError(`以下验收项还没有结论：${missing.join('、')}`, 409);
     }
 
-    this.transition(root.id, 'done', 'user');
-    this.announce(root.projectId, this.summary(root.id), root.id);
+    this.store.insertEvidence(evidence);
+    this.store.upsertAcceptance(records);
+    const event = this.store.appendEvent({
+      taskId: root.id,
+      type: 'acceptance.decided',
+      payload: {
+        records: records.map((record) => ({
+          taskId: record.taskId,
+          criterionId: record.criterionId,
+          verdict: record.verdict,
+        })),
+        judgedByUser,
+      },
+    });
+    this.bus.publish(event);
+
+    // 子任务先结算，再结算根任务：全部判定通过才算完成，任一不通过则失败。
+    for (const task of tree) {
+      const latest = this.store.getTask(task.id);
+      if (!latest || latest.status !== 'awaiting_review') continue;
+      const records = this.store.listTaskAcceptance(task.id);
+      const verdicts = task.contract.acceptance_criteria.map(
+        (criterion) => records.find((record) => record.criterionId === criterion.id)?.verdict,
+      );
+      if (verdicts.some((verdict) => verdict === 'failed')) {
+        this.transition(task.id, 'failed', 'user');
+      } else if (verdicts.every((verdict) => verdict === 'passed')) {
+        this.transition(task.id, 'done', 'user');
+      }
+    }
+
+    const settled = this.requireTask(root.id);
+    if (settled.status === 'failed') {
+      this.announce(
+        root.projectId,
+        `## 待你决策\n\n任务「${root.title}」验收未通过，已停在 failed。\n- 可修正后重试，或取消任务。`,
+        root.id,
+      );
+      return settled;
+    }
+
+    const summary = this.summary(root.id);
+    this.announce(root.projectId, summary, root.id);
     return this.requireTask(root.id);
   }
 
@@ -369,8 +482,13 @@ export class Steward implements StewardService {
           desc: item.parentId === null ? criterion.desc : `【${item.title}】${criterion.desc}`,
         });
       }
-      for (const result of this.store.listAcceptance(item.id)) {
-        results.push({ ...result, criterionId: `${item.id}/${result.criterionId}` });
+      for (const record of this.store.listTaskAcceptance(item.id)) {
+        results.push({
+          criterionId: `${item.id}/${record.criterionId}`,
+          status: record.verdict,
+          judgedBy: record.judgedBy,
+          evidence: record.note ?? record.evidenceIds.join(','),
+        });
       }
     }
 
@@ -422,6 +540,8 @@ export class Steward implements StewardService {
       events,
       artifacts: this.store.listArtifacts(task.projectId).filter((artifact) => ids.has(artifact.taskId)),
       approvals: this.store.listApprovals(task.projectId).filter((approval) => ids.has(approval.taskId)),
+      acceptance: tree.flatMap((item) => this.store.listTaskAcceptance(item.id)),
+      evidence: tree.flatMap((item) => this.store.listTaskEvidence(item.id)),
       summary: this.summary(task.id),
     };
   }

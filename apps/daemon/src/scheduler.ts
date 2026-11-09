@@ -38,6 +38,7 @@ import type {
   OpenCoxswainConfig,
   RuntimeRegistry,
   StorageService,
+  VerificationService,
   WorktreeService,
 } from '@opencoxswain/plugin-api';
 import { MergeConflictError } from './worktree.js';
@@ -68,6 +69,7 @@ export interface SchedulerOptions {
   runtimes: RuntimeRegistry;
   worktrees: WorktreeService;
   employees: EmployeeRegistry;
+  verification: VerificationService;
 }
 
 export class Scheduler {
@@ -77,12 +79,15 @@ export class Scheduler {
   private readonly runtimes: RuntimeRegistry;
   private readonly worktrees: WorktreeService;
   private readonly employees: EmployeeRegistry;
+  private readonly verification: VerificationService;
   private readonly active = new Map<string, ActiveRun>();
+  private readonly running = new Set<Promise<void>>();
   private readonly dispatching = new Set<string>();
   private readonly budgetNotified = new Set<string>();
   private readonly taskWarned = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
+  private stopping = false;
 
   constructor(options: SchedulerOptions) {
     this.store = options.store;
@@ -91,9 +96,11 @@ export class Scheduler {
     this.runtimes = options.runtimes;
     this.worktrees = options.worktrees;
     this.employees = options.employees;
+    this.verification = options.verification;
   }
 
   start(): void {
+    this.stopping = false;
     this.recover();
     this.timer = setInterval(() => {
       void this.tick();
@@ -102,11 +109,14 @@ export class Scheduler {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     for (const run of this.active.values()) {
       await run.adapter.cancel(run.session).catch(() => undefined);
     }
+    // 等所有执行中的 run 落到 finally，避免关闭数据库后仍有异步写入。
+    await Promise.allSettled([...this.running]);
   }
 
   async pause(taskId: string): Promise<void> {
@@ -152,10 +162,11 @@ export class Scheduler {
   }
 
   private async tick(): Promise<void> {
-    if (this.ticking) return;
+    if (this.ticking || this.stopping) return;
     this.ticking = true;
     try {
       for (const project of this.store.listProjects()) {
+        if (this.stopping) break;
         await this.tickProject(project);
       }
     } finally {
@@ -209,6 +220,7 @@ export class Scheduler {
     const readyIds = new Set(readyTaskIds(readyDag, edges as DagEdge[]));
 
     for (const task of tasks) {
+      if (this.stopping) return;
       if (!readyIds.has(task.id)) continue;
       if (task.parentId === null) continue;
       if (this.dispatching.has(task.id) || this.active.has(task.id)) continue;
@@ -319,7 +331,9 @@ export class Scheduler {
     const runId = newId('run');
     this.store.insertRun(runId, worker.id, 1);
 
-    void this.run(task, worker, employee, adapter, runId);
+    const pending = this.run(task, worker, employee, adapter, runId);
+    this.running.add(pending);
+    void pending.finally(() => this.running.delete(pending));
   }
 
   private async run(
@@ -338,6 +352,7 @@ export class Scheduler {
     let pendingRunId: string | null = runId;
     try {
       for (;;) {
+        if (this.stopping) break;
         attempt += 1;
         session = await adapter.createSession({
           taskId: task.id,
@@ -710,7 +725,6 @@ export class Scheduler {
   private async finish(task: Task, worker: Worker, result: WorkerResult): Promise<void> {
     this.store.insertModelCall({ workerId: worker.id, model: worker.model, cost: result.cost });
     this.store.updateWorker(worker.id, { status: 'done', cost: result.cost });
-    this.store.setAcceptance(task.id, result.acceptance);
 
     for (const artifact of result.artifacts) {
       this.store.insertArtifact({
@@ -724,17 +738,40 @@ export class Scheduler {
       });
     }
 
+    const project = this.store.getProject(task.projectId);
+    const verification = await this.verification.verify({
+      taskId: task.id,
+      worktree: worker.worktreePath,
+      criteria: task.contract.acceptance_criteria,
+      artifacts: result.artifacts,
+      baseRef: project?.defaultBranch,
+    });
+    this.store.insertEvidence(verification.evidence);
+    this.store.upsertAcceptance(verification.records);
+
+    this.emit(task.id, worker.id, 'acceptance.verified', {
+      records: verification.records.map((record) => ({
+        criterionId: record.criterionId,
+        verdict: record.verdict,
+        judgedBy: record.judgedBy,
+        note: record.note,
+      })),
+      evidence: verification.evidence.length,
+      /** 员工自报只作审计参考，不参与判定。 */
+      reported: result.acceptance,
+    });
     this.emit(task.id, worker.id, 'worker.finished', {
       summary: result.summary,
       cost: result.cost,
       artifacts: result.artifacts.length,
     });
 
-    const failed = result.acceptance.some((item) => item.status === 'failed');
-    const unverified = result.acceptance.some((item) => item.status === 'unverified');
+    const failed = verification.records.some((record) => record.verdict === 'failed');
+    const unverified = verification.records.some((record) => record.verdict === 'unverified');
     const current = this.store.getTask(task.id);
     if (!current || current.status !== 'running') return;
 
+    // 复核全部通过才算完成；有待判定项（rubric/human 或 diff 无法复算）则交给人。
     const next: TaskStatus = failed ? 'failed' : unverified ? 'awaiting_review' : 'done';
     this.transition(task.id, next, 'scheduler');
   }

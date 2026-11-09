@@ -15,6 +15,7 @@ const SERVICE_KEYS: ServiceKey[] = [
   'worktrees',
   'runtimes',
   'employees',
+  'verification',
   'planner',
   'scheduler',
   'steward',
@@ -43,6 +44,8 @@ const PERMISSIONS: Permission[] = [
   'net:listen',
   'employee:use',
   'employee:provide',
+  'verification:run',
+  'verification:provide',
   'ui:panel',
 ];
 

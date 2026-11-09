@@ -291,8 +291,14 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. 内置调研员 / 实施员 / 校验员 / 撰写员四个员工包，外部插件可用同一 `employeePack` 工厂安装新角色；`GET /api/employees` 与工作台「已安装员工包」展示五件套。
 4. `pnpm test`（core 23 + daemon 20）、`pnpm e2e` 均通过。
 
+已完成（v0.7.0）：
+
+1. 验收证据化：新增 `verification` 服务（`verification:run` / `verification:provide`）；`finish()` 不再采信员工自报，command 在 worktree 内重跑、diff 用 git 复算、rubric/human 标记 unverified。
+2. 逐条验收：`POST /api/tasks/:id/acceptance` 替代 `/accept`；每条未通过项必须给结论与理由，证据与判定落 `evidence` / `acceptance_records` 两表（旧库自动迁移到 user_version=2）。
+3. 阶段视图：`core/stage.ts` 纯计算 `person / working / idle`，`GET /api/tasks?stage=` 与工作台标签消费同一结果。
+4. `pnpm test`（core 23 + daemon 22）、`pnpm e2e` 均通过。
+
 下一步（P3 剩余）：
 
-1. 验收自证与批量盖章整改（G1/G2，见 [super-agent-adoption.md](super-agent-adoption.md)）。
-2. 运行中输入、规则版 Watchdog、RunLease 租约、任务级授权链、状态表达在等谁（G3–G7）。
-3. 记忆层、任务树审计视图、进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。
+1. 运行中输入、规则版 Watchdog、RunLease 租约、任务级授权链（G3–G6）。
+2. 记忆层、任务树审计视图、进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。

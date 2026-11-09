@@ -43,6 +43,7 @@ const ALLOWED: Record<TaskStatus, Partial<Record<TaskStatus, TransitionActor[]>>
   },
   awaiting_review: {
     done: ['user'],
+    failed: ['user'],
     running: ['user'],
     cancelled: ['user'],
   },

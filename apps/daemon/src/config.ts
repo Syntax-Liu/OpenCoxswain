@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.7.0';
 
 export type DaemonConfig = OpenCoxswainConfig;
 
@@ -38,5 +38,6 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
       'mock',
     defaultModel: (overrides.defaultModel ?? process.env.OPENCOXSWAIN_DEFAULT_MODEL ?? '').trim(),
     opencodeBin: (overrides.opencodeBin ?? process.env.OPENCOXSWAIN_OPENCODE_BIN ?? '').trim(),
+    commandTimeoutMs: overrides.commandTimeoutMs ?? 5 * 60 * 1000,
   };
 }

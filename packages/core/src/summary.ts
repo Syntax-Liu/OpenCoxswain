@@ -29,8 +29,11 @@ export function buildSummary(input: SummaryInput): string {
 
   for (const criterion of input.contract.acceptance_criteria) {
     const result = byId.get(criterion.id);
-    if (criterion.type === 'human' && (result === undefined || result.status === 'unverified')) {
-      decisions.push(`- [ ] ${criterion.id}：${criterion.desc}（需要你确认）`);
+    if (
+      (criterion.type === 'human' || criterion.type === 'rubric') &&
+      (result === undefined || result.status === 'unverified')
+    ) {
+      decisions.push(`- [ ] ${criterion.id}：${criterion.desc}（需要你逐条确认）`);
       continue;
     }
     if (result?.status === 'failed') {

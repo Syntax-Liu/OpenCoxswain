@@ -1,10 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { CreatePlanRequest, CreateProjectRequest, TaskReplay } from '@opencoxswain/shared';
+import type {
+  AcceptanceDecision,
+  CreatePlanRequest,
+  CreateProjectRequest,
+  TaskReplay,
+} from '@opencoxswain/shared';
 import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
 
-const TASK_ACTIONS = ['approve', 'reject', 'cancel', 'accept', 'pause', 'resume', 'retry'] as const;
+const TASK_ACTIONS = ['approve', 'reject', 'cancel', 'pause', 'resume', 'retry'] as const;
 const WORKER_ACTIONS = ['pause', 'resume', 'terminate'] as const;
 
 function isWithin(root: string, target: string): boolean {
@@ -39,6 +44,20 @@ function replayMarkdown(replay: TaskReplay): string {
     '',
     '## 产物',
     ...replay.artifacts.map((artifact) => `- ${artifact.type} ${artifact.path}`),
+    '',
+    '## 验收',
+    ...replay.acceptance.map(
+      (record) =>
+        `- [${record.verdict}] ${record.taskId}/${record.criterionId}（${record.judgedBy}${
+          record.judgedByUser ? `：${record.judgedByUser}` : ''
+        }）${record.note ? `：${record.note}` : ''}`,
+    ),
+    '',
+    '## 证据',
+    ...replay.evidence.map(
+      (item) =>
+        `- ${item.taskId}/${item.criterionId} ${item.kind}（${item.producedBy}）：${item.ref}，摘要 ${item.digest}`,
+    ),
     '',
     '## 事件时间线',
     ...replay.events.map(
@@ -142,8 +161,6 @@ export async function apply(ctx: PluginContext): Promise<void> {
           return { json: steward.rejectTask(id, body.note) };
         case 'cancel':
           return { json: await steward.cancelTask(id) };
-        case 'accept':
-          return { json: steward.acceptTask(id) };
         case 'pause':
           return { json: await steward.pauseTask(id) };
         case 'resume':
@@ -153,6 +170,29 @@ export async function apply(ctx: PluginContext): Promise<void> {
       }
     });
   }
+
+  http.route('POST', '/api/tasks/:id/acceptance', async (request) => {
+    const body = request.body as {
+      decisions?: AcceptanceDecision[];
+      judgedByUser?: string;
+    };
+    return {
+      json: steward.decideAcceptance(
+        taskIdOf(request),
+        Array.isArray(body.decisions) ? body.decisions : [],
+        body.judgedByUser,
+      ),
+    };
+  });
+
+  http.route('GET', '/api/tasks', async (request) => {
+    const snapshot = await steward.snapshot(request.query.get('projectId'));
+    const kind = request.query.get('stage');
+    if (!kind) return { json: { tasks: snapshot.tasks, stages: snapshot.stages } };
+    const stages = snapshot.stages.filter((view) => view.stage.kind === kind);
+    const ids = new Set(stages.map((view) => view.taskId));
+    return { json: { tasks: snapshot.tasks.filter((task) => ids.has(task.id)), stages } };
+  });
 
   http.route('GET', '/api/tasks/:id/summary', async (request) => ({
     json: { summary: steward.summary(taskIdOf(request)) },

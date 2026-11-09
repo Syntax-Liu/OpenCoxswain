@@ -20,6 +20,19 @@ export type RoleName = (typeof ROLE_NAMES)[number];
 export const ACCEPTANCE_TYPES = ['command', 'diff', 'rubric', 'human'] as const;
 export type AcceptanceType = (typeof ACCEPTANCE_TYPES)[number];
 
+export const EVIDENCE_KINDS = [
+  'command_output',
+  'diff_stat',
+  'file',
+  'screenshot',
+  'link',
+  'human_note',
+] as const;
+export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
+
+export const VERDICTS = ['passed', 'failed', 'unverified'] as const;
+export type Verdict = (typeof VERDICTS)[number];
+
 export const DELIVERABLE_TYPES = ['diff', 'file', 'report', 'link'] as const;
 export type DeliverableType = (typeof DELIVERABLE_TYPES)[number];
 
@@ -38,13 +51,63 @@ export interface AcceptanceCriterion {
   type: AcceptanceType;
   desc: string;
   check?: string;
+  /** 该条至少需要哪些证据；缺省时由 type 推导。 */
+  evidence_required?: EvidenceKind[];
+}
+
+/** 一条可复核的证据。执行者只能提交，不能据此判定。 */
+export interface Evidence {
+  id: string;
+  taskId: string;
+  criterionId: string;
+  kind: EvidenceKind;
+  /** command: 命令行；diff: 比较基线；file: 路径；human_note: 判断理由 */
+  ref: string;
+  /** 输出摘要 / diff 统计 / 内容 sha256 */
+  digest: string;
+  producedBy: 'system' | 'verifier' | 'worker' | 'human';
+  createdAt: number;
+}
+
+/** 系统或人给出的验收判定。每条标准最终只保留一条记录。 */
+export interface AcceptanceRecord {
+  taskId: string;
+  criterionId: string;
+  verdict: Verdict;
+  evidenceIds: string[];
+  judgedBy: 'system' | 'verifier' | 'human';
+  judgedByUser?: string;
+  note?: string;
+  at: number;
+}
+
+/** 用户逐条验收的输入。 */
+export interface AcceptanceDecision {
+  criterionId: string;
+  verdict: 'passed' | 'failed';
+  /** 必填：人的判断理由。 */
+  note: string;
 }
 
 export interface AcceptanceResult {
   criterionId: string;
-  status: 'passed' | 'failed' | 'unverified';
+  status: Verdict;
   evidence?: string;
   judgedBy: 'system' | 'verifier' | 'human';
+}
+
+export const TASK_STAGE_KINDS = ['person', 'working', 'idle'] as const;
+export type TaskStageKind = (typeof TASK_STAGE_KINDS)[number];
+
+/** 「在等谁」的计算视图，不落库、不改状态机。 */
+export type TaskStage =
+  | { kind: 'person'; reason: 'answer' | 'review' | 'blocked' | 'failed'; detail: string }
+  | { kind: 'working'; reason: 'queued' | 'running' }
+  | { kind: 'idle'; reason: 'waiting_dependency' | 'waiting_input' };
+
+export interface TaskStageView {
+  taskId: string;
+  stage: TaskStage;
 }
 
 export interface Deliverable {
@@ -247,6 +310,9 @@ export interface WorkbenchSnapshot {
   messages: Message[];
   artifacts: ArtifactRecord[];
   employees: EmployeeDefinition[];
+  acceptance: AcceptanceRecord[];
+  evidence: Evidence[];
+  stages: TaskStageView[];
   summary: string | null;
   runtime: RuntimeStatus;
 }
@@ -304,5 +370,7 @@ export interface TaskReplay {
   events: EventRecord[];
   artifacts: ArtifactRecord[];
   approvals: Approval[];
+  acceptance: AcceptanceRecord[];
+  evidence: Evidence[];
   summary: string | null;
 }

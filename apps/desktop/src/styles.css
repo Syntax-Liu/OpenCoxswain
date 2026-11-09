@@ -715,6 +715,82 @@ label {
   max-width: none;
 }
 
+/* ---------- 逐条验收 ---------- */
+
+.acceptance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.acceptance-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised, #131c26);
+}
+
+.acceptance-row > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acceptance-row > header small {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acceptance-row textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.evidence-list li {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 1px 8px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.danger-text {
+  color: var(--danger, #ff6b6b);
+}
+
+.stage-label {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.stage-label[data-stage='person'] {
+  color: var(--accent, #7cc4ff);
+}
+
+.stage-label[data-stage='working'] {
+  color: var(--ok, #7ddc9a);
+}
+
 /* ---------- 底部检查器 ---------- */
 
 .inspector .panel-header {

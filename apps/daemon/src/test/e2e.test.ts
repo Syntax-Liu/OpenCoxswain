@@ -148,7 +148,29 @@ test('v0 闭环：规划 -> 审批 -> 实施/校验 -> 汇总 -> 验收', async 
     assert.ok(snapshot.events.some((event) => event.type === 'summary.ready'));
     assert.ok(snapshot.workers.every((worker) => worker.cost.usd > 0));
 
-    const accepted = await call<Task>(`/api/tasks/${planned.root.id}/accept`, { method: 'POST' });
+    const decisions = snapshot.tasks
+      .filter((task) => task.id === planned.root.id || task.parentId === planned.root.id)
+      .flatMap((task) =>
+        task.contract.acceptance_criteria
+          .filter(
+            (criterion) =>
+              !snapshot.acceptance.some(
+                (record) =>
+                  record.taskId === task.id &&
+                  record.criterionId === criterion.id &&
+                  record.verdict === 'passed',
+              ),
+          )
+          .map((criterion) => ({
+            criterionId: `${task.id}:${criterion.id}`,
+            verdict: 'passed' as const,
+            note: 'e2e：人工确认结果符合目标',
+          })),
+      );
+    const accepted = await call<Task>(`/api/tasks/${planned.root.id}/acceptance`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions }),
+    });
     assert.equal(accepted.status, 'done');
 
     const replay = await call<{ events: unknown[]; summary: string }>(
