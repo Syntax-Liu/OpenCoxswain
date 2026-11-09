@@ -2,7 +2,7 @@
 
 本地优先的 Windows AI 总管。你只对总管说话；总管把目标拆成结构化任务单和 DAG，派给在独立 git worktree 里干活的 AI 员工，盯进度、做验收，最后按固定三块汇报：待你决策 / 未通过的检查 / 交付产物。
 
-当前版本 `0.11.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，运行中可投递消息并由规则监察兜底；v0.9.0 补齐验收闭环（AcceptancePolicy / DeliverableProfile / 来源链校验 / 内容级 diff）、运行租约与孤儿恢复、任务级授权链；v0.10.0 补上副作用台账与能力化授权；v0.11.0 补齐委派与恢复（任务树重派、孤儿 worktree 清理、DAG 可视化、待决策收件箱），桌面壳待接入。
+当前版本 `0.13.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，运行中可投递消息并由规则监察兜底；v0.9.0 补齐验收闭环（AcceptancePolicy / DeliverableProfile / 来源链校验 / 内容级 diff）、运行租约与孤儿恢复、任务级授权链；v0.10.0 补上副作用台账与能力化授权；v0.11.0 补齐委派与恢复（任务树重派、孤儿 worktree 清理、DAG 可视化、待决策收件箱）；v0.12.0 加入记忆层与记忆检查器；v0.13.0 接入 Tauri 2 桌面壳与 NSIS 安装包。
 
 ## 快速开始
 
@@ -10,6 +10,7 @@
 
 - Node.js >= 22（使用内置 `node:sqlite`，无需编译原生模块）
 - pnpm >= 9
+- 桌面壳：WebView2（Windows 11 自带）；从源码构建安装包另需 Rust stable 与 VS Build Tools（MSVC + Windows SDK）；安装包运行时仍需系统 PATH 中有 Node.js >= 22
 
 ```bash
 pnpm install
@@ -31,13 +32,16 @@ pnpm dev
 | `pnpm test` | core 单元测试 + daemon 端到端集成测试 |
 | `pnpm e2e` | 独立跑一遍 v0 剧本并打印进度 |
 | `pnpm e2e:opencode` | 可选：用本机 OpenCode CLI 跑真实员工链路（未安装时跳过） |
+| `pnpm desktop` | Tauri 2 开发态：自动拉起 daemon 与 Vite，打开桌面窗口 |
+| `pnpm desktop:build` | 打包 daemon 资源并构建 Windows NSIS 安装包 |
+| `pnpm package:daemon` | 只把 daemon 与工作区包产物摊平到 `apps/desktop/src-tauri/staging` |
 
 ## 目录
 
 ```
 apps/
   daemon/      # 本地核心：HTTP/SSE、SQLite、调度器、总管编排、worktree
-  desktop/     # React 18 + TypeScript + Vite 工作台（桌面壳在后续阶段接入）
+  desktop/     # React 18 + Vite 工作台 + Tauri 2 桌面壳（src-tauri）
 packages/
   shared/      # ID、时间、领域类型与 API DTO
   core/        # 任务契约、状态机、DAG、预算、汇总、工具白名单
@@ -51,7 +55,7 @@ docs/
   super-agent-adoption.md
 ```
 
-## 当前能力（v0.12.0）
+## 当前能力（v0.13.0）
 
 已实现：
 
@@ -93,10 +97,10 @@ docs/
 - OpenCode 运行时：调用桌面版 CLI 执行真实任务，JSONL 事件映射、会话隔离、进程树终止。
 - LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分，工作台顶部常驻「规划 · 静态回退」标识，悬停可看原因，`GET /api/secrets` 可查看 Key 是否已配置。
 - 浏览器工作台：对话、任务树、员工看板、时间线、产物、汇总、花费、设置。
+- Tauri 2 桌面壳：Rust 侧拉起并托管本地 daemon（固定 127.0.0.1:47821），端口就绪后再开窗，退出时结束子进程；日志在 `%LOCALAPPDATA%\OpenCoxswain\logs\daemon.log`。`pnpm desktop` 为开发态，`pnpm desktop:build` 产出 currentUser 模式的 NSIS 安装包，daemon 与工作区包由 `scripts/package-daemon.mjs` 摊平进安装资源。
 
 未实现（按计划在后续阶段接入）：
 
-- Tauri 2 桌面壳与安装包。
 - 多项目、IM 入口、产物 diff 逐文件审阅、任务模板、首次引导。
 
 ## 运行时与 Planner 配置

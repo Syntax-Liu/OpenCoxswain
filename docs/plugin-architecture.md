@@ -13,7 +13,6 @@
 
 - 进程级/OS 级沙箱隔离；P1 的隔离边界是**进程内服务可见性 + 权限清单**，不是安全沙箱。
 - 插件热重载、远程插件市场、插件签名。v1 的插件能力是本地目录安装，不承诺远程市场。
-- Tauri 桌面壳；P1 仍以浏览器 + 本地 Daemon 形式运行。
 
 ## 2. 对齐依据
 
@@ -173,7 +172,7 @@ P1 插件与内核同进程运行，Node 原生模块无法被语言层真正拦
 - 插件不能注册未声明的服务；
 - 插件不能绕过权限清单使用受控服务。
 
-真正的恶意代码隔离（独立进程/Worker + IPC 白名单 + 资源配额）放在 P2，与 Tauri sidecar 一起做。P1 的外部插件应视为受信任插件。
+真正的恶意代码隔离（独立进程/Worker + IPC 白名单 + 资源配额）仍是后续阶段的工作；v0.13.0 的 Tauri 桌面壳只负责拉起并托管 daemon 子进程，不是安全沙箱。
 
 ## 7. P0 → 插件映射
 
@@ -336,7 +335,13 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 4. 记忆检查器与工作台「记忆」页：`GET /api/memory/check`、`GET/POST/DELETE /api/memory`，支持搜索、新增与删除。
 5. `pnpm test`（core 38 + memory 11 + daemon 30）、`pnpm e2e` 均通过。
 
+已完成（v0.13.0）：
+
+1. Tauri 2 桌面壳（`apps/desktop/src-tauri`）：Rust 侧定位 daemon 入口（打包资源 → 开发态工作区 `apps/daemon/dist/index.js` → `OPENCOXSWAIN_DAEMON_ENTRY` 覆盖），spawn 系统 Node 并固定 `OPENCOXSWAIN_PORT`，TCP 轮询端口就绪后创建 WebView2 窗口；退出事件中结束子进程，日志写入 `%LOCALAPPDATA%/OpenCoxswain/logs/daemon.log`。
+2. 打包：`scripts/package-daemon.mjs` 把 daemon 与 `@opencoxswain/*` 工作区包的 `dist` 摊平到 `src-tauri/staging`，安装包运行时不再依赖 pnpm 符号链接；`pnpm package:daemon`、`pnpm desktop`（dev）、`pnpm desktop:build`（NSIS）三条命令可用。
+3. 窗口生命周期不改变插件契约：内核、清单与加载顺序与浏览器模式完全一致，桌面壳只是 daemon 的启动器与展示层。
+
 下一步（P3 剩余）：
 
 1. 产物 diff 逐文件审阅、任务模板、首次引导。
-2. 进程级插件隔离与 Tauri 2 桌面壳。
+2. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。

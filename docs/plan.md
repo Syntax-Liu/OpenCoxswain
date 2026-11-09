@@ -20,7 +20,7 @@
 
 | 层 | 选型 | 实施说明 |
 | --- | --- | --- |
-| 桌面壳 | Tauri 2 | 放在最后一阶段接入并构建；本机暂无 Rust/MSVC 工具链，P1/P2 先用浏览器验证同一套 React 工作台。 |
+| 桌面壳 | Tauri 2 | 已完成（v0.13.0）：Rust 侧 spawn 系统 Node 运行打包后的 daemon，WebView2 承载同一套 React 工作台；dev 与 NSIS 打包两条路径都已接通。 |
 | UI | React 18 + TypeScript + Vite | 不引入组件库，工作台样式手写 CSS，避免额外依赖。 |
 | 本地 Daemon | Node 22 + TypeScript | `engines >= 22`；当前验证环境为 Node 24 LTS，仅使用 Node 22 已支持的 API。 |
 | 数据库 | SQLite + FTS5 | 使用 Node 内置 `node:sqlite`（Node 22.5+），零原生依赖；已实测 FTS5 可用。 |
@@ -30,7 +30,7 @@
 | 测试 | `node:test` | 不引入测试框架，降低依赖。 |
 | 校验 | 手写契约校验器 | 按 PRD 附录字段逐项校验，不引入 JSON Schema 运行时依赖。 |
 | 密钥 | Windows Credential Manager / DPAPI | v0.4.0 已接入 `secrets.dpapi` 插件：按当前用户 DPAPI 加密落盘，读取优先仓库、回退环境变量；`cmdkey` 无法读回密钥，故未采用 Credential Manager。 |
-| 打包 | NSIS / MSI + Tauri Updater | Phase 2 之后。 |
+| 打包 | NSIS + Tauri Updater | NSIS 安装包已接入（v0.13.0，currentUser 安装）；MSI 与自动更新留待后续。 |
 
 ## 3. 模块划分
 
@@ -98,9 +98,9 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 接入 LLM Planner（已完成，v0.3.0）：`planner.llm` 使用 OpenAI 兼容端点（默认 DeepSeek），BYO Key；无 Key、超时或解析失败自动回退静态拆分。v0.4.0 起 Key 优先从 DPAPI 仓库读取，环境变量仅作回退。
 - 跑通真实仓库的「修夜间模式」剧本；危险动作人审（delete/push/publish/pay/external_send）已完成，见 v0.4.0。
 - Windows 专项：中文/空格路径、长路径、worktree 清理、进程清理。
-- Tauri 2 桌面壳放在 P1 最后一步：本机暂无 Rust/MSVC 时不阻塞上述工作，浏览器继续验证同一套 React 工作台。
+- Tauri 2 桌面壳（已完成，v0.13.0）：桌面壳作为 daemon 的入口，启动时先拉起本地 daemon（`OPENCOXSWAIN_PORT` 固定端口），端口就绪后再创建窗口；退出时结束子进程。安装包由 `scripts/package-daemon.mjs` 把 daemon 与工作区包摊平进 `src-tauri/staging`，运行时只依赖系统 Node.js。
 
-**交付物**：插件化 Daemon 与工作台；真实 OpenCode 员工；真实 diff 与测试报告；预算硬停；Tauri 安装包（工具链就绪后）。
+**交付物**：插件化 Daemon 与工作台；真实 OpenCode 员工；真实 diff 与测试报告；预算硬停；Tauri 安装包（v0.13.0 已产出 NSIS）。
 
 ### P2：v0 收口与内测（M1 后半 + M2）
 
@@ -198,7 +198,7 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 | 1 | v0 摘要写 2–4 个子任务，功能表写 2–5 | 通用上限按 2–5；v0 剧本按 2–4 演示。 |
 | 2 | PRD 指定 Node 22，本机 winget 仅提供 Node 24 | `engines >= 22`，只使用 Node 22 已有 API；不改变技术选型。 |
 | 3 | v0 明确不做记忆，但总管白名单含记忆工具 | v0 只注册 5 个执行类工具；记忆工具随 P3 注册，不做空壳。 |
-| 4 | OpenCode 首发，但本机未安装且无 Rust/MSVC | P0 用 Mock 适配器验证闭环与接口；v0.3.0 已用桌面版 CLI 完成 spike 与适配；Tauri 构建放到最后阶段。 |
+| 4 | OpenCode 首发，但本机未安装且无 Rust/MSVC | P0 用 Mock 适配器验证闭环与接口；v0.3.0 已用桌面版 CLI 完成 spike 与适配；Tauri 构建在 v0.13.0 完成。 |
 | 5 | 总管需要 LLM，但无可用 Key | 无 Key 时 `planner.llm` 内部回退静态拆分；有 Key 时才发生费用。 |
 | 6 | 许可证 PRD 标注「建议，待最终确认」 | 暂按 Apache-2.0 放置 LICENSE，保留最终确认项。 |
 | 7 | 日预算、合并/冲突在 v0 清单中未逐条展开 | 日预算 P0 做最小实现；顺序合并与冲突转人审放 P2。 |
@@ -228,4 +228,4 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 - `pnpm e2e:opencode`：可选的真实链路验证（需要本机 OpenCode CLI）；临时仓库里让真实员工写文件并断言 diff，未安装时跳过。
 - 安全护栏测试：`budget.test.ts` 断言运行中超限即停并产出待决策；`approval.test.ts` 断言批准后继续、拒绝后终止；`secrets.test.ts` 断言 DPAPI 密文落盘与环境变量回退。
 - `pnpm dev`：Daemon + Vite 工作台；浏览器人工验证看板与暂停/审批。
-- P1 起增加 Tauri 构建检查与 Windows 专项清单。
+- `pnpm desktop` / `pnpm desktop:build`（v0.13.0）：Tauri dev 与 NSIS 打包检查，Windows 专项清单随桌面壳一起验证。

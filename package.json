@@ -1,6 +1,6 @@
 {
   "name": "opencoxswain",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "private": true,
   "description": "OpenCoxswain · 舵手 — local-first AI agent manager for Windows",
   "license": "Apache-2.0",
@@ -14,7 +14,10 @@
     "test": "pnpm build && pnpm -r test",
     "dev": "node scripts/dev.mjs",
     "e2e": "pnpm build && node scripts/e2e.mjs",
-    "e2e:opencode": "pnpm build && node scripts/e2e-opencode.mjs"
+    "e2e:opencode": "pnpm build && node scripts/e2e-opencode.mjs",
+    "package:daemon": "node scripts/package-daemon.mjs",
+    "desktop": "pnpm --filter @opencoxswain/desktop desktop:dev",
+    "desktop:build": "pnpm --filter @opencoxswain/desktop desktop:build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
