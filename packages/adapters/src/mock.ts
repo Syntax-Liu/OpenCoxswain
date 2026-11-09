@@ -67,7 +67,7 @@ function delay(ms: number): Promise<void> {
 /** 离线可跑的运行时替身：真实 worktree 写文件、跑命令、产出 diff。 */
 export class MockRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'mock';
-  readonly version = '0.7.0';
+  readonly version = '0.8.0';
   readonly supportsApprovalGate = true;
   readonly capabilities = { input: true, approvalGate: true, resume: false };
 

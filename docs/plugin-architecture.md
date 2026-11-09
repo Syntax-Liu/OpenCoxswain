@@ -298,7 +298,13 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. 阶段视图：`core/stage.ts` 纯计算 `person / working / idle`，`GET /api/tasks?stage=` 与工作台标签消费同一结果。
 4. `pnpm test`（core 23 + daemon 22）、`pnpm e2e` 均通过。
 
+已完成（v0.8.0）：
+
+1. 运行中输入：`RuntimeAdapter` 增加 `capabilities` 与可选 `sendInput`，调度器新增 `deliverInput`；运行中立即送达（`input.delivered`），只支持队列的运行时返回 `queued` 并在下次派发时注入，人的消息走快车道不受并发现制；`task_inputs` 落库（user_version=3）。
+2. 规则监察：新增 `supervisor` 服务与 `supervisor.rules` 插件；`core/supervision.ts` 纯规则判断越权/空转/心跳/重复/停滞/预算/长尾，动作写入 `supervision_actions` 并进入回放；同一规则重复触发升级暂停；`empty_completion` 在完成时直接判失败，不进入验收。
+3. `pnpm test`（core 27 + daemon 24）、`pnpm e2e` 均通过。
+
 下一步（P3 剩余）：
 
-1. 运行中输入、规则版 Watchdog、RunLease 租约、任务级授权链（G3–G6）。
-2. 记忆层、任务树审计视图、进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。
+1. RunLease 租约与孤儿恢复、任务级授权链（G5/G6），以及 Planner 结构断言与文档错误码对齐。
+2. 记忆层、任务树审计视图、进程级插件隔离与 Tauri 2 桌面壳。

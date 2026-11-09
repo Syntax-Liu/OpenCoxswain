@@ -166,7 +166,7 @@ export interface OpenCodeOptions {
  */
 export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'opencode';
-  readonly version = '0.7.0';
+  readonly version = '0.8.0';
   /**
    * CLI 进程不支持 stdin 注入：中途消息写入 worktree 的 inbox，标为 queued，
    * 由下一次派发的契约摘要携带，绝不假装 delivered。
