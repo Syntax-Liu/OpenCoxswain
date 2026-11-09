@@ -8,5 +8,6 @@ export * from './stage.js';
 export * from './supervision.js';
 export * from './tools.js';
 export * from './mandate.js';
+export * from './side-effect.js';
 export * from './delegation.js';
 export * from './provenance.js';

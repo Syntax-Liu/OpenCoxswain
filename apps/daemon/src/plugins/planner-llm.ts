@@ -8,6 +8,7 @@ import type {
   AcceptanceCriterion,
   CreatePlanRequest,
   Deliverable,
+  PlannerStatus,
   Project,
   RoleName,
   SubtaskDraft,
@@ -51,6 +52,13 @@ interface LlmPlannerOptions {
 
 export class LlmPlanner implements PlannerService {
   constructor(private readonly options: LlmPlannerOptions) {}
+
+  async status(): Promise<PlannerStatus> {
+    const { key } = await this.options.resolveKey();
+    return key
+      ? { mode: 'llm', reason: null }
+      : { mode: 'static', reason: '未配置 LLM Key，使用静态拆分' };
+  }
 
   async plan(project: Project, request: CreatePlanRequest): Promise<PlanResult> {
     const hasDrafts = (request.subtasks?.length ?? 0) > 0;

@@ -14,6 +14,9 @@ import {
   type ProjectCostReport,
   type Run,
   type RunStatus,
+  type SideEffect,
+  type SideEffectKind,
+  type SideEffectState,
   type SupervisionAction,
   type Task,
   type TaskEdge,
@@ -122,6 +125,42 @@ CREATE TABLE IF NOT EXISTS task_mandates (
   issued_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_mandates_task ON task_mandates(task_id, issued_at DESC);
+`;
+
+const AUTHORITY_SCHEMA = `
+ALTER TABLE projects ADD COLUMN allow_network INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE projects ADD COLUMN allow_external_send INTEGER NOT NULL DEFAULT 0;
+
+DROP TABLE IF EXISTS task_mandates;
+CREATE TABLE task_mandates (
+  id                TEXT PRIMARY KEY,
+  task_id           TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  capabilities_json TEXT NOT NULL,
+  root              TEXT NOT NULL,
+  roles_json        TEXT NOT NULL,
+  budget_json       TEXT NOT NULL,
+  expires_at        INTEGER NOT NULL,
+  issued_by         TEXT NOT NULL,
+  issued_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mandates_task ON task_mandates(task_id, issued_at DESC);
+
+CREATE TABLE IF NOT EXISTS side_effects (
+  id              TEXT PRIMARY KEY,
+  task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  worker_id       TEXT,
+  run_id          TEXT,
+  kind            TEXT NOT NULL,
+  target          TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  reversible      INTEGER NOT NULL,
+  state           TEXT NOT NULL,
+  result          TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_side_effects_task ON side_effects(task_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_side_effects_key ON side_effects(idempotency_key);
 `;
 
 const SCHEMA = `
@@ -304,7 +343,7 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 4) return;
+    if (version >= 5) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
@@ -314,7 +353,8 @@ export class Store {
       }
       if (version < 3) this.db.exec(INPUT_SCHEMA);
       if (version < 4) this.db.exec(LEASE_SCHEMA);
-      this.db.exec('PRAGMA user_version = 4;');
+      if (version < 5) this.db.exec(AUTHORITY_SCHEMA);
+      this.db.exec('PRAGMA user_version = 5;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -346,6 +386,8 @@ export class Store {
     defaultBranch: string;
     dailyBudgetUsd: number;
     maxConcurrency: number;
+    allowNetwork?: boolean;
+    allowExternalSend?: boolean;
   }): Project {
     const project: Project = {
       id: newId('prj'),
@@ -354,12 +396,14 @@ export class Store {
       defaultBranch: input.defaultBranch,
       dailyBudgetUsd: input.dailyBudgetUsd,
       maxConcurrency: input.maxConcurrency,
+      allowNetwork: input.allowNetwork ?? true,
+      allowExternalSend: input.allowExternalSend ?? false,
       createdAt: now(),
     };
     this.db
       .prepare(
-        `INSERT INTO projects (id, name, path, default_branch, daily_budget_usd, max_concurrency, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, name, path, default_branch, daily_budget_usd, max_concurrency, allow_network, allow_external_send, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         project.id,
@@ -368,6 +412,8 @@ export class Store {
         project.defaultBranch,
         project.dailyBudgetUsd,
         project.maxConcurrency,
+        project.allowNetwork ? 1 : 0,
+        project.allowExternalSend ? 1 : 0,
         project.createdAt,
       );
     return project;
@@ -413,6 +459,8 @@ export class Store {
       defaultBranch: text(row, 'default_branch'),
       dailyBudgetUsd: number(row, 'daily_budget_usd'),
       maxConcurrency: number(row, 'max_concurrency'),
+      allowNetwork: number(row, 'allow_network') !== 0,
+      allowExternalSend: number(row, 'allow_external_send') !== 0,
       createdAt: number(row, 'created_at'),
     };
   }
@@ -797,14 +845,15 @@ export class Store {
     this.db
       .prepare(
         `INSERT INTO task_mandates
-           (id, task_id, scope_json, strength, budget_json, expires_at, issued_by, issued_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, task_id, capabilities_json, root, roles_json, budget_json, expires_at, issued_by, issued_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         mandate.id,
         mandate.taskId,
-        JSON.stringify(mandate.scope),
-        mandate.strength,
+        JSON.stringify(mandate.capabilities),
+        mandate.root,
+        JSON.stringify(mandate.roles),
         JSON.stringify(mandate.budget),
         mandate.expiresAt,
         mandate.issuedBy,
@@ -826,6 +875,100 @@ export class Store {
       .prepare('SELECT * FROM task_mandates WHERE task_id = ? ORDER BY issued_at ASC, id ASC')
       .all(taskId) as Row[];
     return rows.map(mapMandate);
+  }
+
+  // ---------- side effects ----------
+
+  insertSideEffect(input: {
+    taskId: string;
+    workerId: string | null;
+    runId: string | null;
+    kind: SideEffectKind;
+    target: string;
+    idempotencyKey: string;
+    reversible: boolean;
+  }): SideEffect {
+    const at = now();
+    const effect: SideEffect = {
+      id: newId('sfx'),
+      taskId: input.taskId,
+      workerId: input.workerId,
+      runId: input.runId,
+      kind: input.kind,
+      target: input.target,
+      idempotencyKey: input.idempotencyKey,
+      reversible: input.reversible,
+      state: 'pending',
+      result: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+    this.db
+      .prepare(
+        `INSERT INTO side_effects
+           (id, task_id, worker_id, run_id, kind, target, idempotency_key, reversible, state, result, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        effect.id,
+        effect.taskId,
+        effect.workerId,
+        effect.runId,
+        effect.kind,
+        effect.target,
+        effect.idempotencyKey,
+        effect.reversible ? 1 : 0,
+        effect.state,
+        effect.result,
+        effect.createdAt,
+        effect.updatedAt,
+      );
+    return effect;
+  }
+
+  getSideEffectByKey(taskId: string, idempotencyKey: string): SideEffect | null {
+    const row = this.db
+      .prepare(
+        'SELECT * FROM side_effects WHERE task_id = ? AND idempotency_key = ? ORDER BY created_at DESC LIMIT 1',
+      )
+      .get(taskId, idempotencyKey) as Row | undefined;
+    return row ? mapSideEffect(row) : null;
+  }
+
+  updateSideEffect(
+    id: string,
+    patch: { state?: SideEffectState; result?: string | null },
+  ): SideEffect {
+    const row = this.db.prepare('SELECT * FROM side_effects WHERE id = ?').get(id) as
+      | Row
+      | undefined;
+    if (!row) throw new Error(`副作用记录不存在：${id}`);
+    const current = mapSideEffect(row);
+    const next: SideEffect = {
+      ...current,
+      state: patch.state ?? current.state,
+      result: patch.result === undefined ? current.result : patch.result,
+      updatedAt: now(),
+    };
+    this.db
+      .prepare('UPDATE side_effects SET state = ?, result = ?, updated_at = ? WHERE id = ?')
+      .run(next.state, next.result, next.updatedAt, id);
+    return next;
+  }
+
+  listTaskSideEffects(taskId: string): SideEffect[] {
+    const rows = this.db
+      .prepare('SELECT * FROM side_effects WHERE task_id = ? ORDER BY created_at ASC')
+      .all(taskId) as Row[];
+    return rows.map(mapSideEffect);
+  }
+
+  /** 未结算的副作用：进程被杀后重启时据此提示“可能有未完成动作”。 */
+  listPendingSideEffects(): SideEffect[] {
+    const rows = this.db
+      .prepare("SELECT * FROM side_effects WHERE state = 'pending' ORDER BY created_at ASC")
+      .all() as Row[];
+    return rows.map(mapSideEffect);
   }
 
   getLatestResult(taskId: string): WorkerResult | null {
@@ -1435,16 +1578,29 @@ function mapMandate(row: Row): TaskMandate {
   return {
     id: text(row, 'id'),
     taskId: text(row, 'task_id'),
-    scope: parseJson(row.scope_json, {
-      writePaths: [],
-      allowedTools: [],
-      network: false,
-      install: false,
-    }),
-    strength: text(row, 'strength') as TaskMandate['strength'],
+    capabilities: parseJson(row.capabilities_json, []),
+    root: text(row, 'root'),
+    roles: parseJson(row.roles_json, []),
     budget: parseJson(row.budget_json, {}),
     expiresAt: number(row, 'expires_at'),
     issuedBy: text(row, 'issued_by') as TaskMandate['issuedBy'],
     issuedAt: number(row, 'issued_at'),
+  };
+}
+
+function mapSideEffect(row: Row): SideEffect {
+  return {
+    id: text(row, 'id'),
+    taskId: text(row, 'task_id'),
+    workerId: nullableText(row, 'worker_id'),
+    runId: nullableText(row, 'run_id'),
+    kind: text(row, 'kind') as SideEffectKind,
+    target: text(row, 'target'),
+    idempotencyKey: text(row, 'idempotency_key'),
+    reversible: number(row, 'reversible') !== 0,
+    state: text(row, 'state') as SideEffectState,
+    result: nullableText(row, 'result'),
+    createdAt: number(row, 'created_at'),
+    updatedAt: number(row, 'updated_at'),
   };
 }

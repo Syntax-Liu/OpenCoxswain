@@ -9,7 +9,7 @@ export const apply = employeePack({
   version: APP_VERSION,
   skills: ['代码修改', '测试驱动', '小步提交'],
   tools: ['read', 'write', 'shell', 'test'],
-  permissions: ['fs:read', 'fs:write', 'shell:exec', 'test:run'],
+  capabilities: ['fs.read', 'fs.write', 'proc.spawn'],
   readOnly: false,
   deliverableProfile: 'code',
   acceptanceDefaults: [

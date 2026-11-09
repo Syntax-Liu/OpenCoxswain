@@ -147,6 +147,17 @@ test('v0 闭环：规划 -> 审批 -> 实施/校验 -> 汇总 -> 验收', async 
     assert.ok(snapshot.events.some((event) => event.type === 'runtime.finished'));
     assert.ok(snapshot.events.some((event) => event.type === 'summary.ready'));
     assert.ok(snapshot.workers.every((worker) => worker.cost.usd > 0));
+    assert.ok(snapshot.events.some((event) => event.type === 'mandate.issued'));
+
+    const effects = await call<{ sideEffects: Array<{ kind: string; state: string }> }>(
+      `/api/tasks/${implementer!.id}/side-effects`,
+    );
+    assert.ok(
+      effects.sideEffects.some(
+        (effect) => effect.kind === 'fs.write' && effect.state === 'succeeded',
+      ),
+      '副作用台账记录并结算文件写入',
+    );
 
     const decisions = snapshot.tasks
       .filter((task) => task.id === planned.root.id || task.parentId === planned.root.id)

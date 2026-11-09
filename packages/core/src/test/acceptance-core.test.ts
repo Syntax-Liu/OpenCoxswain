@@ -2,11 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateDelegation, PLAN_NOT_DECOMPOSED } from '../delegation.js';
 import {
+  capabilityDiff,
   issueMandate,
-  mandateCoversWriteScope,
   mandateViolation,
+  projectCapabilities,
   scopeCovers,
 } from '../mandate.js';
+import {
+  classifySideEffect,
+  sideEffectDeduped,
+  sideEffectKey,
+} from '../side-effect.js';
 import { extractAnchors, verifyProvenance } from '../provenance.js';
 import type { Task, TaskContract } from '@opencoxswain/shared';
 
@@ -109,23 +115,100 @@ test('来源校验：缺失→unverified，不可解析→failed，齐备→pass
   );
 });
 
-test('Mandate：工具别名、写域与过期', () => {
+test('Mandate：能力集合、根目录、写域与过期', () => {
   const task = taskWith();
   const mandate = issueMandate(task, {
     id: 'mnd_1',
     issuedBy: 'approval',
-    allowedTools: ['read', 'write'],
+    capabilities: ['fs.read', 'fs.write'],
+    root: 'D:/repo',
+    roles: ['implementer'],
     ttlMs: 1000,
     now: 1000,
   });
-  assert.deepEqual(mandate.scope.writePaths, ['docs/']);
-  assert.equal(mandateViolation(mandate, 'bash', {}, 1000), '工具 bash 不在授权范围');
+  assert.deepEqual(mandate.capabilities, ['fs.read', 'fs.write']);
+  assert.deepEqual(mandate.roles, ['implementer']);
   assert.equal(
-    mandateViolation(mandate, 'file_write', { path: 'src/secret.ts' }, 1000),
-    '写入路径 src/secret.ts 超出授权写域',
+    mandateViolation(mandate, 'bash', {}, { now: 1000 }),
+    '工具 bash 需要能力 proc.spawn，不在任务授权范围',
   );
-  assert.equal(mandateViolation(mandate, 'file_write', { path: 'docs/a.md' }, 1000), null);
-  assert.equal(mandateViolation(mandate, 'write', { path: 'docs/a.md' }, 2000), '任务授权已过期');
-  assert.deepEqual(mandateCoversWriteScope(mandate, ['src/']), ['写域 src/ 超出任务授权']);
+  assert.equal(
+    mandateViolation(
+      mandate,
+      'file_write',
+      { path: 'src/secret.ts' },
+      { now: 1000, writeScope: ['docs/'] },
+    ),
+    '写入路径 src/secret.ts 超出任务写域',
+  );
+  assert.equal(
+    mandateViolation(
+      mandate,
+      'file_write',
+      { path: 'docs/a.md' },
+      { now: 1000, writeScope: ['docs/'] },
+    ),
+    null,
+  );
+  assert.equal(
+    mandateViolation(
+      mandate,
+      'write',
+      { path: 'D:/elsewhere/a.md' },
+      { now: 1000, workspace: 'D:/repo' },
+    ),
+    '写入路径 D:/elsewhere/a.md 超出授权根目录 D:/repo',
+  );
+  assert.equal(
+    mandateViolation(mandate, 'write', { path: 'docs/a.md' }, { now: 2000 }),
+    '任务授权已过期',
+  );
   assert.equal(scopeCovers(['**'], 'anything/here.ts'), true);
+});
+
+test('Capability：差异与项目默认边界', () => {
+  assert.deepEqual(capabilityDiff(['fs.read', 'net.send'], ['fs.read', 'fs.write']), [
+    'net.send',
+  ]);
+  const project = {
+    id: 'prj_1',
+    name: 'demo',
+    path: '/repo',
+    defaultBranch: 'main',
+    dailyBudgetUsd: 10,
+    maxConcurrency: 2,
+    allowNetwork: false,
+    allowExternalSend: false,
+    createdAt: 0,
+  };
+  assert.deepEqual(projectCapabilities(project), ['fs.read', 'fs.write', 'proc.spawn']);
+});
+
+test('SideEffect：分类、幂等键与去重策略', () => {
+  assert.deepEqual(classifySideEffect('file_write', { path: 'a.txt' }), {
+    kind: 'fs.write',
+    target: 'a.txt',
+    reversible: true,
+  });
+  assert.deepEqual(classifySideEffect('delete', { path: 'old.txt' }), {
+    kind: 'fs.delete',
+    target: 'old.txt',
+    reversible: true,
+  });
+  assert.deepEqual(classifySideEffect('send_email', { to: 'a@b.c' }), {
+    kind: 'net.send',
+    target: 'a@b.c',
+    reversible: false,
+  });
+  assert.equal(classifySideEffect('shell', { command: 'npm test' })?.kind, 'proc.exec');
+  assert.equal(classifySideEffect('read', { path: 'a.txt' }), null);
+
+  const first = sideEffectKey('tsk_1', 'write', { path: 'a.txt', text: 'hi' });
+  const reordered = sideEffectKey('tsk_1', 'write', { text: 'hi', path: 'a.txt' });
+  assert.equal(first, reordered);
+  assert.notEqual(first, sideEffectKey('tsk_2', 'write', { path: 'a.txt', text: 'hi' }));
+
+  assert.equal(sideEffectDeduped('fs.write'), true);
+  assert.equal(sideEffectDeduped('net.send'), true);
+  assert.equal(sideEffectDeduped('proc.exec'), false);
 });

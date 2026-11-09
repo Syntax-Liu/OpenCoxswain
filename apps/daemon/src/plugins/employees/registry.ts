@@ -1,6 +1,7 @@
 import type { EmployeeRegistry } from '@opencoxswain/plugin-api';
 import {
   ACCEPTANCE_TYPES,
+  CAPABILITIES,
   ROLE_NAMES,
   type EmployeeDefinition,
   type RoleName,
@@ -44,7 +45,12 @@ function validate(definition: Omit<EmployeeDefinition, 'pluginId'>, pluginId: st
   if (typeof definition.name !== 'string' || definition.name.trim() === '') fail('name 不能为空');
   if (!Array.isArray(definition.skills) || definition.skills.length === 0) fail('skills 不能为空');
   if (!Array.isArray(definition.tools) || definition.tools.length === 0) fail('tools 不能为空');
-  if (!Array.isArray(definition.permissions)) fail('permissions 必须是数组');
+  if (!Array.isArray(definition.capabilities) || definition.capabilities.length === 0) {
+    fail('capabilities 不能为空');
+  }
+  for (const capability of definition.capabilities) {
+    if (!CAPABILITIES.includes(capability)) fail(`未知能力：${String(capability)}`);
+  }
   if (typeof definition.readOnly !== 'boolean') fail('readOnly 必须是布尔值');
   if (!Array.isArray(definition.acceptanceDefaults) || definition.acceptanceDefaults.length === 0) {
     fail('acceptanceDefaults 不能为空');
@@ -53,7 +59,7 @@ function validate(definition: Omit<EmployeeDefinition, 'pluginId'>, pluginId: st
     if (!ACCEPTANCE_TYPES.includes(criterion.type)) fail(`验收类型非法：${criterion.type}`);
     if (criterion.type === 'command' && !criterion.check) fail('command 验收必须提供 check');
   }
-  if (definition.readOnly && definition.tools.includes('write')) {
-    fail('只读员工不能声明 write 工具');
+  if (definition.readOnly && definition.capabilities.includes('fs.write')) {
+    fail('只读员工不能声明 fs.write 能力');
   }
 }

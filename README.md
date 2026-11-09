@@ -2,7 +2,7 @@
 
 本地优先的 Windows AI 总管。你只对总管说话；总管把目标拆成结构化任务单和 DAG，派给在独立 git worktree 里干活的 AI 员工，盯进度、做验收，最后按固定三块汇报：待你决策 / 未通过的检查 / 交付产物。
 
-当前版本 `0.9.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，运行中可投递消息并由规则监察兜底；v0.9.0 补齐验收闭环（AcceptancePolicy / DeliverableProfile / 来源链校验 / 内容级 diff）、运行租约与孤儿恢复、任务级授权链，桌面壳待接入。
+当前版本 `0.10.0`，处于实施计划的 P3：插件化内核、OpenCode 运行时与 LLM Planner 已就绪，预算硬停、危险动作人审、DPAPI 密钥托管、失败重试、冲突转人审、成本报表与回放导出已接入；员工角色已改为可安装插件包，验收改为系统复核 + 逐条人工决策，运行中可投递消息并由规则监察兜底；v0.9.0 补齐验收闭环（AcceptancePolicy / DeliverableProfile / 来源链校验 / 内容级 diff）、运行租约与孤儿恢复、任务级授权链；v0.10.0 补上副作用台账与能力化授权，桌面壳待接入。
 
 ## 快速开始
 
@@ -51,7 +51,7 @@ docs/
   super-agent-adoption.md
 ```
 
-## 当前能力（v0.9.0）
+## 当前能力（v0.10.0）
 
 已实现：
 
@@ -66,12 +66,15 @@ docs/
 - 顺序合并与冲突转人审：多依赖任务在新 worktree 内按依赖顺序合并分支，冲突时中止并建 `merge_conflict` 审批，不触碰用户主分支。
 - 成本报表：`GET /api/projects/:id/costs` 汇总总成本、按模型/任务/日分组。
 - 回放导出：`GET /api/tasks/:id/replay?format=markdown` 导出任务标题、子任务、员工、审批、产物、验收结论与证据、事件时间线与汇总。
-- 员工插件包：角色 + 技能 + 工具白名单 + 权限 + 默认验收标准五件套由插件注册；调研员/实施员/校验员/撰写员均走同一加载路径，`GET /api/employees` 可查看已安装员工，调度器与 Planner 不再内置角色。
+- 员工插件包：角色 + 技能 + 工具白名单 + 能力集合 + 默认验收标准五件套由插件注册；调研员/实施员/校验员/撰写员均走同一加载路径，`GET /api/employees` 可查看已安装员工，`GET /api/employees/:id/capabilities` 在安装前展示能力差异（如「可以向外部发送消息」需项目额外授权）。
 - 验收自证：员工自报只作审计；`command` 验收由系统在 worktree 内独立重跑，`diff` 做内容级复算（路径 + patch sha256 + 增删行数任一不符即失败），`rubric` 按 `assertion` / `anchor` / `provenance` 证据绑定判定，`human` 保留但不再默认出现。
 - 验收策略：`AcceptancePolicy` 三档（`auto` / `unverified_only` / `always_human`，默认 `unverified_only`）配合 `DeliverableProfile`（`code` / `document` / `dataset` / `design` / `ops`）；文档类交付物由 `ProvenanceVerifier` 校验锚点与来源链，非 Git 交付物也有自动预验路径。
 - 委派结构断言：Planner 产出的根任务必须拆出 2–5 个子任务且含实施/撰写与校验角色，否则以 `PLAN_NOT_DECOMPOSED` / `PLAN_INVALID` 阻塞，不进入派单。
 - 运行租约与孤儿恢复：每次运行持有租约（默认 30s，`OPENCOXSWAIN_LEASE_MS`），调度器 tick 续租；进程崩溃或超时后运行被标记为孤儿，失败对应 worker、注入「上次执行被中断…」后重新排队，`GET /api/runs/orphaned` 可查。
-- 任务级授权链：审批或人工重派时为子任务签发不可变 `TaskMandate`（写域、工具、网络、安装、强度、预算、有效期），派单前校验否则 `MANDATE_INVALID`，运行中每次工具调用校验越权并落 `mandate.denied`；`GET /api/tasks/:id/mandate` 可查看当前授权。
+- 任务级授权链：审批或人工重派时为子任务签发不可变 `TaskMandate`（能力集合 `fs.read` / `fs.write` / `net.read` / `net.send` / `proc.spawn` / `secrets.use`、授权根目录、可执行角色、预算、有效期），不再枚举写路径；派单前校验角色编制否则 `MANDATE_INVALID`，运行中每次工具调用校验能力与路径是否越出根目录/写域并落 `mandate.denied`；`GET /api/tasks/:id/mandate` 可查看当前授权。
+- 副作用台账：`fs.write` / `fs.delete` / `proc.exec` / `net.send` 在工具调用边界先落 `pending` 再执行，收到结果后结算为 `succeeded`，审批拒绝记为 `rejected`；幂等键为 `sha256(taskId + tool + 规范化参数)`，文件写/删与外发按幂等键去重，进程执行只记账；`GET /api/tasks/:id/side-effects` 与回放可查全部动作。外发一律需要审批且标记为不可逆。
+- 项目授权三问：创建项目只问工作目录、能否联网、能否外发；默认允许联网读取、禁止外发。员工声明的能力与项目边界取交集后写入 Mandate，缺能力时在派单前拒绝。
+- 可补偿而非全量回滚：文件写/删标记为可补偿，进程与外发标记为不可逆；不提供文件快照或 VM checkpoint，回滚能力分级为可追溯 / 可补偿 / 仅 git 内可回滚。
 - 逐条验收：`POST /api/tasks/:id/acceptance` 要求每个未通过验收项单独给结论和理由，缺结论返回 409、缺理由返回 400；不再有「一键全部通过」入口。
 - 验收留痕：evidence 与 acceptance_records 落库，记录交付物、证据摘要、验收标准、验收人（系统/人）与结论，可回放。
 - 阶段视图：`GET /api/tasks?stage=person|working|idle` 与工作台「在等谁」标签，明确当前是等人、等依赖还是执行中。
@@ -79,7 +82,7 @@ docs/
 - 规则监察：`supervisor.rules` 插件按规则检查越权写入、空转完成、无心跳、重复调用、停滞、预算逼近与长尾；动作写入 `supervision_actions` 并进入回放，同一规则重复触发升级为暂停。只做规则判断，不调用 LLM、不改提示词。
 - Mock 运行时：真实写文件、跑验收命令、产出 diff 与报告，离线可跑。
 - OpenCode 运行时：调用桌面版 CLI 执行真实任务，JSONL 事件映射、会话隔离、进程树终止。
-- LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分，启动日志会明确提示当前处于静态回退模式，`GET /api/secrets` 可查看 Key 是否已配置。
+- LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分，工作台顶部常驻「规划 · 静态回退」标识，悬停可看原因，`GET /api/secrets` 可查看 Key 是否已配置。
 - 浏览器工作台：对话、任务树、员工看板、时间线、产物、汇总、花费、设置。
 
 未实现（按计划在后续阶段接入）：

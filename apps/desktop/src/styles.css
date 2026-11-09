@@ -129,6 +129,17 @@ label {
   color: var(--muted);
 }
 
+label.choice {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+label.choice input {
+  width: auto;
+  margin: 0;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -291,6 +302,12 @@ label {
   color: var(--danger);
   border-color: rgba(255, 112, 112, 0.35);
   background: rgba(255, 112, 112, 0.08);
+}
+
+.runtime.warn {
+  color: var(--warn, #f2c66d);
+  border-color: rgba(242, 198, 109, 0.35);
+  background: rgba(242, 198, 109, 0.08);
 }
 
 /* ---------- 三栏 ---------- */

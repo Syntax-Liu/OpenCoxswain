@@ -15,12 +15,16 @@ import type {
   EventRecord,
   Evidence,
   Message,
+  PlannerStatus,
   Project,
   DeliverableProfile,
   ProjectCostReport,
   RoleName,
   Run,
   RuntimeStatus,
+  SideEffect,
+  SideEffectKind,
+  SideEffectState,
   SupervisionAction,
   SupervisionVerdict,
   Task,
@@ -113,6 +117,8 @@ export interface StorageService {
     defaultBranch: string;
     dailyBudgetUsd: number;
     maxConcurrency: number;
+    allowNetwork?: boolean;
+    allowExternalSend?: boolean;
   }): Project;
   listProjects(): Project[];
   getProject(id: string): Project | null;
@@ -159,6 +165,22 @@ export interface StorageService {
   insertMandate(mandate: TaskMandate): void;
   getLatestMandate(taskId: string): TaskMandate | null;
   listTaskMandates(taskId: string): TaskMandate[];
+  insertSideEffect(input: {
+    taskId: string;
+    workerId: string | null;
+    runId: string | null;
+    kind: SideEffectKind;
+    target: string;
+    idempotencyKey: string;
+    reversible: boolean;
+  }): SideEffect;
+  getSideEffectByKey(taskId: string, idempotencyKey: string): SideEffect | null;
+  updateSideEffect(
+    id: string,
+    patch: { state?: SideEffectState; result?: string | null },
+  ): SideEffect;
+  listTaskSideEffects(taskId: string): SideEffect[];
+  listPendingSideEffects(): SideEffect[];
   insertInput(input: TaskInput): void;
   updateInputState(id: string, state: TaskInput['state'], deliveredAt?: number): void;
   listTaskInputs(taskId: string): TaskInput[];
@@ -294,6 +316,7 @@ export interface PlanResult {
 
 export interface PlannerService {
   plan(project: Project, request: CreatePlanRequest): PlanResult | Promise<PlanResult>;
+  status(): PlannerStatus | Promise<PlannerStatus>;
 }
 
 export type SecretSource = 'vault' | 'env' | 'none';

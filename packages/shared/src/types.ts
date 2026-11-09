@@ -206,24 +206,52 @@ export interface Assignee {
   model: string;
 }
 
-export const MANDATE_STRENGTHS = ['read', 'write', 'publish'] as const;
-export type MandateStrength = (typeof MANDATE_STRENGTHS)[number];
+export const CAPABILITIES = [
+  'fs.read',
+  'fs.write',
+  'net.read',
+  'net.send',
+  'proc.spawn',
+  'secrets.use',
+] as const;
+export type Capability = (typeof CAPABILITIES)[number];
 
-/** 任务级授权凭证：不可变；扩权必须签发新凭证。 */
+/** 任务级授权凭证：不可变；扩权或跨编制改派必须签发新凭证。 */
 export interface TaskMandate {
   id: string;
   taskId: string;
-  scope: {
-    writePaths: string[];
-    allowedTools: string[];
-    network: boolean;
-    install: boolean;
-  };
-  strength: MandateStrength;
+  /** 能力集合，不再枚举子路径。 */
+  capabilities: Capability[];
+  /** 授权根目录（项目工作目录）；写入不得越出根目录。 */
+  root: string;
+  /** 允许执行该任务的员工角色；改派到编制外必须重签。 */
+  roles: RoleName[];
   budget: Budget;
   expiresAt: number;
   issuedBy: 'user' | 'approval';
   issuedAt: number;
+}
+
+export const SIDE_EFFECT_KINDS = ['fs.write', 'fs.delete', 'proc.exec', 'net.send'] as const;
+export type SideEffectKind = (typeof SIDE_EFFECT_KINDS)[number];
+
+export const SIDE_EFFECT_STATES = ['pending', 'succeeded', 'failed', 'rejected'] as const;
+export type SideEffectState = (typeof SIDE_EFFECT_STATES)[number];
+
+/** 副作用台账：先记账后执行，不可逆动作不承诺撤销。 */
+export interface SideEffect {
+  id: string;
+  taskId: string;
+  workerId: string | null;
+  runId: string | null;
+  kind: SideEffectKind;
+  target: string;
+  idempotencyKey: string;
+  reversible: boolean;
+  state: SideEffectState;
+  result: string | null;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface ReviewSpec {
@@ -299,6 +327,10 @@ export interface Project {
   defaultBranch: string;
   dailyBudgetUsd: number;
   maxConcurrency: number;
+  /** 项目是否允许员工读取网络（net.read）。 */
+  allowNetwork: boolean;
+  /** 项目是否允许员工外发消息（net.send）；默认关闭且仍需逐次审批。 */
+  allowExternalSend: boolean;
   createdAt: number;
 }
 
@@ -343,7 +375,8 @@ export interface EmployeeDefinition {
   version: string;
   skills: string[];
   tools: string[];
-  permissions: string[];
+  /** 员工声明的能力集合；安装前用于 capability diff。 */
+  capabilities: Capability[];
   readOnly: boolean;
   acceptanceDefaults: AcceptanceCriterion[];
   /** 员工默认交付物形态，Planner 可覆盖。 */
@@ -413,6 +446,12 @@ export interface RuntimeStatus {
   detail: string;
 }
 
+export interface PlannerStatus {
+  mode: 'llm' | 'static';
+  /** 静态模式的原因；LLM 模式为 null。 */
+  reason: string | null;
+}
+
 export interface WorkbenchSnapshot {
   projects: Project[];
   project: Project | null;
@@ -431,6 +470,7 @@ export interface WorkbenchSnapshot {
   inputs: TaskInput[];
   summary: string | null;
   runtime: RuntimeStatus;
+  planner: PlannerStatus;
 }
 
 export interface SubtaskDraft {
@@ -464,6 +504,8 @@ export interface CreateProjectRequest {
   name?: string;
   dailyBudgetUsd?: number;
   maxConcurrency?: number;
+  allowNetwork?: boolean;
+  allowExternalSend?: boolean;
 }
 
 export interface CostBreakdownRow {
@@ -494,5 +536,6 @@ export interface TaskReplay {
   evidence: Evidence[];
   supervision: SupervisionAction[];
   mandates: TaskMandate[];
+  sideEffects: SideEffect[];
   summary: string | null;
 }

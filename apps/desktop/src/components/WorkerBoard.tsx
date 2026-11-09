@@ -1,6 +1,16 @@
-import type { EmployeeDefinition, Task, Worker } from '@opencoxswain/shared';
+import type { Capability, EmployeeDefinition, Task, Worker } from '@opencoxswain/shared';
 import type { WorkerAction } from '../api.js';
 import { formatMoney, ROLE_LABELS } from '../ui.js';
+
+/** 与 daemon 的安装确认页保持同一套人话说明。 */
+const CAPABILITY_NOTES: Record<Capability, string> = {
+  'fs.read': '读取文件',
+  'fs.write': '修改文件',
+  'net.read': '联网读取',
+  'net.send': '对外发送（逐次审批）',
+  'proc.spawn': '运行本机命令',
+  'secrets.use': '读取密钥',
+};
 
 const WORKER_LABELS: Record<Worker['status'], string> = {
   starting: '启动中',
@@ -113,8 +123,12 @@ export function WorkerBoard({ workers, tasks, employees, busy, onAction }: Props
                 <dd>{employee.tools.join(' / ')}</dd>
               </div>
               <div>
-                <dt>权限</dt>
-                <dd>{employee.permissions.join(' / ')}</dd>
+                <dt>能力</dt>
+                <dd>
+                  {employee.capabilities
+                    .map((capability) => CAPABILITY_NOTES[capability] ?? capability)
+                    .join('；')}
+                </dd>
               </div>
               <div>
                 <dt>默认验收</dt>

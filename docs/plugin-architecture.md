@@ -312,7 +312,16 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 4. 租约与授权链（G5/G6）：`runs` 新增租约字段（`status` / `lease_owner` / `lease_expires_at` / `last_heartbeat_at`），调度器 tick 续租并回收过期运行，孤儿运行标记、失败 worker 与输入注入后重派；`task_mandates` 落库，派单前校验 `MANDATE_INVALID`，运行中每次工具调用校验越权并落 `mandate.denied`；旧库自动迁移到 user_version=4。
 5. `pnpm test`（core 35 + daemon 28）、`pnpm e2e` 均通过。
 
+已完成（v0.10.0）：
+
+1. 能力化授权：`TaskMandate` 改为 `capabilities` + `root` + `roles`，不再枚举写路径；员工包 `permissions` 改为 `capabilities`（`fs.read` / `fs.write` / `net.read` / `net.send` / `proc.spawn` / `secrets.use`），安装前由 `GET /api/employees/:id/capabilities` 展示与项目边界的差异；派单校验角色编制，工具调用校验能力、根目录与写域。
+2. 项目授权三问：项目新增 `allowNetwork` / `allowExternalSend`，创建时只问工作目录、能否联网、能否外发；默认允许联网读取、禁止外发，员工能力与项目边界取交集后写入 Mandate。
+3. 副作用台账：新增 `core/side-effect.ts` 与 `side_effects` 表；`fs.write` / `fs.delete` / `proc.exec` / `net.send` 在工具调用边界先落 `pending`，`tool_result` 结算，审批拒绝记 `rejected`；幂等键 `sha256(taskId + tool + 规范化参数)`，文件写/删与外发去重，`proc.exec` 只记账；`net.send` 一律审批且不可逆。
+4. 回放与审计：`GET /api/tasks/:id/side-effects`、`GET /api/side-effects/pending` 与回放 markdown 均包含授权链和副作用台账；旧库自动迁移到 user_version=5（重建 `task_mandates`、新增项目授权列与 `side_effects`）。
+5. 静态回退可见：`WorkbenchSnapshot.planner` 暴露规划模式，工作台顶部常驻「规划 · LLM / 静态回退」标识。
+6. `pnpm build`、`pnpm test`（core 37 + daemon 28）、`pnpm e2e` 均通过。
+
 下一步（P3 剩余）：
 
-1. 记忆层、任务树审计视图、待决策收件箱。
-2. 进程级插件隔离与 Tauri 2 桌面壳。
+1. 任务树审计视图、待决策收件箱。
+2. 记忆层、进程级插件隔离与 Tauri 2 桌面壳。

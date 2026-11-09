@@ -517,15 +517,12 @@ Planner 侧改动（`planner-llm.ts`）：
 export interface TaskMandate {
   id: string;
   taskId: string;
-  /** 授权范围：写域 + 允许的工具类别 + 网络/安装权限 */
-  scope: {
-    writePaths: string[];
-    allowedTools: string[];
-    network: boolean;
-    install: boolean;
-  };
-  /** 强度：只读 / 可写 / 可外发 */
-  strength: 'read' | 'write' | 'publish';
+  /** 能力集合：fs.read / fs.write / net.read / net.send / proc.spawn / secrets.use */
+  capabilities: Capability[];
+  /** 授权根目录（项目工作目录）；写入不得越出 */
+  root: string;
+  /** 允许执行该任务的员工角色；跨编制改派必须重签 */
+  roles: RoleName[];
   /** 预算与截止，防止无限扩权 */
   budget: Budget;
   expiresAt: number;
@@ -537,14 +534,15 @@ export interface TaskMandate {
 
 规则：
 
-- Mandate **不可变**；扩权必须新建 Mandate（或走审批），旧凭证不改。
-- 每个 `spawn` 前校验：`worker` 的 worktree ⊂ `writePaths`；`tool_call` 不在 `allowedTools` → 拒绝并记 `mandate.denied`。
+- Mandate **不可变**；扩权或跨编制改派必须新建 Mandate（或走审批），旧凭证不改。
+- 每个 `spawn` 前校验：`assignee.role ∈ roles`，否则 `MANDATE_INVALID`；每次 `tool_call` 校验能力、绝对路径不越 `root`、相对路径不越 `write_scope`，否则拒绝并记 `mandate.denied`。
 - 恢复/重派前**重验** Mandate（过期即拒绝），不信任上次状态。
+- `net.send` 即使已在 `capabilities` 内，也必须逐次审批，且副作用标记为不可逆。
 - 事件：`mandate.issued / mandate.denied / mandate.expired`。
 
 落点：`packages/core/src/mandate.ts`、`steward.ts`（签发）、`scheduler.ts`（校验）、`api-rest.ts`（`GET /api/tasks/:id/mandate`）。权限新增 `mandate:read`（面板）/`mandate:issue`（steward）。
 
-验收：单测「写 scope 外路径 → denied」「过期 Mandate → spawn 失败」「扩权必须新 Mandate」；e2e 回放含授权链。
+验收：单测「写 root 外路径 → denied」「能力缺失 → denied」「过期 Mandate → spawn 失败」「跨编制改派 → 重签」；e2e 回放含授权链与副作用台账。
 
 #### 5.5.2 阶段视图（不改状态机）
 
@@ -636,6 +634,7 @@ export interface StorageService {
 | v0.7.0（已发布） | §5.1 验收证据化 + §5.5.2 阶段视图 + 诚实交付提示词（G1/G2/G7） | 无 | 已删除旧 `task_acceptance` 表与 `/accept` 入口，旧库自动迁移到 v2 |
 | v0.8.0（已发布） | §5.2 输入注入 + 快车道 + §5.3 规则版 Watchdog（G3/G4） | §5.2 的 heartbeat | `task_inputs` 与 `supervision_actions` 落库，旧库自动迁移到 user_version=3 |
 | v0.9.0（已发布） | 验收闭环（AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff）+ §5.4 委派固化 + §5.5.1 Mandate + §5.6 租约与孤儿恢复（G5/G6） | 需要 planner schema 变更、storage 迁移 | `runs` 新增租约字段、`task_mandates` 落库，旧库自动迁移到 user_version=4；`validateDelegation` 接入 `tickProject`，不再有死代码 |
+| v0.10.0（已发布） | 能力化 Mandate（capabilities + root + roles）+ 项目授权三问 + SideEffect 台账（先记账后执行、幂等键、net.send 审批不可逆）+ capability diff + 静态回退可见 | §5.5.1 的授权链、storage 迁移 | 员工包 `permissions` 直接改为 `capabilities`，不保留兼容层；`task_mandates` 重建、`side_effects` 落库，旧库自动迁移到 user_version=5 |
 
 规则：全部是新增能力，按 SemVer 升 minor；若删除旧 `acceptance` 表读取路径，属移除功能，需在 v1.0 前统一处理，不单独升 major。
 
@@ -658,7 +657,7 @@ export interface StorageService {
 1. **把 Watchdog 做成第二个总管**：它会与 steward 抢话语权。约束：supervisor 只能 `nudge/pause/ask_human`，**不能创建任务、不能改任务单、不能替人验收**。
 2. **验收证据化变成形式主义**：如果每条都要求截图，人会直接点「全部通过」。约束：按 `type` 推导最小证据集；`command` 自动跑，`human` 只要求一句理由。
 3. **输入注入导致上下文污染**：中途消息可能让员工偏离原目标。约束：注入消息带 `source` 与 `mandate` 提示；supervisor 可检测偏航。
-4. **Mandate 过严导致什么都干不了**：默认 scope 应等于 `write_scope`，未声明写域的任务在 v0 仍按「与所有写任务冲突」处理，不要额外加锁。
+4. **Mandate 过严导致什么都干不了**：本地读写与跑命令由员工能力直接授予，项目三问只收窄联网与外发；未声明写域的任务仍按「与所有写任务冲突」处理，不额外加锁。
 5. **租约导致双跑**：`claimRun` 必须是数据库层原子操作（SQLite `BEGIN IMMEDIATE`），不能先在内存判断。
 6. **阶段视图与状态机双写**：`stage` 必须是纯计算，不落库；否则两套真相必然漂移。
 

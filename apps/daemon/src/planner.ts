@@ -7,6 +7,7 @@ import {
   type Deliverable,
   type DeliverableProfile,
   type Project,
+  type PlannerStatus,
   type RoleName,
   type SubtaskDraft,
   type TaskContract,
@@ -55,6 +56,10 @@ export interface PlannerOptions {
 }
 
 export class Planner {
+  async status(): Promise<PlannerStatus> {
+    return { mode: 'static', reason: '使用内置静态拆分' };
+  }
+
   constructor(private readonly options: PlannerOptions = {}) {}
 
   plan(project: Project, request: CreatePlanRequest): PlanResult {

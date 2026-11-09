@@ -9,7 +9,7 @@ export const apply = employeePack({
   version: APP_VERSION,
   skills: ['代码检索', '资料归纳', '方案对比'],
   tools: ['read', 'web_search'],
-  permissions: ['fs:read', 'net:search'],
+  capabilities: ['fs.read', 'net.read'],
   readOnly: true,
   deliverableProfile: 'document',
   acceptanceDefaults: [

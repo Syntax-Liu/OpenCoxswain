@@ -9,7 +9,7 @@ export const apply = employeePack({
   version: APP_VERSION,
   skills: ['文档撰写', '结构整理', '术语一致'],
   tools: ['read', 'write'],
-  permissions: ['fs:read', 'fs:write'],
+  capabilities: ['fs.read', 'fs.write'],
   readOnly: false,
   deliverableProfile: 'document',
   acceptanceDefaults: [

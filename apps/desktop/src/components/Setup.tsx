@@ -5,6 +5,8 @@ import { api, errorText } from '../api.js';
 export function Setup({ onReady }: { onReady: (project: Project) => void }): JSX.Element {
   const [repoPath, setRepoPath] = useState('');
   const [name, setName] = useState('');
+  const [allowNetwork, setAllowNetwork] = useState(true);
+  const [allowExternalSend, setAllowExternalSend] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +19,8 @@ export function Setup({ onReady }: { onReady: (project: Project) => void }): JSX
       const project = await api.createProject({
         path: repoPath.trim(),
         name: name.trim() || undefined,
+        allowNetwork,
+        allowExternalSend,
       });
       onReady(project);
     } catch (caught) {
@@ -52,6 +56,25 @@ export function Setup({ onReady }: { onReady: (project: Project) => void }): JSX
               placeholder="默认使用目录名"
             />
           </label>
+          <label className="choice">
+            <input
+              type="checkbox"
+              checked={allowNetwork}
+              onChange={(event) => setAllowNetwork(event.target.checked)}
+            />
+            允许员工联网读取资料（不包含外发）
+          </label>
+          <label className="choice">
+            <input
+              type="checkbox"
+              checked={allowExternalSend}
+              onChange={(event) => setAllowExternalSend(event.target.checked)}
+            />
+            允许员工向外部发送消息（每次仍需审批，且不可撤销）
+          </label>
+          <p className="hint">
+            授权边界：写入只允许落在该工作目录内；外发默认关闭。
+          </p>
           {error ? <p className="error">{error}</p> : null}
           <button className="primary" type="submit" disabled={busy || !repoPath.trim()}>
             {busy ? '接入中…' : '接入项目'}

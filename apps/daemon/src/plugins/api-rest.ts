@@ -2,15 +2,30 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   AcceptanceDecision,
+  Capability,
   CreatePlanRequest,
   CreateProjectRequest,
   TaskReplay,
 } from '@opencoxswain/shared';
+import { capabilityDiff, projectCapabilities } from '@opencoxswain/core';
 import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
 
 const TASK_ACTIONS = ['approve', 'reject', 'cancel', 'pause', 'resume', 'retry'] as const;
 const WORKER_ACTIONS = ['pause', 'resume', 'terminate'] as const;
+
+/** 能力的人话说明；安装确认页直接展示。 */
+const CAPABILITY_NOTES: Record<Capability, string> = {
+  'fs.read': '可以读取你的文件',
+  'fs.write': '可以修改你的文件',
+  'net.read': '可以联网读取资料',
+  'net.send': '可以向外部发送消息',
+  'proc.spawn': '可以运行本机命令',
+  'secrets.use': '可以读取密钥',
+};
+
+/** 未指定项目时的默认授权模板：读 + 写 + 联网，外发关闭。 */
+const DEFAULT_GRANTED: Capability[] = ['fs.read', 'fs.write', 'proc.spawn', 'net.read'];
 
 function isWithin(root: string, target: string): boolean {
   const normalizedRoot = path.resolve(root).toLowerCase();
@@ -67,7 +82,13 @@ function replayMarkdown(replay: TaskReplay): string {
     '## 授权链',
     ...replay.mandates.map(
       (mandate) =>
-        `- ${new Date(mandate.issuedAt).toISOString()} ${mandate.taskId} ${mandate.strength}（${mandate.issuedBy}）：工具 ${mandate.scope.allowedTools.join('/') || '无'}，写域 ${mandate.scope.writePaths.join('/') || '无'}，到期 ${new Date(mandate.expiresAt).toISOString()}`,
+        `- ${new Date(mandate.issuedAt).toISOString()} ${mandate.taskId}（${mandate.issuedBy}）：能力 ${mandate.capabilities.join('/') || '无'}，根目录 ${mandate.root}，角色 ${mandate.roles.join('/') || '无'}，到期 ${new Date(mandate.expiresAt).toISOString()}`,
+    ),
+    '',
+    '## 副作用台账',
+    ...replay.sideEffects.map(
+      (effect) =>
+        `- ${new Date(effect.createdAt).toISOString()} ${effect.kind} ${effect.target}：${effect.state}${effect.reversible ? '（可补偿）' : '（不可逆）'}`,
     ),
     '',
     '## 事件时间线',
@@ -97,6 +118,31 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const employees = ctx.service('employees');
 
   http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
+
+  http.route('GET', '/api/employees/:id/capabilities', async ({ params, query }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少员工 id');
+    const employee = employees.list().find((item) => item.id === id);
+    if (!employee) throw new AppError('员工不存在', 404);
+    const projectId = query.get('projectId');
+    const project = projectId ? store.getProject(projectId) : null;
+    if (projectId && !project) throw new AppError('项目不存在', 404);
+    const granted = project ? projectCapabilities(project) : DEFAULT_GRANTED;
+    const missing = capabilityDiff(employee.capabilities, granted);
+    return {
+      json: {
+        employee,
+        declared: employee.capabilities,
+        granted,
+        missing,
+        notes: employee.capabilities.map((capability) => CAPABILITY_NOTES[capability]),
+        warnings: missing.map(
+          (capability) =>
+            `${CAPABILITY_NOTES[capability]}（需要项目额外授权 ${capability}）`,
+        ),
+      },
+    };
+  });
 
   http.route('GET', '/api/secrets', async () => {
     const source = await secrets.source('llm_api_key');
@@ -234,6 +280,16 @@ export async function apply(ctx: PluginContext): Promise<void> {
 
   http.route('GET', '/api/runs/orphaned', async () => ({
     json: { runs: store.listOrphanedRuns() },
+  }));
+
+  http.route('GET', '/api/tasks/:id/side-effects', async (request) => {
+    const taskId = taskIdOf(request);
+    if (!store.getTask(taskId)) throw new AppError('任务不存在', 404);
+    return { json: { sideEffects: store.listTaskSideEffects(taskId) } };
+  });
+
+  http.route('GET', '/api/side-effects/pending', async () => ({
+    json: { sideEffects: store.listPendingSideEffects() },
   }));
 
   http.route('GET', '/api/tasks/:id/replay', async (request) => {

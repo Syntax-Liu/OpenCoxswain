@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto';
 import {
   assertTransition,
+  classifySideEffect,
   dependenciesOf,
   evaluateBudget,
   hasWriteConflict,
-  mandateCoversWriteScope,
+  mandateAllowsRole,
   mandateProblems,
   mandateViolation,
   PLAN_NOT_DECOMPOSED,
   readyTaskIds,
+  sideEffectDeduped,
+  sideEffectKey,
   validateDelegation,
   type DagEdge,
   type DagTask,
@@ -20,6 +23,7 @@ import type {
   EmployeeDefinition,
   EventRecord,
   Project,
+  SideEffect,
   Task,
   TaskContract,
   TaskInput,
@@ -62,6 +66,8 @@ interface ActiveRun {
   liveCost: CostLedger;
   warned: boolean;
   startedAt: number;
+  /** 已记账但尚未收到 tool_result 的副作用，按发生顺序匹配。 */
+  sideEffects: Array<{ tool: string; effectId: string }>;
 }
 
 const APPROVAL_POLICY: ApprovalPolicy = {
@@ -502,8 +508,8 @@ export class Scheduler {
 
     const mandate = this.store.getLatestMandate(task.id);
     const mandateIssues = mandateProblems(mandate, Date.now());
-    if (mandate) {
-      mandateIssues.push(...mandateCoversWriteScope(mandate, task.contract.write_scope ?? []));
+    if (mandate && !mandateAllowsRole(mandate, assignee.role)) {
+      mandateIssues.push(`角色 ${assignee.role} 不在任务授权编制内，需重新签发授权`);
     }
     if (mandateIssues.length > 0) {
       this.dispatching.delete(task.id);
@@ -634,6 +640,7 @@ export class Scheduler {
           liveCost: emptyCost(),
           warned: false,
           startedAt: Date.now(),
+          sideEffects: [],
         };
         this.active.set(task.id, run);
         for (const inputId of consumedInputIds) {
@@ -666,7 +673,10 @@ export class Scheduler {
 
           if (event.type === 'tool_call') {
             const violation = mandate
-              ? mandateViolation(mandate, event.tool, event.input)
+              ? mandateViolation(mandate, event.tool, event.input, {
+                  writeScope: task.contract.write_scope,
+                  workspace: worker.worktreePath,
+                })
               : '任务未签发授权凭证';
             if (violation) {
               this.emit(task.id, worker.id, 'mandate.denied', {
@@ -680,11 +690,29 @@ export class Scheduler {
               aborted = true;
               break;
             }
+
+            const effect = this.recordSideEffect(task, worker, run, event.tool, event.input);
+            if (effect.deduped) {
+              this.emit(task.id, worker.id, 'sideeffect.deduped', {
+                kind: effect.kind,
+                key: effect.key,
+                target: effect.target,
+              });
+            }
+          }
+
+          if (event.type === 'tool_result') {
+            this.settleSideEffect(task, worker, run, event.tool, event.output);
           }
 
           if (event.type === 'tool_call' && !adapter.supportsApprovalGate) {
-            const category = classifyAction(event.tool, event.input);
+            const sideEffect = classifySideEffect(event.tool, event.input);
+            const category =
+              sideEffect?.kind === 'net.send'
+                ? 'external_send'
+                : classifyAction(event.tool, event.input);
             if (category && !this.hasApprovedAction(task, event.tool, event.input)) {
+              this.rejectPendingSideEffect(run, event.tool);
               this.requestApproval(task, worker, {
                 tool: event.tool,
                 input: event.input,
@@ -899,6 +927,71 @@ export class Scheduler {
             approval.payload as unknown as { tool: string; input: unknown },
           ) === key,
       );
+  }
+
+  /** 先记账：识别到副作用立即落 pending，再交给审批与执行。 */
+  private recordSideEffect(
+    task: Task,
+    worker: Worker,
+    run: ActiveRun,
+    tool: string,
+    input: unknown,
+  ): { deduped: boolean; kind?: SideEffect['kind']; key?: string; target?: string } {
+    const intent = classifySideEffect(tool, input);
+    if (!intent) return { deduped: false };
+    const key = sideEffectKey(task.id, tool, input);
+    const existing = this.store.getSideEffectByKey(task.id, key);
+    if (existing && sideEffectDeduped(intent.kind)) {
+      return { deduped: true, kind: intent.kind, key, target: intent.target };
+    }
+    const effect = this.store.insertSideEffect({
+      taskId: task.id,
+      workerId: worker.id,
+      runId: run.runId,
+      kind: intent.kind,
+      target: intent.target,
+      idempotencyKey: key,
+      reversible: intent.reversible,
+    });
+    run.sideEffects.push({ tool, effectId: effect.id });
+    this.emit(task.id, worker.id, 'sideeffect.recorded', {
+      effectId: effect.id,
+      kind: effect.kind,
+      target: effect.target,
+      reversible: effect.reversible,
+      key,
+    });
+    return { deduped: false, kind: intent.kind, key, target: intent.target };
+  }
+
+  private settleSideEffect(
+    task: Task,
+    worker: Worker,
+    run: ActiveRun,
+    tool: string,
+    output: unknown,
+  ): void {
+    const index = run.sideEffects.findIndex((entry) => entry.tool === tool);
+    if (index < 0) return;
+    const [entry] = run.sideEffects.splice(index, 1);
+    if (!entry) return;
+    const digest = (typeof output === 'string' ? output : JSON.stringify(output ?? null)).slice(
+      0,
+      200,
+    );
+    this.store.updateSideEffect(entry.effectId, { state: 'succeeded', result: digest });
+    this.emit(task.id, worker.id, 'sideeffect.settled', {
+      effectId: entry.effectId,
+      state: 'succeeded',
+    });
+  }
+
+  private rejectPendingSideEffect(run: ActiveRun, tool: string): void {
+    const index = run.sideEffects.findIndex((entry) => entry.tool === tool);
+    if (index < 0) return;
+    const [entry] = run.sideEffects.splice(index, 1);
+    if (!entry) return;
+    this.store.updateSideEffect(entry.effectId, { state: 'rejected', result: '审批未通过' });
   }
 
   private async enforceTaskBudget(

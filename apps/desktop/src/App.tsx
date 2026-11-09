@@ -224,6 +224,12 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
           </div>
           <div className="topbar-right">
             <span
+              className={snapshot.planner.mode === 'llm' ? 'runtime ok' : 'runtime warn'}
+              title={snapshot.planner.reason ?? 'LLM Planner 已启用'}
+            >
+              规划 · {snapshot.planner.mode === 'llm' ? 'LLM' : '静态回退'}
+            </span>
+            <span
               className={snapshot.runtime.ok ? 'runtime ok' : 'runtime bad'}
               title={snapshot.runtime.detail}
             >

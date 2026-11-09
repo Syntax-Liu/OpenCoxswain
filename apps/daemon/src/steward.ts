@@ -5,6 +5,7 @@ import {
   dependenciesOf,
   isTerminal,
   issueMandate,
+  projectCapabilities,
   type TransitionActor,
 } from '@opencoxswain/core';
 import {
@@ -77,6 +78,7 @@ export class Steward implements StewardService {
       (projectId ? this.store.getProject(projectId) : null) ?? projects[0] ?? null;
     const assistant = this.store.ensureAssistant();
     const runtime = await this.runtimes.health();
+    const planner = await this.planner.status();
 
     if (!project) {
       return {
@@ -97,6 +99,7 @@ export class Steward implements StewardService {
         inputs: [],
         summary: null,
         runtime,
+        planner,
       };
     }
 
@@ -121,6 +124,7 @@ export class Steward implements StewardService {
       inputs,
       summary: root ? this.summary(root.id) : null,
       runtime,
+      planner,
     };
   }
 
@@ -181,10 +185,16 @@ export class Steward implements StewardService {
       defaultBranch: repo.branch,
       dailyBudgetUsd,
       maxConcurrency,
+      allowNetwork: request.allowNetwork ?? true,
+      allowExternalSend: request.allowExternalSend ?? false,
     });
     this.announce(
       project.id,
-      `已接入项目「${project.name}」，主分支 ${project.defaultBranch}。告诉我你想完成什么，我先给你任务单。`,
+      [
+        `已接入项目「${project.name}」，主分支 ${project.defaultBranch}。`,
+        `授权边界：工作目录 ${project.path}；${project.allowNetwork ? '允许联网读取' : '禁止联网'}；${project.allowExternalSend ? '允许外发（仍需逐次审批）' : '禁止外发'}。`,
+        '告诉我你想完成什么，我先给你任务单。',
+      ].join('\n'),
     );
     return project;
   }
@@ -372,13 +382,21 @@ export class Steward implements StewardService {
     if (task.parentId === null) return;
     const role = task.contract.assignee?.role;
     if (!role) return;
+    const project = this.store.getProject(task.projectId);
+    if (!project) return;
     const existing = this.store.getLatestMandate(task.id);
     if (issuedBy === 'user' && existing && existing.expiresAt > now()) return;
     const employee = this.employees.get(role);
+    const granted = projectCapabilities(project);
+    const capabilities = (employee?.capabilities ?? []).filter((capability) =>
+      granted.includes(capability),
+    );
     const mandate = issueMandate(task, {
       id: newId('mnd'),
       issuedBy,
-      allowedTools: employee?.tools ?? [],
+      capabilities,
+      root: project.path,
+      roles: [role],
       ttlMs: MANDATE_TTL_MS,
     });
     this.store.insertMandate(mandate);
@@ -389,8 +407,9 @@ export class Steward implements StewardService {
         mandateId: mandate.id,
         issuedBy,
         expiresAt: mandate.expiresAt,
-        allowedTools: mandate.scope.allowedTools,
-        writePaths: mandate.scope.writePaths,
+        capabilities: mandate.capabilities,
+        root: mandate.root,
+        roles: mandate.roles,
       },
     });
     this.bus.publish(event);
@@ -614,6 +633,7 @@ export class Steward implements StewardService {
       evidence: tree.flatMap((item) => this.store.listTaskEvidence(item.id)),
       supervision: tree.flatMap((item) => this.store.listTaskSupervision(item.id)),
       mandates: tree.flatMap((item) => this.store.listTaskMandates(item.id)),
+      sideEffects: tree.flatMap((item) => this.store.listTaskSideEffects(item.id)),
       summary: this.summary(task.id),
     };
   }

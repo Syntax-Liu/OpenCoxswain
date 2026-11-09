@@ -111,6 +111,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 自用内测，记录「拆错/跑偏/验收失败」案例，反推 v1 记忆优先级。
 - 验收自证与逐条验收（已完成，v0.7.0）：`finish()` 不再采信员工自报，command 由系统在 worktree 内重跑、diff 用 git 复算，rubric/human 一律交人；`POST /api/tasks/:id/acceptance` 要求逐条给出结论与理由，验收单包含交付物、证据摘要、验收标准、验收人与结论并落库；删除 `/accept` 批量盖章；`GET /api/tasks?stage=` 与工作台「在等谁」标签落地阶段视图。
 - 运行中输入与规则监察（已完成，v0.8.0）：`POST /api/tasks/:id/inputs` 在运行时支持时立即送达，否则诚实排队并在下次派发注入，人的消息不受并发上限约束；`supervisor.rules` 插件按规则检查越权、空转、心跳、重复、停滞、预算与长尾，动作落 `supervision_actions` 并可回放，重复触发升级暂停，空转完成直接判失败。
+- 授权与副作用（已完成，v0.10.0）：任务授权从「写路径枚举」升级为能力化 `TaskMandate`（能力集合 + 根目录 + 可执行角色），员工包声明 `capabilities`，项目创建只问工作目录 / 能否联网 / 能否外发，安装前可查能力差异；`fs.write` / `fs.delete` / `proc.exec` / `net.send` 先记账后执行并落 `side_effects` 台账，幂等键去重，外发一律审批且不可逆；回滚能力明确为可追溯 / 可补偿 / 仅 git 内可回滚。
 
 **交付物**：满足 PRD v0 五条验收剧本；可回放覆盖率 100%。
 
@@ -140,7 +141,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - `awaiting_approval → queued` 只能由用户触发。
 - 员工只上报事件，状态由调度器推进。
 - `blocked` 必须带原因；`failed` 可重试回 `queued`。
-- `done` 要求所有验收标准都有结论；`human` 类型由用户最终确认。
+- `done` 要求所有验收标准都有结论；`human` 类型仍由用户确认，是否产生人工待办由 `AcceptancePolicy` 决定。
 - 暂停保存前置状态，恢复时回到前置状态。
 
 ### 5.2 任务单
@@ -170,9 +171,10 @@ v0 只注册：`spawn_worker / assign_task / query_worker / collect_result / ask
 
 ### 5.6 人审与预算
 
-- 危险动作（删除、push、发布、付款、外发、安装系统级依赖）一律建 `approvals` 记录，阻塞等待。
+- 危险动作（删除、push、发布、付款、外发、安装系统级依赖）一律建 `approvals` 记录，阻塞等待；`net.send` 无论是否已获项目外发授权，都必须逐次审批且标记为不可逆。
   - 能在执行前挂起的运行时（Mock）通过 `ApprovalGate` 在动作前冻结，批准后原会话继续、拒绝则终止。
   - 外部进程运行时（OpenCode）无法在执行前阻断：调度器在 `tool_call` 事件边界识别后立即取消会话、冻结任务；批准后任务重新排队，已批准的同名动作自动放行。
+  - 所有副作用在 `tool_call` 边界先落 `side_effects` 为 `pending`，收到结果后结算；审批拒绝记 `rejected`，中断则保留 `pending` 供重启排查。
 - 单任务预算硬上限 + 项目日预算；成本按 `model_calls` 汇总，运行中按运行时 `cost` 事件实时累计；硬停时先落账已发生成本再中止。
 - 事件 append-only；所有 API 变更写事件。审批通过 `GET /api/bootstrap` 暴露，决策走 `POST /api/approvals/:id/decide`。
 - 密钥：`secrets` 服务优先读 DPAPI 仓库（`<home>/secrets/*.bin`，当前用户加密），未命中回退 `OPENCOXSWAIN_LLM_API_KEY` / `DEEPSEEK_API_KEY`；HTTP 只暴露来源，不返回密钥。

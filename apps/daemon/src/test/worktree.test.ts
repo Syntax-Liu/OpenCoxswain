@@ -15,6 +15,8 @@ function projectOf(repo: string): Project {
     defaultBranch: 'main',
     dailyBudgetUsd: 10,
     maxConcurrency: 2,
+    allowNetwork: true,
+    allowExternalSend: false,
     createdAt: Date.now(),
   };
 }

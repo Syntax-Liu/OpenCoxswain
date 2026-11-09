@@ -13,7 +13,7 @@ const BASE: Omit<EmployeeDefinition, 'pluginId'> = {
   version: '0.0.0',
   skills: ['写作'],
   tools: ['read', 'write'],
-  permissions: ['fs:read', 'fs:write'],
+  capabilities: ['fs.read', 'fs.write'],
   readOnly: false,
   acceptanceDefaults: [{ id: 'ac_human', type: 'human', desc: '用户确认' }],
   outputSchema: 'worker-result.v1',
@@ -26,7 +26,7 @@ test('员工注册表：角色唯一、五件套校验、可注销后重装', ()
   assert.throws(() => registry.register(BASE, 'employee.b'), /已被员工插件 employee\.a 占用/);
   assert.throws(
     () => registry.register({ ...BASE, id: 'x', role: 'researcher', readOnly: true }, 'employee.c'),
-    /只读员工不能声明 write/,
+    /只读员工不能声明 fs\.write/,
   );
   assert.throws(
     () => registry.register({ ...BASE, id: 'x', acceptanceDefaults: [] }, 'employee.d'),
@@ -49,7 +49,7 @@ test('员工插件包：内置四角色可安装，Planner 与调度器都消费
     for (const employee of employees) {
       assert.ok(employee.skills.length > 0, `${employee.role} 缺少技能`);
       assert.ok(employee.tools.length > 0, `${employee.role} 缺少工具`);
-      assert.ok(employee.permissions.length > 0, `${employee.role} 缺少权限`);
+      assert.ok(employee.capabilities.length > 0, `${employee.role} 缺少能力`);
       assert.ok(employee.acceptanceDefaults.length > 0, `${employee.role} 缺少默认验收`);
       assert.match(employee.pluginId, /^employee\./);
     }
