@@ -37,6 +37,7 @@ test('G3 运行中输入：立即送达运行中的员工，其余排队等下�
               goal: '写一份使用说明',
               role: 'writer',
               writeScope: ['docs/'],
+              dependsOn: [0],
               acceptance: [{ id: 'ac_human', type: 'human', desc: '用户确认文档' }],
               inputs: { mock: { files: [{ path: 'docs/NOTE.md', content: '# note\n' }] } },
             },

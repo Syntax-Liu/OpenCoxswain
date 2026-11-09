@@ -11,9 +11,14 @@ export const apply = employeePack({
   tools: ['read', 'write'],
   permissions: ['fs:read', 'fs:write'],
   readOnly: false,
+  deliverableProfile: 'document',
   acceptanceDefaults: [
-    { id: 'ac_rubric', type: 'rubric', desc: '文档结构与术语符合项目约定' },
-    { id: 'ac_human', type: 'human', desc: '用户确认文档内容' },
+    {
+      id: 'ac_anchors',
+      type: 'rubric',
+      desc: '关键结论标注来源且锚点可解析',
+      evidence_required: ['anchor'],
+    },
   ],
   outputSchema: 'worker-result.v1',
 });

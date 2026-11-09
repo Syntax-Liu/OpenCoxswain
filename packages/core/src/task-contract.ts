@@ -1,6 +1,9 @@
 import {
+  ACCEPTANCE_POLICIES,
   ACCEPTANCE_TYPES,
+  DELIVERABLE_PROFILES,
   DELIVERABLE_TYPES,
+  EVIDENCE_KINDS,
   ROLE_NAMES,
   type AcceptanceCriterion,
   type Budget,
@@ -43,11 +46,12 @@ function validateDeliverables(value: unknown, errors: string[]): void {
   });
 }
 
-function validateAcceptance(value: unknown, errors: string[]): void {
-  if (!Array.isArray(value) || value.length === 0) {
+function validateAcceptance(value: unknown, errors: string[], allowEmpty: boolean): void {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) {
     errors.push('acceptance_criteria 必须是非空数组');
     return;
   }
+  if (allowEmpty && Array.isArray(value) && value.length === 0) return;
   const seen = new Set<string>();
   value.forEach((item, index) => {
     if (!isRecord(item)) {
@@ -73,6 +77,17 @@ function validateAcceptance(value: unknown, errors: string[]): void {
     }
     if (criterion.check !== undefined && typeof criterion.check !== 'string') {
       errors.push(`acceptance_criteria[${index}].check 必须是字符串`);
+    }
+    if (criterion.evidence_required !== undefined) {
+      if (!Array.isArray(criterion.evidence_required)) {
+        errors.push(`acceptance_criteria[${index}].evidence_required 必须是数组`);
+      } else {
+        for (const kind of criterion.evidence_required) {
+          if (!EVIDENCE_KINDS.includes(kind as never)) {
+            errors.push(`acceptance_criteria[${index}].evidence_required 含非法证据类型`);
+          }
+        }
+      }
     }
   });
 }
@@ -132,9 +147,21 @@ export function validateTaskContract(value: unknown): TaskContractValidation {
   if (value.deadline !== undefined && typeof value.deadline !== 'string') {
     errors.push('deadline 必须是字符串');
   }
+  if (
+    value.acceptance_policy !== undefined &&
+    !ACCEPTANCE_POLICIES.includes(value.acceptance_policy as never)
+  ) {
+    errors.push('acceptance_policy 非法');
+  }
+  if (
+    value.deliverable_profile !== undefined &&
+    !DELIVERABLE_PROFILES.includes(value.deliverable_profile as never)
+  ) {
+    errors.push('deliverable_profile 非法');
+  }
 
   validateDeliverables(value.deliverables, errors);
-  validateAcceptance(value.acceptance_criteria, errors);
+  validateAcceptance(value.acceptance_criteria, errors, value.parent_id === null);
   validateBudget(value.budget, errors);
 
   if (value.assignee !== undefined) {

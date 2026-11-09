@@ -11,9 +11,14 @@ export const apply = employeePack({
   tools: ['read', 'shell', 'test'],
   permissions: ['fs:read', 'shell:exec', 'test:run'],
   readOnly: true,
+  deliverableProfile: 'code',
   acceptanceDefaults: [
-    { id: 'ac_rubric', type: 'rubric', desc: '独立检查 diff 是否符合目标' },
-    { id: 'ac_human', type: 'human', desc: '用户确认校验结论' },
+    {
+      id: 'ac_review',
+      type: 'rubric',
+      desc: '独立复核验收命令输出',
+      evidence_required: ['command_output'],
+    },
   ],
   outputSchema: 'worker-result.v1',
 });

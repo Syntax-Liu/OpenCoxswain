@@ -141,7 +141,7 @@ test('v0 闭环：规划 -> 审批 -> 实施/校验 -> 汇总 -> 验收', async 
     assert.match(snapshot.summary!, /## 待你决策/);
     assert.match(snapshot.summary!, /## 未通过的检查/);
     assert.match(snapshot.summary!, /## 交付产物/);
-    assert.match(snapshot.summary!, /human_accept/);
+    assert.match(snapshot.summary!, /ac_rubric/);
     assert.ok(snapshot.artifacts.length >= 2, 'diff 与校验报告都入库');
     assert.ok(snapshot.events.some((event) => event.type === 'worker.spawned'));
     assert.ok(snapshot.events.some((event) => event.type === 'runtime.finished'));

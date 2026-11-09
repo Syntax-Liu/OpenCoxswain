@@ -16,8 +16,10 @@ import type {
   Evidence,
   Message,
   Project,
+  DeliverableProfile,
   ProjectCostReport,
   RoleName,
+  Run,
   RuntimeStatus,
   SupervisionAction,
   SupervisionVerdict,
@@ -25,6 +27,7 @@ import type {
   TaskContract,
   TaskEdge,
   TaskInput,
+  TaskMandate,
   TaskReplay,
   TaskStatus,
   Worker,
@@ -73,6 +76,8 @@ export type Permission =
   | 'verification:provide'
   | 'supervisor:use'
   | 'supervisor:provide'
+  | 'mandate:read'
+  | 'mandate:issue'
   | 'ui:panel';
 
 export interface OpenCoxswainConfig {
@@ -95,6 +100,8 @@ export interface OpenCoxswainConfig {
   commandTimeoutMs: number;
   /** 规则监察的检查间隔（毫秒）。 */
   supervisionIntervalMs: number;
+  /** 运行租约有效期（毫秒）；超时视为孤儿。 */
+  leaseTtlMs: number;
 }
 
 export interface StorageService {
@@ -136,6 +143,22 @@ export interface StorageService {
   ): Worker;
   insertRun(id: string, workerId: string, attempt: number): void;
   finishRun(id: string, result: WorkerResult | null, error: string | null): void;
+  /** 原子认领执行租约；已被他人持有或未过期时返回 false。 */
+  claimRun(runId: string, owner: string, ttlMs: number): boolean;
+  /** 续约；租约已过期或 owner 不匹配时返回 false。 */
+  renewLease(runId: string, owner: string, ttlMs: number): boolean;
+  releaseRun(runId: string): void;
+  /** 列出已过期但未结束的 run。 */
+  listExpiredRuns(now: number): Array<{ taskId: string; runId: string; workerId: string }>;
+  markRunOrphaned(runId: string): void;
+  /** 复用孤儿 run 记录重新派发，避免重复计费。 */
+  reviveRun(runId: string, workerId: string, owner: string, ttlMs: number): void;
+  takeOrphanRun(taskId: string): string | null;
+  getActiveRun(taskId: string): Run | null;
+  listOrphanedRuns(): Run[];
+  insertMandate(mandate: TaskMandate): void;
+  getLatestMandate(taskId: string): TaskMandate | null;
+  listTaskMandates(taskId: string): TaskMandate[];
   insertInput(input: TaskInput): void;
   updateInputState(id: string, state: TaskInput['state'], deliveredAt?: number): void;
   listTaskInputs(taskId: string): TaskInput[];
@@ -217,6 +240,10 @@ export interface VerifyInput {
   worktree: string;
   criteria: AcceptanceCriterion[];
   artifacts: ArtifactRef[];
+  /** 交付物形态；决定来源/断言校验路径。 */
+  profile?: DeliverableProfile;
+  /** 无文件产物时的正文（如只读调研报告），用于来源校验。 */
+  deliverableText?: string;
   /** 子任务当前分支的基线，用于复算 diff。 */
   baseRef?: string;
 }

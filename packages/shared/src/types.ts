@@ -27,6 +27,9 @@ export const EVIDENCE_KINDS = [
   'screenshot',
   'link',
   'human_note',
+  'assertion',
+  'anchor',
+  'provenance',
 ] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
@@ -35,6 +38,14 @@ export type Verdict = (typeof VERDICTS)[number];
 
 export const DELIVERABLE_TYPES = ['diff', 'file', 'report', 'link'] as const;
 export type DeliverableType = (typeof DELIVERABLE_TYPES)[number];
+
+/** 交付物形态：决定系统跑第一遍验收时采用哪组校验。 */
+export const DELIVERABLE_PROFILES = ['code', 'document', 'dataset', 'design', 'ops'] as const;
+export type DeliverableProfile = (typeof DELIVERABLE_PROFILES)[number];
+
+/** auto = 系统判定即可完成；unverified_only = 仅未决项交人（默认）；always_human = 旧行为。 */
+export const ACCEPTANCE_POLICIES = ['auto', 'unverified_only', 'always_human'] as const;
+export type AcceptancePolicy = (typeof ACCEPTANCE_POLICIES)[number];
 
 export const WORKER_STATUSES = [
   'starting',
@@ -45,6 +56,31 @@ export const WORKER_STATUSES = [
   'terminated',
 ] as const;
 export type WorkerStatus = (typeof WORKER_STATUSES)[number];
+
+export const RUN_STATUSES = ['running', 'orphaned', 'done', 'failed'] as const;
+export type RunStatus = (typeof RUN_STATUSES)[number];
+
+export interface Run {
+  id: string;
+  workerId: string;
+  taskId: string;
+  attempt: number;
+  status: RunStatus;
+  leaseOwner: string | null;
+  leaseExpiresAt: number | null;
+  lastHeartbeatAt: number | null;
+  startedAt: number;
+  endedAt: number | null;
+  error: string | null;
+}
+
+/** 一次执行的租约；过期即视为孤儿，可被重新认领。 */
+export interface RunLease {
+  runId: string;
+  owner: string;
+  expiresAt: number;
+  lastHeartbeatAt: number;
+}
 
 export interface AcceptanceCriterion {
   id: string;
@@ -170,6 +206,26 @@ export interface Assignee {
   model: string;
 }
 
+export const MANDATE_STRENGTHS = ['read', 'write', 'publish'] as const;
+export type MandateStrength = (typeof MANDATE_STRENGTHS)[number];
+
+/** 任务级授权凭证：不可变；扩权必须签发新凭证。 */
+export interface TaskMandate {
+  id: string;
+  taskId: string;
+  scope: {
+    writePaths: string[];
+    allowedTools: string[];
+    network: boolean;
+    install: boolean;
+  };
+  strength: MandateStrength;
+  budget: Budget;
+  expiresAt: number;
+  issuedBy: 'user' | 'approval';
+  issuedAt: number;
+}
+
 export interface ReviewSpec {
   required: boolean;
   reviewer_role?: RoleName;
@@ -180,6 +236,12 @@ export interface TaskContract {
   task_id: string;
   parent_id: string | null;
   project_id: string;
+  plan_id?: string;
+  plan_revision?: number;
+  /** 谁决定的分工：planner = 结构派生；user = 手动；steward = 仅调整执行者。 */
+  delegated_by?: 'planner' | 'user' | 'steward';
+  /** 断点续跑提示，由 adapter 自行解释（通常是 worktree 快照/分支）。 */
+  checkpoint?: string;
   title: string;
   goal: string;
   context_refs?: string[];
@@ -187,6 +249,10 @@ export interface TaskContract {
   deliverables: Deliverable[];
   constraints?: string[];
   acceptance_criteria: AcceptanceCriterion[];
+  /** 缺省 unverified_only：系统能验完就不打扰人。 */
+  acceptance_policy?: AcceptancePolicy;
+  /** 交付物形态；缺省由员工包或角色推导。 */
+  deliverable_profile?: DeliverableProfile;
   dependencies: string[];
   write_scope?: string[];
   assignee?: Assignee;
@@ -211,6 +277,10 @@ export interface ArtifactRef {
     files?: number;
     additions?: number;
     deletions?: number;
+    /** 产物自报的文件列表，用于与实际 git diff 对照。 */
+    paths?: string[];
+    /** 产物自报的 patch 内容 hash，用于内容级复算。 */
+    patchHash?: string;
   };
 }
 
@@ -276,6 +346,8 @@ export interface EmployeeDefinition {
   permissions: string[];
   readOnly: boolean;
   acceptanceDefaults: AcceptanceCriterion[];
+  /** 员工默认交付物形态，Planner 可覆盖。 */
+  deliverableProfile?: DeliverableProfile;
   outputSchema: string;
   /** 提供该员工的插件 id，用于审计“员工来自哪个插件包”。 */
   pluginId: string;
@@ -373,6 +445,8 @@ export interface SubtaskDraft {
   inputs?: Record<string, unknown>;
   budget?: Budget;
   reviewRequired?: boolean;
+  acceptancePolicy?: AcceptancePolicy;
+  deliverableProfile?: DeliverableProfile;
 }
 
 export interface CreatePlanRequest {
@@ -381,6 +455,8 @@ export interface CreatePlanRequest {
   budget?: Budget;
   dailyBudgetUsd?: number;
   subtasks?: SubtaskDraft[];
+  acceptancePolicy?: AcceptancePolicy;
+  deliverableProfile?: DeliverableProfile;
 }
 
 export interface CreateProjectRequest {
@@ -417,5 +493,6 @@ export interface TaskReplay {
   acceptance: AcceptanceRecord[];
   evidence: Evidence[];
   supervision: SupervisionAction[];
+  mandates: TaskMandate[];
   summary: string | null;
 }

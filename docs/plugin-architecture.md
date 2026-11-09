@@ -12,7 +12,7 @@
 非目标（P2+）：
 
 - 进程级/OS 级沙箱隔离；P1 的隔离边界是**进程内服务可见性 + 权限清单**，不是安全沙箱。
-- 插件热重载、远程插件市场、插件签名。
+- 插件热重载、远程插件市场、插件签名。v1 的插件能力是本地目录安装，不承诺远程市场。
 - Tauri 桌面壳；P1 仍以浏览器 + 本地 Daemon 形式运行。
 
 ## 2. 对齐依据
@@ -304,7 +304,15 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 规则监察：新增 `supervisor` 服务与 `supervisor.rules` 插件；`core/supervision.ts` 纯规则判断越权/空转/心跳/重复/停滞/预算/长尾，动作写入 `supervision_actions` 并进入回放；同一规则重复触发升级暂停；`empty_completion` 在完成时直接判失败，不进入验收。
 3. `pnpm test`（core 27 + daemon 24）、`pnpm e2e` 均通过。
 
+已完成（v0.9.0）：
+
+1. 验收闭环：`AcceptancePolicy`（`auto` / `unverified_only` / `always_human`）+ `DeliverableProfile`（`code` / `document` / `dataset` / `design` / `ops`）+ 纯函数 `ProvenanceVerifier`；`verification` 支持 `assertion` / `anchor` / `provenance` 三类证据并按 `evidence_required` 绑定判定，非 Git 交付物也有自动预验路径；四个员工包默认验收标准移除 `human`。
+2. 内容级 diff：`diff` 复算改为 `paths` + 完整 patch `sha256` + 增删行数三者比对，任一不一致即 failed，不再只看行数。
+3. 委派结构断言：`validateDelegation` 在 `tickProject` 实际调用；根任务 plan 少于 2 个子任务返回 `PLAN_NOT_DECOMPOSED`，其余结构问题返回 `PLAN_INVALID`。
+4. 租约与授权链（G5/G6）：`runs` 新增租约字段（`status` / `lease_owner` / `lease_expires_at` / `last_heartbeat_at`），调度器 tick 续租并回收过期运行，孤儿运行标记、失败 worker 与输入注入后重派；`task_mandates` 落库，派单前校验 `MANDATE_INVALID`，运行中每次工具调用校验越权并落 `mandate.denied`；旧库自动迁移到 user_version=4。
+5. `pnpm test`（core 35 + daemon 28）、`pnpm e2e` 均通过。
+
 下一步（P3 剩余）：
 
-1. RunLease 租约与孤儿恢复、任务级授权链（G5/G6），以及 Planner 结构断言与文档错误码对齐。
-2. 记忆层、任务树审计视图、进程级插件隔离与 Tauri 2 桌面壳。
+1. 记忆层、任务树审计视图、待决策收件箱。
+2. 进程级插件隔离与 Tauri 2 桌面壳。

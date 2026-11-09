@@ -12,6 +12,7 @@ import type {
   RoleName,
   SubtaskDraft,
 } from '@opencoxswain/shared';
+import { PLAN_NOT_DECOMPOSED } from '@opencoxswain/core';
 import { Planner } from '../planner.js';
 
 const ROLES: ReadonlySet<string> = new Set<RoleName>([
@@ -35,7 +36,7 @@ const SYSTEM_PROMPT = [
   '把用户目标拆成 2-5 个可独立执行、带依赖关系的子任务。每个子任务由一名 AI 员工在独立 git worktree 中执行。',
   '角色只能是：implementer（实施，可写文件）、verifier（校验，只读）、researcher（调研，只读）、writer（写作，可写文件）。',
   '校验类子任务必须通过 dependsOn 指向实施任务（0 基索引）。',
-  '每个子任务的 acceptance 至少包含一个 human 类型；可自动验证时优先给 command（带 check 命令）或 diff（依赖 writeScope）。',
+  '每个子任务的 acceptance 至少包含一个可自动验证的标准：command（带 check）、diff（依赖 writeScope），或 rubric + evidence_required（如 anchor/assertion）；human 只用于确实需要主观判断的项。',
   'writeScope 使用仓库相对路径或目录前缀；verifier / researcher 留空数组。',
 ].join('\n');
 
@@ -122,7 +123,10 @@ export class LlmPlanner implements PlannerService {
 
     const raw = (parsed as { subtasks?: unknown }).subtasks;
     if (!Array.isArray(raw)) throw new Error('LLM 返回缺少 subtasks 数组');
-    return normalizeSubtasks(raw);
+    if (raw.length === 0) throw new Error(`${PLAN_NOT_DECOMPOSED}：LLM 未返回任何子任务`);
+    const drafts = normalizeSubtasks(raw);
+    assertDecomposed(drafts);
+    return drafts;
   }
 
   private userPrompt(request: CreatePlanRequest): string {
@@ -141,7 +145,7 @@ export class LlmPlanner implements PlannerService {
       request.acceptanceCommand ? `验收命令：${request.acceptanceCommand}` : null,
       '',
       '输出 JSON，结构如下：',
-      '{"subtasks":[{"title":"实施：…","goal":"…","role":"implementer","dependsOn":[],"writeScope":["src/"],"acceptance":[{"id":"ac1","type":"command","desc":"测试通过","check":"npm test"},{"id":"ac_human","type":"human","desc":"用户验收"}],"deliverables":[{"type":"diff","scope":"src/"}]}]}',
+      '{"subtasks":[{"title":"实施：…","goal":"…","role":"implementer","dependsOn":[],"writeScope":["src/"],"acceptance":[{"id":"ac1","type":"command","desc":"测试通过","check":"npm test"}],"deliverables":[{"type":"diff","scope":"src/"}]}]}',
     ]
       .filter((line): line is string => line !== null)
       .join('\n');
@@ -152,6 +156,18 @@ function stripFence(content: string): string {
   const trimmed = content.trim();
   const match = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
   return match ? match[1]! : trimmed;
+}
+
+function assertDecomposed(drafts: SubtaskDraft[]): void {
+  if (drafts.length === 0) {
+    throw new Error(`${PLAN_NOT_DECOMPOSED}：LLM 未返回任何子任务`);
+  }
+  if (!drafts.some((draft) => draft.role === 'implementer' || draft.role === 'writer')) {
+    throw new Error('计划结构非法：缺少实施/撰写角色');
+  }
+  if (!drafts.some((draft) => draft.role === 'verifier')) {
+    throw new Error('计划结构非法：缺少校验角色');
+  }
 }
 
 function normalizeSubtasks(raw: unknown[]): SubtaskDraft[] {

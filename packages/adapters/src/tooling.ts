@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
@@ -203,7 +204,13 @@ export async function collectArtifacts(options: ArtifactOptions): Promise<Artifa
       type: 'diff',
       path: diffPath,
       label: `${changed.length} 个文件`,
-      meta: { files: changed.length, additions, deletions },
+      meta: {
+        files: changed.length,
+        additions,
+        deletions,
+        paths: changed,
+        patchHash: createHash('sha256').update(patch.stdout).digest('hex'),
+      },
     });
   }
 

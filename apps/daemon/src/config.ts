@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.8.0';
+export const APP_VERSION = '0.9.0';
 
 export type DaemonConfig = OpenCoxswainConfig;
 
@@ -42,5 +42,7 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
     supervisionIntervalMs:
       overrides.supervisionIntervalMs ??
       Number(process.env.OPENCOXSWAIN_SUPERVISION_MS ?? 30_000),
+    leaseTtlMs:
+      overrides.leaseTtlMs ?? Number(process.env.OPENCOXSWAIN_LEASE_MS ?? 30_000),
   };
 }

@@ -12,10 +12,13 @@ import {
   type Message,
   type Project,
   type ProjectCostReport,
+  type Run,
+  type RunStatus,
   type SupervisionAction,
   type Task,
   type TaskEdge,
   type TaskInput,
+  type TaskMandate,
   type TaskStatus,
   type Worker,
   type WorkerResult,
@@ -31,6 +34,11 @@ function text(row: Row, key: string): string {
 function nullableText(row: Row, key: string): string | null {
   const value = row[key];
   return value === null || value === undefined ? null : String(value);
+}
+
+function nullableNumber(row: Row, key: string): number | null {
+  const value = row[key];
+  return value === null || value === undefined ? null : Number(value);
 }
 
 function number(row: Row, key: string): number {
@@ -94,6 +102,26 @@ CREATE TABLE IF NOT EXISTS supervision_actions (
   at        INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_supervision_task ON supervision_actions(task_id);
+`;
+
+const LEASE_SCHEMA = `
+ALTER TABLE runs ADD COLUMN status TEXT NOT NULL DEFAULT 'running';
+ALTER TABLE runs ADD COLUMN lease_owner TEXT;
+ALTER TABLE runs ADD COLUMN lease_expires_at INTEGER;
+ALTER TABLE runs ADD COLUMN last_heartbeat_at INTEGER;
+CREATE INDEX IF NOT EXISTS idx_runs_lease ON runs(lease_expires_at);
+
+CREATE TABLE IF NOT EXISTS task_mandates (
+  id          TEXT PRIMARY KEY,
+  task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  scope_json  TEXT NOT NULL,
+  strength    TEXT NOT NULL,
+  budget_json TEXT NOT NULL,
+  expires_at  INTEGER NOT NULL,
+  issued_by   TEXT NOT NULL,
+  issued_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mandates_task ON task_mandates(task_id, issued_at DESC);
 `;
 
 const SCHEMA = `
@@ -276,7 +304,7 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 3) return;
+    if (version >= 4) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
@@ -284,8 +312,9 @@ export class Store {
       } else if (version < 2) {
         this.db.exec(ACCEPTANCE_SCHEMA);
       }
-      this.db.exec(INPUT_SCHEMA);
-      this.db.exec('PRAGMA user_version = 3;');
+      if (version < 3) this.db.exec(INPUT_SCHEMA);
+      if (version < 4) this.db.exec(LEASE_SCHEMA);
+      this.db.exec('PRAGMA user_version = 4;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -639,14 +668,164 @@ export class Store {
 
   insertRun(id: string, workerId: string, attempt: number): void {
     this.db
-      .prepare('INSERT INTO runs (id, worker_id, attempt, started_at) VALUES (?, ?, ?, ?)')
+      .prepare(
+        `INSERT INTO runs (id, worker_id, attempt, status, started_at) VALUES (?, ?, ?, 'running', ?)`,
+      )
       .run(id, workerId, attempt, now());
   }
 
   finishRun(id: string, result: WorkerResult | null, error: string | null): void {
     this.db
-      .prepare('UPDATE runs SET ended_at = ?, result_json = ?, error = ? WHERE id = ?')
-      .run(now(), result ? JSON.stringify(result) : null, error, id);
+      .prepare(
+        `UPDATE runs SET ended_at = ?, result_json = ?, error = ?, status = ?,
+                        lease_owner = NULL, lease_expires_at = NULL
+         WHERE id = ?`,
+      )
+      .run(
+        now(),
+        result ? JSON.stringify(result) : null,
+        error,
+        error ? 'failed' : 'done',
+        id,
+      );
+  }
+
+  /** 原子认领租约：无主、已过期或同一 owner 才能抢到。 */
+  claimRun(runId: string, owner: string, ttlMs: number): boolean {
+    const at = now();
+    const result = this.db
+      .prepare(
+        `UPDATE runs
+         SET lease_owner = ?, lease_expires_at = ?, last_heartbeat_at = ?
+         WHERE id = ? AND status = 'running' AND ended_at IS NULL
+           AND (lease_owner IS NULL OR lease_owner = ? OR lease_expires_at IS NULL OR lease_expires_at < ?)`,
+      )
+      .run(owner, at + ttlMs, at, runId, owner, at);
+    return Number(result.changes) > 0;
+  }
+
+  renewLease(runId: string, owner: string, ttlMs: number): boolean {
+    const at = now();
+    const result = this.db
+      .prepare(
+        `UPDATE runs SET lease_expires_at = ?, last_heartbeat_at = ?
+         WHERE id = ? AND lease_owner = ? AND status = 'running'
+           AND lease_expires_at IS NOT NULL AND lease_expires_at >= ?`,
+      )
+      .run(at + ttlMs, at, runId, owner, at);
+    return Number(result.changes) > 0;
+  }
+
+  releaseRun(runId: string): void {
+    this.db
+      .prepare('UPDATE runs SET lease_owner = NULL, lease_expires_at = NULL WHERE id = ?')
+      .run(runId);
+  }
+
+  listExpiredRuns(at: number): Array<{ taskId: string; runId: string; workerId: string }> {
+    const rows = this.db
+      .prepare(
+        `SELECT r.id AS run_id, r.worker_id, w.task_id
+         FROM runs r JOIN workers w ON w.id = r.worker_id
+         WHERE r.status = 'running' AND r.ended_at IS NULL
+           AND r.lease_expires_at IS NOT NULL AND r.lease_expires_at < ?`,
+      )
+      .all(at) as Row[];
+    return rows.map((row) => ({
+      taskId: text(row, 'task_id'),
+      runId: text(row, 'run_id'),
+      workerId: text(row, 'worker_id'),
+    }));
+  }
+
+  markRunOrphaned(runId: string): void {
+    this.db
+      .prepare(
+        `UPDATE runs SET status = 'orphaned', lease_owner = NULL, lease_expires_at = NULL
+         WHERE id = ?`,
+      )
+      .run(runId);
+  }
+
+  reviveRun(runId: string, workerId: string, owner: string, ttlMs: number): void {
+    const at = now();
+    this.db
+      .prepare(
+        `UPDATE runs
+         SET worker_id = ?, attempt = attempt + 1, status = 'running', lease_owner = ?,
+             lease_expires_at = ?, last_heartbeat_at = ?, ended_at = NULL, error = NULL
+         WHERE id = ?`,
+      )
+      .run(workerId, owner, at + ttlMs, at, runId);
+  }
+
+  takeOrphanRun(taskId: string): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT r.id FROM runs r JOIN workers w ON w.id = r.worker_id
+         WHERE w.task_id = ? AND r.status = 'orphaned'
+         ORDER BY r.started_at DESC LIMIT 1`,
+      )
+      .get(taskId) as Row | undefined;
+    return row ? text(row, 'id') : null;
+  }
+
+  getActiveRun(taskId: string): Run | null {
+    const row = this.db
+      .prepare(
+        `SELECT r.*, w.task_id FROM runs r JOIN workers w ON w.id = r.worker_id
+         WHERE w.task_id = ? AND r.ended_at IS NULL
+         ORDER BY r.started_at DESC LIMIT 1`,
+      )
+      .get(taskId) as Row | undefined;
+    return row ? mapRun(row) : null;
+  }
+
+  listOrphanedRuns(): Run[] {
+    const rows = this.db
+      .prepare(
+        `SELECT r.*, w.task_id FROM runs r JOIN workers w ON w.id = r.worker_id
+         WHERE r.status = 'orphaned' ORDER BY r.started_at DESC`,
+      )
+      .all() as Row[];
+    return rows.map(mapRun);
+  }
+
+  // ---------- mandates ----------
+
+  insertMandate(mandate: TaskMandate): void {
+    this.db
+      .prepare(
+        `INSERT INTO task_mandates
+           (id, task_id, scope_json, strength, budget_json, expires_at, issued_by, issued_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        mandate.id,
+        mandate.taskId,
+        JSON.stringify(mandate.scope),
+        mandate.strength,
+        JSON.stringify(mandate.budget),
+        mandate.expiresAt,
+        mandate.issuedBy,
+        mandate.issuedAt,
+      );
+  }
+
+  getLatestMandate(taskId: string): TaskMandate | null {
+    const row = this.db
+      .prepare(
+        'SELECT * FROM task_mandates WHERE task_id = ? ORDER BY issued_at DESC, id DESC LIMIT 1',
+      )
+      .get(taskId) as Row | undefined;
+    return row ? mapMandate(row) : null;
+  }
+
+  listTaskMandates(taskId: string): TaskMandate[] {
+    const rows = this.db
+      .prepare('SELECT * FROM task_mandates WHERE task_id = ? ORDER BY issued_at ASC, id ASC')
+      .all(taskId) as Row[];
+    return rows.map(mapMandate);
   }
 
   getLatestResult(taskId: string): WorkerResult | null {
@@ -1233,5 +1412,39 @@ function toSupervisionAction(row: Row): SupervisionAction {
     verdict: text(row, 'verdict') as SupervisionAction['verdict'],
     reason: text(row, 'reason'),
     at: number(row, 'at'),
+  };
+}
+
+function mapRun(row: Row): Run {
+  return {
+    id: text(row, 'id'),
+    workerId: text(row, 'worker_id'),
+    taskId: text(row, 'task_id'),
+    attempt: number(row, 'attempt'),
+    status: text(row, 'status') as RunStatus,
+    leaseOwner: nullableText(row, 'lease_owner'),
+    leaseExpiresAt: nullableNumber(row, 'lease_expires_at'),
+    lastHeartbeatAt: nullableNumber(row, 'last_heartbeat_at'),
+    startedAt: number(row, 'started_at'),
+    endedAt: nullableNumber(row, 'ended_at'),
+    error: nullableText(row, 'error'),
+  };
+}
+
+function mapMandate(row: Row): TaskMandate {
+  return {
+    id: text(row, 'id'),
+    taskId: text(row, 'task_id'),
+    scope: parseJson(row.scope_json, {
+      writePaths: [],
+      allowedTools: [],
+      network: false,
+      install: false,
+    }),
+    strength: text(row, 'strength') as TaskMandate['strength'],
+    budget: parseJson(row.budget_json, {}),
+    expiresAt: number(row, 'expires_at'),
+    issuedBy: text(row, 'issued_by') as TaskMandate['issuedBy'],
+    issuedAt: number(row, 'issued_at'),
   };
 }

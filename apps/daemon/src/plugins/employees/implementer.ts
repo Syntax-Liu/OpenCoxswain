@@ -11,8 +11,9 @@ export const apply = employeePack({
   tools: ['read', 'write', 'shell', 'test'],
   permissions: ['fs:read', 'fs:write', 'shell:exec', 'test:run'],
   readOnly: false,
+  deliverableProfile: 'code',
   acceptanceDefaults: [
-    { id: 'ac_human', type: 'human', desc: '用户确认改动符合目标' },
+    { id: 'ac_diff', type: 'diff', desc: '改动与产物内容一致' },
   ],
   outputSchema: 'worker-result.v1',
 });

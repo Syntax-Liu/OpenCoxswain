@@ -88,12 +88,13 @@ test('员工插件包：内置四角色可安装，Planner 与调度器都消费
     const verifier = planned.children.find((task) => task.contract.assignee?.role === 'verifier');
     assert.deepEqual(
       writer?.contract.acceptance_criteria.map((criterion) => criterion.id),
-      ['ac_rubric', 'ac_human'],
+      ['ac_anchors'],
       '未显式提供验收时使用撰写员插件包的默认验收',
     );
+    assert.equal(writer?.contract.deliverable_profile, 'document');
     assert.deepEqual(
       verifier?.contract.acceptance_criteria.map((criterion) => criterion.id),
-      ['ac_rubric', 'ac_human'],
+      ['ac_review'],
       '校验员默认验收来自员工插件包',
     );
     assert.deepEqual(verifier?.contract.write_scope, [], '只读属性来自员工插件包');

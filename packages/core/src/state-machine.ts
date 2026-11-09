@@ -34,6 +34,7 @@ const ALLOWED: Record<TaskStatus, Partial<Record<TaskStatus, TransitionActor[]>>
     cancelled: ['user'],
   },
   running: {
+    queued: ['scheduler', 'system'],
     awaiting_review: ['scheduler'],
     done: ['scheduler'],
     blocked: ['scheduler', 'system'],

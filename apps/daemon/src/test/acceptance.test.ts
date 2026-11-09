@@ -48,7 +48,7 @@ test('G1 验收自证：执行者自报通过，但系统复核失败则任务�
     const snapshot = await waitFor(async () => {
       const current = await daemon.call<WorkbenchSnapshot>('/api/bootstrap');
       const root = current.tasks.find((task) => task.id === planned.root.id);
-      return root?.status === 'awaiting_review' ? current : null;
+      return root?.status === 'failed' ? current : null;
     });
     const child = snapshot.tasks.find((task) => task.parentId === planned.root.id);
     assert.equal(child?.status, 'failed', '命令复核失败时子任务不得直接通过');

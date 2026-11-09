@@ -18,7 +18,7 @@
    - **P2 委派固化在结构里**（当前依赖 planner 输出与总管提示词，缺少结构断言）
    - **P2 任务级授权 Mandate + 租约式断点恢复**（当前只有「危险动作审批」，没有任务级授权链；重启只把 running 一律 blocked）
 4. **明确不做 5 项**：云端无状态容器、BYOM 端侧 daemon、Thread 多对多订阅、Inline & Spill 上下文管理、投机执行。理由见 §6，均为「与 Windows 本地优先/插件化目标冲突」或「成本收益不成立」。
-5. 版本节奏（实际）：`v0.6.0`（员工插件包）、`v0.7.0`（验收证据化 + 阶段视图）、`v0.8.0`（运行中输入 + 规则监察）、`v0.9.0`（委派固化 + Mandate + 租约）。全部为新增能力，按 SemVer 升 minor。
+5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）。全部为新增能力，按 SemVer 升 minor。
 
 ---
 
@@ -275,9 +275,16 @@ export interface AcceptanceCriterion {
 | 类型 | 谁来判 | 规则 |
 | --- | --- | --- |
 | `command` | **系统**（verifier 进程） | 调度器在 worktree 内独立重跑 `check`；退出码 0 → passed；输出 hash 入证据。**禁止**采信 worker 自报 |
-| `diff` | **系统** | 用 `git diff --numstat base...head` 复算，与 `ArtifactRef.meta.additions/deletions` 比对；不一致 → `unverified` |
-| `rubric` | **verifier 角色**（只读 runtime） | 产出结构化评分 + 证据引用；verifier 不能改代码 |
+| `diff` | **系统** | `git diff --numstat` 复算统计，并用 `--name-only` 与完整 patch hash 做内容级比对；统计/路径/patch 任一不一致 → `failed` |
+| `rubric` | **系统按证据绑定**，必要时 verifier 角色 | `evidence_required` 齐备 → passed；缺证据 → unverified；`anchor` 无法解析 → failed；verifier 不能改代码 |
 | `human` | **人** | 必须逐条给 verdict + note；不允许「一键全过」 |
+
+#### 5.1.5 交付物形态与自动预验
+
+- `TaskContract.deliverable_profile: 'code' | 'document' | 'dataset' | 'design' | 'ops'`，员工包声明默认值，Planner 可覆盖。
+- `TaskContract.acceptance_policy: 'auto' | 'unverified_only' | 'always_human'`，默认 `unverified_only`：系统能验完就不打扰人；`auto` 连未决项也放行；`always_human` 保留旧行为。根任务不再固定 `human_accept`，仅在子任务存在未决/失败/取消时进入人审。
+- `ProvenanceVerifier`（`packages/core/src/provenance.ts`）：从交付物正文提取 `{{anchor: ref}}`、markdown 链接与「来源：」行；锚点缺失 → unverified，锚点无法解析（文件不存在/行号越界）→ failed，锚点齐备且达到数量阈值 → passed。
+- 系统证据新增 `assertion`（rubric + check 断言）、`anchor`（锚点及目标摘要）、`provenance`（交付物来源链摘要）。
 
 #### 5.1.3 落点
 
@@ -297,7 +304,7 @@ export interface VerificationService {
 ```
 
 - `provides: ['verification']`，权限新增 `verification:run`、`fs:worktree`（只读约定）、`process:spawn`。
-- `scheduler.finish()` 改为：`const records = await verification.verify(...)` → 写 `acceptance_records` → 若有 failed → `failed`；若有 unverified → `awaiting_review`；全 passed 且无 `human` → `done`；含 `human` → `awaiting_review`。
+- `scheduler.finish()` 改为：`const records = await verification.verify(...)` → 写 `acceptance_records` → 任一 failed → `failed`；有 unverified → 按 `acceptance_policy` 决定 `done` 或 `awaiting_review`；全 passed 且 policy=`always_human` → `awaiting_review`，否则 `done`。
 - `steward.acceptTask()` 拆成 `decideAcceptance(taskId, decisions)`：
 
 ```ts
@@ -311,7 +318,7 @@ POST /api/tasks/:id/acceptance
 
 #### 5.1.4 验收（DoD）
 
-- 单测：`human` 未逐条决策 → 409；`command` 退出码非 0 → failed；`diff` 统计不一致 → unverified。
+- 单测：`human` 未逐条决策 → 409；`command` 退出码非 0 → failed；`diff` 统计或内容 hash 不一致 → failed；`document` 无锚点 → unverified，锚点不可解析 → failed。
 - e2e：mock runtime 返回「全 passed」，但 `command` 复核失败 → 任务必须停在 `failed`，且汇总「未通过的检查」列出输出片段。
 - 回放 markdown 每条验收项含：标准、证据引用、判定人、时间。
 - 面板：`awaiting_review` 行必须显示「3 项待你判断」，点开逐条。
@@ -628,7 +635,7 @@ export interface StorageService {
 | v0.6.0（已发布） | 员工插件包（角色/技能/工具/权限/验收标准五件套），为验收与委派提供可安装载体 | 无 | 与本文档原排期不同：员工包先占用 v0.6.0 |
 | v0.7.0（已发布） | §5.1 验收证据化 + §5.5.2 阶段视图 + 诚实交付提示词（G1/G2/G7） | 无 | 已删除旧 `task_acceptance` 表与 `/accept` 入口，旧库自动迁移到 v2 |
 | v0.8.0（已发布） | §5.2 输入注入 + 快车道 + §5.3 规则版 Watchdog（G3/G4） | §5.2 的 heartbeat | `task_inputs` 与 `supervision_actions` 落库，旧库自动迁移到 user_version=3 |
-| v0.9.0 | §5.4 委派固化 + §5.5.1 Mandate + §5.6 租约 + 孤儿恢复（G5/G6） | 需要 planner schema 变更、storage 迁移 | |
+| v0.9.0（已发布） | 验收闭环（AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff）+ §5.4 委派固化 + §5.5.1 Mandate + §5.6 租约与孤儿恢复（G5/G6） | 需要 planner schema 变更、storage 迁移 | `runs` 新增租约字段、`task_mandates` 落库，旧库自动迁移到 user_version=4；`validateDelegation` 接入 `tickProject`，不再有死代码 |
 
 规则：全部是新增能力，按 SemVer 升 minor；若删除旧 `acceptance` 表读取路径，属移除功能，需在 v1.0 前统一处理，不单独升 major。
 

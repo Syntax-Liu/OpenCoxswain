@@ -1,15 +1,17 @@
 import {
   newId,
   type AcceptanceCriterion,
+  type AcceptancePolicy,
   type Budget,
   type CreatePlanRequest,
   type Deliverable,
+  type DeliverableProfile,
   type Project,
   type RoleName,
   type SubtaskDraft,
   type TaskContract,
 } from '@opencoxswain/shared';
-import { sumBudgets, validateDag, validateTaskContract } from '@opencoxswain/core';
+import { PLAN_NOT_DECOMPOSED, sumBudgets, validateDag, validateTaskContract } from '@opencoxswain/core';
 import type { EmployeeRegistry } from '@opencoxswain/plugin-api';
 
 const DEFAULT_BUDGET: Budget = { usd: 2, tokens: 200_000, minutes: 30 };
@@ -63,14 +65,25 @@ export class Planner {
       ? request.subtasks
       : this.defaultDrafts(request);
     if (drafts.length < 2 || drafts.length > 5) {
-      throw new Error('子任务数量需在 2-5 之间');
+      throw new Error(`${PLAN_NOT_DECOMPOSED}：子任务数量需在 2-5 之间`);
     }
 
     const rootId = newId('tsk');
+    const planId = newId('pln');
     const ids = drafts.map(() => newId('tsk'));
     const budgets = this.splitBudget(request.budget ?? DEFAULT_BUDGET, drafts);
+    const policy = request.acceptancePolicy ?? 'unverified_only';
     const children = drafts.map((draft, index) =>
-      this.buildChild(project, rootId, ids[index]!, draft, budgets[index]!),
+      this.buildChild(
+        project,
+        rootId,
+        ids[index]!,
+        draft,
+        budgets[index]!,
+        planId,
+        policy,
+        request.deliverableProfile,
+      ),
     );
 
     const edges: PlanEdge[] = [];
@@ -104,13 +117,16 @@ export class Planner {
       task_id: rootId,
       parent_id: null,
       project_id: project.id,
+      plan_id: planId,
+      plan_revision: 1,
+      delegated_by: 'planner',
       title: shortTitle(goal),
       goal,
       deliverables: this.mergeDeliverables(children),
       constraints: [],
-      acceptance_criteria: [
-        { id: 'human_accept', type: 'human', desc: '用户验收通过' },
-      ],
+      acceptance_criteria: [],
+      acceptance_policy: policy,
+      deliverable_profile: request.deliverableProfile,
       dependencies: [],
       budget: request.budget ?? sumBudgets(budgets),
       review: { required: true, reviewer_role: 'verifier' },
@@ -184,6 +200,9 @@ export class Planner {
     id: string,
     draft: SubtaskDraft,
     budget: Budget,
+    planId: string,
+    policy: AcceptancePolicy,
+    requestedProfile?: DeliverableProfile,
   ): TaskContract {
     const readOnly = this.isReadOnly(draft.role);
     const writeScope = draft.writeScope ?? (readOnly ? [] : ['**']);
@@ -192,6 +211,9 @@ export class Planner {
       task_id: id,
       parent_id: rootId,
       project_id: project.id,
+      plan_id: planId,
+      plan_revision: 1,
+      delegated_by: 'planner',
       title: draft.title,
       goal: draft.goal,
       inputs: draft.inputs,
@@ -204,6 +226,12 @@ export class Planner {
         draft.acceptance && draft.acceptance.length > 0
           ? draft.acceptance
           : acceptanceDefaults,
+      acceptance_policy: draft.acceptancePolicy ?? policy,
+      deliverable_profile:
+        draft.deliverableProfile ??
+        requestedProfile ??
+        this.options.employees?.get(draft.role)?.deliverableProfile ??
+        (draft.role === 'implementer' ? 'code' : 'document'),
       dependencies: [],
       write_scope: writeScope,
       assignee: {

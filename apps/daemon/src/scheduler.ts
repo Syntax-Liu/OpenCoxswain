@@ -4,7 +4,12 @@ import {
   dependenciesOf,
   evaluateBudget,
   hasWriteConflict,
+  mandateCoversWriteScope,
+  mandateProblems,
+  mandateViolation,
+  PLAN_NOT_DECOMPOSED,
   readyTaskIds,
+  validateDelegation,
   type DagEdge,
   type DagTask,
   type TransitionActor,
@@ -50,6 +55,7 @@ import { AppError } from './errors.js';
 interface ActiveRun {
   taskId: string;
   workerId: string;
+  runId: string;
   adapter: RuntimeAdapter;
   session: RuntimeSession;
   cancelled: boolean;
@@ -87,6 +93,7 @@ export class Scheduler {
   private readonly employees: EmployeeRegistry;
   private readonly verification: VerificationService;
   private readonly supervisor: SupervisionService;
+  private readonly owner: string;
   private readonly active = new Map<string, ActiveRun>();
   private readonly running = new Set<Promise<void>>();
   private readonly dispatching = new Set<string>();
@@ -107,6 +114,7 @@ export class Scheduler {
     this.employees = options.employees;
     this.verification = options.verification;
     this.supervisor = options.supervisor;
+    this.owner = newId('dmn');
   }
 
   start(): void {
@@ -261,11 +269,23 @@ export class Scheduler {
   private recover(): void {
     for (const project of this.store.listProjects()) {
       for (const task of this.store.listTasks(project.id)) {
-        if (task.status === 'running') {
-          this.store.setTaskStatus(task.id, 'blocked');
-          this.emit(task.id, null, 'task.recovered', {
-            message: 'Daemon 重启，执行现场已保留；请检查后取消或重试。',
-          });
+        if (task.status === 'running' && task.parentId !== null) {
+          const active = this.store.getActiveRun(task.id);
+          if (active && active.leaseExpiresAt !== null && active.leaseExpiresAt > Date.now()) {
+            this.emit(task.id, active.workerId, 'task.recovered', {
+              mode: 'lease_active',
+              runId: active.id,
+              expiresAt: active.leaseExpiresAt,
+              message: '租约仍然有效，保留运行现场等待续约或过期回收。',
+            });
+            continue;
+          }
+          this.requeueOrphan(
+            task,
+            active?.id ?? null,
+            active?.workerId ?? null,
+            'daemon_restart',
+          );
         }
         const worker = this.store.getWorkerByTask(task.id);
         if (worker && (worker.status === 'starting' || worker.status === 'running')) {
@@ -275,10 +295,50 @@ export class Scheduler {
     }
   }
 
+  /** 租约过期或 daemon 重启：标记孤儿、保留现场、带中断说明重新排队。 */
+  private requeueOrphan(
+    task: Task,
+    runId: string | null,
+    workerId: string | null,
+    reason: 'daemon_restart' | 'lease_expired',
+  ): void {
+    if (runId) this.store.markRunOrphaned(runId);
+    if (workerId) this.store.updateWorker(workerId, { status: 'failed' });
+    this.emit(task.id, workerId, 'run.orphaned', { runId, workerId, reason });
+    const current = this.store.getTask(task.id);
+    if (current?.status !== 'running') return;
+    this.store.insertInput({
+      id: newId('inp'),
+      taskId: task.id,
+      source: 'task',
+      text: '上次执行被中断（daemon 重启或租约过期）。请先检查 worktree 现有改动，从断点继续，不要重做已完成部分。',
+      state: 'pending',
+      createdAt: Date.now(),
+    });
+    this.transition(task.id, 'queued', 'scheduler');
+  }
+
+  private renewLeases(): void {
+    for (const run of this.active.values()) {
+      this.store.renewLease(run.runId, this.owner, this.config.leaseTtlMs);
+    }
+  }
+
+  private reapExpiredRuns(): void {
+    for (const expired of this.store.listExpiredRuns(Date.now())) {
+      if (this.active.has(expired.taskId)) continue;
+      const task = this.store.getTask(expired.taskId);
+      if (!task) continue;
+      this.requeueOrphan(task, expired.runId, expired.workerId, 'lease_expired');
+    }
+  }
+
   private async tick(): Promise<void> {
     if (this.ticking || this.stopping) return;
     this.ticking = true;
     try {
+      this.renewLeases();
+      this.reapExpiredRuns();
       await this.flushHumanInputs();
       for (const project of this.store.listProjects()) {
         if (this.stopping) break;
@@ -298,6 +358,22 @@ export class Scheduler {
     const edges = this.store.listEdges(project.id);
     this.settleRoots(tasks);
     tasks = this.store.listTasks(project.id);
+
+    for (const root of tasks) {
+      if (root.parentId !== null || root.status !== 'running') continue;
+      const children = this.store.listChildren(root.id);
+      const problems = validateDelegation(
+        root.contract,
+        children.map((child) => child.contract),
+      );
+      if (problems.length > 0) {
+        this.blockTaskWithCode(
+          root,
+          children.length === 0 ? PLAN_NOT_DECOMPOSED : 'PLAN_INVALID',
+          problems.join('；'),
+        );
+      }
+    }
 
     if (this.active.size >= this.config.maxConcurrency) return;
     const projectActive = [...this.active.values()].filter((run) => {
@@ -373,8 +449,23 @@ export class Scheduler {
       const children = this.store.listChildren(root.id);
       if (children.length === 0) continue;
       if (!children.every((child) => SETTLED.includes(child.status))) continue;
-      this.transition(root.id, 'awaiting_review', 'scheduler');
-      this.bus.emit('root.settled', { rootId: root.id });
+      const policy = root.contract.acceptance_policy ?? 'unverified_only';
+      const failed = children.some((child) => child.status === 'failed');
+      const cancelled = children.some((child) => child.status === 'cancelled');
+      const pending = children.some((child) => child.status === 'awaiting_review');
+      const next: TaskStatus = failed
+        ? 'failed'
+        : cancelled
+          ? 'awaiting_review'
+          : pending
+            ? policy === 'auto'
+              ? 'done'
+              : 'awaiting_review'
+            : policy === 'always_human'
+              ? 'awaiting_review'
+              : 'done';
+      this.transition(root.id, next, 'scheduler');
+      this.bus.emit('root.settled', { rootId: root.id, status: next });
     }
   }
 
@@ -407,6 +498,21 @@ export class Scheduler {
     for (const dependency of dependenciesOf(task.id, edges)) {
       const worker = this.store.getWorkerByTask(dependency);
       if (worker?.branch && !baseRefs.includes(worker.branch)) baseRefs.push(worker.branch);
+    }
+
+    const mandate = this.store.getLatestMandate(task.id);
+    const mandateIssues = mandateProblems(mandate, Date.now());
+    if (mandate) {
+      mandateIssues.push(...mandateCoversWriteScope(mandate, task.contract.write_scope ?? []));
+    }
+    if (mandateIssues.length > 0) {
+      this.dispatching.delete(task.id);
+      this.emit(task.id, null, 'mandate.denied', {
+        reasons: mandateIssues,
+        mandateId: mandate?.id ?? null,
+      });
+      this.blockTaskWithCode(task, 'MANDATE_INVALID', mandateIssues.join('；'));
+      return;
     }
 
     let worktree: { path: string; branch: string };
@@ -447,8 +553,20 @@ export class Scheduler {
       branch: worker.branch,
       worktree: worker.worktreePath,
     });
-    const runId = newId('run');
-    this.store.insertRun(runId, worker.id, 1);
+    const orphanRunId = this.store.takeOrphanRun(task.id);
+    let runId: string;
+    if (orphanRunId) {
+      runId = orphanRunId;
+      this.store.reviveRun(runId, worker.id, this.owner, this.config.leaseTtlMs);
+      this.emit(task.id, worker.id, 'run.reclaimed', { runId });
+    } else {
+      runId = newId('run');
+      this.store.insertRun(runId, worker.id, 1);
+      if (!this.store.claimRun(runId, this.owner, this.config.leaseTtlMs)) {
+        this.fail(task.id, worker.id, '无法获取执行租约：该任务正在另一个实例中执行');
+        return;
+      }
+    }
 
     const pendingInputs = this.store
       .listTaskInputs(task.id)
@@ -509,6 +627,7 @@ export class Scheduler {
         const run: ActiveRun = {
           taskId: task.id,
           workerId: worker.id,
+          runId: pendingRunId!,
           adapter,
           session,
           cancelled: false,
@@ -523,6 +642,7 @@ export class Scheduler {
         consumedInputIds.length = 0;
         this.store.updateWorker(worker.id, { status: 'running', sessionRef: session.id });
         this.emit(task.id, worker.id, 'worker.status', { status: 'running' });
+        const mandate = this.store.getLatestMandate(task.id);
 
         for await (const event of adapter.send(session, contract)) {
           const current = this.store.getTask(task.id);
@@ -542,6 +662,24 @@ export class Scheduler {
               break;
             }
             continue;
+          }
+
+          if (event.type === 'tool_call') {
+            const violation = mandate
+              ? mandateViolation(mandate, event.tool, event.input)
+              : '任务未签发授权凭证';
+            if (violation) {
+              this.emit(task.id, worker.id, 'mandate.denied', {
+                tool: event.tool,
+                reason: violation,
+                mandateId: mandate?.id ?? null,
+              });
+              this.flushLiveCost(worker, run);
+              await adapter.cancel(session);
+              this.fail(task.id, worker.id, `授权拒绝：${violation}`);
+              aborted = true;
+              break;
+            }
           }
 
           if (event.type === 'tool_call' && !adapter.supportsApprovalGate) {
@@ -597,8 +735,13 @@ export class Scheduler {
 
         if (retryable && attempt < MAX_ATTEMPTS) {
           if (pendingRunId) this.store.finishRun(pendingRunId, null, errorMessage);
-          pendingRunId = newId('run');
-          this.store.insertRun(pendingRunId, worker.id, attempt + 1);
+          const retryRunId = newId('run');
+          this.store.insertRun(retryRunId, worker.id, attempt + 1);
+          if (!this.store.claimRun(retryRunId, this.owner, this.config.leaseTtlMs)) {
+            this.fail(task.id, worker.id, '无法续租执行权，停止重试');
+            break;
+          }
+          pendingRunId = retryRunId;
           this.emit(task.id, worker.id, 'worker.retrying', {
             attempt: attempt + 1,
             message: errorMessage,
@@ -1023,6 +1166,8 @@ export class Scheduler {
       worktree: worker.worktreePath,
       criteria: task.contract.acceptance_criteria,
       artifacts: result.artifacts,
+      profile: task.contract.deliverable_profile,
+      deliverableText: result.summary,
       baseRef: project?.defaultBranch,
     });
     this.store.insertEvidence(verification.evidence);
@@ -1050,8 +1195,17 @@ export class Scheduler {
     const current = this.store.getTask(task.id);
     if (!current || current.status !== 'running') return;
 
-    // 复核全部通过才算完成；有待判定项（rubric/human 或 diff 无法复算）则交给人。
-    const next: TaskStatus = failed ? 'failed' : unverified ? 'awaiting_review' : 'done';
+    // auto：系统判定即可完成；unverified_only：仅未决项交人；always_human：旧行为。
+    const policy = task.contract.acceptance_policy ?? 'unverified_only';
+    const next: TaskStatus = failed
+      ? 'failed'
+      : unverified
+        ? policy === 'auto'
+          ? 'done'
+          : 'awaiting_review'
+        : policy === 'always_human'
+          ? 'awaiting_review'
+          : 'done';
     this.transition(task.id, next, 'scheduler');
   }
 
@@ -1088,6 +1242,29 @@ export class Scheduler {
       this.transition(task.id, 'running', 'scheduler');
     }
     this.transition(task.id, 'blocked', 'scheduler');
+  }
+
+  private blockTaskWithCode(task: Task, code: string, reason: string): void {
+    this.emit(task.id, null, 'task.blocked', { code, reason });
+    this.store.insertMessage({
+      projectId: task.projectId,
+      role: 'assistant',
+      content: [
+        '## 待你决策',
+        `任务「${task.title}」未派发（${code}）：`,
+        `- ${reason}`,
+        task.parentId === null
+          ? '- 请重新生成任务单或调整计划结构。'
+          : '- 请补充授权或修正任务单后重试。',
+      ].join('\n'),
+    });
+    const current = this.store.getTask(task.id);
+    if (current?.status === 'queued') {
+      this.transition(task.id, 'running', 'scheduler');
+    }
+    if (this.store.getTask(task.id)?.status === 'running') {
+      this.transition(task.id, 'blocked', 'scheduler');
+    }
   }
 
   private transition(taskId: string, to: TaskStatus, actor: TransitionActor): void {

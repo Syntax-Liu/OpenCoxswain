@@ -49,6 +49,8 @@ const PERMISSIONS: Permission[] = [
   'verification:provide',
   'supervisor:use',
   'supervisor:provide',
+  'mandate:read',
+  'mandate:issue',
   'ui:panel',
 ];
 

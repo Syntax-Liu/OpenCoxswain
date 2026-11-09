@@ -4,6 +4,7 @@ import {
   computeStage,
   dependenciesOf,
   isTerminal,
+  issueMandate,
   type TransitionActor,
 } from '@opencoxswain/core';
 import {
@@ -23,6 +24,7 @@ import {
   type Project,
   type Task,
   type TaskInput,
+  type TaskMandate,
   type TaskReplay,
   type TaskStageView,
   type WorkbenchSnapshot,
@@ -39,6 +41,8 @@ import type {
 import path from 'node:path';
 import { AppError } from './errors.js';
 import { inspectRepo } from './git.js';
+
+const MANDATE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface StewardOptions {
   store: StorageService;
@@ -297,6 +301,7 @@ export class Steward implements StewardService {
       const planning = this.transition(child.id, 'planning', 'scheduler');
       this.transition(planning.id, 'awaiting_approval', 'scheduler');
       this.transition(child.id, 'queued', 'user');
+      this.issueMandateFor(child, 'approval');
     }
 
     this.announce(root.projectId, '已开工。实施员和校验员会按依赖顺序执行，有结果我第一时间汇报。', root.id);
@@ -358,7 +363,37 @@ export class Steward implements StewardService {
     if (this.store.getTask(task.id)?.status === 'failed') {
       this.transition(task.id, 'queued', 'user');
     }
+    this.issueMandateFor(task, 'user');
     this.announce(task.projectId, message, task.id);
+  }
+
+  /** 派发前签发授权；已有未过期凭证时不重复签发。 */
+  private issueMandateFor(task: Task, issuedBy: TaskMandate['issuedBy']): void {
+    if (task.parentId === null) return;
+    const role = task.contract.assignee?.role;
+    if (!role) return;
+    const existing = this.store.getLatestMandate(task.id);
+    if (issuedBy === 'user' && existing && existing.expiresAt > now()) return;
+    const employee = this.employees.get(role);
+    const mandate = issueMandate(task, {
+      id: newId('mnd'),
+      issuedBy,
+      allowedTools: employee?.tools ?? [],
+      ttlMs: MANDATE_TTL_MS,
+    });
+    this.store.insertMandate(mandate);
+    const event = this.store.appendEvent({
+      taskId: task.id,
+      type: 'mandate.issued',
+      payload: {
+        mandateId: mandate.id,
+        issuedBy,
+        expiresAt: mandate.expiresAt,
+        allowedTools: mandate.scope.allowedTools,
+        writePaths: mandate.scope.writePaths,
+      },
+    });
+    this.bus.publish(event);
   }
 
   /**
@@ -450,11 +485,32 @@ export class Steward implements StewardService {
       },
     });
     this.bus.publish(event);
+    if (records.length > 0) {
+      this.bus.publish(
+        this.store.appendEvent({
+          taskId: root.id,
+          type: 'acceptance.human_touch',
+          payload: { decisions: records.length, judgedByUser },
+        }),
+      );
+    }
 
     // 子任务先结算，再结算根任务：全部判定通过才算完成，任一不通过则失败。
-    for (const task of tree) {
+    const ordered = [...tree].sort(
+      (left, right) => Number(left.parentId === null) - Number(right.parentId === null),
+    );
+    for (const task of ordered) {
       const latest = this.store.getTask(task.id);
       if (!latest || latest.status !== 'awaiting_review') continue;
+      if (latest.parentId === null) {
+        const children = this.store.listChildren(latest.id);
+        if (children.some((child) => child.status === 'failed')) {
+          this.transition(latest.id, 'failed', 'user');
+        } else if (children.every((child) => child.status === 'done')) {
+          this.transition(latest.id, 'done', 'user');
+        }
+        continue;
+      }
       const records = this.store.listTaskAcceptance(task.id);
       const verdicts = task.contract.acceptance_criteria.map(
         (criterion) => records.find((record) => record.criterionId === criterion.id)?.verdict,
@@ -557,6 +613,7 @@ export class Steward implements StewardService {
       acceptance: tree.flatMap((item) => this.store.listTaskAcceptance(item.id)),
       evidence: tree.flatMap((item) => this.store.listTaskEvidence(item.id)),
       supervision: tree.flatMap((item) => this.store.listTaskSupervision(item.id)),
+      mandates: tree.flatMap((item) => this.store.listTaskMandates(item.id)),
       summary: this.summary(task.id),
     };
   }

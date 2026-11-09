@@ -11,9 +11,14 @@ export const apply = employeePack({
   tools: ['read', 'web_search'],
   permissions: ['fs:read', 'net:search'],
   readOnly: true,
+  deliverableProfile: 'document',
   acceptanceDefaults: [
-    { id: 'ac_sources', type: 'rubric', desc: '结论标注来源与适用条件' },
-    { id: 'ac_human', type: 'human', desc: '用户确认调研结论' },
+    {
+      id: 'ac_sources',
+      type: 'rubric',
+      desc: '结论标注来源与适用条件',
+      evidence_required: ['anchor', 'provenance'],
+    },
   ],
   outputSchema: 'worker-result.v1',
 });

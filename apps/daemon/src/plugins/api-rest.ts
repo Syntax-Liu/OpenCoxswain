@@ -64,6 +64,12 @@ function replayMarkdown(replay: TaskReplay): string {
       (action) => `- ${new Date(action.at).toISOString()} ${action.rule} → ${action.verdict}：${action.reason}`,
     ),
     '',
+    '## 授权链',
+    ...replay.mandates.map(
+      (mandate) =>
+        `- ${new Date(mandate.issuedAt).toISOString()} ${mandate.taskId} ${mandate.strength}（${mandate.issuedBy}）：工具 ${mandate.scope.allowedTools.join('/') || '无'}，写域 ${mandate.scope.writePaths.join('/') || '无'}，到期 ${new Date(mandate.expiresAt).toISOString()}`,
+    ),
+    '',
     '## 事件时间线',
     ...replay.events.map(
       (event) => `- ${new Date(event.createdAt).toISOString()} ${event.type}`,
@@ -213,6 +219,21 @@ export async function apply(ctx: PluginContext): Promise<void> {
 
   http.route('GET', '/api/tasks/:id/summary', async (request) => ({
     json: { summary: steward.summary(taskIdOf(request)) },
+  }));
+
+  http.route('GET', '/api/tasks/:id/mandate', async (request) => {
+    const taskId = taskIdOf(request);
+    if (!store.getTask(taskId)) throw new AppError('任务不存在', 404);
+    return {
+      json: {
+        latest: store.getLatestMandate(taskId),
+        mandates: store.listTaskMandates(taskId),
+      },
+    };
+  });
+
+  http.route('GET', '/api/runs/orphaned', async () => ({
+    json: { runs: store.listOrphanedRuns() },
   }));
 
   http.route('GET', '/api/tasks/:id/replay', async (request) => {
