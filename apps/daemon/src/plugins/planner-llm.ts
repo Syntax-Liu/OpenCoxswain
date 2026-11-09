@@ -227,7 +227,12 @@ function normalizeDeliverable(value: unknown): Deliverable | null {
 
 export async function apply(ctx: PluginContext): Promise<void> {
   const config = ctx.config;
-  const engine = new Planner({ runtime: config.defaultRuntime, model: config.defaultModel });
+  const employees = ctx.service('employees');
+  const engine = new Planner({
+    runtime: config.defaultRuntime,
+    model: config.defaultModel,
+    employees,
+  });
   const secrets = ctx.service('secrets');
   const baseUrl = (
     process.env.OPENCOXSWAIN_LLM_BASE_URL ?? 'https://api.deepseek.com/v1'

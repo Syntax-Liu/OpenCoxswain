@@ -63,6 +63,9 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const runtimes = ctx.service('runtimes');
   const config = ctx.service('config');
   const secrets = ctx.service('secrets');
+  const employees = ctx.service('employees');
+
+  http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
 
   http.route('GET', '/api/secrets', async () => {
     const source = await secrets.source('llm_api_key');

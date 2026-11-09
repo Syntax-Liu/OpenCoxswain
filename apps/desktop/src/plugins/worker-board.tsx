@@ -8,6 +8,7 @@ function WorkerBoardPanel(): JSX.Element {
     <WorkerBoard
       workers={workbench.workers}
       tasks={workbench.tasks}
+      employees={workbench.snapshot.employees}
       busy={workbench.busy}
       onAction={workbench.onWorkerAction}
     />

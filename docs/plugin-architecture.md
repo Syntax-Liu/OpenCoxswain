@@ -284,6 +284,15 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 4. 回放导出：`GET /api/tasks/:id/replay?format=markdown` 输出完整回放。
 5. `pnpm test`、`pnpm e2e` 均通过。
 
-下一步（P2 剩余）：
+已完成（v0.6.0）：
 
-1. 进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。
+1. 员工插件包：新增 `employees` 服务与 `employee:use` / `employee:provide` 权限；每个员工由独立 Manifest 注册角色、技能、工具白名单、权限声明与默认验收标准，调度器与 Planner 只从注册表取值。
+2. 删除调度器内硬编码的 `ROLE_TEMPLATES`；只读判定、默认验收标准、`worker.spawned` 事件中的员工来源全部来自员工包。
+3. 内置调研员 / 实施员 / 校验员 / 撰写员四个员工包，外部插件可用同一 `employeePack` 工厂安装新角色；`GET /api/employees` 与工作台「已安装员工包」展示五件套。
+4. `pnpm test`（core 23 + daemon 20）、`pnpm e2e` 均通过。
+
+下一步（P3 剩余）：
+
+1. 验收自证与批量盖章整改（G1/G2，见 [super-agent-adoption.md](super-agent-adoption.md)）。
+2. 运行中输入、规则版 Watchdog、RunLease 租约、任务级授权链、状态表达在等谁（G3–G7）。
+3. 记忆层、任务树审计视图、进程级插件隔离与 Tauri 2 桌面壳（安装 Rust/MSVC 前需与用户确认）。

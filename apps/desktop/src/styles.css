@@ -683,6 +683,38 @@ label {
   text-overflow: ellipsis;
 }
 
+.panel-subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 16px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.panel-subheader h3 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.employee-card .role-tag {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.employee-card .worker-task,
+.employee-card .facts dd {
+  white-space: normal;
+  max-width: none;
+}
+
 /* ---------- 底部检查器 ---------- */
 
 .inspector .panel-header {

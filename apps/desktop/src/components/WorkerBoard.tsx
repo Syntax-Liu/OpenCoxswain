@@ -1,4 +1,4 @@
-import type { Task, Worker } from '@opencoxswain/shared';
+import type { EmployeeDefinition, Task, Worker } from '@opencoxswain/shared';
 import type { WorkerAction } from '../api.js';
 import { formatMoney, ROLE_LABELS } from '../ui.js';
 
@@ -14,11 +14,12 @@ const WORKER_LABELS: Record<Worker['status'], string> = {
 interface Props {
   workers: Worker[];
   tasks: Task[];
+  employees: EmployeeDefinition[];
   busy: boolean;
   onAction: (worker: Worker, action: WorkerAction) => void;
 }
 
-export function WorkerBoard({ workers, tasks, busy, onAction }: Props): JSX.Element {
+export function WorkerBoard({ workers, tasks, employees, busy, onAction }: Props): JSX.Element {
   const taskById = new Map(tasks.map((task) => [task.id, task]));
 
   return (
@@ -84,6 +85,47 @@ export function WorkerBoard({ workers, tasks, busy, onAction }: Props): JSX.Elem
             </article>
           );
         })}
+        <header className="panel-subheader">
+          <h3>已安装员工包</h3>
+          <span className="count">{employees.length}</span>
+        </header>
+        {employees.map((employee) => (
+          <article className="worker-card employee-card" key={employee.id}>
+            <header>
+              <div>
+                <h3>
+                  {employee.name}
+                  <small className="role-tag">{employee.role}</small>
+                </h3>
+                <p className="worker-task">{employee.description}</p>
+              </div>
+              <span className="worker-status">
+                {employee.readOnly ? '只读' : '可写'}
+              </span>
+            </header>
+            <dl className="facts">
+              <div>
+                <dt>技能</dt>
+                <dd>{employee.skills.join(' / ')}</dd>
+              </div>
+              <div>
+                <dt>工具</dt>
+                <dd>{employee.tools.join(' / ')}</dd>
+              </div>
+              <div>
+                <dt>权限</dt>
+                <dd>{employee.permissions.join(' / ')}</dd>
+              </div>
+              <div>
+                <dt>默认验收</dt>
+                <dd>{employee.acceptanceDefaults.map((item) => item.desc).join('；')}</dd>
+              </div>
+            </dl>
+            <p className="worktree" title={employee.pluginId}>
+              插件：{employee.pluginId} v{employee.version}
+            </p>
+          </article>
+        ))}
       </div>
     </section>
   );

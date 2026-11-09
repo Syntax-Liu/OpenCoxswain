@@ -10,6 +10,7 @@ import {
   type TaskContract,
 } from '@opencoxswain/shared';
 import { sumBudgets, validateDag, validateTaskContract } from '@opencoxswain/core';
+import type { EmployeeRegistry } from '@opencoxswain/plugin-api';
 
 const DEFAULT_BUDGET: Budget = { usd: 2, tokens: 200_000, minutes: 30 };
 
@@ -47,6 +48,8 @@ export interface PlannerOptions {
   runtime?: string;
   /** 覆盖角色默认模型；为空时 mock 使用 mock-<role>，其他运行时使用其默认模型。 */
   model?: string;
+  /** 员工注册表：只读属性与默认验收标准由员工插件包提供。 */
+  employees?: Pick<EmployeeRegistry, 'get'>;
 }
 
 export class Planner {
@@ -88,7 +91,7 @@ export class Planner {
         id: child.task_id,
         status: 'queued' as const,
         writeScope: child.write_scope ?? [],
-        readOnly: child.assignee?.role === 'verifier' || child.assignee?.role === 'researcher',
+        readOnly: this.isReadOnly(child.assignee?.role),
         createdAt: 0,
       })),
       edges,
@@ -124,31 +127,22 @@ export class Planner {
   }
 
   private defaultDrafts(request: CreatePlanRequest): SubtaskDraft[] {
-    const implementerAcceptance: AcceptanceCriterion[] = [];
-    const verifierAcceptance: AcceptanceCriterion[] = [];
+    const implementerAcceptance = this.acceptanceDefaults('implementer');
+    const verifierAcceptance = this.acceptanceDefaults('verifier');
     if (request.acceptanceCommand) {
-      implementerAcceptance.push({
+      implementerAcceptance.unshift({
         id: 'ac1',
         type: 'command',
         desc: '验收命令通过',
         check: request.acceptanceCommand,
       });
-      verifierAcceptance.push({
+      verifierAcceptance.unshift({
         id: 'ac1',
         type: 'command',
         desc: '独立复跑验收命令',
         check: request.acceptanceCommand,
       });
     }
-    implementerAcceptance.push({
-      id: 'ac_human',
-      type: 'human',
-      desc: '用户确认改动符合目标',
-    });
-    verifierAcceptance.push(
-      { id: 'ac_rubric', type: 'rubric', desc: '独立检查 diff 是否符合目标' },
-      { id: 'ac_human', type: 'human', desc: '用户确认校验结论' },
-    );
 
     return [
       {
@@ -191,8 +185,9 @@ export class Planner {
     draft: SubtaskDraft,
     budget: Budget,
   ): TaskContract {
-    const writeScope =
-      draft.writeScope ?? (draft.role === 'verifier' || draft.role === 'researcher' ? [] : ['**']);
+    const readOnly = this.isReadOnly(draft.role);
+    const writeScope = draft.writeScope ?? (readOnly ? [] : ['**']);
+    const acceptanceDefaults = this.acceptanceDefaults(draft.role);
     return {
       task_id: id,
       parent_id: rootId,
@@ -208,7 +203,7 @@ export class Planner {
       acceptance_criteria:
         draft.acceptance && draft.acceptance.length > 0
           ? draft.acceptance
-          : [{ id: 'ac_human', type: 'human', desc: '用户确认结果' }],
+          : acceptanceDefaults,
       dependencies: [],
       write_scope: writeScope,
       assignee: {
@@ -222,6 +217,21 @@ export class Planner {
         reviewer_role: 'verifier',
       },
     };
+  }
+
+  /** 只读性优先来自员工插件包；未注册员工时退回内置角色约定。 */
+  private isReadOnly(role: RoleName | undefined): boolean {
+    if (!role) return false;
+    const employee = this.options.employees?.get(role);
+    if (employee) return employee.readOnly;
+    return role === 'verifier' || role === 'researcher';
+  }
+
+  /** 默认验收标准来自员工插件包；未注册员工时退回最小 human 验收。 */
+  private acceptanceDefaults(role: RoleName): AcceptanceCriterion[] {
+    const employee = this.options.employees?.get(role);
+    if (employee) return employee.acceptanceDefaults.map((criterion) => ({ ...criterion }));
+    return [{ id: 'ac_human', type: 'human', desc: '用户确认结果' }];
   }
 
   private modelFor(role: RoleName): string {

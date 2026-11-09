@@ -20,6 +20,7 @@ import {
   type WorkbenchSnapshot,
 } from '@opencoxswain/shared';
 import type {
+  EmployeeRegistry,
   EventService,
   PlannerService,
   RuntimeRegistry,
@@ -37,6 +38,7 @@ export interface StewardOptions {
   planner: PlannerService;
   runtimes: RuntimeRegistry;
   scheduler: SchedulerService;
+  employees: EmployeeRegistry;
 }
 
 export class Steward implements StewardService {
@@ -45,6 +47,7 @@ export class Steward implements StewardService {
   private readonly planner: PlannerService;
   private readonly runtimes: RuntimeRegistry;
   private readonly scheduler: SchedulerService;
+  private readonly employees: EmployeeRegistry;
   private readonly announced = new Set<string>();
 
   constructor(options: StewardOptions) {
@@ -53,6 +56,7 @@ export class Steward implements StewardService {
     this.planner = options.planner;
     this.runtimes = options.runtimes;
     this.scheduler = options.scheduler;
+    this.employees = options.employees;
   }
 
   async snapshot(projectId?: string | null): Promise<WorkbenchSnapshot> {
@@ -74,6 +78,7 @@ export class Steward implements StewardService {
         approvals: [],
         messages: [],
         artifacts: [],
+        employees: this.employees.list(),
         summary: null,
         runtime,
       };
@@ -91,6 +96,7 @@ export class Steward implements StewardService {
       approvals: this.store.listApprovals(project.id),
       messages: this.store.listMessages(project.id),
       artifacts: this.store.listArtifacts(project.id),
+      employees: this.employees.list(),
       summary: root ? this.summary(root.id) : null,
       runtime,
     };

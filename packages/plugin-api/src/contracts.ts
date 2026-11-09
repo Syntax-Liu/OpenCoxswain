@@ -7,10 +7,12 @@ import type {
   CostLedger,
   CreatePlanRequest,
   CreateProjectRequest,
+  EmployeeDefinition,
   EventRecord,
   Message,
   Project,
   ProjectCostReport,
+  RoleName,
   RuntimeStatus,
   Task,
   TaskContract,
@@ -35,6 +37,7 @@ export type PluginKind =
   | 'api'
   | 'ui'
   | 'worktree'
+  | 'employee'
   | 'other';
 
 export type Permission =
@@ -56,6 +59,8 @@ export type Permission =
   | 'secrets:provide'
   | 'http:route'
   | 'net:listen'
+  | 'employee:use'
+  | 'employee:provide'
   | 'ui:panel';
 
 export interface OpenCoxswainConfig {
@@ -181,6 +186,13 @@ export interface RuntimeRegistry {
   health(): Promise<RuntimeStatus>;
 }
 
+/** 员工注册表：每个角色只允许一个员工插件占用，后者注册即报错。 */
+export interface EmployeeRegistry {
+  register(definition: Omit<EmployeeDefinition, 'pluginId'>, pluginId: string): () => void;
+  get(role: RoleName): EmployeeDefinition | undefined;
+  list(): EmployeeDefinition[];
+}
+
 export interface PlanEdge {
   fromTaskId: string;
   toTaskId: string;
@@ -280,6 +292,7 @@ export interface ServiceMap {
   storage: StorageService;
   worktrees: WorktreeService;
   runtimes: RuntimeRegistry;
+  employees: EmployeeRegistry;
   planner: PlannerService;
   scheduler: SchedulerService;
   steward: StewardService;

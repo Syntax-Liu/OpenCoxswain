@@ -36,6 +36,10 @@ const SERVICE_RULES: Record<
     required: ['runtime:use'],
     provider: ['runtime:provide'],
   },
+  employees: {
+    required: ['employee:use'],
+    provider: ['employee:provide'],
+  },
   planner: { required: ['planner:use'], provider: ['planner:use'] },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },

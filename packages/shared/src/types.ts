@@ -155,6 +155,26 @@ export interface TaskEdge {
   type: string;
 }
 
+/**
+ * 员工插件包的五件套：角色、技能、工具白名单、权限声明、默认验收标准。
+ * 员工只能由插件注册（`employee:provide`），内核与调度器不内置任何角色。
+ */
+export interface EmployeeDefinition {
+  id: string;
+  role: RoleName;
+  name: string;
+  description: string;
+  version: string;
+  skills: string[];
+  tools: string[];
+  permissions: string[];
+  readOnly: boolean;
+  acceptanceDefaults: AcceptanceCriterion[];
+  outputSchema: string;
+  /** 提供该员工的插件 id，用于审计“员工来自哪个插件包”。 */
+  pluginId: string;
+}
+
 export interface Worker {
   id: string;
   taskId: string;
@@ -226,6 +246,7 @@ export interface WorkbenchSnapshot {
   approvals: Approval[];
   messages: Message[];
   artifacts: ArtifactRecord[];
+  employees: EmployeeDefinition[];
   summary: string | null;
   runtime: RuntimeStatus;
 }

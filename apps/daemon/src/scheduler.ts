@@ -12,9 +12,9 @@ import {
 import type {
   Approval,
   CostLedger,
+  EmployeeDefinition,
   EventRecord,
   Project,
-  RoleName,
   Task,
   TaskStatus,
   Worker,
@@ -33,6 +33,7 @@ import type {
 } from '@opencoxswain/adapters';
 import { actionKey, classifyAction } from '@opencoxswain/adapters';
 import type {
+  EmployeeRegistry,
   EventService,
   OpenCoxswainConfig,
   RuntimeRegistry,
@@ -51,33 +52,6 @@ interface ActiveRun {
   warned: boolean;
 }
 
-const ROLE_TEMPLATES: Record<RoleName, RoleTemplate> = {
-  researcher: {
-    name: 'researcher',
-    allowedTools: ['read', 'web_search'],
-    readOnly: true,
-    outputSchema: 'worker-result.v1',
-  },
-  implementer: {
-    name: 'implementer',
-    allowedTools: ['read', 'write', 'shell', 'test'],
-    readOnly: false,
-    outputSchema: 'worker-result.v1',
-  },
-  verifier: {
-    name: 'verifier',
-    allowedTools: ['read', 'shell', 'test'],
-    readOnly: true,
-    outputSchema: 'worker-result.v1',
-  },
-  writer: {
-    name: 'writer',
-    allowedTools: ['read', 'write'],
-    readOnly: false,
-    outputSchema: 'worker-result.v1',
-  },
-};
-
 const APPROVAL_POLICY: ApprovalPolicy = {
   requireHumanFor: ['delete', 'push', 'publish', 'pay', 'external_send'],
 };
@@ -93,6 +67,7 @@ export interface SchedulerOptions {
   config: OpenCoxswainConfig;
   runtimes: RuntimeRegistry;
   worktrees: WorktreeService;
+  employees: EmployeeRegistry;
 }
 
 export class Scheduler {
@@ -101,6 +76,7 @@ export class Scheduler {
   private readonly config: OpenCoxswainConfig;
   private readonly runtimes: RuntimeRegistry;
   private readonly worktrees: WorktreeService;
+  private readonly employees: EmployeeRegistry;
   private readonly active = new Map<string, ActiveRun>();
   private readonly dispatching = new Set<string>();
   private readonly budgetNotified = new Set<string>();
@@ -114,6 +90,7 @@ export class Scheduler {
     this.config = options.config;
     this.runtimes = options.runtimes;
     this.worktrees = options.worktrees;
+    this.employees = options.employees;
   }
 
   start(): void {
@@ -216,7 +193,7 @@ export class Scheduler {
       id: task.id,
       status: task.status,
       writeScope: task.contract.write_scope ?? [],
-      readOnly: isReadOnly(task),
+      readOnly: this.isReadOnly(task),
       createdAt: task.createdAt,
     }));
 
@@ -226,7 +203,7 @@ export class Scheduler {
         id: task.id,
         status: task.status === 'awaiting_review' ? 'done' : task.status,
         writeScope: task.contract.write_scope ?? [],
-        readOnly: isReadOnly(task),
+        readOnly: this.isReadOnly(task),
         createdAt: task.createdAt,
       }));
     const readyIds = new Set(readyTaskIds(readyDag, edges as DagEdge[]));
@@ -242,7 +219,7 @@ export class Scheduler {
         id: task.id,
         status: task.status,
         writeScope: task.contract.write_scope ?? [],
-        readOnly: isReadOnly(task),
+        readOnly: this.isReadOnly(task),
         createdAt: task.createdAt,
       };
       if (hasWriteConflict(candidate, runningDag)) continue;
@@ -284,6 +261,16 @@ export class Scheduler {
       this.fail(task.id, null, `未注册运行时：${assignee.runtime}`);
       return;
     }
+    const employee = this.employees.get(assignee.role);
+    if (!employee) {
+      this.dispatching.delete(task.id);
+      this.fail(
+        task.id,
+        null,
+        `未安装角色为 ${assignee.role} 的员工插件包，无法派单`,
+      );
+      return;
+    }
 
     const baseRefs: string[] = [];
     for (const dependency of dependenciesOf(task.id, edges)) {
@@ -323,6 +310,8 @@ export class Scheduler {
     this.transition(task.id, 'running', 'scheduler');
     this.emit(task.id, worker.id, 'worker.spawned', {
       role: worker.role,
+      employee: employee.id,
+      employeePlugin: employee.pluginId,
       model: worker.model,
       branch: worker.branch,
       worktree: worker.worktreePath,
@@ -330,12 +319,13 @@ export class Scheduler {
     const runId = newId('run');
     this.store.insertRun(runId, worker.id, 1);
 
-    void this.run(task, worker, adapter, runId);
+    void this.run(task, worker, employee, adapter, runId);
   }
 
   private async run(
     task: Task,
     worker: Worker,
+    employee: EmployeeDefinition,
     adapter: RuntimeAdapter,
     runId: string,
   ): Promise<void> {
@@ -352,7 +342,7 @@ export class Scheduler {
         session = await adapter.createSession({
           taskId: task.id,
           worktree: worker.worktreePath,
-          role: ROLE_TEMPLATES[worker.role],
+          role: roleTemplate(employee),
           model: modelConfig(worker.runtime, worker.model),
           approvalPolicy: APPROVAL_POLICY,
           env: { OPENCOXSWAIN_ARTIFACTS_DIR: this.config.artifactsDir },
@@ -801,6 +791,11 @@ export class Scheduler {
     return count;
   }
 
+  private isReadOnly(task: Task): boolean {
+    const role = task.contract.assignee?.role;
+    return role ? this.employees.get(role)?.readOnly ?? false : false;
+  }
+
   private emit(
     taskId: string | null,
     workerId: string | null,
@@ -813,9 +808,13 @@ export class Scheduler {
   }
 }
 
-function isReadOnly(task: Task): boolean {
-  const role = task.contract.assignee?.role;
-  return role === 'verifier' || role === 'researcher';
+function roleTemplate(employee: EmployeeDefinition): RoleTemplate {
+  return {
+    name: employee.role,
+    allowedTools: employee.tools,
+    readOnly: employee.readOnly,
+    outputSchema: employee.outputSchema,
+  };
 }
 
 function modelConfig(runtime: string, model: string): ModelConfig {

@@ -14,6 +14,7 @@ const SERVICE_KEYS: ServiceKey[] = [
   'storage',
   'worktrees',
   'runtimes',
+  'employees',
   'planner',
   'scheduler',
   'steward',
@@ -40,6 +41,8 @@ const PERMISSIONS: Permission[] = [
   'secrets:provide',
   'http:route',
   'net:listen',
+  'employee:use',
+  'employee:provide',
   'ui:panel',
 ];
 
@@ -53,6 +56,7 @@ const KINDS = new Set([
   'api',
   'ui',
   'worktree',
+  'employee',
   'other',
 ]);
 

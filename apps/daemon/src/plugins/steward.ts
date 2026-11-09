@@ -8,6 +8,7 @@ export function apply(ctx: PluginContext): void {
     planner: ctx.service('planner'),
     runtimes: ctx.service('runtimes'),
     scheduler: ctx.service('scheduler'),
+    employees: ctx.service('employees'),
   });
 
   ctx.provide('steward', steward);
