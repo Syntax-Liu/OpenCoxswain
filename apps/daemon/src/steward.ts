@@ -5,7 +5,6 @@ import {
   type TransitionActor,
 } from '@opencoxswain/core';
 import {
-  newId,
   now,
   type AcceptanceCriterion,
   type AcceptanceResult,
@@ -16,48 +15,44 @@ import {
   type CreatePlanRequest,
   type CreateProjectRequest,
   type Project,
-  type RuntimeStatus,
   type Task,
   type TaskReplay,
   type WorkbenchSnapshot,
 } from '@opencoxswain/shared';
+import type {
+  EventService,
+  PlannerService,
+  RuntimeRegistry,
+  SchedulerService,
+  StewardService,
+  StorageService,
+} from '@opencoxswain/plugin-api';
 import path from 'node:path';
-import { EventBus } from './bus.js';
 import { AppError } from './errors.js';
 import { inspectRepo } from './git.js';
-import { Planner } from './planner.js';
-import { Store } from './store.js';
-
-export interface StewardControl {
-  cancel(taskId: string): Promise<void>;
-  pause(taskId: string): Promise<void>;
-  resume(taskId: string): Promise<void>;
-}
 
 export interface StewardOptions {
-  store: Store;
-  bus: EventBus;
-  planner: Planner;
-  runtimeHealth: () => Promise<RuntimeStatus>;
+  store: StorageService;
+  bus: EventService;
+  planner: PlannerService;
+  runtimes: RuntimeRegistry;
+  scheduler: SchedulerService;
 }
 
-export class Steward {
-  private readonly store: Store;
-  private readonly bus: EventBus;
-  private readonly planner: Planner;
-  private readonly runtimeHealth: () => Promise<RuntimeStatus>;
-  private control: StewardControl | null = null;
+export class Steward implements StewardService {
+  private readonly store: StorageService;
+  private readonly bus: EventService;
+  private readonly planner: PlannerService;
+  private readonly runtimes: RuntimeRegistry;
+  private readonly scheduler: SchedulerService;
   private readonly announced = new Set<string>();
 
   constructor(options: StewardOptions) {
     this.store = options.store;
     this.bus = options.bus;
     this.planner = options.planner;
-    this.runtimeHealth = options.runtimeHealth;
-  }
-
-  setControl(control: StewardControl): void {
-    this.control = control;
+    this.runtimes = options.runtimes;
+    this.scheduler = options.scheduler;
   }
 
   async snapshot(projectId?: string | null): Promise<WorkbenchSnapshot> {
@@ -65,7 +60,7 @@ export class Steward {
     const project =
       (projectId ? this.store.getProject(projectId) : null) ?? projects[0] ?? null;
     const assistant = this.store.ensureAssistant();
-    const runtime = await this.runtimeHealth();
+    const runtime = await this.runtimes.health();
 
     if (!project) {
       return {
@@ -285,7 +280,7 @@ export class Steward {
     if (task.status !== 'running' && task.status !== 'queued') {
       throw new AppError('只有排队中或执行中的任务可以暂停');
     }
-    await this.control?.pause(task.id);
+    await this.scheduler.pause(task.id);
     return this.transition(task.id, 'paused', 'user');
   }
 
@@ -293,7 +288,7 @@ export class Steward {
     const task = this.requireTask(taskId);
     if (task.status !== 'paused') throw new AppError('任务不在暂停状态');
     const previous = this.store.getWorkerByTask(task.id) ? 'running' : 'queued';
-    await this.control?.resume(task.id);
+    await this.scheduler.resume(task.id);
     return this.transition(task.id, previous, 'user');
   }
 
@@ -455,7 +450,7 @@ export class Steward {
     }
     const current = this.store.getTask(taskId);
     if (!current || isTerminal(current.status)) return;
-    await this.control?.cancel(taskId);
+    await this.scheduler.cancel(taskId);
     this.transition(taskId, 'cancelled', actor);
   }
 

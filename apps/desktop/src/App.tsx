@@ -13,21 +13,21 @@ import {
   type TaskAction,
   type WorkerAction,
 } from './api.js';
-import { Conversation } from './components/Conversation.js';
 import { Inspector } from './components/Inspector.js';
 import { Setup } from './components/Setup.js';
-import { TaskTree } from './components/TaskTree.js';
-import { WorkerBoard } from './components/WorkerBoard.js';
+import { PanelSlot, useUiPanels, type UiRegistry } from './plugins/registry.js';
+import { WorkbenchProvider, type Workbench } from './workbench.js';
 
 const SETTLED = ['done', 'cancelled', 'failed'];
 
-export function App(): JSX.Element {
+export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
   const projectIdRef = useRef<string | null>(null);
+  const bottomTabs = useUiPanels(registry, 'bottom');
 
   projectIdRef.current = projectId;
 
@@ -152,94 +152,88 @@ export function App(): JSX.Element {
     );
   }
 
+  const project = snapshot.project;
+  const workbench: Workbench = {
+    snapshot,
+    project,
+    assistant: snapshot.assistant,
+    root,
+    children,
+    edges: snapshot.edges,
+    tasks: root ? [root, ...children] : [],
+    workers,
+    events,
+    artifacts,
+    summary: snapshot.summary,
+    busy,
+    onPlan,
+    onTaskAction,
+    onWorkerAction,
+    onProjectSettings,
+    onAssistant,
+  };
+
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="mark">舵</span>
-          <div>
-            <strong>OpenCoxswain</strong>
-            <small>舵手 · 本地 AI 总管</small>
+    <WorkbenchProvider value={workbench}>
+      <div className="app">
+        <header className="topbar">
+          <div className="brand">
+            <span className="mark">舵</span>
+            <div>
+              <strong>OpenCoxswain</strong>
+              <small>舵手 · 本地 AI 总管</small>
+            </div>
           </div>
-        </div>
-        <div className="project-switch">
-          <select
-            value={snapshot.project.id}
-            onChange={(event) => {
-              const next = event.target.value;
-              setProjectId(next);
-              void load(next);
-            }}
-            aria-label="选择项目"
-          >
-            {snapshot.projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <span className="muted" title={snapshot.project.path}>
-            {snapshot.project.path}
-          </span>
-        </div>
-        <div className="topbar-right">
-          <span
-            className={snapshot.runtime.ok ? 'runtime ok' : 'runtime bad'}
-            title={snapshot.runtime.detail}
-          >
-            {snapshot.runtime.adapter} · {snapshot.runtime.ok ? '就绪' : '异常'}
-          </span>
-          <button className="ghost" onClick={() => void load(projectId)}>
-            刷新
-          </button>
-        </div>
-      </header>
+          <div className="project-switch">
+            <select
+              value={project.id}
+              onChange={(event) => {
+                const next = event.target.value;
+                setProjectId(next);
+                void load(next);
+              }}
+              aria-label="选择项目"
+            >
+              {snapshot.projects.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <span className="muted" title={project.path}>
+              {project.path}
+            </span>
+          </div>
+          <div className="topbar-right">
+            <span
+              className={snapshot.runtime.ok ? 'runtime ok' : 'runtime bad'}
+              title={snapshot.runtime.detail}
+            >
+              {snapshot.runtime.adapter} · {snapshot.runtime.ok ? '就绪' : '异常'}
+            </span>
+            <button className="ghost" onClick={() => void load(projectId)}>
+              刷新
+            </button>
+          </div>
+        </header>
 
-      <main className="workspace">
-        <TaskTree
-          root={root}
-          children={children}
-          edges={snapshot.edges}
-          busy={busy}
-          onAction={(action) => onTaskAction(action)}
-        />
-        <Conversation
-          messages={snapshot.messages}
-          root={root}
-          children={children}
-          busy={busy}
-          onPlan={onPlan}
-          onAction={onTaskAction}
-        />
-        <WorkerBoard
-          workers={workers}
-          tasks={root ? [root, ...children] : []}
-          busy={busy}
-          onAction={onWorkerAction}
-        />
-      </main>
+        <main className="workspace">
+          <PanelSlot registry={registry} slot="left" />
+          <PanelSlot registry={registry} slot="center" />
+          <PanelSlot registry={registry} slot="right" />
+        </main>
 
-      <Inspector
-        project={snapshot.project}
-        assistant={snapshot.assistant}
-        tasks={root ? [root, ...children] : []}
-        workers={workers}
-        events={events}
-        artifacts={artifacts}
-        summary={snapshot.summary}
-        busy={busy}
-        onProjectSettings={onProjectSettings}
-        onAssistant={onAssistant}
-      />
+        <Inspector tabs={bottomTabs} />
 
-      {error ? (
-        <div className="toast">
-          <span>{error}</span>
-          <button className="ghost" onClick={() => setError(null)}>
-            关闭
-          </button>
-        </div>
-      ) : null}
-    </div>
+        {error ? (
+          <div className="toast">
+            <span>{error}</span>
+            <button className="ghost" onClick={() => setError(null)}>
+              关闭
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </WorkbenchProvider>
   );
 }

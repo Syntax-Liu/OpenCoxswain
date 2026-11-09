@@ -27,10 +27,13 @@ import type {
   RuntimeAdapter,
   RuntimeSession,
 } from '@opencoxswain/adapters';
-import { EventBus } from './bus.js';
-import type { DaemonConfig } from './config.js';
-import { Store } from './store.js';
-import { WorktreeManager } from './worktree.js';
+import type {
+  EventService,
+  OpenCoxswainConfig,
+  RuntimeRegistry,
+  StorageService,
+  WorktreeService,
+} from '@opencoxswain/plugin-api';
 
 interface ActiveRun {
   taskId: string;
@@ -38,10 +41,6 @@ interface ActiveRun {
   adapter: RuntimeAdapter;
   session: RuntimeSession;
   cancelled: boolean;
-}
-
-interface SchedulerHooks {
-  onRootSettled?: (rootId: string) => void;
 }
 
 const ROLE_TEMPLATES: Record<RoleName, RoleTemplate> = {
@@ -78,23 +77,22 @@ const APPROVAL_POLICY: ApprovalPolicy = {
 const SETTLED: TaskStatus[] = ['done', 'awaiting_review', 'failed', 'cancelled'];
 
 export interface SchedulerOptions {
-  store: Store;
-  bus: EventBus;
-  config: DaemonConfig;
-  adapters: Map<string, RuntimeAdapter>;
-  worktrees: WorktreeManager;
+  store: StorageService;
+  bus: EventService;
+  config: OpenCoxswainConfig;
+  runtimes: RuntimeRegistry;
+  worktrees: WorktreeService;
 }
 
 export class Scheduler {
-  private readonly store: Store;
-  private readonly bus: EventBus;
-  private readonly config: DaemonConfig;
-  private readonly adapters: Map<string, RuntimeAdapter>;
-  private readonly worktrees: WorktreeManager;
+  private readonly store: StorageService;
+  private readonly bus: EventService;
+  private readonly config: OpenCoxswainConfig;
+  private readonly runtimes: RuntimeRegistry;
+  private readonly worktrees: WorktreeService;
   private readonly active = new Map<string, ActiveRun>();
   private readonly dispatching = new Set<string>();
   private readonly budgetNotified = new Set<string>();
-  private hooks: SchedulerHooks = {};
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
 
@@ -102,12 +100,8 @@ export class Scheduler {
     this.store = options.store;
     this.bus = options.bus;
     this.config = options.config;
-    this.adapters = options.adapters;
+    this.runtimes = options.runtimes;
     this.worktrees = options.worktrees;
-  }
-
-  setHooks(hooks: SchedulerHooks): void {
-    this.hooks = hooks;
   }
 
   start(): void {
@@ -264,7 +258,7 @@ export class Scheduler {
       if (children.length === 0) continue;
       if (!children.every((child) => SETTLED.includes(child.status))) continue;
       this.transition(root.id, 'awaiting_review', 'scheduler');
-      this.hooks.onRootSettled?.(root.id);
+      this.bus.emit('root.settled', { rootId: root.id });
     }
   }
 
@@ -276,7 +270,7 @@ export class Scheduler {
       this.fail(task.id, null, '任务没有指定执行角色');
       return;
     }
-    const adapter = this.adapters.get(assignee.runtime);
+    const adapter = this.runtimes.get(assignee.runtime);
     if (!adapter) {
       this.dispatching.delete(task.id);
       this.fail(task.id, null, `未注册运行时：${assignee.runtime}`);

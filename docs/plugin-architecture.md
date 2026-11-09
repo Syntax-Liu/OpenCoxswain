@@ -1,0 +1,264 @@
+# OpenCoxswain 插件架构（P1）
+
+## 1. 目标
+
+把 OpenCoxswain 从「内建模块直接互相 import」改造成与 DeepSeek Harness 同构的「一切皆插件」架构：
+
+- 内核只保留四件事：**插件生命周期、事件总线、权限闸门、任务状态机**。
+- 运行时适配器、Planner/总管、调度器、worktree、存储、HTTP API、SSE、界面面板、检查器全部通过统一插件契约注册与加载。
+- 内置插件与外部插件走同一条路径，不存在「只有内置模块能调用」的后门。
+- P0 的 Mock 运行时、静态 Planner、三栏面板、底部检查器改为插件后，现有 e2e 全流程必须继续通过。
+
+非目标（P2+）：
+
+- 进程级/OS 级沙箱隔离；P1 的隔离边界是**进程内服务可见性 + 权限清单**，不是安全沙箱。
+- 插件热重载、远程插件市场、插件签名。
+- Tauri 桌面壳；P1 仍以浏览器 + 本地 Daemon 形式运行。
+
+## 2. 对齐依据
+
+DeepSeek Harness（DSH）基于 Cordis 构建，公开资料中的关键特征：
+
+- 没有特权内核；模型、工具、技能、会话、沙箱、存储、Agent 循环、调度、UI 都是 Cordis 插件，注册在同一个 context 上。[DSH 介绍](https://www.deepseek.com/harness/en/)
+- 上下文是服务容器，服务占据稳定的 `ctx.<key>`；插件通过 `inject` 声明依赖，加载顺序由服务依赖推导，而不是手写启动顺序。[Cordis 入门](https://deepseek-harness.github.io/deepseek-harness/reference/cordis-primer)
+- 类型化事件用于通信，分发模式固定为 `emit` / `waterfall` / `parallel` / `serial` / `bail`。
+- 注册是可逆副作用：通过 `ctx.effect()` / `ctx.on()` 安装，卸载时可清理。
+- 能力通过配置选择、替换、扩展，不改 harness 源码。
+
+OpenCoxswain 不直接依赖 Cordis：PRD 未要求该依赖，且引入整套框架会超出当前范围。我们实现一个**最小同构内核**，保留上述五个语义，并用 `@opencoxswain/plugin-api` 固定契约。
+
+## 3. 内核边界
+
+`packages/plugin-api` 定义契约，`apps/daemon/src/kernel` 实现内核。
+
+内核只提供：
+
+| 能力 | 说明 |
+| --- | --- |
+| 生命周期 | 校验清单、拓扑排序、动态 import、`apply`、逆序卸载、失败回滚 |
+| 事件总线 | 服务事件 `on/emit/parallel`；领域事件 `publish/subscribe` |
+| 权限闸门 | 服务提供与服务消费两侧的权限校验 |
+| 状态机 | 任务状态迁移表与 `assertTransition`，来自 `@opencoxswain/core` |
+
+内核**不**知道 Store、Scheduler、Steward、Mock、HTTP 路由、SSE、React 面板的存在。
+
+## 4. 插件契约
+
+### 4.1 清单（Manifest）
+
+```ts
+interface PluginManifest {
+  apiVersion: 1;
+  id: string;                 // 例：runtime.mock
+  name: string;
+  version: string;            // semver
+  kind: PluginKind;           // runtime | planner | scheduler | steward | storage |
+                              // transport | api | ui | worktree | other
+  entry: string;              // file:// 或绝对路径，指向 ESM 模块
+  provides: ServiceKey[];     // 本插件注册的服务
+  inject: ServiceKey[];       // 本插件消费的服务
+  permissions: Permission[];  // 提供/消费服务所需权限
+  enabled?: boolean;
+  config?: unknown;           // 插件私有配置，由插件自行校验
+}
+```
+
+### 4.2 模块
+
+```ts
+interface PluginModule {
+  apply(ctx: PluginContext, config: unknown): void | Promise<void> | PluginDisposer;
+}
+```
+
+`apply` 必须同步完成服务注册，或在返回前完成；异步初始化通过 `await`。返回的 disposer 与 `ctx.effect()` 注册的清理函数一起，在卸载时逆序执行。
+
+### 4.3 上下文
+
+```ts
+interface PluginContext {
+  readonly id: string;
+  readonly config: Readonly<OpenCoxswainConfig>;
+  service<K extends ServiceKey>(key: K): ServiceMap[K];
+  provide<K extends ServiceKey>(key: K, value: ServiceMap[K]): void;
+  effect(dispose: PluginDisposer): void;
+  on(event: string, listener: (payload: unknown) => void | Promise<void>): PluginDisposer;
+  emit(event: string, payload: unknown): void;
+  requirePermission(permission: string): void;
+  log(message: string): void;
+}
+```
+
+约束：
+
+- `service()` 只允许访问清单 `inject` 中声明的服务；访问未声明服务直接抛错。
+- `provide()` 只允许注册清单 `provides` 中声明的服务；重复注册抛错。
+- `provide()` 时内核把该服务的 `requiredPermissions` 与消费方清单比对，缺权限即拒绝。
+- 没有 `ctx.kernel`、没有全局单例、没有 `import` 具体实现后再调用其方法的特权通道。
+
+### 4.4 服务表
+
+| key | 契约 | 提供方 | 消费方需要权限 |
+| --- | --- | --- | --- |
+| `config` | 只读运行配置 | 内核 | — |
+| `events` | 领域事件发布/订阅 + 生命周期事件 | 内核 | `events:publish` / `events:read` |
+| `storage` | SQLite 持久化 | `storage.sqlite` | `storage:read`、`storage:write` |
+| `worktrees` | 创建/删除任务 worktree | `worktree.git` | `fs:worktree`、`process:spawn` |
+| `runtimes` | 运行时注册表与健康检查 | `runtime.registry` | `runtime:use` |
+| `planner` | 目标 → 任务契约 | `planner.static`（P1 再加 `planner.llm`） | `planner:use` |
+| `scheduler` | 派发、暂停、恢复、终止 | `scheduler` | `scheduler:control` |
+| `steward` | 总管编排与快照 | `steward` | `steward:call` |
+| `http` | 路由注册、监听、关闭 | `transport.http` | `http:route` |
+
+## 5. 发现与加载
+
+### 5.1 清单来源
+
+1. **内置清单**：`apps/daemon/src/plugins/manifests.ts` 只包含数据（id/entry/provides/inject/permissions/config），不 import 任何实现。
+2. **外部清单**：`<home>/plugins/<name>/plugin.json`。`entry` 相对清单目录解析；`apiVersion` 必须为 `1`。
+3. 合并规则：同 `id` 外部清单覆盖内置清单；`enabled: false` 表示禁用。外部插件可以替换 Mock、Planner、存储、HTTP，甚至禁用内置面板。
+
+### 5.2 加载顺序
+
+- 校验清单：`apiVersion`、重复 id、`entry` 存在、`provides` 不重复。
+- 按 `inject`/`provides` 拓扑排序；内核在加载前已提供 `config`、`events`。
+- 逐个动态 `import(entry)`，读取 `apply`，创建受限上下文，调用 `apply`。
+- 任一插件失败：按已加载顺序逆序卸载，清空服务，启动失败。
+- 加载完成后 `kernel.start()` 并行触发 `kernel.ready`；HTTP 开始监听、调度器开始 tick 都通过该事件启动，避免「谁先启动」的隐式约定。
+- 关闭时 `kernel.stop()` 逆序卸载；调度器、HTTP、Store 由各自插件通过 disposer 收尾。
+
+### 5.3 禁止后门
+
+- `app.ts` 只做三件事：读配置、创建内核、加载清单并启动。它不 import 任何插件实现，不 new Store/Scheduler/Steward。
+- 测试与脚本只通过 HTTP 与 `startDaemon()` 返回的 `port/close` 交互；不直接拿 Store/Bus/Scheduler。
+- 新增能力必须新增清单 + 模块；不允许在 `app.ts` 或内核里直接 `new`。
+
+## 6. 权限与隔离
+
+### 6.1 权限清单
+
+| 权限 | 用途 |
+| --- | --- |
+| `events:publish` | 发布生命周期事件 |
+| `events:read` | 订阅领域事件（SSE、审计） |
+| `storage:read` / `storage:write` | 读写 SQLite |
+| `storage:provide` | 提供存储服务 |
+| `fs:data` | 访问应用数据目录 |
+| `fs:worktree` | 读写任务 worktree |
+| `process:spawn` | 启动 git / 运行时进程 |
+| `runtime:use` | 调度器取用运行时 |
+| `runtime:provide` | 注册运行时适配器 |
+| `planner:use` | 调用 Planner |
+| `scheduler:control` | 暂停/恢复/终止任务 |
+| `steward:call` | 调用总管服务 |
+| `http:route` | 注册 HTTP/SSE 路由 |
+| `net:listen` | 监听本地端口 |
+| `ui:panel` | 注册界面面板/检查器 |
+
+### 6.2 执行点
+
+- **服务提供**：插件只能 `provide()` 自己 `provides` 中的 key，且必须具备该服务声明的 `providerPermissions`。
+- **服务消费**：`service()` 校验消费清单是否包含该服务的 `requiredPermissions`。
+- **敏感操作**：运行时插件与 worktree 插件在清单中声明 `process:spawn`/`fs:worktree`；存储插件声明 `fs:data`；HTTP 插件声明 `net:listen`。
+- **领域事件**：通过 `events.publish` 发布需要持久化的记录；生命周期事件仅进程内。
+
+### 6.3 隔离边界（诚实说明）
+
+P1 插件与内核同进程运行，Node 原生模块无法被语言层真正拦截。权限闸门保证的是：
+
+- 插件不能通过内核上下文访问未声明的服务；
+- 插件不能注册未声明的服务；
+- 插件不能绕过权限清单使用受控服务。
+
+真正的恶意代码隔离（独立进程/Worker + IPC 白名单 + 资源配额）放在 P2，与 Tauri sidecar 一起做。P1 的外部插件应视为受信任插件。
+
+## 7. P0 → 插件映射
+
+| P0 模块 | 新插件 id | provides | inject | 权限 |
+| --- | --- | --- | --- | --- |
+| `store.ts` | `storage.sqlite` | `storage` | `config` | `fs:data`、`storage:provide` |
+| `worktree.ts` + `git.ts` | `worktree.git` | `worktrees` | `config` | `fs:worktree`、`process:spawn` |
+| 新 | `runtime.registry` | `runtimes` | — | `runtime:provide` |
+| `MockRuntimeAdapter` | `runtime.mock` | — | `runtimes` | `runtime:use`、`runtime:provide`、`fs:worktree`、`process:spawn` |
+| `planner.ts` 静态实现 | `planner.static` | `planner` | — | `planner:use` |
+| `scheduler.ts` | `scheduler` | `scheduler` | `storage`、`events`、`config`、`runtimes`、`worktrees` | `scheduler:control`、`storage:read/write`、`events:publish`、`runtime:use`、`fs:worktree`、`process:spawn` |
+| `steward.ts` | `steward` | `steward` | `storage`、`events`、`planner`、`scheduler`、`runtimes` | `steward:call`、`storage:read/write`、`events:publish`、`planner:use`、`scheduler:control`、`runtime:use` |
+| `server.ts` 的 HTTP 壳 | `transport.http` | `http` | `config`、`events` | `net:listen`、`http:route` |
+| `server.ts` 的 REST 路由 | `api.rest` | — | `config`、`http`、`storage`、`steward`、`runtimes` | `http:route`、`storage:read`、`steward:call`、`runtime:use`、`fs:data` |
+| `server.ts` 的 `/api/events` | `transport.sse` | — | `http`、`storage`、`events` | `http:route`、`storage:read`、`events:read` |
+| `apps/desktop` 三栏 + 检查器 | 八个 UI 插件（3 个面板 + 5 个检查器标签） | — | UI Registry | `ui:panel` |
+
+> 服务级权限是粗粒度的：消费 `storage` / `events` 时内核要求同时具备读写权限，因此事件消费者在清单里会显式声明 `storage:read/write` 与 `events:read/publish`。真正的按方法鉴权留到 P2 的进程隔离阶段。
+
+删除项：
+
+- `app.ts` 中所有 `new Store/EventBus/Scheduler/Steward/Mock/WorktreeManager` 与手工 hook 装配。
+- `Scheduler.setHooks` 与 `Steward.setControl` 的直接互相引用；改为 `root.settled` 事件 + 服务调用。
+- `server.ts` 单体服务器；拆成 `transport.http` + `api.rest` + `transport.sse`。
+- 桌面端 `App.tsx` 对三栏组件和 Inspector 的硬编码 import。
+
+## 8. 界面插件契约
+
+```ts
+interface UiPlugin {
+  id: string;
+  title: string;
+  slot: 'left' | 'center' | 'right' | 'bottom';
+  order: number;
+  render: React.ComponentType;
+}
+```
+
+- `UiRegistry` 提供 `register/unregister/list(slot)`；内置面板与外部面板走同一个 `register`。
+- `App.tsx` 只渲染布局槽位，按 `order` 渲染注册表中的组件。
+- 底部检查器由多个 `slot: 'bottom'` 的标签页插件组成；`Inspector` 退化为「标签容器 + 注册表」，不再认识时间线/产物/汇总/花费/设置。
+- 面板通过 `WorkbenchProvider` 获取快照、派生任务树、动作与错误提示，不直接 import 其他面板。
+
+P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端 bundle 的能力。加载路径与权限语义已固定，后续不需要改契约。
+
+## 9. 启动与关闭时序
+
+启动：
+
+1. `loadConfig()`。
+2. 创建内核，注册 `config`、`events`。
+3. 读取内置清单 + 外部 `plugin.json`，合并、校验、拓扑排序。
+4. 依次加载：`storage.sqlite` → `worktree.git` → `runtime.registry` → `runtime.mock` → `planner.static` → `scheduler` → `steward` → `transport.http` → `api.rest` → `transport.sse`。
+5. `kernel.start()`：并行触发 `kernel.ready`；调度器启动、HTTP 监听。
+6. `startDaemon()` 返回 `{ config, port, close }`。
+
+关闭：
+
+1. `kernel.stop()` 逆序执行 disposer。
+2. 停止调度器并取消活跃会话。
+3. 关闭 HTTP。
+4. 关闭 SQLite。
+
+## 10. 验证
+
+- `pnpm typecheck`：插件 API 与服务契约类型检查。
+- `pnpm test`：core 单测 + daemon e2e。
+- `pnpm e2e`：外部 HTTP 视角跑通「接入 → 计划 → 审批 → 实施/校验 → 汇总 → 验收 → 回放」。
+- 新增内核单测：拓扑排序、缺失依赖、权限拒绝、回滚卸载、重复服务。
+- 新增插件清单测试：内置清单的 `provides` 覆盖所有 `inject`。
+
+## 11. 取舍
+
+1. **不引入 Cordis**：保持零额外依赖，用 `@opencoxswain/plugin-api` 固化同构语义；未来若引入 Cordis，可把该包作为适配层。
+2. **UI 插件先内置**：浏览器环境无法安全地从任意路径加载 React bundle；P1 先统一契约与注册表，P2 在 Tauri 里补外部加载。
+3. **权限是架构闸门而非安全沙箱**：进程内插件共享 Node 权限，P2 再用独立进程解决。
+4. **运行时注册表仍用 Map**：P1 不做热插拔；插件加载完成后注册表固定，调度器直接读取。
+
+## 12. 实施状态与下一步
+
+已完成（v0.2.0）：
+
+1. 内核、`@opencoxswain/plugin-api`、内置清单与全部 daemon 插件落地；`app.ts` 只读配置、建内核、加载清单并启动。
+2. 内核单测覆盖拓扑排序、缺失依赖、权限拒绝、回滚卸载、重复服务与清单覆盖；`pnpm test`、`pnpm e2e` 通过。
+3. 桌面端 `UiRegistry` + `WorkbenchProvider` 落地，三栏与五个检查器标签均通过同一个 `register` 加载。
+
+下一步（v0.3.0）：
+
+1. OpenCode Windows spike：确认安装、headless 调用、事件流、权限模式与 Windows 兼容性。
+2. `runtime.opencode` 插件：把 OpenCode 的事件映射到 `RuntimeAdapter`。
+3. `planner.llm` 插件：BYOK，至少支持 OpenAI 兼容与 DeepSeek 官方端点；无 Key 时回退 `planner.static`。

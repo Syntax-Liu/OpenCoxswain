@@ -1,17 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
+import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
 
-export interface DaemonConfig {
-  host: string;
-  port: number;
-  homeDir: string;
-  dbPath: string;
-  worktreesDir: string;
-  artifactsDir: string;
-  maxConcurrency: number;
-}
+export type DaemonConfig = OpenCoxswainConfig;
 
 function defaultHome(): string {
   const localAppData = process.env.LOCALAPPDATA;
@@ -27,12 +20,17 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
     overrides.maxConcurrency ?? Number(process.env.OPENCOXSWAIN_CONCURRENCY ?? 2);
 
   return {
+    version: APP_VERSION,
     host: overrides.host ?? '127.0.0.1',
     port: Number.isFinite(port) ? port : 47821,
     homeDir,
     dbPath: overrides.dbPath ?? path.join(homeDir, 'opencoxswain.db'),
     worktreesDir: overrides.worktreesDir ?? path.join(homeDir, 'worktrees'),
     artifactsDir: overrides.artifactsDir ?? path.join(homeDir, 'artifacts'),
+    pluginsDir:
+      overrides.pluginsDir ??
+      process.env.OPENCOXSWAIN_PLUGINS ??
+      path.join(homeDir, 'plugins'),
     maxConcurrency:
       Number.isFinite(maxConcurrency) && maxConcurrency > 0 ? maxConcurrency : 2,
   };

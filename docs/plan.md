@@ -36,19 +36,23 @@
 
 ```
 apps/
-  daemon/      # 本地核心：HTTP/SSE、SQLite、调度器、总管编排、worktree
-  desktop/     # React 工作台；Phase 2 加 src-tauri
+  daemon/      # 本地核心：插件内核（生命周期/事件/权限/状态机）+ 内置插件
+  desktop/     # React 工作台；UI 面板同样通过注册表插件化
 packages/
   shared/      # ID、时间、通用类型、API DTO
   core/        # 任务契约、状态机、DAG、预算、汇总、工具白名单
-  adapters/    # RuntimeAdapter 接口 + Mock；Phase 2 加 OpenCode
+  adapters/    # RuntimeAdapter 接口 + Mock；后续加 OpenCode
+  plugin-api/  # 插件契约：Manifest、PluginContext、服务表、权限
   memory/      # Phase 3（v1）创建：Markdown + FTS5
 docs/
   prd/         # PRD 原文（tex + pdf）
   plan.md
+  plugin-architecture.md
 ```
 
-依赖方向：`shared ← core ← adapters ← daemon`；`desktop → shared`（仅类型/协议）。`memory` 在 v1 才创建，避免空包和死代码。
+依赖方向：`shared ← core ← adapters ← plugin-api ← daemon`；`desktop → shared`（仅类型/协议）。`memory` 在 v1 才创建，避免空包和死代码。
+
+插件架构（详见 [plugin-architecture.md](plugin-architecture.md)）：内核只保留生命周期、事件总线、权限闸门与任务状态机；存储、worktree、运行时、Planner、调度器、总管、HTTP/SSE、REST API 与 UI 面板都以统一 Manifest + Module 契约注册加载，内置插件与外部插件走同一条加载路径，不保留特权后门。P1 的权限闸门是进程内架构约束，真正的进程/沙箱隔离留到后续阶段。
 
 ### 各模块职责
 
@@ -86,16 +90,17 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 
 **交付物**：`pnpm dev` 可同时起 Daemon 与工作台；一条命令跑通 E2E；事件时间线可导出。
 
-### P1：执行体接入与桌面壳（M0 + M1 前半）
+### P1：插件化内核 + 真实执行体（M0 + M1 前半）
 
-- 安装 Rust/MSVC，接入 Tauri 2 壳，验证安装包构建。
+- 插件架构落地（已完成，v0.2.0）：按 [plugin-architecture.md](plugin-architecture.md) 把 Mock 运行时、静态 Planner、调度器、总管、存储、worktree、HTTP/SSE、REST API 与工作台面板改为插件；内核只保留生命周期、事件总线、权限与状态机；e2e 全流程保持通过。
 - OpenCode Windows spike：`opencode serve`/SDK 与 CLI 两条路线，记录稳定性结论。
-- 实现 `OpenCodeRuntimeAdapter`，保留 Mock 作为测试替身。
-- 接入 LLM Planner（OpenAI 兼容、BYO Key），Key 走 Credential Manager/DPAPI。
+- 实现 `OpenCodeRuntimeAdapter` 插件，保留 Mock 作为测试替身。
+- 接入 LLM Planner（OpenAI 兼容、BYO Key），Key 走 Credential Manager/DPAPI；无 Key 时回退静态 Planner。
 - 跑通真实仓库的「修夜间模式」剧本；补危险动作人审（delete/push/publish/pay/external_send）。
 - Windows 专项：中文/空格路径、长路径、worktree 清理、进程清理。
+- Tauri 2 桌面壳放在 P1 最后一步：本机暂无 Rust/MSVC 时不阻塞上述工作，浏览器继续验证同一套 React 工作台。
 
-**交付物**：Tauri 安装包；真实 OpenCode 员工；真实 diff 与测试报告；预算硬停。
+**交付物**：插件化 Daemon 与工作台；真实 OpenCode 员工；真实 diff 与测试报告；预算硬停；Tauri 安装包（工具链就绪后）。
 
 ### P2：v0 收口与内测（M1 后半 + M2）
 
