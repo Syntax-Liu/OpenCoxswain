@@ -52,6 +52,24 @@ export interface HealthStatus {
   detail: string;
 }
 
+export interface RuntimeCapabilities {
+  /** 能否向运行中的会话追加输入。 */
+  input: boolean;
+  /** 是否支持执行前挂起并等待人审。 */
+  approvalGate: boolean;
+  /** 能否从 checkpoint 恢复。 */
+  resume: boolean;
+}
+
+export interface InputDelivery {
+  id: string;
+  text: string;
+  source: 'human' | 'supervisor' | 'task';
+  at: number;
+}
+
+export type InputReceipt = 'delivered' | 'queued' | 'unsupported';
+
 export type RuntimeEvent =
   | { type: 'started'; at: number }
   | { type: 'message'; at: number; text: string }
@@ -60,12 +78,15 @@ export type RuntimeEvent =
   | { type: 'artifact'; at: number; artifact: ArtifactRef }
   | { type: 'cost'; at: number; cost: CostLedger }
   | { type: 'progress'; at: number; percent: number; note?: string }
+  | { type: 'input_received'; at: number; inputId: string }
+  | { type: 'heartbeat'; at: number; phase: string; note?: string }
   | { type: 'error'; at: number; message: string; retryable: boolean }
   | { type: 'finished'; at: number; result: WorkerResult };
 
 export interface RuntimeAdapter {
   readonly name: string;
   readonly version: string;
+  readonly capabilities: RuntimeCapabilities;
   /** 是否能在动作执行前挂起并等待人审；false 时由调度器在事件边界冻结。 */
   readonly supportsApprovalGate: boolean;
 
@@ -75,6 +96,9 @@ export interface RuntimeAdapter {
   collect(session: RuntimeSession): Promise<WorkerResult>;
   dispose(session: RuntimeSession): Promise<void>;
   healthCheck(): Promise<HealthStatus>;
+
+  /** 可选实现；capabilities.input=false 时调度器必须拒绝，不得静默丢弃。 */
+  sendInput?(session: RuntimeSession, input: InputDelivery): Promise<InputReceipt>;
 
   /** v0 暂停/继续需要保留现场；实现方可选支持。 */
   pause?(session: RuntimeSession): Promise<void>;

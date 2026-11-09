@@ -10,6 +10,7 @@ export function apply(ctx: PluginContext): void {
     worktrees: ctx.service('worktrees'),
     employees: ctx.service('employees'),
     verification: ctx.service('verification'),
+    supervisor: ctx.service('supervisor'),
   });
 
   ctx.provide('scheduler', scheduler);

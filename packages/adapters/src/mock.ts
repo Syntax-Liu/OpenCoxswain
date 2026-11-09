@@ -11,6 +11,8 @@ import {
 } from '@opencoxswain/shared';
 import type {
   HealthStatus,
+  InputDelivery,
+  InputReceipt,
   RuntimeAdapter,
   RuntimeEvent,
   RuntimeSession,
@@ -37,6 +39,8 @@ interface MockInput {
   fail?: boolean;
   cost?: Partial<CostLedger>;
   sleepMs?: number;
+  /** 每个动作之间的等待，便于观察运行中投递。 */
+  actionDelayMs?: number;
 }
 
 class MockSession implements RuntimeSession {
@@ -45,6 +49,7 @@ class MockSession implements RuntimeSession {
   paused = false;
   result: WorkerResult | null = null;
   baseHead: string | null = null;
+  readonly inbox: InputDelivery[] = [];
 
   constructor(
     readonly taskId: string,
@@ -64,6 +69,7 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'mock';
   readonly version = '0.7.0';
   readonly supportsApprovalGate = true;
+  readonly capabilities = { input: true, approvalGate: true, resume: false };
 
   private readonly sessions = new Map<string, MockSession>();
   private readonly commandTimeoutMs: number;
@@ -89,6 +95,12 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
 
   async cancel(session: RuntimeSession): Promise<void> {
     session.cancelled = true;
+  }
+
+  async sendInput(session: RuntimeSession, input: InputDelivery): Promise<InputReceipt> {
+    const target = this.requireSession(session);
+    target.inbox.push(input);
+    return 'delivered';
   }
 
   async pause(session: RuntimeSession): Promise<void> {
@@ -125,16 +137,36 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
       await log(event);
       return event;
     };
+    const drain = async (): Promise<RuntimeEvent[]> => {
+      const events: RuntimeEvent[] = [];
+      while (target.inbox.length > 0) {
+        const item = target.inbox.shift()!;
+        events.push(await emit({ type: 'input_received', at: now(), inputId: item.id }));
+        events.push(
+          await emit({
+            type: 'message',
+            at: now(),
+            text: `已收到中途消息（${item.source}）：${item.text}`,
+          }),
+        );
+      }
+      return events;
+    };
 
     yield await emit({ type: 'started', at: now() });
     const input = this.mockInput(task);
 
     if (input?.sleepMs) {
-      await delay(input.sleepMs);
+      const until = Date.now() + input.sleepMs;
+      while (Date.now() < until) {
+        await delay(50);
+        for (const event of await drain()) yield event;
+      }
     }
 
     await this.waitWhilePaused(session);
     if (session.cancelled) return;
+    for (const event of await drain()) yield event;
 
     if (input?.fail) {
       yield await emit({
@@ -183,6 +215,14 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
     for (const action of input?.actions ?? []) {
       await this.waitWhilePaused(session);
       if (session.cancelled) return;
+      for (const event of await drain()) yield event;
+      if (input?.actionDelayMs) {
+        const until = Date.now() + input.actionDelayMs;
+        while (Date.now() < until) {
+          await delay(50);
+          for (const event of await drain()) yield event;
+        }
+      }
       yield await emit({ type: 'tool_call', at: now(), tool: action.tool, input: action.input ?? null });
       const category = classifyAction(action.tool, action.input);
       if (category && session.options.gate) {
@@ -225,6 +265,7 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
       for (const file of files) {
         await this.waitWhilePaused(session);
         if (session.cancelled) return;
+        for (const event of await drain()) yield event;
         const targetPath = path.resolve(session.worktree, file.path);
         if (!isWithin(session.worktree, targetPath)) {
           yield await emit({
@@ -279,6 +320,7 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
     for (const artifact of artifacts) {
       yield await emit({ type: 'artifact', at: now(), artifact });
     }
+    for (const event of await drain()) yield event;
 
     const cost = this.costFor(input);
     const passed = acceptance.filter((item) => item.status === 'passed').length;

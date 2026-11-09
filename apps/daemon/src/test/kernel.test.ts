@@ -43,6 +43,7 @@ function configFor(homeDir: string): OpenCoxswainConfig {
     defaultModel: '',
     opencodeBin: '',
     commandTimeoutMs: 120000,
+    supervisionIntervalMs: 60000,
   };
 }
 

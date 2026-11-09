@@ -16,6 +16,7 @@ const SERVICE_KEYS: ServiceKey[] = [
   'runtimes',
   'employees',
   'verification',
+  'supervisor',
   'planner',
   'scheduler',
   'steward',
@@ -46,6 +47,8 @@ const PERMISSIONS: Permission[] = [
   'employee:provide',
   'verification:run',
   'verification:provide',
+  'supervisor:use',
+  'supervisor:provide',
   'ui:panel',
 ];
 

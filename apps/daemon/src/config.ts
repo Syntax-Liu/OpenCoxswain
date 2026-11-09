@@ -39,5 +39,8 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
     defaultModel: (overrides.defaultModel ?? process.env.OPENCOXSWAIN_DEFAULT_MODEL ?? '').trim(),
     opencodeBin: (overrides.opencodeBin ?? process.env.OPENCOXSWAIN_OPENCODE_BIN ?? '').trim(),
     commandTimeoutMs: overrides.commandTimeoutMs ?? 5 * 60 * 1000,
+    supervisionIntervalMs:
+      overrides.supervisionIntervalMs ??
+      Number(process.env.OPENCOXSWAIN_SUPERVISION_MS ?? 30_000),
   };
 }

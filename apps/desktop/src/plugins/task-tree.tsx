@@ -12,9 +12,11 @@ function TaskTreePanel(): JSX.Element {
       records={workbench.acceptance}
       evidence={workbench.evidence}
       stages={workbench.stages}
+      inputs={workbench.snapshot.inputs}
       busy={workbench.busy}
       onAction={workbench.onTaskAction}
       onAcceptance={workbench.onAcceptance}
+      onInput={workbench.onInput}
     />
   );
 }

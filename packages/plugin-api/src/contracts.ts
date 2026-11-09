@@ -19,9 +19,12 @@ import type {
   ProjectCostReport,
   RoleName,
   RuntimeStatus,
+  SupervisionAction,
+  SupervisionVerdict,
   Task,
   TaskContract,
   TaskEdge,
+  TaskInput,
   TaskReplay,
   TaskStatus,
   Worker,
@@ -68,6 +71,8 @@ export type Permission =
   | 'employee:provide'
   | 'verification:run'
   | 'verification:provide'
+  | 'supervisor:use'
+  | 'supervisor:provide'
   | 'ui:panel';
 
 export interface OpenCoxswainConfig {
@@ -88,6 +93,8 @@ export interface OpenCoxswainConfig {
   opencodeBin: string;
   /** 系统复核 command 验收的超时（毫秒）。 */
   commandTimeoutMs: number;
+  /** 规则监察的检查间隔（毫秒）。 */
+  supervisionIntervalMs: number;
 }
 
 export interface StorageService {
@@ -129,6 +136,12 @@ export interface StorageService {
   ): Worker;
   insertRun(id: string, workerId: string, attempt: number): void;
   finishRun(id: string, result: WorkerResult | null, error: string | null): void;
+  insertInput(input: TaskInput): void;
+  updateInputState(id: string, state: TaskInput['state'], deliveredAt?: number): void;
+  listTaskInputs(taskId: string): TaskInput[];
+  listProjectInputs(projectId: string): TaskInput[];
+  insertSupervisionAction(action: SupervisionAction): void;
+  listTaskSupervision(taskId: string): SupervisionAction[];
   insertEvidence(items: Evidence[]): void;
   upsertAcceptance(records: AcceptanceRecord[]): void;
   listTaskAcceptance(taskId: string): AcceptanceRecord[];
@@ -218,6 +231,22 @@ export interface VerificationService {
   verify(input: VerifyInput): Promise<VerificationResult>;
 }
 
+export interface SupervisionInput {
+  task: Task;
+  worker: Worker;
+  /** 该任务近期事件，按时间升序。 */
+  recentEvents: EventRecord[];
+  now: number;
+  /** 本次 run 的开始时间。 */
+  startedAt: number;
+}
+
+/** 规则监察：纯计算、可单测；不得调用 LLM。 */
+export interface SupervisionService {
+  inspect(input: SupervisionInput): SupervisionVerdict;
+  explain?(verdict: SupervisionVerdict, input: SupervisionInput): Promise<string>;
+}
+
 /** 员工注册表：每个角色只允许一个员工插件占用，后者注册即报错。 */
 export interface EmployeeRegistry {
   register(definition: Omit<EmployeeDefinition, 'pluginId'>, pluginId: string): () => void;
@@ -260,6 +289,12 @@ export interface SchedulerService {
   pause(taskId: string): Promise<void>;
   resume(taskId: string): Promise<void>;
   cancel(taskId: string): Promise<void>;
+  /** 向任务投递人的中途消息；running 且运行时支持时立即送达，否则排队等下次派发。 */
+  deliverInput(
+    taskId: string,
+    text: string,
+    source?: TaskInput['source'],
+  ): Promise<{ input: TaskInput; delivery: 'delivered' | 'queued' }>;
 }
 
 export interface StewardService {
@@ -330,6 +365,7 @@ export interface ServiceMap {
   runtimes: RuntimeRegistry;
   employees: EmployeeRegistry;
   verification: VerificationService;
+  supervisor: SupervisionService;
   planner: PlannerService;
   scheduler: SchedulerService;
   steward: StewardService;

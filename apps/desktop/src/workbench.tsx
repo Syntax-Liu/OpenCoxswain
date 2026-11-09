@@ -34,6 +34,7 @@ export interface Workbench {
   onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
   onTaskAction: (action: TaskAction, note?: string) => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
+  onInput: (taskId: string, text: string) => void;
   onWorkerAction: (worker: Worker, action: WorkerAction) => void;
   onProjectSettings: (patch: {
     dailyBudgetUsd: number;

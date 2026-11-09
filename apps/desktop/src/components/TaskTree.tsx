@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import type {
   AcceptanceDecision,
   AcceptanceRecord,
   Evidence,
   Task,
   TaskEdge,
+  TaskInput,
   TaskStage,
   TaskStageView,
 } from '@opencoxswain/shared';
@@ -18,9 +20,11 @@ interface Props {
   records: AcceptanceRecord[];
   evidence: Evidence[];
   stages: TaskStageView[];
+  inputs: TaskInput[];
   busy: boolean;
   onAction: (action: TaskAction) => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
+  onInput: (taskId: string, text: string) => void;
 }
 
 const STAGE_LABELS: Record<TaskStage['kind'], string> = {
@@ -41,6 +45,52 @@ function stageText(stage: TaskStage | undefined): string {
   }
 }
 
+const INPUT_STATE_LABELS: Record<TaskInput['state'], string> = {
+  pending: '待送达',
+  delivered: '已送达',
+  queued: '已排队',
+  consumed: '已接收',
+  rejected: '被拒绝',
+};
+
+function InputBox({
+  taskId,
+  busy,
+  onSend,
+}: {
+  taskId: string;
+  busy: boolean;
+  onSend: (taskId: string, text: string) => void;
+}): JSX.Element {
+  const [text, setText] = useState('');
+  return (
+    <form
+      className="row wrap input-row"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const value = text.trim();
+        if (!value) return;
+        onSend(taskId, value);
+        setText('');
+      }}
+    >
+      <input
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        placeholder="给员工发中途消息（不打断执行）"
+        disabled={busy}
+      />
+      <button type="submit" disabled={busy || !text.trim()}>
+        发送
+      </button>
+    </form>
+  );
+}
+
+function latestInput(inputs: TaskInput[], taskId: string): TaskInput | null {
+  return inputs.filter((input) => input.taskId === taskId).at(-1) ?? null;
+}
+
 export function TaskTree({
   root,
   children,
@@ -48,9 +98,11 @@ export function TaskTree({
   records,
   evidence,
   stages,
+  inputs,
   busy,
   onAction,
   onAcceptance,
+  onInput,
 }: Props): JSX.Element {
   if (!root) {
     return (
@@ -123,6 +175,15 @@ export function TaskTree({
               ))}
             </div>
           ) : null}
+          {root.status === 'running' ? (
+            <InputBox taskId={root.id} busy={busy} onSend={onInput} />
+          ) : null}
+          {latestInput(inputs, root.id) ? (
+            <p className="hint">
+              最近消息：{latestInput(inputs, root.id)?.text}（
+              {INPUT_STATE_LABELS[latestInput(inputs, root.id)!.state]}）
+            </p>
+          ) : null}
         </article>
 
         <div className="subtasks">
@@ -159,6 +220,9 @@ export function TaskTree({
                     <dd>{task.contract.acceptance_criteria.map((item) => item.type).join(' / ')}</dd>
                   </div>
                 </dl>
+                {task.status === 'running' ? (
+                  <InputBox taskId={task.id} busy={busy} onSend={onInput} />
+                ) : null}
               </article>
             );
           })}

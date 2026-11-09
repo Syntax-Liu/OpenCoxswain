@@ -791,6 +791,15 @@ label {
   color: var(--ok, #7ddc9a);
 }
 
+.input-row {
+  margin-top: 8px;
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 120px;
+}
+
 /* ---------- 底部检查器 ---------- */
 
 .inspector .panel-header {

@@ -16,6 +16,8 @@ import type {
   EventRecord,
   Project,
   Task,
+  TaskContract,
+  TaskInput,
   TaskStatus,
   Worker,
   WorkerResult,
@@ -38,10 +40,12 @@ import type {
   OpenCoxswainConfig,
   RuntimeRegistry,
   StorageService,
+  SupervisionService,
   VerificationService,
   WorktreeService,
 } from '@opencoxswain/plugin-api';
 import { MergeConflictError } from './worktree.js';
+import { AppError } from './errors.js';
 
 interface ActiveRun {
   taskId: string;
@@ -51,6 +55,7 @@ interface ActiveRun {
   cancelled: boolean;
   liveCost: CostLedger;
   warned: boolean;
+  startedAt: number;
 }
 
 const APPROVAL_POLICY: ApprovalPolicy = {
@@ -70,6 +75,7 @@ export interface SchedulerOptions {
   worktrees: WorktreeService;
   employees: EmployeeRegistry;
   verification: VerificationService;
+  supervisor: SupervisionService;
 }
 
 export class Scheduler {
@@ -80,14 +86,17 @@ export class Scheduler {
   private readonly worktrees: WorktreeService;
   private readonly employees: EmployeeRegistry;
   private readonly verification: VerificationService;
+  private readonly supervisor: SupervisionService;
   private readonly active = new Map<string, ActiveRun>();
   private readonly running = new Set<Promise<void>>();
   private readonly dispatching = new Set<string>();
   private readonly budgetNotified = new Set<string>();
   private readonly taskWarned = new Set<string>();
+  private readonly supervisionHits = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private stopping = false;
+  private lastSupervisedAt = 0;
 
   constructor(options: SchedulerOptions) {
     this.store = options.store;
@@ -97,6 +106,7 @@ export class Scheduler {
     this.worktrees = options.worktrees;
     this.employees = options.employees;
     this.verification = options.verification;
+    this.supervisor = options.supervisor;
   }
 
   start(): void {
@@ -144,6 +154,110 @@ export class Scheduler {
     this.emit(taskId, run.workerId, 'worker.status', { status: 'terminated' });
   }
 
+  async deliverInput(
+    taskId: string,
+    text: string,
+    source: TaskInput['source'] = 'human',
+  ): Promise<{ input: TaskInput; delivery: 'delivered' | 'queued' }> {
+    const trimmed = text.trim();
+    if (!trimmed) throw new AppError('消息不能为空');
+    const task = this.store.getTask(taskId);
+    if (!task) throw new AppError('任务不存在', 404);
+    if (task.status === 'done' || task.status === 'cancelled') {
+      throw new AppError('任务已结束，无法投递中途消息', 409);
+    }
+
+    const input: TaskInput = {
+      id: newId('inp'),
+      taskId,
+      source,
+      text: trimmed,
+      state: 'pending',
+      createdAt: Date.now(),
+    };
+    this.store.insertInput(input);
+
+    const run = this.active.get(taskId);
+    if (task.status === 'running' && run) {
+      const receipt = await this.deliverToActive(run, input);
+      if (receipt === 'rejected') {
+        throw new AppError(
+          '当前运行时不支持中途输入；可取消任务并带上补充说明重新执行',
+          409,
+        );
+      }
+      return {
+        input: {
+          ...input,
+          state: receipt === 'delivered' ? 'delivered' : 'queued',
+          deliveredAt: receipt === 'delivered' ? Date.now() : undefined,
+        },
+        delivery: receipt,
+      };
+    }
+
+    // queued / paused / blocked / awaiting_review：留到下次派发时随契约注入。
+    this.emit(taskId, null, 'input.queued', {
+      inputId: input.id,
+      source,
+      reason: 'next_dispatch',
+    });
+    return { input, delivery: 'queued' };
+  }
+
+  /** 人的快车道：运行中的任务不受并发上限约束，立即尝试投递。 */
+  private async flushHumanInputs(): Promise<void> {
+    for (const run of [...this.active.values()]) {
+      const task = this.store.getTask(run.taskId);
+      if (!task || task.status !== 'running') continue;
+      const pending = this.store
+        .listTaskInputs(task.id)
+        .filter((input) => input.source === 'human' && input.state === 'pending');
+      for (const input of pending) {
+        await this.deliverToActive(run, input);
+      }
+    }
+  }
+
+  private async deliverToActive(
+    run: ActiveRun,
+    input: TaskInput,
+  ): Promise<'delivered' | 'queued' | 'rejected'> {
+    if (!run.adapter.capabilities.input || !run.adapter.sendInput) {
+      this.store.updateInputState(input.id, 'rejected');
+      this.emit(run.taskId, run.workerId, 'input.rejected', {
+        inputId: input.id,
+        reason: 'runtime_no_input',
+      });
+      return 'rejected';
+    }
+    const receipt = await run.adapter.sendInput(run.session, {
+      id: input.id,
+      text: input.text,
+      source: input.source,
+      at: Date.now(),
+    });
+    if (receipt === 'delivered') {
+      this.store.updateInputState(input.id, 'delivered', Date.now());
+      this.emit(run.taskId, run.workerId, 'input.delivered', { inputId: input.id });
+      return 'delivered';
+    }
+    if (receipt === 'queued') {
+      this.store.updateInputState(input.id, 'queued');
+      this.emit(run.taskId, run.workerId, 'input.queued', {
+        inputId: input.id,
+        reason: 'runtime_queue',
+      });
+      return 'queued';
+    }
+    this.store.updateInputState(input.id, 'rejected');
+    this.emit(run.taskId, run.workerId, 'input.rejected', {
+      inputId: input.id,
+      reason: 'runtime_unsupported',
+    });
+    return 'rejected';
+  }
+
   private recover(): void {
     for (const project of this.store.listProjects()) {
       for (const task of this.store.listTasks(project.id)) {
@@ -165,9 +279,14 @@ export class Scheduler {
     if (this.ticking || this.stopping) return;
     this.ticking = true;
     try {
+      await this.flushHumanInputs();
       for (const project of this.store.listProjects()) {
         if (this.stopping) break;
         await this.tickProject(project);
+      }
+      if (Date.now() - this.lastSupervisedAt >= this.config.supervisionIntervalMs) {
+        this.lastSupervisedAt = Date.now();
+        await this.supervise();
       }
     } finally {
       this.ticking = false;
@@ -331,7 +450,29 @@ export class Scheduler {
     const runId = newId('run');
     this.store.insertRun(runId, worker.id, 1);
 
-    const pending = this.run(task, worker, employee, adapter, runId);
+    const pendingInputs = this.store
+      .listTaskInputs(task.id)
+      .filter((input) => input.state === 'pending' || input.state === 'queued');
+    const contract: TaskContract =
+      pendingInputs.length === 0
+        ? task.contract
+        : {
+            ...task.contract,
+            inputs: {
+              ...task.contract.inputs,
+              human_inputs: pendingInputs.map((input) => input.text),
+            },
+          };
+
+    const pending = this.run(
+      task,
+      worker,
+      employee,
+      adapter,
+      runId,
+      contract,
+      pendingInputs.map((input) => input.id),
+    );
     this.running.add(pending);
     void pending.finally(() => this.running.delete(pending));
   }
@@ -342,6 +483,8 @@ export class Scheduler {
     employee: EmployeeDefinition,
     adapter: RuntimeAdapter,
     runId: string,
+    contract: TaskContract,
+    consumedInputIds: string[],
   ): Promise<void> {
     let session: RuntimeSession | null = null;
     let result: WorkerResult | null = null;
@@ -371,12 +514,17 @@ export class Scheduler {
           cancelled: false,
           liveCost: emptyCost(),
           warned: false,
+          startedAt: Date.now(),
         };
         this.active.set(task.id, run);
+        for (const inputId of consumedInputIds) {
+          this.store.updateInputState(inputId, 'consumed');
+        }
+        consumedInputIds.length = 0;
         this.store.updateWorker(worker.id, { status: 'running', sessionRef: session.id });
         this.emit(task.id, worker.id, 'worker.status', { status: 'running' });
 
-        for await (const event of adapter.send(session, task.contract)) {
+        for await (const event of adapter.send(session, contract)) {
           const current = this.store.getTask(task.id);
           if (run.cancelled || current?.status === 'cancelled') {
             await adapter.cancel(session);
@@ -722,8 +870,139 @@ export class Scheduler {
     }
   }
 
+  /** 规则监察：只按规则动作，不调用 LLM、不改提示词。 */
+  private async supervise(): Promise<void> {
+    for (const run of [...this.active.values()]) {
+      const task = this.store.getTask(run.taskId);
+      const worker = this.store.getWorker(run.workerId);
+      if (!task || !worker || task.status !== 'running') continue;
+
+      const verdict = this.supervisor.inspect({
+        task,
+        worker: run.liveCost.usd > 0 ? { ...worker, cost: run.liveCost } : worker,
+        recentEvents: this.store.listTaskEvents(task.id).slice(-60),
+        now: Date.now(),
+        startedAt: run.startedAt,
+      });
+      if (verdict.kind === 'ok') continue;
+
+      const key = `${task.id}:${verdict.rule}`;
+      const hits = (this.supervisionHits.get(key) ?? 0) + 1;
+      this.supervisionHits.set(key, hits);
+
+      // 同一规则重复出现时升级为暂停，避免无限提示。
+      const escalated = verdict.kind === 'nudge' && hits > 1;
+      const action: 'nudge' | 'pause' | 'fail' | 'ask_human' = escalated
+        ? 'pause'
+        : verdict.kind;
+      const reason = escalated
+        ? `${verdict.reason}（连续 ${hits} 次提示未改善）`
+        : verdict.reason;
+
+      this.store.insertSupervisionAction({
+        id: newId('sup'),
+        taskId: task.id,
+        workerId: worker.id,
+        rule: verdict.rule,
+        verdict: action,
+        reason,
+        at: Date.now(),
+      });
+
+      if (action === 'nudge') {
+        this.emit(task.id, worker.id, 'supervisor.nudged', {
+          rule: verdict.rule,
+          reason,
+          message: verdict.kind === 'nudge' ? verdict.message : '',
+        });
+        const text = verdict.kind === 'nudge' ? verdict.message : reason;
+        await this.deliverInput(task.id, text, 'supervisor').catch(() => undefined);
+        continue;
+      }
+
+      if (action === 'pause') {
+        await this.pause(task.id).catch(() => undefined);
+        if (task.status === 'running') this.transition(task.id, 'paused', 'scheduler');
+        this.emit(task.id, worker.id, 'supervisor.paused', { rule: verdict.rule, reason });
+        this.store.insertMessage({
+          projectId: task.projectId,
+          role: 'assistant',
+          content: [
+            '## 待你决策',
+            `任务「${task.title}」被规则监察暂停：`,
+            `- ${reason}`,
+            `- 处理后调用 POST /api/tasks/${task.id}/resume 继续，或取消任务。`,
+          ].join('\n'),
+        });
+        continue;
+      }
+
+      if (action === 'fail') {
+        run.cancelled = true;
+        await run.adapter.cancel(run.session).catch(() => undefined);
+        this.emit(task.id, worker.id, 'supervisor.failed', { rule: verdict.rule, reason });
+        this.fail(task.id, worker.id, reason);
+        this.store.insertMessage({
+          projectId: task.projectId,
+          role: 'assistant',
+          content: [
+            '## 待你决策',
+            `任务「${task.title}」被规则监察判定失败：`,
+            `- ${reason}`,
+            `- 修正后调用 POST /api/tasks/${task.id}/retry 重新执行，或取消任务。`,
+          ].join('\n'),
+        });
+        continue;
+      }
+
+      this.emit(task.id, worker.id, 'supervisor.asked_human', {
+        rule: verdict.rule,
+        reason,
+        question: verdict.kind === 'ask_human' ? verdict.question : '',
+      });
+      this.store.insertMessage({
+        projectId: task.projectId,
+        role: 'assistant',
+        content: [
+          '## 待你决策',
+          `任务「${task.title}」需要你确认：`,
+          `- ${reason}`,
+          `- 用 POST /api/tasks/${task.id}/inputs 回复员工。`,
+        ].join('\n'),
+      });
+    }
+  }
+
   private async finish(task: Task, worker: Worker, result: WorkerResult): Promise<void> {
     this.store.insertModelCall({ workerId: worker.id, model: worker.model, cost: result.cost });
+
+    // 空转完成：有写入职责却没有任何产物，直接判失败，不进入验收。
+    const writeScope = task.contract.write_scope ?? [];
+    const deliverables = task.contract.deliverables ?? [];
+    if (
+      !this.isReadOnly(task) &&
+      writeScope.length > 0 &&
+      result.artifacts.length === 0 &&
+      deliverables.length > 0
+    ) {
+      const reason = '员工报告完成但没有任何产物，判定为空转完成';
+      this.store.insertSupervisionAction({
+        id: newId('sup'),
+        taskId: task.id,
+        workerId: worker.id,
+        rule: 'empty_completion',
+        verdict: 'fail',
+        reason,
+        at: Date.now(),
+      });
+      this.emit(task.id, worker.id, 'supervisor.failed', {
+        rule: 'empty_completion',
+        reason,
+      });
+      this.fail(task.id, worker.id, reason);
+      return;
+    }
+
     this.store.updateWorker(worker.id, { status: 'done', cost: result.cost });
 
     for (const artifact of result.artifacts) {

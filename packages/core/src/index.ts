@@ -5,4 +5,5 @@ export * from './budget.js';
 export * from './summary.js';
 export * from './acceptance.js';
 export * from './stage.js';
+export * from './supervision.js';
 export * from './tools.js';

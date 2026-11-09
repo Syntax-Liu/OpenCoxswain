@@ -44,6 +44,10 @@ const SERVICE_RULES: Record<
     required: ['verification:run'],
     provider: ['verification:provide'],
   },
+  supervisor: {
+    required: ['supervisor:use'],
+    provider: ['supervisor:provide'],
+  },
   planner: { required: ['planner:use'], provider: ['planner:use'] },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },

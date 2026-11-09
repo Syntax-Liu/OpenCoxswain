@@ -22,6 +22,7 @@ import {
   type Evidence,
   type Project,
   type Task,
+  type TaskInput,
   type TaskReplay,
   type TaskStageView,
   type WorkbenchSnapshot,
@@ -89,6 +90,7 @@ export class Steward implements StewardService {
         acceptance: [],
         evidence: [],
         stages: [],
+        inputs: [],
         summary: null,
         runtime,
       };
@@ -96,6 +98,7 @@ export class Steward implements StewardService {
 
     const root = this.activeRoot(project.id);
     const tasks = this.store.listTasks(project.id);
+    const inputs = this.store.listProjectInputs(project.id);
     return {
       projects,
       project,
@@ -110,15 +113,25 @@ export class Steward implements StewardService {
       employees: this.employees.list(),
       acceptance: this.store.listProjectAcceptance(project.id),
       evidence: this.store.listProjectEvidence(project.id),
-      stages: this.stages(project.id, tasks),
+      stages: this.stages(project.id, tasks, inputs),
+      inputs,
       summary: root ? this.summary(root.id) : null,
       runtime,
     };
   }
 
-  /** 「在等谁」：依赖未完成 → idle；其余按状态映射，不改状态机。 */
-  private stages(projectId: string, tasks: Task[]): TaskStageView[] {
+  /** 「在等谁」：依赖未完成 → idle；有等待人的中途输入 → 等人回答；不改状态机。 */
+  private stages(
+    projectId: string,
+    tasks: Task[],
+    inputs: TaskInput[],
+  ): TaskStageView[] {
     const edges = this.store.listEdges(projectId);
+    const awaitingAnswer = new Set(
+      inputs
+        .filter((input) => input.source === 'human' && input.state === 'pending')
+        .map((input) => input.taskId),
+    );
     return tasks.map((task) => {
       const dependencyPending = dependenciesOf(task.id, edges).some((dependencyId) => {
         const dependency = this.store.getTask(dependencyId);
@@ -129,6 +142,7 @@ export class Steward implements StewardService {
         stage: computeStage({
           status: task.status,
           dependencyPending,
+          hasPendingHumanInput: awaitingAnswer.has(task.id),
         }),
       };
     });
@@ -542,6 +556,7 @@ export class Steward implements StewardService {
       approvals: this.store.listApprovals(task.projectId).filter((approval) => ids.has(approval.taskId)),
       acceptance: tree.flatMap((item) => this.store.listTaskAcceptance(item.id)),
       evidence: tree.flatMap((item) => this.store.listTaskEvidence(item.id)),
+      supervision: tree.flatMap((item) => this.store.listTaskSupervision(item.id)),
       summary: this.summary(task.id),
     };
   }

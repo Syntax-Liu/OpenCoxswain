@@ -59,6 +59,11 @@ function replayMarkdown(replay: TaskReplay): string {
         `- ${item.taskId}/${item.criterionId} ${item.kind}（${item.producedBy}）：${item.ref}，摘要 ${item.digest}`,
     ),
     '',
+    '## 监察',
+    ...replay.supervision.map(
+      (action) => `- ${new Date(action.at).toISOString()} ${action.rule} → ${action.verdict}：${action.reason}`,
+    ),
+    '',
     '## 事件时间线',
     ...replay.events.map(
       (event) => `- ${new Date(event.createdAt).toISOString()} ${event.type}`,
@@ -79,6 +84,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const http = ctx.service('http');
   const store = ctx.service('storage');
   const steward = ctx.service('steward');
+  const scheduler = ctx.service('scheduler');
   const runtimes = ctx.service('runtimes');
   const config = ctx.service('config');
   const secrets = ctx.service('secrets');
@@ -193,6 +199,17 @@ export async function apply(ctx: PluginContext): Promise<void> {
     const ids = new Set(stages.map((view) => view.taskId));
     return { json: { tasks: snapshot.tasks.filter((task) => ids.has(task.id)), stages } };
   });
+
+  http.route('POST', '/api/tasks/:id/inputs', async (request) => {
+    const body = request.body as { text?: string };
+    const text = body.text?.trim();
+    if (!text) throw new AppError('请提供 text');
+    return { json: await scheduler.deliverInput(taskIdOf(request), text, 'human') };
+  });
+
+  http.route('GET', '/api/tasks/:id/inputs', async (request) => ({
+    json: { inputs: store.listTaskInputs(taskIdOf(request)) },
+  }));
 
   http.route('GET', '/api/tasks/:id/summary', async (request) => ({
     json: { summary: steward.summary(taskIdOf(request)) },

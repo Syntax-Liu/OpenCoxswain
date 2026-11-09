@@ -12,8 +12,10 @@ import {
   type Message,
   type Project,
   type ProjectCostReport,
+  type SupervisionAction,
   type Task,
   type TaskEdge,
+  type TaskInput,
   type TaskStatus,
   type Worker,
   type WorkerResult,
@@ -68,6 +70,30 @@ CREATE TABLE IF NOT EXISTS acceptance_records (
   at             INTEGER NOT NULL,
   PRIMARY KEY (task_id, criterion_id)
 );
+`;
+
+const INPUT_SCHEMA = `
+CREATE TABLE IF NOT EXISTS task_inputs (
+  id           TEXT PRIMARY KEY,
+  task_id      TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  source       TEXT NOT NULL,
+  text         TEXT NOT NULL,
+  state        TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  delivered_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_inputs_task ON task_inputs(task_id);
+
+CREATE TABLE IF NOT EXISTS supervision_actions (
+  id        TEXT PRIMARY KEY,
+  task_id   TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  worker_id TEXT,
+  rule      TEXT NOT NULL,
+  verdict   TEXT NOT NULL,
+  reason    TEXT NOT NULL,
+  at        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_supervision_task ON supervision_actions(task_id);
 `;
 
 const SCHEMA = `
@@ -162,6 +188,28 @@ CREATE TABLE acceptance_records (
   PRIMARY KEY (task_id, criterion_id)
 );
 
+CREATE TABLE task_inputs (
+  id           TEXT PRIMARY KEY,
+  task_id      TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  source       TEXT NOT NULL,
+  text         TEXT NOT NULL,
+  state        TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  delivered_at INTEGER
+);
+CREATE INDEX idx_inputs_task ON task_inputs(task_id);
+
+CREATE TABLE supervision_actions (
+  id        TEXT PRIMARY KEY,
+  task_id   TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  worker_id TEXT,
+  rule      TEXT NOT NULL,
+  verdict   TEXT NOT NULL,
+  reason    TEXT NOT NULL,
+  at        INTEGER NOT NULL
+);
+CREATE INDEX idx_supervision_task ON supervision_actions(task_id);
+
 CREATE TABLE events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id    TEXT,
@@ -228,15 +276,16 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 2) return;
+    if (version >= 3) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
         this.db.exec(SCHEMA);
-      } else {
+      } else if (version < 2) {
         this.db.exec(ACCEPTANCE_SCHEMA);
       }
-      this.db.exec('PRAGMA user_version = 2;');
+      this.db.exec(INPUT_SCHEMA);
+      this.db.exec('PRAGMA user_version = 3;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -697,6 +746,78 @@ export class Store {
     return rows.map(toEvidence);
   }
 
+  // ---------- inputs & supervision ----------
+
+  insertInput(input: TaskInput): void {
+    this.db
+      .prepare(
+        `INSERT INTO task_inputs (id, task_id, source, text, state, created_at, delivered_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        input.id,
+        input.taskId,
+        input.source,
+        input.text,
+        input.state,
+        input.createdAt,
+        input.deliveredAt ?? null,
+      );
+  }
+
+  updateInputState(id: string, state: TaskInput['state'], deliveredAt?: number): void {
+    this.db
+      .prepare(
+        'UPDATE task_inputs SET state = ?, delivered_at = COALESCE(?, delivered_at) WHERE id = ?',
+      )
+      .run(state, deliveredAt ?? null, id);
+  }
+
+  listTaskInputs(taskId: string): TaskInput[] {
+    const rows = this.db
+      .prepare('SELECT * FROM task_inputs WHERE task_id = ? ORDER BY created_at ASC')
+      .all(taskId) as Row[];
+    return rows.map(toTaskInput);
+  }
+
+  listProjectInputs(projectId: string): TaskInput[] {
+    const rows = this.db
+      .prepare(
+        `SELECT i.* FROM task_inputs i
+         JOIN tasks t ON t.id = i.task_id
+         WHERE t.project_id = ?
+         ORDER BY i.created_at ASC`,
+      )
+      .all(projectId) as Row[];
+    return rows.map(toTaskInput);
+  }
+
+  insertSupervisionAction(action: SupervisionAction): void {
+    this.db
+      .prepare(
+        `INSERT INTO supervision_actions (id, task_id, worker_id, rule, verdict, reason, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        action.id,
+        action.taskId,
+        action.workerId,
+        action.rule,
+        action.verdict,
+        action.reason,
+        action.at,
+      );
+  }
+
+  listTaskSupervision(taskId: string): SupervisionAction[] {
+    const rows = this.db
+      .prepare('SELECT * FROM supervision_actions WHERE task_id = ? ORDER BY at ASC')
+      .all(taskId) as Row[];
+    return rows.map(toSupervisionAction);
+  }
+
   // ---------- events ----------
 
   appendEvent(input: {
@@ -1086,5 +1207,31 @@ function toEvidence(row: Row): Evidence {
     digest: text(row, 'digest'),
     producedBy: text(row, 'produced_by') as Evidence['producedBy'],
     createdAt: number(row, 'created_at'),
+  };
+}
+
+function toTaskInput(row: Row): TaskInput {
+  return {
+    id: text(row, 'id'),
+    taskId: text(row, 'task_id'),
+    source: text(row, 'source') as TaskInput['source'],
+    text: text(row, 'text'),
+    state: text(row, 'state') as TaskInput['state'],
+    createdAt: number(row, 'created_at'),
+    deliveredAt: nullableText(row, 'delivered_at') === null
+      ? undefined
+      : number(row, 'delivered_at'),
+  };
+}
+
+function toSupervisionAction(row: Row): SupervisionAction {
+  return {
+    id: text(row, 'id'),
+    taskId: text(row, 'task_id'),
+    workerId: nullableText(row, 'worker_id'),
+    rule: text(row, 'rule') as SupervisionAction['rule'],
+    verdict: text(row, 'verdict') as SupervisionAction['verdict'],
+    reason: text(row, 'reason'),
+    at: number(row, 'at'),
   };
 }

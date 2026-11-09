@@ -89,6 +89,49 @@ export interface AcceptanceDecision {
   note: string;
 }
 
+export const INPUT_SOURCES = ['human', 'supervisor', 'task'] as const;
+export type InputSource = (typeof INPUT_SOURCES)[number];
+
+export const INPUT_STATES = ['pending', 'delivered', 'queued', 'consumed', 'rejected'] as const;
+export type InputState = (typeof INPUT_STATES)[number];
+
+/** 投递给运行中任务的输入；delivered 表示运行时确认收到，queued 表示只能下次派发时注入。 */
+export interface TaskInput {
+  id: string;
+  taskId: string;
+  source: InputSource;
+  text: string;
+  state: InputState;
+  createdAt: number;
+  deliveredAt?: number;
+}
+
+export type SupervisionRule =
+  | 'off_scope'
+  | 'no_heartbeat'
+  | 'repeated_fingerprint'
+  | 'stalled'
+  | 'budget_slope'
+  | 'long_tail'
+  | 'empty_completion';
+
+export type SupervisionVerdict =
+  | { kind: 'ok' }
+  | { kind: 'nudge'; rule: SupervisionRule; reason: string; message: string }
+  | { kind: 'pause'; rule: SupervisionRule; reason: string }
+  | { kind: 'fail'; rule: SupervisionRule; reason: string }
+  | { kind: 'ask_human'; rule: SupervisionRule; reason: string; question: string };
+
+export interface SupervisionAction {
+  id: string;
+  taskId: string;
+  workerId: string | null;
+  rule: SupervisionRule;
+  verdict: 'nudge' | 'pause' | 'fail' | 'ask_human';
+  reason: string;
+  at: number;
+}
+
 export interface AcceptanceResult {
   criterionId: string;
   status: Verdict;
@@ -313,6 +356,7 @@ export interface WorkbenchSnapshot {
   acceptance: AcceptanceRecord[];
   evidence: Evidence[];
   stages: TaskStageView[];
+  inputs: TaskInput[];
   summary: string | null;
   runtime: RuntimeStatus;
 }
@@ -372,5 +416,6 @@ export interface TaskReplay {
   approvals: Approval[];
   acceptance: AcceptanceRecord[];
   evidence: Evidence[];
+  supervision: SupervisionAction[];
   summary: string | null;
 }

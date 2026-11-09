@@ -72,6 +72,13 @@ export const api = {
     });
   },
 
+  sendInput(taskId: string, text: string): Promise<unknown> {
+    return request(`/api/tasks/${taskId}/inputs`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  },
+
   workerAction(workerId: string, action: WorkerAction): Promise<unknown> {
     return request(`/api/workers/${workerId}/${action}`, { method: 'POST' });
   },

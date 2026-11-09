@@ -110,6 +110,10 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     void run(() => api.decideAcceptance(root.id, decisions));
   };
 
+  const onInput = (taskId: string, text: string): void => {
+    void run(() => api.sendInput(taskId, text));
+  };
+
   const onWorkerAction = (worker: Worker, action: WorkerAction): void => {
     void run(() => api.workerAction(worker.id, action));
   };
@@ -181,6 +185,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     onPlan,
     onTaskAction,
     onAcceptance,
+    onInput,
     onWorkerAction,
     onProjectSettings,
     onAssistant,

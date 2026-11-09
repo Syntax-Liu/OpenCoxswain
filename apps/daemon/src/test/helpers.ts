@@ -36,13 +36,17 @@ export interface DaemonFixture {
   text: (url: string) => Promise<string>;
 }
 
-export async function makeDaemon(home: string): Promise<DaemonFixture> {
+export async function makeDaemon(
+  home: string,
+  overrides: Partial<Parameters<typeof startDaemon>[0]> = {},
+): Promise<DaemonFixture> {
   const app = await startDaemon({
     homeDir: home,
     dbPath: path.join(home, 'test.db'),
     worktreesDir: path.join(home, 'worktrees'),
     artifactsDir: path.join(home, 'artifacts'),
     port: 0,
+    ...overrides,
   });
   const base = `http://127.0.0.1:${app.port}`;
   const call = async <T>(url: string, init?: RequestInit): Promise<T> => {

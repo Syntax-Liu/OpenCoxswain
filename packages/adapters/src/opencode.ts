@@ -13,6 +13,8 @@ import {
 } from '@opencoxswain/shared';
 import type {
   HealthStatus,
+  InputDelivery,
+  InputReceipt,
   RuntimeAdapter,
   RuntimeEvent,
   RuntimeSession,
@@ -165,6 +167,11 @@ export interface OpenCodeOptions {
 export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'opencode';
   readonly version = '0.7.0';
+  /**
+   * CLI 进程不支持 stdin 注入：中途消息写入 worktree 的 inbox，标为 queued，
+   * 由下一次派发的契约摘要携带，绝不假装 delivered。
+   */
+  readonly capabilities = { input: true, approvalGate: false, resume: false };
   /** 外部 CLI 进程无法在执行前挂起，危险动作由调度器在事件边界冻结。 */
   readonly supportsApprovalGate = false;
 
@@ -215,6 +222,21 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     session.cancelled = true;
     const target = this.sessions.get(session.id);
     await this.kill(target?.child ?? null);
+  }
+
+  async sendInput(
+    session: RuntimeSession,
+    input: InputDelivery,
+  ): Promise<InputReceipt> {
+    const target = this.requireSession(session);
+    const dir = path.join(target.worktree, '.opencoxswain', 'inbox');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, `${input.id}.md`),
+      `# 中途消息（${input.source}）\n\n${input.text}\n`,
+      'utf8',
+    );
+    return 'queued';
   }
 
   async collect(session: RuntimeSession): Promise<WorkerResult> {
