@@ -86,20 +86,38 @@ async function harness(
     approvals?: Approval[];
     transport?: ChannelTransport;
     home?: string;
+    projects?: Project[];
   } = {},
 ): Promise<Harness> {
   const home = options.home ?? (await mkdtemp(path.join(os.tmpdir(), 'opencoxswain-ch-')));
+  const projects = options.projects ?? [project()];
   const tasks = options.tasks ?? [];
   const approvals = options.approvals ?? [];
   const calls: string[] = [];
   const store = {
-    listProjects: () => [project()],
-    getProject: (id: string) => (id === project().id ? project() : null),
+    listProjects: () => projects,
+    getProject: (id: string) => projects.find((item) => item.id === id) ?? null,
     listTasks: (projectId: string) => tasks.filter((item) => item.projectId === projectId),
+    listRootTasks: (projectId: string) =>
+      tasks.filter((item) => item.projectId === projectId && item.parentId === null),
     getTask: (id: string) => tasks.find((item) => item.id === id) ?? null,
     listApprovals: () => approvals,
   } as unknown as StorageService;
   const steward = {
+    createPlan: (projectId: string, request: { goal: string }) => {
+      calls.push(`plan:${projectId}:${request.goal}`);
+      const root = task({
+        id: 'tsk_planned1',
+        projectId,
+        title: request.goal,
+        contract: {
+          acceptance_criteria: [{ type: 'command', check: 'pnpm test' }],
+        } as unknown as Task['contract'],
+      });
+      const child = task({ id: 'tsk_planned2', projectId, parentId: 'tsk_planned1' });
+      tasks.push(root, child);
+      return Promise.resolve({ root, children: [child] });
+    },
     approveTask: (id: string) => {
       calls.push(`approve:${id}`);
       const found = tasks.find((item) => item.id === id);
@@ -147,8 +165,9 @@ function event(partial: Partial<EventRecord> & { type: string }): EventRecord {
   };
 }
 
-test('入站指令：只识别只读查询与拍板动作，退回必须带理由', () => {
+test('入站指令：识别查询、拍板与建单，退回必须带理由', () => {
   assert.deepEqual(parseChannelCommand('待办'), { kind: 'list' });
+  assert.deepEqual(parseChannelCommand('任务'), { kind: 'list' });
   assert.deepEqual(parseChannelCommand('  @_user_1  批准   tsk_abcd  '), {
     kind: 'approve',
     id: 'tsk_abcd',
@@ -163,6 +182,17 @@ test('入站指令：只识别只读查询与拍板动作，退回必须带理�
     text: '退回 apr_1234',
   });
   assert.deepEqual(parseChannelCommand('状态 tsk_abcd'), { kind: 'status', id: 'tsk_abcd' });
+  assert.deepEqual(parseChannelCommand('任务 修复登录超时'), {
+    kind: 'create',
+    goal: '修复登录超时',
+    project: null,
+  });
+  assert.deepEqual(parseChannelCommand('建单 #prj_demo 补上导出'), {
+    kind: 'create',
+    goal: '补上导出',
+    project: 'prj_demo',
+  });
+  assert.deepEqual(parseChannelCommand('建单'), { kind: 'create', goal: '', project: null });
   assert.deepEqual(parseChannelCommand('帮我修个 bug'), {
     kind: 'unknown',
     text: '帮我修个 bug',
@@ -260,6 +290,47 @@ test('入站指令：批准任务、拒绝审批，未知 id 给出明确提示'
 
   const ambiguous = await fixture.channels.inbound(created.id, '批准 tsk_');
   assert.match(ambiguous.reply, /匹配到多条/);
+});
+
+test('入站建单：单项目直接生成待审批任务单，不自动开工', async () => {
+  const fixture = await harness({ tasks: [task({ id: 'tsk_old0001', title: '旧任务单' })] });
+  const created = fixture.channels.save({ kind: 'feishu', name: '飞书' });
+
+  const result = await fixture.channels.inbound(created.id, '任务 修复登录超时');
+  assert.equal(result.handled, true);
+  assert.match(result.reply, /已生成待审批任务单/);
+  assert.match(result.reply, /拆成 1 个子任务/);
+  assert.match(result.reply, /验收：1 项/);
+  assert.match(result.reply, /批准 tsk_planned1/);
+  assert.match(result.reply, /原有待审批任务单已替换/);
+  assert.deepEqual(fixture.calls, ['plan:prj_demo:修复登录超时']);
+  assert.equal(fixture.sent.length, 0, '建单只返回回复，不额外触发发送');
+});
+
+test('入站建单：多项目不猜项目，空目标与未知项目直接拒绝', async () => {
+  const other: Project = {
+    ...project(),
+    id: 'prj_other',
+    name: '另一个项目',
+    path: 'D:/other',
+  };
+  const fixture = await harness({ projects: [project(), other] });
+  const created = fixture.channels.save({ kind: 'feishu', name: '飞书' });
+
+  const ambiguous = await fixture.channels.inbound(created.id, '任务 修复登录超时');
+  assert.match(ambiguous.reply, /请用「任务 #项目名 目标」指定/);
+  assert.match(ambiguous.reply, /演示项目/);
+  assert.deepEqual(fixture.calls, []);
+
+  const empty = await fixture.channels.inbound(created.id, '建单');
+  assert.match(empty.reply, /请在「任务」后面写上目标/);
+
+  const missing = await fixture.channels.inbound(created.id, '任务 #不存在 补上导出');
+  assert.match(missing.reply, /没有找到项目/);
+
+  const targeted = await fixture.channels.inbound(created.id, '任务 #另一个 补上导出');
+  assert.match(targeted.reply, /已生成待审批任务单/);
+  assert.deepEqual(fixture.calls, ['plan:prj_other:补上导出']);
 });
 
 test('飞书：出站签名与返回码校验', async () => {

@@ -15,6 +15,7 @@ import type {
   ChannelTestResult,
   ChannelView,
   EventRecord,
+  Project,
   Task,
   TaskStatus,
 } from '@opencoxswain/shared';
@@ -26,6 +27,8 @@ const DEDUP_WINDOW_MS = 60_000;
 const DEDUP_SWEEP_MS = 10 * 60_000;
 const MAX_LIST_LINES = 10;
 const MIN_ID_PREFIX = 4;
+/** 手机上打字费劲，目标只收一句；细节留给桌面端任务单。 */
+const MAX_GOAL_CHARS = 200;
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   draft: '草稿',
@@ -73,11 +76,12 @@ export type ChannelCommand =
   | { kind: 'status'; id: string }
   | { kind: 'approve'; id: string }
   | { kind: 'reject'; id: string; note: string }
+  | { kind: 'create'; goal: string; project: string | null }
   | { kind: 'unknown'; text: string };
 
 /**
- * 入站指令只覆盖「看一眼」与「拍板」两类动作：
- * 不开放建单，避免手机误触直接产生派发与成本。
+ * 入站指令覆盖「看一眼」「拍板」与「起个单」：
+ * 建单只生成待审批任务单，不自动开工，也不跳过验收。
  */
 export function parseChannelCommand(text: string): ChannelCommand {
   const cleaned = text
@@ -88,10 +92,15 @@ export function parseChannelCommand(text: string): ChannelCommand {
   const [head = '', ...rest] = cleaned.split(' ');
   switch (head.toLowerCase()) {
     case '待办':
-    case '任务':
     case '列表':
     case 'list':
       return { kind: 'list' };
+    case '任务':
+      // 光说「任务」还是查待办；后面跟了目标才建单，避免误触。
+      return rest.length === 0 ? { kind: 'list' } : parseCreate(rest);
+    case '建单':
+    case 'create':
+      return parseCreate(rest);
     case '帮助':
     case 'help':
       return { kind: 'help' };
@@ -112,6 +121,17 @@ export function parseChannelCommand(text: string): ChannelCommand {
     default:
       return { kind: 'unknown', text: cleaned };
   }
+}
+
+/** 「任务 #项目名 目标」用 # 指定项目；不写时由 inbound 按项目数量决定。 */
+function parseCreate(rest: string[]): ChannelCommand {
+  const [first, ...tail] = rest;
+  if (first !== undefined && first.startsWith('#')) {
+    const project = first.slice(1).trim();
+    if (project === '') return { kind: 'unknown', text: rest.join(' ') };
+    return { kind: 'create', goal: tail.join(' ').trim(), project };
+  }
+  return { kind: 'create', goal: rest.join(' ').trim(), project: null };
 }
 
 export class Channels implements ChannelsService {
@@ -228,6 +248,8 @@ export class Channels implements ChannelsService {
           return { handled: true, reply: this.approve(command.id) };
         case 'reject':
           return { handled: true, reply: this.reject(command.id, command.note) };
+        case 'create':
+          return { handled: true, reply: await this.create(command.goal, command.project) };
         default:
           return {
             handled: false,
@@ -384,6 +406,57 @@ export class Channels implements ChannelsService {
     }
     const task = this.deps.steward.approveTask(target.task.id);
     return `已批准任务「${task.title}」，开始派发。`;
+  }
+
+  private async create(goal: string, projectRef: string | null): Promise<string> {
+    const text = goal.trim();
+    if (text === '') {
+      throw new AppError('请在「任务」后面写上目标，例如「任务 修复登录超时」');
+    }
+    if (text.length > MAX_GOAL_CHARS) {
+      throw new AppError(`目标请控制在 ${MAX_GOAL_CHARS} 字以内，细节留给任务单补充`);
+    }
+    const project = this.pickProject(projectRef);
+    // createPlan 会替换同项目里的草稿单，这里提前告知用户，避免以为旧单还在。
+    const replacing = this.deps.store
+      .listRootTasks(project.id)
+      .filter((root) => root.status === 'planning' || root.status === 'awaiting_approval');
+    const { root, children } = await this.deps.steward.createPlan(project.id, { goal: text });
+    const acceptance = root.contract?.acceptance_criteria?.length ?? 0;
+    const lines = [
+      `已生成待审批任务单：${root.title}`,
+      `项目：${project.name}，拆成 ${children.length} 个子任务`,
+      acceptance > 0 ? `验收：${acceptance} 项，开工后由系统复核` : '验收：开工后由系统复核',
+    ];
+    if (replacing.length > 0) lines.push('原有待审批任务单已替换');
+    lines.push(`回复「批准 ${short(root.id)}」开工，或「退回 ${short(root.id)} 理由」。`);
+    return lines.join('\n');
+  }
+
+  /** 不猜项目：没写项目且不止一个时，把候选列出来让用户指定。 */
+  private pickProject(projectRef: string | null): Project {
+    const projects = this.deps.store.listProjects();
+    if (projects.length === 0) throw new AppError('还没有接入项目，先在桌面端接入一个仓库');
+    if (projectRef === null) {
+      const only = projects.length === 1 ? projects[0] : undefined;
+      if (only) return only;
+      const names = projects
+        .slice(0, 5)
+        .map((item) => item.name)
+        .join('、');
+      throw new AppError(`当前有 ${projects.length} 个项目，请用「任务 #项目名 目标」指定：${names}`);
+    }
+    const key = projectRef.trim();
+    const matched = projects.filter(
+      (item) =>
+        item.id.startsWith(key) ||
+        item.name === key ||
+        item.name.toLowerCase().includes(key.toLowerCase()),
+    );
+    const found = matched.length === 1 ? matched[0] : undefined;
+    if (found) return found;
+    if (matched.length === 0) throw new AppError(`没有找到项目「${key}」`);
+    throw new AppError(`匹配到多个项目，请写完整名称：${matched.map((item) => item.name).join('、')}`);
   }
 
   private reject(id: string, note: string): string {
@@ -637,10 +710,12 @@ const PENDING_STATUSES = new Set<TaskStatus>(['awaiting_approval', 'awaiting_rev
 const HELP_TEXT = [
   '我能帮你：',
   '· 待办 —— 列出待审批 / 待验收的任务',
+  '· 任务 <目标> —— 生成待审批任务单，不自动开工',
+  '· 任务 #项目 <目标> —— 多项目时指定项目',
   '· 状态 <id> —— 查看任务或审批进度',
   '· 批准 <id> —— 批准开工或工具审批',
   '· 退回 <id> <理由> —— 驳回，理由必填',
-  '派单与验收结论请在桌面端完成。',
+  '验收结论请在桌面端完成。',
 ].join('\n');
 
 function short(id: string): string {
