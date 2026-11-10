@@ -3,6 +3,7 @@ import type {
   ArtifactRecord,
   Assistant,
   EventRecord,
+  GateQuality,
   MemoryEntry,
   MemoryKind,
   MemoryMatch,
@@ -162,8 +163,33 @@ function SummaryTab(): JSX.Element {
   );
 }
 
+function percent(value: number | null): string {
+  return value === null ? '—' : `${Math.round(value * 100)}%`;
+}
+
 function CostTab(): JSX.Element {
   const { workers, tasks, project } = useWorkbench();
+  const [gates, setGates] = useState<GateQuality | null>(null);
+  const [gateError, setGateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .gateQuality(project.id)
+      .then((quality) => {
+        if (alive) {
+          setGates(quality);
+          setGateError(null);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (alive) setGateError(errorText(caught));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [project.id]);
+
   const totals = workers.reduce(
     (sum, worker) => ({
       usd: sum.usd + worker.cost.usd,
@@ -196,6 +222,41 @@ function CostTab(): JSX.Element {
           <span>项目日预算</span>
           <strong>{formatMoney(project.dailyBudgetUsd)}</strong>
         </div>
+      </div>
+      <div className="settings-block">
+        <h3>验收门禁</h3>
+        {gateError ? <p className="error">{gateError}</p> : null}
+        {!gates && !gateError ? <p className="hint">读取门禁统计…</p> : null}
+        {gates ? (
+          <>
+            <div className="cost-summary">
+              <div>
+                <span>系统自动判定</span>
+                <strong>
+                  {gates.systemPassed} / {gates.systemJudged}
+                </strong>
+              </div>
+              <div>
+                <span>系统拦下</span>
+                <strong>{gates.systemFailed}</strong>
+              </div>
+              <div>
+                <span>待人工判定</span>
+                <strong>{gates.unverified}</strong>
+              </div>
+              <div>
+                <span>人工收口</span>
+                <strong>
+                  {gates.humanPassed} / {gates.humanJudged}
+                </strong>
+              </div>
+            </div>
+            <p className="hint">
+              自动通过率 {percent(gates.autoPassRate)} · 人工通过率 {percent(gates.humanPassRate)}
+              。系统判失败会直接让任务失败，不接受人工覆盖；只有未能判定的项才交给人。
+            </p>
+          </>
+        ) : null}
       </div>
       <table>
         <thead>

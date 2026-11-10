@@ -400,3 +400,9 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 
 1. 发行收口：`scripts/package-daemon.mjs` 额外把构建机的 Node.js 可执行文件、MIT 许可证与版本标记复制到 `staging/runtime`；桌面壳 `node_binary` 优先使用它，`OPENCOXSWAIN_NODE_BIN` 可覆盖，缺失或启动失败才回退系统 `node`，选择结果写入 daemon 日志。
 2. 插件契约不变：内核、清单、加载顺序与服务规则均未改动，安装包不再要求目标机器预装 Node.js；git 仍依赖系统安装（worktree 与合并）。
+
+已完成（v0.23.0）：
+
+1. 门禁质量：`StorageService.gateQuality(projectId?)` 只读聚合 `acceptance.verified` / `acceptance.decided` 事件，按「任务 + 验收项取最后一次判定」分别统计系统自动判定、系统通过 / 拦下、待人工与人工收口，并给出自动 / 人工通过率（无样本返回 `null`）。
+2. 服务与接口：`GateQuality` 归入 `@opencoxswain/shared`，`StorageService` 契约同步新增方法；`GET /api/gate-quality` 由 `api.rest` 暴露，前端 `api.gateQuality` 在成本页「验收门禁」展示。
+3. 边界：不改验收记录、不改状态机、不提供事件里无法证实的「误报率」；系统失败直接判任务失败、人工只能裁决非 passed 项，统计只描述分布。

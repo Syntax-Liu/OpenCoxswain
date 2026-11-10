@@ -6,6 +6,7 @@ import type {
   DeliveryMergeResult,
   DeliveryPlan,
   DiffReview,
+  GateQuality,
   MemoryCandidate,
   MemoryEntry,
   MemoryMatch,
@@ -59,6 +60,11 @@ export const api = {
   snapshot(projectId?: string): Promise<WorkbenchSnapshot> {
     const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
     return request<WorkbenchSnapshot>(`/api/bootstrap${query}`);
+  },
+
+  gateQuality(projectId?: string): Promise<GateQuality> {
+    const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+    return request<GateQuality>(`/api/gate-quality${query}`);
   },
 
   memory(

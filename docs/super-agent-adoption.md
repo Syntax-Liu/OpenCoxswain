@@ -18,7 +18,7 @@
    - **P2 委派固化在结构里**（当前依赖 planner 输出与总管提示词，缺少结构断言）
    - **P2 任务级授权 Mandate + 租约式断点恢复**（当前只有「危险动作审批」，没有任务级授权链；重启只把 running 一律 blocked）
 4. **明确不做 5 项**：云端无状态容器、BYOM 端侧 daemon、Thread 多对多订阅、Inline & Spill 上下文管理、投机执行。理由见 §6，均为「与 Windows 本地优先/插件化目标冲突」或「成本收益不成立」。
-5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）、`v0.12.0`（记忆层）、`v0.13.0`（Tauri 2 桌面壳与 NSIS 安装包）、`v0.14.0`（子任务单独验收 + 验收决策说明 + 反馈延迟可观测）、`v0.15.0`（交付说明 + 低风险一键合并 + 租约 `recovered_unknown` 现场标记）、`v0.16.0`（逐文件 diff 审阅 + 任务树审计视图）、`v0.17.0`（首次引导 + 多项目切换与隔离）、`v0.18.0`（任务模板：默认交付物 / 验收 / 权限与合并开关）、`v0.19.0`（定时任务：到点只生成待审批任务单）、`v0.20.0`（全局路由 + 跨项目记忆检索：只给建议与依据，检索只读）、`v0.21.0`（设置页模型密钥入口：只存本机凭据库）、`v0.22.0`（发行收口：安装包自带 Node.js 运行时）。全部为新增能力，按 SemVer 升 minor。
+5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）、`v0.12.0`（记忆层）、`v0.13.0`（Tauri 2 桌面壳与 NSIS 安装包）、`v0.14.0`（子任务单独验收 + 验收决策说明 + 反馈延迟可观测）、`v0.15.0`（交付说明 + 低风险一键合并 + 租约 `recovered_unknown` 现场标记）、`v0.16.0`（逐文件 diff 审阅 + 任务树审计视图）、`v0.17.0`（首次引导 + 多项目切换与隔离）、`v0.18.0`（任务模板：默认交付物 / 验收 / 权限与合并开关）、`v0.19.0`（定时任务：到点只生成待审批任务单）、`v0.20.0`（全局路由 + 跨项目记忆检索：只给建议与依据，检索只读）、`v0.21.0`（设置页模型密钥入口：只存本机凭据库）、`v0.22.0`（发行收口：安装包自带 Node.js 运行时）、`v0.23.0`（验收门禁质量：系统自动判定 / 拦下 / 待人工 / 人工收口分开记账）。全部为新增能力，按 SemVer 升 minor。
 
 ---
 
@@ -647,6 +647,7 @@ export interface StorageService {
 | v0.20.0（已发布） | 全局路由：一句话目标映射到已有项目，按项目名/路径、项目记忆、最近任务打分，最多 3 个候选与 3 条理由，只给建议不建单；跨项目记忆检索：覆盖所有项目与全局，只读不改使用统计 | 新增 `router.global` 插件与 `router` 服务（`RouterService`）；`MemoryService.search` 与 `GET /api/memory?scope=all`；`POST /api/route`；前端项目面板「全局派活」与记忆检查器「跨项目搜索」 | 路由是本地规则而非语义模型，避免把活悄悄派错；生成任务单仍停在待确认；检索不污染衰减排序；未提高默认并发、未给 rubric/human 自动放行、未做事件级流式推送 |
 | v0.21.0（已发布） | 设置页「模型密钥」：显示是否已配置与来源，可保存/清除 API Key；保存后刷新即可在静态规划与 LLM 规划间切换 | 前端 `api.secrets` / `setLlmKey` / `clearLlmKey` 与设置页表单；复用既有 `GET/PUT/DELETE /api/secrets/llm`，无新增服务与依赖 | 密钥只存本机凭据库（Windows DPAPI），不回传明文、不写项目文件；无 Key 仍回退静态规划；未提高默认并发、未给 rubric/human 自动放行、未做事件级流式推送 |
 | v0.22.0（已发布） | 发行收口：打包时把 Node.js 运行时（含 MIT 许可证与版本标记）放进安装资源，桌面壳优先用它启动 daemon，缺失或启动失败才回退系统 `node`；安装包不再要求目标机器预装 Node | `scripts/package-daemon.mjs` 复制 `process.execPath` 到 `staging/runtime`（低于 Node 22 或非 Windows 直接报错）；`main.rs` 新增 `node_binary` / `daemon_command`，`OPENCOXSWAIN_NODE_BIN` 可覆盖，启动选择写入 daemon 日志 | 只改打包链路与启动路径，不改执行语义；构建机仍需 Node >= 22 与 Rust 工具链；git 仍依赖系统安装；未做自动更新与代码签名 |
+| v0.23.0（已发布） | 验收门禁质量：`GateQuality` 把系统自动判定数、系统通过 / 拦下数、待人工数与人工收口数分开记账，并给出自动通过率与人工通过率；成本页新增「验收门禁」展示 | `StorageService.gateQuality` 从 `acceptance.verified` / `acceptance.decided` 事件按「任务 + 验收项取最后一次判定」聚合（按项目时 JOIN tasks 过滤）；`GET /api/gate-quality` 与前端 `api.gateQuality`；测试 G3 覆盖系统通过、系统拦下、人工收口与按项目过滤 | 只读聚合，不改验收记录与使用统计；系统失败直接判任务失败、人工只能裁决非 passed 项，因此不编造「误报率 / 漏报率」；无样本时通过率返回 `null`；未提高默认并发、未给 rubric/human 自动放行 |
 
 规则：全部是新增能力，按 SemVer 升 minor；若删除旧 `acceptance` 表读取路径，属移除功能，需在 v1.0 前统一处理，不单独升 major。
 

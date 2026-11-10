@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
-import type { Task, WorkbenchSnapshot } from '@opencoxswain/shared';
+import type { GateQuality, Task, WorkbenchSnapshot } from '@opencoxswain/shared';
 import { makeDaemon, makeRepo, waitFor } from './helpers.js';
 
 const FLIP_CHECK =
@@ -226,5 +226,164 @@ test('G2 逐条验收：缺理由/缺结论被拒绝，逐条决策后才可完�
   } finally {
     await daemon.app.close();
     await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('G3 门禁质量：自动判定、系统拦下、人工收口分开记账', async () => {
+  const passing = await makeRepo({ 'note.txt': 'before\n' });
+  const blocked = await makeRepo({ 'note.txt': 'before\n' });
+  const daemon = await makeDaemon(passing.home);
+  try {
+    const auto = await daemon.call<{ id: string }>('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify({ path: passing.repo }),
+    });
+    const planned = await daemon.call<{ root: Task; children: Task[] }>(
+      `/api/projects/${auto.id}/plan`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          goal: '补一份说明',
+          subtasks: [
+            {
+              title: '实施：改说明',
+              goal: '把说明改成 after',
+              role: 'implementer',
+              writeScope: ['note.txt'],
+              acceptance: [
+                {
+                  id: 'ac_auto',
+                  type: 'command',
+                  desc: '命令自检通过',
+                  check: 'node -e "process.exit(0)"',
+                },
+              ],
+              inputs: { mock: { files: [{ path: 'note.txt', content: 'after\n' }] } },
+            },
+            {
+              title: '记录：说明变更',
+              goal: '写一份说明变更记录',
+              role: 'writer',
+              writeScope: ['docs/'],
+              acceptance: [{ id: 'ac_human', type: 'human', desc: '用户确认记录内容' }],
+              inputs: { mock: { files: [{ path: 'docs/change.md', content: '# change\n' }] } },
+            },
+          ],
+        }),
+      },
+    );
+    await daemon.call(`/api/tasks/${planned.root.id}/approve`, { method: 'POST' });
+    const snapshot = await waitFor(async () => {
+      const current = await daemon.call<WorkbenchSnapshot>(`/api/bootstrap?projectId=${auto.id}`);
+      const root = current.tasks.find((task) => task.id === planned.root.id);
+      return root?.status === 'awaiting_review' ? current : null;
+    });
+
+    const children = snapshot.tasks.filter((task) => task.parentId === planned.root.id);
+    const rootTask = snapshot.tasks.find((task) => task.id === planned.root.id)!;
+    const pendingFor = (task: Task) =>
+      task.contract.acceptance_criteria
+        .filter(
+          (criterion) =>
+            !snapshot.acceptance.some(
+              (record) =>
+                record.taskId === task.id &&
+                record.criterionId === criterion.id &&
+                record.verdict === 'passed',
+            ),
+        )
+        .map((criterion) => criterion.id);
+    for (const task of [...children, rootTask]) {
+      const pending = pendingFor(task);
+      if (pending.length === 0) continue;
+      await daemon.call(`/api/tasks/${task.id}/acceptance`, {
+        method: 'POST',
+        body: JSON.stringify({
+          decisions: pending.map((criterionId) => ({
+            criterionId,
+            verdict: 'passed',
+            note: '人工确认符合目标',
+          })),
+        }),
+      });
+    }
+
+    const autoQuality = await daemon.call<GateQuality>(`/api/gate-quality?projectId=${auto.id}`);
+    assert.ok(autoQuality.systemPassed >= 1, '系统自动判定通过至少一项');
+    assert.equal(autoQuality.systemFailed, 0, '本项目没有被系统拦下的项');
+    assert.ok(autoQuality.unverified >= 1, '未能判定的项记为待人工');
+    assert.ok(autoQuality.humanJudged >= 1, '人工收口被计数');
+    assert.equal(autoQuality.humanPassed, autoQuality.humanJudged);
+    assert.equal(autoQuality.autoPassRate, 1);
+    assert.equal(autoQuality.humanPassRate, 1);
+
+    const repeat = await daemon.call<GateQuality>(`/api/gate-quality?projectId=${auto.id}`);
+    assert.deepEqual(repeat, autoQuality, '查询只读，不改变门禁统计');
+
+    const failing = await daemon.call<{ id: string }>('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify({ path: blocked.repo }),
+    });
+    const blockedPlan = await daemon.call<{ root: Task; children: Task[] }>(
+      `/api/projects/${failing.id}/plan`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          goal: '改一行说明',
+          subtasks: [
+            {
+              title: '实施：改说明',
+              goal: '把说明改成 after',
+              role: 'implementer',
+              writeScope: ['note.txt'],
+              acceptance: [
+                { id: 'ac_flip', type: 'command', desc: '首次通过、复核失败', check: FLIP_CHECK },
+              ],
+              inputs: { mock: { files: [{ path: 'note.txt', content: 'after\n' }] } },
+            },
+            {
+              title: '记录：变更说明',
+              goal: '写一份变更说明',
+              role: 'writer',
+              writeScope: ['docs/'],
+              acceptance: [{ id: 'ac_note', type: 'human', desc: '用户确认变更说明' }],
+              inputs: { mock: { files: [{ path: 'docs/change.md', content: '# change\n' }] } },
+            },
+          ],
+        }),
+      },
+    );
+    await daemon.call(`/api/tasks/${blockedPlan.root.id}/approve`, { method: 'POST' });
+    await waitFor(async () => {
+      const current = await daemon.call<WorkbenchSnapshot>(
+        `/api/bootstrap?projectId=${failing.id}`,
+      );
+      const root = current.tasks.find((task) => task.id === blockedPlan.root.id);
+      return root?.status === 'failed' ? true : null;
+    });
+
+    const blockedQuality = await daemon.call<GateQuality>(
+      `/api/gate-quality?projectId=${failing.id}`,
+    );
+    assert.ok(blockedQuality.systemJudged >= 1, '系统对命令复核作了判定');
+    assert.equal(blockedQuality.systemPassed, 0);
+    assert.equal(blockedQuality.systemFailed, 1, '复核失败被记为系统拦下');
+    assert.equal(blockedQuality.humanJudged, 0, '还没人收口');
+    assert.equal(blockedQuality.humanPassed, 0);
+    assert.equal(blockedQuality.humanFailed, 0);
+    assert.equal(blockedQuality.autoPassRate, 0);
+    assert.equal(blockedQuality.humanPassRate, null, '没有人工样本时不编造通过率');
+    assert.equal(
+      (await daemon.call<GateQuality>(`/api/gate-quality?projectId=${auto.id}`)).systemFailed,
+      0,
+      '按项目过滤不混入其他项目',
+    );
+    const all = await daemon.call<GateQuality>('/api/gate-quality');
+    assert.equal(all.systemFailed, 1);
+    assert.equal(all.humanJudged, autoQuality.humanJudged, '不带项目时汇总一致');
+  } finally {
+    await daemon.app.close();
+    await rm(passing.temp, { recursive: true, force: true }).catch(() => undefined);
+    await rm(blocked.temp, { recursive: true, force: true }).catch(() => undefined);
   }
 });

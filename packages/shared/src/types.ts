@@ -175,6 +175,31 @@ export interface ReviewLatency {
   decideLagP95: number | null;
 }
 
+/**
+ * 验收门禁质量：系统复核与人工收口的分布。
+ * 样本取自本机验收记录，用于回答「系统自动判了多少、拦了多少、还剩多少要人看」。
+ */
+export interface GateQuality {
+  /** 系统给出 passed/failed 的验收项数 */
+  systemJudged: number;
+  /** 系统自动通过的项数（不进入人工复核） */
+  systemPassed: number;
+  /** 系统判失败的项数（任务随之失败，不提供人工覆盖） */
+  systemFailed: number;
+  /** 系统无法判定、交给人的项数 */
+  unverified: number;
+  /** 人工已判定的项数 */
+  humanJudged: number;
+  /** 人工判通过的项数 */
+  humanPassed: number;
+  /** 人工判失败的项数 */
+  humanFailed: number;
+  /** 自动通过率 = systemPassed / systemJudged；无样本为 null */
+  autoPassRate: number | null;
+  /** 人工收口通过率 = humanPassed / humanJudged；无样本为 null */
+  humanPassRate: number | null;
+}
+
 export type DeliveryRisk = 'low' | 'high';
 
 /**

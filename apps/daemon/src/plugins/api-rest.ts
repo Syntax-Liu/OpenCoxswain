@@ -340,6 +340,10 @@ export async function apply(ctx: PluginContext): Promise<void> {
     json: store.reviewLatency(request.query.get('projectId')),
   }));
 
+  http.route('GET', '/api/gate-quality', async (request) => ({
+    json: store.gateQuality(request.query.get('projectId')),
+  }));
+
   http.route('GET', '/api/tasks', async (request) => {
     const snapshot = await steward.snapshot(request.query.get('projectId'));
     const kind = request.query.get('stage');

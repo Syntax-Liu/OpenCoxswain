@@ -29,6 +29,7 @@ import type {
   Project,
   DeliverableProfile,
   ProjectCostReport,
+  GateQuality,
   ReviewLatency,
   RoleName,
   RouteSuggestion,
@@ -232,6 +233,8 @@ export interface StorageService {
   getBrief(taskId: string): DecisionBrief | null;
   /** 反馈延迟：完成 → 首次查看 → 作出决定，p50/p95。 */
   reviewLatency(projectId?: string | null): ReviewLatency;
+  /** 验收门禁质量：系统自动判定、系统拦下、待人工与人工收口分布。 */
+  gateQuality(projectId?: string | null): GateQuality;
   listTaskEvidence(taskId: string): Evidence[];
   listProjectEvidence(projectId: string): Evidence[];
   appendEvent(input: {

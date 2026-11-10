@@ -10,6 +10,7 @@ import {
   type DecisionBrief,
   type EventRecord,
   type Evidence,
+  type GateQuality,
   type Message,
   type Project,
   type ProjectCostReport,
@@ -1212,6 +1213,93 @@ export class Store {
       viewLagP95: percentile(viewLag, 95),
       decideLagP50: percentile(decideLag, 50),
       decideLagP95: percentile(decideLag, 95),
+    };
+  }
+
+  /**
+   * 验收门禁质量：按「任务 + 验收项」取最后一次系统判定与最后一次人工判定，
+   * 统计自动通过、系统拦下与人工收口的分布。只读，不改验收记录与使用统计。
+   */
+  gateQuality(projectId?: string | null): GateQuality {
+    const rows = (
+      projectId
+        ? this.db
+            .prepare(
+              `SELECT e.task_id, e.type, e.payload FROM events e
+               JOIN tasks t ON t.id = e.task_id
+               WHERE t.project_id = ? AND e.type IN ('acceptance.verified', 'acceptance.decided')
+               ORDER BY e.id ASC`,
+            )
+            .all(projectId)
+        : this.db
+            .prepare(
+              `SELECT task_id, type, payload FROM events
+               WHERE type IN ('acceptance.verified', 'acceptance.decided')
+               ORDER BY id ASC`,
+            )
+            .all()
+    ) as Row[];
+
+    const system = new Map<string, Map<string, string>>();
+    const human = new Map<string, Map<string, string>>();
+    for (const row of rows) {
+      const taskId = text(row, 'task_id');
+      const payload = parseJson<{ records?: Array<{ criterionId?: unknown; verdict?: unknown }> }>(
+        row.payload,
+        {},
+      );
+      const target = text(row, 'type') === 'acceptance.verified' ? system : human;
+      let records = target.get(taskId);
+      if (!records) {
+        records = new Map();
+        target.set(taskId, records);
+      }
+      for (const record of payload.records ?? []) {
+        if (typeof record.criterionId !== 'string' || typeof record.verdict !== 'string') continue;
+        records.set(record.criterionId, record.verdict);
+      }
+    }
+
+    let systemJudged = 0;
+    let systemPassed = 0;
+    let systemFailed = 0;
+    let unverified = 0;
+    for (const records of system.values()) {
+      for (const verdict of records.values()) {
+        if (verdict === 'passed') {
+          systemJudged += 1;
+          systemPassed += 1;
+        } else if (verdict === 'failed') {
+          systemJudged += 1;
+          systemFailed += 1;
+        } else if (verdict === 'unverified') {
+          unverified += 1;
+        }
+      }
+    }
+
+    let humanJudged = 0;
+    let humanPassed = 0;
+    let humanFailed = 0;
+    for (const records of human.values()) {
+      for (const verdict of records.values()) {
+        if (verdict !== 'passed' && verdict !== 'failed') continue;
+        humanJudged += 1;
+        if (verdict === 'passed') humanPassed += 1;
+        else humanFailed += 1;
+      }
+    }
+
+    return {
+      systemJudged,
+      systemPassed,
+      systemFailed,
+      unverified,
+      humanJudged,
+      humanPassed,
+      humanFailed,
+      autoPassRate: systemJudged > 0 ? systemPassed / systemJudged : null,
+      humanPassRate: humanJudged > 0 ? humanPassed / humanJudged : null,
     };
   }
 

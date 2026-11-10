@@ -141,6 +141,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 定时任务（已完成，v0.19.0）：`schedules` 服务由 `trigger.schedule` 插件提供，任务按项目持久化（标题、目标、可选模板、间隔），到点只调用 `steward.createPlan` 生成一张待审批任务单，不自动开工、不降低验收强度；项目已有未完成任务时整次跳过，错过时段不补跑，下一次按间隔重算。`GET/POST /api/schedules`、`POST /api/schedules/:id/enabled`、`POST /api/schedules/:id/run`、`DELETE /api/schedules/:id`；工作台底部「定时」标签可新建、启停、立即生成与删除。
 - 全局路由（已完成，v0.20.0）：`router` 服务由 `router.global` 插件提供，`POST /api/route` 用本地规则把一句话目标映射到已有项目，按项目名/路径命中 ×3、项目记忆命中 ×2、最近任务命中 ×1 打分，最多返回 3 个候选与 3 条理由；只给建议，不建单、不改项目状态。
 - 跨项目记忆检索（已完成，v0.20.0）：`GET /api/memory?scope=all&q=` 覆盖所有项目与全局记忆，结果自带 `projectId`；检索只读，不改写 `useCount` / `lastUsedAt`，不影响时间衰减排序；不带 `scope` 时仍只查全局记忆。
+- 门禁质量（已完成，v0.23.0）：`GET /api/gate-quality?projectId=` 只读聚合验收事件，按「任务 + 验收项取最后一次判定」分别给出系统自动判定、系统通过 / 拦下、待人工与人工收口数量及通过率；无样本返回 `null`，不改验收记录，也不编造事件里无法证实的误报率。
 - IM 入口（飞书/Telegram）（本地多项目切换已在 v0.17.0 完成）。
 - 云端执行体、团队共享记忆（可选）、远程插件市场（条件触发：问卷 H14「装现成」≥40% 且 capability diff 通过评审）。
 
