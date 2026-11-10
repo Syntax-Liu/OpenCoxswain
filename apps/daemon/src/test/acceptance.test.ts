@@ -114,7 +114,9 @@ test('G2 逐条验收：缺理由/缺结论被拒绝，逐条决策后才可完�
     const tree = snapshot.tasks.filter(
       (task) => task.id === planned.root.id || task.parentId === planned.root.id,
     );
-    const pending = tree.flatMap((task) =>
+    const rootTask = tree.find((task) => task.id === planned.root.id)!;
+    const children = tree.filter((task) => task.parentId === planned.root.id);
+    const pendingFor = (task: Task) =>
       task.contract.acceptance_criteria
         .filter(
           (criterion) =>
@@ -125,12 +127,15 @@ test('G2 逐条验收：缺理由/缺结论被拒绝，逐条决策后才可完�
                 record.verdict === 'passed',
             ),
         )
-        .map((criterion) => ({ taskId: task.id, criterionId: criterion.id })),
-    );
+        .map((criterion) => ({ taskId: task.id, criterionId: criterion.id }));
+    const pending = tree.flatMap(pendingFor);
+    const rootPending = pendingFor(rootTask);
     assert.ok(pending.length > 0, '存在等待人工确认的验收项');
+    const target = children.find((child) => pendingFor(child).length > 0)!;
+    const targetPending = pendingFor(target);
 
     await assert.rejects(
-      daemon.call(`/api/tasks/${planned.root.id}/acceptance`, {
+      daemon.call(`/api/tasks/${target.id}/acceptance`, {
         method: 'POST',
         body: JSON.stringify({ decisions: [] }),
       }),
@@ -138,11 +143,11 @@ test('G2 逐条验收：缺理由/缺结论被拒绝，逐条决策后才可完�
       '没有结论时不能一键通过',
     );
     await assert.rejects(
-      daemon.call(`/api/tasks/${planned.root.id}/acceptance`, {
+      daemon.call(`/api/tasks/${target.id}/acceptance`, {
         method: 'POST',
         body: JSON.stringify({
-          decisions: pending.map((item) => ({
-            criterionId: `${item.taskId}:${item.criterionId}`,
+          decisions: targetPending.map((item) => ({
+            criterionId: item.criterionId,
             verdict: 'passed',
             note: '   ',
           })),
@@ -157,11 +162,36 @@ test('G2 逐条验收：缺理由/缺结论被拒绝，逐条决策后才可完�
       '批量盖章入口已移除',
     );
 
+    // 子任务先单独验收；根任务不会因此放行。
+    for (const child of children) {
+      const childPending = pendingFor(child);
+      if (childPending.length === 0) continue;
+      await daemon.call(`/api/tasks/${child.id}/viewed`, { method: 'POST' });
+      const decidedChild = await daemon.call<Task>(`/api/tasks/${child.id}/acceptance`, {
+        method: 'POST',
+        body: JSON.stringify({
+          decisions: childPending.map((item) => ({
+            criterionId: item.criterionId,
+            verdict: 'passed',
+            note: `人工确认 ${item.criterionId} 符合目标`,
+          })),
+        }),
+      });
+      assert.equal(decidedChild.status, 'done');
+      assert.ok(decidedChild.firstViewedAt, '打开验收单写入 first_viewed_at');
+    }
+    const midway = await daemon.call<WorkbenchSnapshot>('/api/bootstrap');
+    assert.equal(
+      midway.tasks.find((task) => task.id === planned.root.id)?.status,
+      'awaiting_review',
+      '子任务验收不会顺带放行根任务',
+    );
+
     const decided = await daemon.call<Task>(`/api/tasks/${planned.root.id}/acceptance`, {
       method: 'POST',
       body: JSON.stringify({
-        decisions: pending.map((item) => ({
-          criterionId: `${item.taskId}:${item.criterionId}`,
+        decisions: rootPending.map((item) => ({
+          criterionId: item.criterionId,
           verdict: 'passed',
           note: `人工确认 ${item.criterionId} 符合目标`,
         })),
@@ -181,6 +211,15 @@ test('G2 逐条验收：缺理由/缺结论被拒绝，逐条决策后才可完�
     }
     const humanEvidence = final.evidence.filter((item) => item.producedBy === 'human');
     assert.ok(humanEvidence.length >= pending.length);
+
+    const brief = final.briefs.find((item) => item.taskId === planned.root.id);
+    assert.ok(brief, '根任务有决策说明');
+    for (const field of ['changed', 'why', 'verified', 'risks'] as const) {
+      assert.ok(brief![field].trim(), `决策说明包含「${field}」`);
+    }
+    assert.ok(final.review.samples >= 1, '反馈延迟有样本');
+    assert.ok(final.review.viewLagP50 !== null, '首次查看延迟可算 p50');
+    assert.ok(final.review.decideLagP50 !== null, '决策延迟可算 p50');
 
     const replay = await daemon.text(`/api/tasks/${planned.root.id}/replay?format=markdown`);
     assert.match(replay, /人工确认 ac_human 符合目标/);

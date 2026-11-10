@@ -21,9 +21,11 @@ import {
   type CostLedger,
   type CreatePlanRequest,
   type CreateProjectRequest,
+  type DecisionBrief,
   type Evidence,
   type MemoryKind,
   type Project,
+  type ReviewLatency,
   type RoleName,
   type Task,
   type TaskContract,
@@ -109,12 +111,17 @@ export class Steward implements StewardService {
         runtime,
         planner,
         memory: this.memory.stats(null),
+        briefs: [],
+        review: emptyReviewLatency(),
       };
     }
 
     const root = this.activeRoot(project.id);
     const tasks = this.store.listTasks(project.id);
     const inputs = this.store.listProjectInputs(project.id);
+    const briefs = tasks
+      .filter((task) => ['awaiting_review', 'done', 'failed'].includes(task.status))
+      .map((task) => this.briefOf(task));
     return {
       projects,
       project,
@@ -135,6 +142,8 @@ export class Steward implements StewardService {
       runtime,
       planner,
       memory: this.memory.stats(project.id),
+      briefs,
+      review: this.store.reviewLatency(project.id),
     };
   }
 
@@ -502,6 +511,7 @@ export class Steward implements StewardService {
 
   /**
    * 逐条验收：每条未通过的验收项都必须带结论与理由，不接受“一键全部通过”。
+   * 子任务完成即可单独验收；根任务仍由人做最终收口，子任务验收不会顺带放行根任务。
    * 系统已复核的证据不会被覆盖；人的结论作为新的判定记录留档。
    */
   decideAcceptance(
@@ -509,11 +519,17 @@ export class Steward implements StewardService {
     decisions: AcceptanceDecision[],
     judgedByUser = '本机用户',
   ): Task {
-    const root = this.requireTask(taskId);
-    if (root.parentId !== null || root.status !== 'awaiting_review') {
+    const target = this.requireTask(taskId);
+    if (target.status !== 'awaiting_review') {
       throw new AppError('该任务当前不在待验收状态');
     }
-    const tree = [root, ...this.store.listChildren(root.id)];
+    const brief = this.briefOf(target);
+    const missingBrief = (['changed', 'why', 'verified', 'risks'] as const).filter(
+      (field) => !brief[field].trim(),
+    );
+    if (missingBrief.length > 0) {
+      throw new AppError(`决策说明缺少字段：${missingBrief.join('、')}，不能提交验收`, 409);
+    }
     const provided = new Map<string, AcceptanceDecision>();
     for (const decision of decisions) {
       const key = decision.criterionId.trim();
@@ -531,43 +547,41 @@ export class Steward implements StewardService {
     const records: AcceptanceRecord[] = [];
     const evidence: Evidence[] = [];
     const at = now();
+    const existing = new Map(
+      this.store.listTaskAcceptance(target.id).map((record) => [record.criterionId, record]),
+    );
 
-    for (const task of tree) {
-      const existing = new Map(
-        this.store.listTaskAcceptance(task.id).map((record) => [record.criterionId, record]),
-      );
-      for (const criterion of task.contract.acceptance_criteria) {
-        const key = `${task.id}:${criterion.id}`;
-        const current = existing.get(criterion.id);
-        if (current?.verdict === 'passed') continue;
-        const decision = provided.get(key);
-        if (!decision) {
-          missing.push(key);
-          continue;
-        }
-        const note = decision.note;
-        const item: Evidence = {
-          id: newId('ev'),
-          taskId: task.id,
-          criterionId: criterion.id,
-          kind: 'human_note',
-          ref: note,
-          digest: `human:${note}`,
-          producedBy: 'human',
-          createdAt: at,
-        };
-        evidence.push(item);
-        records.push({
-          taskId: task.id,
-          criterionId: criterion.id,
-          verdict: decision.verdict,
-          evidenceIds: [item.id],
-          judgedBy: 'human',
-          judgedByUser,
-          note,
-          at,
-        });
+    for (const criterion of target.contract.acceptance_criteria) {
+      const key = criterion.id;
+      const current = existing.get(key);
+      if (current?.verdict === 'passed') continue;
+      const decision = provided.get(key);
+      if (!decision) {
+        missing.push(`${target.id}:${key}`);
+        continue;
       }
+      const note = decision.note;
+      const item: Evidence = {
+        id: newId('ev'),
+        taskId: target.id,
+        criterionId: criterion.id,
+        kind: 'human_note',
+        ref: note,
+        digest: `human:${note}`,
+        producedBy: 'human',
+        createdAt: at,
+      };
+      evidence.push(item);
+      records.push({
+        taskId: target.id,
+        criterionId: criterion.id,
+        verdict: decision.verdict,
+        evidenceIds: [item.id],
+        judgedBy: 'human',
+        judgedByUser,
+        note,
+        at,
+      });
     }
 
     if (missing.length > 0) {
@@ -576,8 +590,9 @@ export class Steward implements StewardService {
 
     this.store.insertEvidence(evidence);
     this.store.upsertAcceptance(records);
+    this.store.markTaskDecided(target.id);
     const event = this.store.appendEvent({
-      taskId: root.id,
+      taskId: target.id,
       type: 'acceptance.decided',
       payload: {
         records: records.map((record) => ({
@@ -592,72 +607,165 @@ export class Steward implements StewardService {
     if (records.length > 0) {
       this.bus.publish(
         this.store.appendEvent({
-          taskId: root.id,
+          taskId: target.id,
           type: 'acceptance.human_touch',
           payload: { decisions: records.length, judgedByUser },
         }),
       );
     }
 
-    // 子任务先结算，再结算根任务：全部判定通过才算完成，任一不通过则失败。
-    const ordered = [...tree].sort(
-      (left, right) => Number(left.parentId === null) - Number(right.parentId === null),
+    const isRoot = target.parentId === null;
+    const ownRecords = this.store.listTaskAcceptance(target.id);
+    const verdicts = target.contract.acceptance_criteria.map(
+      (criterion) => ownRecords.find((record) => record.criterionId === criterion.id)?.verdict,
     );
-    for (const task of ordered) {
-      const latest = this.store.getTask(task.id);
-      if (!latest || latest.status !== 'awaiting_review') continue;
-      if (latest.parentId === null) {
-        const children = this.store.listChildren(latest.id);
-        if (children.some((child) => child.status === 'failed')) {
-          this.transition(latest.id, 'failed', 'user');
-        } else if (children.every((child) => child.status === 'done')) {
-          this.transition(latest.id, 'done', 'user');
-        }
-        continue;
-      }
-      const records = this.store.listTaskAcceptance(task.id);
-      const verdicts = task.contract.acceptance_criteria.map(
-        (criterion) => records.find((record) => record.criterionId === criterion.id)?.verdict,
-      );
+    if (isRoot) {
+      // 根任务收口：自身判定全过且子任务全部完成才算 done；任一失败即失败。
+      const children = this.store.listChildren(target.id);
       if (verdicts.some((verdict) => verdict === 'failed')) {
-        this.transition(task.id, 'failed', 'user');
-      } else if (verdicts.every((verdict) => verdict === 'passed')) {
-        this.transition(task.id, 'done', 'user');
+        this.transition(target.id, 'failed', 'user');
+      } else if (children.some((child) => child.status === 'failed')) {
+        this.transition(target.id, 'failed', 'user');
+      } else if (
+        verdicts.every((verdict) => verdict === 'passed') &&
+        children.every((child) => child.status === 'done')
+      ) {
+        this.transition(target.id, 'done', 'user');
       }
+    } else if (verdicts.some((verdict) => verdict === 'failed')) {
+      this.transition(target.id, 'failed', 'user');
+    } else if (verdicts.every((verdict) => verdict === 'passed')) {
+      this.transition(target.id, 'done', 'user');
     }
 
-    const settled = this.requireTask(root.id);
+    const settled = this.requireTask(target.id);
+    if (!isRoot) return settled;
+
     if (settled.status === 'failed') {
+      const tree = [settled, ...this.store.listChildren(settled.id)];
       const reasons = tree
         .flatMap((task) => this.store.listTaskAcceptance(task.id))
         .filter((record) => record.verdict === 'failed' && record.note?.trim())
         .map((record) => record.note!.trim());
       this.memory.remember({
         kind: 'lesson',
-        text: `任务「${root.title}」验收未通过${reasons.length > 0 ? `：${reasons.join('；')}` : '，需要人工排查原因'}`,
-        source: `acceptance:${root.id}`,
-        projectId: root.projectId,
+        text: `任务「${settled.title}」验收未通过${reasons.length > 0 ? `：${reasons.join('；')}` : '，需要人工排查原因'}`,
+        source: `acceptance:${settled.id}`,
+        projectId: settled.projectId,
       });
       this.announce(
-        root.projectId,
-        `## 待你决策\n\n任务「${root.title}」验收未通过，已停在 failed。\n- 可修正后重试，或取消任务。`,
-        root.id,
+        settled.projectId,
+        `## 待你决策\n\n任务「${settled.title}」验收未通过，已停在 failed。\n- 可修正后重试，或取消任务。`,
+        settled.id,
       );
       return settled;
     }
 
-    if (settled.status === 'done') {
-      this.memory.remember({
-        kind: 'decision',
-        text: `任务「${root.title}」已通过验收：${root.goal}`,
-        source: `acceptance:${root.id}`,
-        projectId: root.projectId,
-      });
+    if (settled.status !== 'done') {
+      // 根任务还需要等子任务完成验收，先不产出最终汇总。
+      return settled;
     }
 
-    const summary = this.summary(root.id);
-    this.announce(root.projectId, summary, root.id);
-    return this.requireTask(root.id);
+    this.memory.remember({
+      kind: 'decision',
+      text: `任务「${settled.title}」已通过验收：${settled.goal}`,
+      source: `acceptance:${settled.id}`,
+      projectId: settled.projectId,
+    });
+
+    const summary = this.summary(settled.id);
+    this.announce(settled.projectId, summary, settled.id);
+    return this.requireTask(settled.id);
+  }
+
+  /** 人打开验收单时记一次，供反馈延迟统计使用。 */
+  markViewed(taskId: string): Task {
+    const task = this.requireTask(taskId);
+    this.store.markTaskViewed(task.id);
+    return this.requireTask(task.id);
+  }
+
+  /**
+   * 验收决策说明：四段由任务契约与系统复核结果生成，员工自述不参与。
+   * 每次生成都会覆盖落库，保证“验过什么”与最新证据一致。
+   */
+  brief(taskId: string): DecisionBrief {
+    return this.briefOf(this.requireTask(taskId));
+  }
+
+  private briefOf(task: Task): DecisionBrief {
+    const artifacts = this.store.listTaskArtifacts(task.id);
+    const records = this.store.listTaskAcceptance(task.id);
+    const criteria = task.contract.acceptance_criteria;
+    const judged = criteria
+      .map((criterion) => ({
+        criterion,
+        verdict: records.find((record) => record.criterionId === criterion.id)?.verdict,
+      }))
+      .filter((item) => item.verdict !== undefined);
+    const passed = judged.filter((item) => item.verdict === 'passed').length;
+    const failed = judged.filter((item) => item.verdict === 'failed').length;
+    const pending = criteria.filter(
+      (criterion) => !records.some((record) => record.criterionId === criterion.id),
+    );
+
+    const changed =
+      artifacts.length > 0
+        ? `改动 ${artifacts.length} 项：${artifacts
+            .slice(0, 6)
+            .map((artifact) => artifact.path || artifact.type)
+            .join('、')}${artifacts.length > 6 ? ' 等' : ''}`
+        : '没有文件改动，仅有过程汇报。';
+
+    const verifiedParts: string[] = [];
+    if (passed > 0) verifiedParts.push(`系统复核通过 ${passed} 项`);
+    if (failed > 0) verifiedParts.push(`失败 ${failed} 项`);
+    if (pending.length > 0) verifiedParts.push(`待人工判断 ${pending.length} 项`);
+    const evidenceIds = records.flatMap((record) => record.evidenceIds);
+
+    const risks: string[] = [];
+    if (pending.length > 0) {
+      risks.push(`${pending.length} 项验收标准还没有结论`);
+    }
+    const approvals = this.store.listApprovals(task.projectId).filter(
+      (approval) => approval.taskId === task.id,
+    );
+    const conflict = approvals.find((approval) => approval.type === 'merge_conflict');
+    if (conflict) {
+      const detail =
+        typeof conflict.payload === 'object' && conflict.payload !== null
+          ? String((conflict.payload as Record<string, unknown>).detail ?? '')
+          : '';
+      risks.push(`合并冲突未解决${detail ? `：${detail}` : ''}`);
+    }
+    if (approvals.some((approval) => approval.type === 'danger' && approval.status === 'pending')) {
+      risks.push('还有危险动作等待批准');
+    }
+    if (records.length === 0 && artifacts.length > 0) {
+      risks.push('尚无系统复核记录，改动未被验证');
+    }
+
+    const brief: DecisionBrief = {
+      taskId: task.id,
+      changed,
+      why: task.goal.trim() || task.title,
+      verified:
+        verifiedParts.length > 0
+          ? `${verifiedParts.join('；')}（命令重跑与 diff 复算由系统执行）`
+          : '尚未产生系统复核结果。',
+      risks: risks.length > 0 ? risks.join('；') : '未发现已知风险。',
+      evidenceRefs: evidenceIds,
+      conflictReason: conflict
+        ? `合并冲突：${
+            typeof conflict.payload === 'object' && conflict.payload !== null
+              ? String((conflict.payload as Record<string, unknown>).detail ?? conflict.id)
+              : conflict.id
+          }`
+        : null,
+      generatedAt: now(),
+    };
+    this.store.upsertBrief(brief);
+    return brief;
   }
 
   summary(taskId: string): string {
@@ -902,4 +1010,15 @@ function detectStack(repoRoot: string): string | null {
   if (read('go.mod')) found.push('Go');
   if (read('pyproject.toml') || read('requirements.txt')) found.push('Python');
   return found.length > 0 ? found.join('；') : null;
+}
+
+function emptyReviewLatency(): ReviewLatency {
+  return {
+    samples: 0,
+    waiting: 0,
+    viewLagP50: null,
+    viewLagP95: null,
+    decideLagP50: null,
+    decideLagP95: null,
+  };
 }

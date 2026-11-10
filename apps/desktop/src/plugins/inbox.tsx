@@ -7,12 +7,14 @@ function InboxPanel(): JSX.Element {
   return (
     <Inbox
       root={workbench.root}
-      children={workbench.children}
+      tasks={workbench.tasks}
       approvals={workbench.snapshot.approvals}
+      latency={workbench.snapshot.review}
       busy={workbench.busy}
       onRootAction={(action) => workbench.onTaskAction(action)}
       onTaskAction={workbench.onTaskActionFor}
       onApproval={workbench.onApproval}
+      onReview={workbench.onReview}
     />
   );
 }

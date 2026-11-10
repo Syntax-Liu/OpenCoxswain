@@ -341,6 +341,12 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 打包：`scripts/package-daemon.mjs` 把 daemon 与 `@opencoxswain/*` 工作区包的 `dist` 摊平到 `src-tauri/staging`，安装包运行时不再依赖 pnpm 符号链接；`pnpm package:daemon`、`pnpm desktop`（dev）、`pnpm desktop:build`（NSIS）三条命令可用。
 3. 窗口生命周期不改变插件契约：内核、清单与加载顺序与浏览器模式完全一致，桌面壳只是 daemon 的启动器与展示层。
 
+已完成（v0.14.0）：
+
+1. 验收编排放宽到任意 `awaiting_review` 任务：子任务完成即可单独验收，根任务仍需人显式收口；收件箱按快照派生子任务待验收与根任务「汇总中 N/M」。
+2. 决策说明服务：`StewardService.brief` 由契约、产物与系统复核记录生成四段说明并落 `decision_briefs`；说明不替代 command 重跑与 diff 复算。
+3. 反馈延迟：tasks 表记录 `finished_at` / `first_viewed_at` / `decided_at`，`StorageService.reviewLatency` 与 `GET /api/review-latency` 输出 p50/p95 与当前等待数；插件契约新增 `markViewed` / `brief`，无新增互相直连。
+
 下一步（P3 剩余）：
 
 1. 产物 diff 逐文件审阅、任务模板、首次引导。

@@ -1,14 +1,16 @@
-import type { Approval, Task } from '@opencoxswain/shared';
+import type { Approval, ReviewLatency, Task } from '@opencoxswain/shared';
 import { ROLE_LABELS } from '../ui.js';
 
 interface Props {
   root: Task | null;
-  children: Task[];
+  tasks: Task[];
   approvals: Approval[];
+  latency: ReviewLatency;
   busy: boolean;
   onRootAction: (action: 'approve' | 'reject') => void;
   onTaskAction: (taskId: string, action: 'retry' | 'cancel') => void;
   onApproval: (approvalId: string, status: 'approved' | 'rejected') => void;
+  onReview: (taskId: string) => void;
 }
 
 function approvalSummary(approval: Approval): string {
@@ -17,24 +19,47 @@ function approvalSummary(approval: Approval): string {
   return approval.type;
 }
 
+function waitText(task: Task): string {
+  const since = task.finishedAt ?? task.updatedAt;
+  const minutes = Math.max(0, Math.round((Date.now() - since) / 60000));
+  if (minutes < 1) return '刚刚完成';
+  if (minutes < 60) return `已等待 ${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60);
+  return `已等待 ${hours} 小时 ${minutes % 60} 分`;
+}
+
+function lagText(value: number | null): string {
+  if (value === null) return '—';
+  const minutes = Math.round(value / 60000);
+  if (minutes < 1) return '<1 分';
+  if (minutes < 60) return `${minutes} 分`;
+  return `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
+}
+
 /** 待决策收件箱：只列需要人处理的事，不重复展示执行过程。 */
 export function Inbox({
   root,
-  children,
+  tasks,
   approvals,
+  latency,
   busy,
   onRootAction,
   onTaskAction,
   onApproval,
+  onReview,
 }: Props): JSX.Element | null {
   const pending = approvals.filter((approval) => approval.status === 'pending');
+  const children = tasks.filter((task) => task.parentId !== null);
   const stuck = children.filter(
     (task) => task.status === 'blocked' || task.status === 'failed',
   );
+  const reviews = tasks.filter((task) => task.status === 'awaiting_review');
   const planWaiting = root?.status === 'awaiting_approval';
-  const reviewWaiting = root?.status === 'awaiting_review';
-  const total = pending.length + stuck.length + (planWaiting ? 1 : 0) + (reviewWaiting ? 1 : 0);
+  const total =
+    pending.length + stuck.length + reviews.length + (planWaiting ? 1 : 0);
   if (total === 0) return null;
+
+  const doneChildren = children.filter((task) => task.status === 'done').length;
 
   return (
     <section className="panel inbox">
@@ -58,14 +83,31 @@ export function Inbox({
           </div>
         </div>
       ) : null}
-      {reviewWaiting ? (
-        <div className="inbox-item">
-          <div>
-            <strong>验收待处理</strong>
-            <p>在任务树底部逐条给出结论与理由。</p>
+      {reviews.map((task) => {
+        const isRoot = task.parentId === null;
+        const pendingChildren = children.filter((child) => child.status !== 'done').length;
+        return (
+          <div className="inbox-item" key={task.id}>
+            <div>
+              <strong>
+                {isRoot ? '汇总待收口' : '子任务待验收'} ·{' '}
+                {task.contract.assignee ? ROLE_LABELS[task.contract.assignee.role] : '总管'}
+              </strong>
+              <p>
+                {isRoot && pendingChildren > 0
+                  ? `汇总中 ${doneChildren}/${children.length}：还有 ${pendingChildren} 个子任务未验收`
+                  : task.title}
+              </p>
+              <small className="muted">{waitText(task)}</small>
+            </div>
+            <div className="row">
+              <button className="primary" disabled={busy} onClick={() => onReview(task.id)}>
+                去验收
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        );
+      })}
       {pending.map((approval) => (
         <div className="inbox-item" key={approval.id}>
           <div>
@@ -105,6 +147,12 @@ export function Inbox({
           </div>
         </div>
       ))}
+      {latency.samples > 0 || latency.waiting > 0 ? (
+        <footer className="inbox-latency hint">
+          反馈延迟 p50 {lagText(latency.viewLagP50)} · p95 {lagText(latency.viewLagP95)}
+          （样本 {latency.samples}，待处理 {latency.waiting}）
+        </footer>
+      ) : null}
     </section>
   );
 }

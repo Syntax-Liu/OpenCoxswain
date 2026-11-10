@@ -125,6 +125,39 @@ export interface AcceptanceDecision {
   note: string;
 }
 
+/**
+ * 验收决策说明：四段说明取代证据堆，供人快速做接受/打回判断。
+ * 由总管根据任务契约与系统复核结果生成；员工自述不能替代证据。
+ */
+export interface DecisionBrief {
+  taskId: string;
+  /** 改了什么：文件与产物摘要 */
+  changed: string;
+  /** 为什么：任务目标 */
+  why: string;
+  /** 验过什么：系统复核（命令重跑、diff 复算）结果 */
+  verified: string;
+  /** 还有什么风险：未决判断、冲突、不可逆动作 */
+  risks: string;
+  /** 证据引用（evidence id），呈现层折叠展示 */
+  evidenceRefs: string[];
+  /** 有冲突或需要人判断时的判定理由 */
+  conflictReason: string | null;
+  generatedAt: number;
+}
+
+/** 反馈延迟指标：完成 → 看到 → 决定。 */
+export interface ReviewLatency {
+  /** 已完成的验收样本数 */
+  samples: number;
+  /** 当前仍在等待人决策的任务数 */
+  waiting: number;
+  viewLagP50: number | null;
+  viewLagP95: number | null;
+  decideLagP50: number | null;
+  decideLagP95: number | null;
+}
+
 export const INPUT_SOURCES = ['human', 'supervisor', 'task'] as const;
 export type InputSource = (typeof INPUT_SOURCES)[number];
 
@@ -361,6 +394,12 @@ export interface Task {
   contract: TaskContract;
   createdAt: number;
   updatedAt: number;
+  /** 进入待验收的时刻（毫秒）；未进入过为空 */
+  finishedAt?: number | null;
+  /** 人首次打开验收单的时刻（毫秒）；未打开过为空 */
+  firstViewedAt?: number | null;
+  /** 人给出验收结论的时刻（毫秒）；未决定过为空 */
+  decidedAt?: number | null;
 }
 
 export interface TaskEdge {
@@ -538,6 +577,8 @@ export interface WorkbenchSnapshot {
   runtime: RuntimeStatus;
   planner: PlannerStatus;
   memory: MemoryStats;
+  briefs: DecisionBrief[];
+  review: ReviewLatency;
 }
 
 export interface SubtaskDraft {

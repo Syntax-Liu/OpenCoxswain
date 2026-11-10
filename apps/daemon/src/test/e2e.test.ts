@@ -159,30 +159,57 @@ test('v0 闭环：规划 -> 审批 -> 实施/校验 -> 汇总 -> 验收', async 
       '副作用台账记录并结算文件写入',
     );
 
-    const decisions = snapshot.tasks
-      .filter((task) => task.id === planned.root.id || task.parentId === planned.root.id)
-      .flatMap((task) =>
-        task.contract.acceptance_criteria
-          .filter(
-            (criterion) =>
-              !snapshot.acceptance.some(
-                (record) =>
-                  record.taskId === task.id &&
-                  record.criterionId === criterion.id &&
-                  record.verdict === 'passed',
-              ),
-          )
-          .map((criterion) => ({
-            criterionId: `${task.id}:${criterion.id}`,
-            verdict: 'passed' as const,
-            note: 'e2e：人工确认结果符合目标',
-          })),
-      );
+    const openFor = (task: Task): Array<{ criterionId: string; verdict: 'passed'; note: string }> =>
+      task.contract.acceptance_criteria
+        .filter(
+          (criterion) =>
+            !snapshot!.acceptance.some(
+              (record) =>
+                record.taskId === task.id &&
+                record.criterionId === criterion.id &&
+                record.verdict === 'passed',
+            ),
+        )
+        .map((criterion) => ({
+          criterionId: criterion.id,
+          verdict: 'passed' as const,
+          note: 'e2e：人工确认结果符合目标',
+        }));
+
+    // 子任务先单独验收：verifier 完成后即可收口，不必等根任务。
+    const verifierPending = openFor(verifier!);
+    assert.ok(verifierPending.length > 0, 'verifier 有等待人工确认的验收项');
+    const verifierDecided = await call<Task>(`/api/tasks/${verifier!.id}/acceptance`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions: verifierPending }),
+    });
+    assert.equal(verifierDecided.status, 'done');
+
+    const afterChild = await call<WorkbenchSnapshot>('/api/bootstrap');
+    assert.equal(
+      afterChild.tasks.find((task) => task.id === planned.root.id)?.status,
+      'awaiting_review',
+      '子任务验收不会顺带放行根任务',
+    );
+    const rootBrief = afterChild.briefs.find((brief) => brief.taskId === planned.root.id);
+    assert.ok(rootBrief, '根任务有决策说明');
+    for (const field of ['changed', 'why', 'verified', 'risks'] as const) {
+      assert.ok(rootBrief![field].trim(), `决策说明包含「${field}」`);
+    }
+
+    const rootTask = afterChild.tasks.find((task) => task.id === planned.root.id)!;
     const accepted = await call<Task>(`/api/tasks/${planned.root.id}/acceptance`, {
       method: 'POST',
-      body: JSON.stringify({ decisions }),
+      body: JSON.stringify({ decisions: openFor(rootTask) }),
     });
     assert.equal(accepted.status, 'done');
+    assert.ok(accepted.decidedAt, '验收动作写入 decided_at');
+
+    const latency = await call<{ samples: number; decideLagP50: number | null }>(
+      '/api/review-latency',
+    );
+    assert.ok(latency.samples >= 1, '反馈延迟有可统计样本');
+    assert.ok(latency.decideLagP50 !== null, '可以算出 p50');
 
     const replay = await call<{ events: unknown[]; summary: string }>(
       `/api/tasks/${planned.root.id}/replay`,

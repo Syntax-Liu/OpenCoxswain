@@ -11,6 +11,7 @@ import type {
   CostLedger,
   CreatePlanRequest,
   CreateProjectRequest,
+  DecisionBrief,
   EmployeeDefinition,
   EventRecord,
   Evidence,
@@ -25,6 +26,7 @@ import type {
   Project,
   DeliverableProfile,
   ProjectCostReport,
+  ReviewLatency,
   RoleName,
   Run,
   RuntimeStatus,
@@ -203,6 +205,14 @@ export interface StorageService {
   upsertAcceptance(records: AcceptanceRecord[]): void;
   listTaskAcceptance(taskId: string): AcceptanceRecord[];
   listProjectAcceptance(projectId: string): AcceptanceRecord[];
+  /** 首次打开验收单的时间；重复调用不会覆盖。 */
+  markTaskViewed(id: string): void;
+  /** 人提交验收结论的时间；重复调用不会覆盖。 */
+  markTaskDecided(id: string): void;
+  upsertBrief(brief: DecisionBrief): void;
+  getBrief(taskId: string): DecisionBrief | null;
+  /** 反馈延迟：完成 → 首次查看 → 作出决定，p50/p95。 */
+  reviewLatency(projectId?: string | null): ReviewLatency;
   listTaskEvidence(taskId: string): Evidence[];
   listProjectEvidence(projectId: string): Evidence[];
   appendEvent(input: {
@@ -391,6 +401,9 @@ export interface StewardService {
     decisions: AcceptanceDecision[],
     judgedByUser?: string,
   ): Task;
+  markViewed(taskId: string): Task;
+  /** 决策说明：由系统按契约与复核结果生成，员工自述不参与。 */
+  brief(taskId: string): DecisionBrief;
   summary(taskId: string): string;
   replay(taskId: string): TaskReplay;
   decideApproval(id: string, status: 'approved' | 'rejected'): Approval;

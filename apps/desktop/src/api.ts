@@ -98,6 +98,11 @@ export const api = {
     });
   },
 
+  /** 记录人首次打开验收单的时间，用于反馈延迟统计。 */
+  markViewed(taskId: string): Promise<Task> {
+    return request<Task>(`/api/tasks/${taskId}/viewed`, { method: 'POST' });
+  },
+
   reassignTask(taskId: string, role: RoleName, note?: string): Promise<Task> {
     return request<Task>(`/api/tasks/${taskId}/reassign`, {
       method: 'POST',

@@ -7,11 +7,13 @@ import {
   type ArtifactRecord,
   type Assistant,
   type CostLedger,
+  type DecisionBrief,
   type EventRecord,
   type Evidence,
   type Message,
   type Project,
   type ProjectCostReport,
+  type ReviewLatency,
   type Run,
   type RunStatus,
   type SideEffect,
@@ -55,6 +57,27 @@ function parseJson<T>(value: unknown, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+/** 最近秩百分位；空样本返回 null。 */
+function percentile(values: number[], rank: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.ceil((rank / 100) * sorted.length) - 1);
+  return sorted[index] ?? null;
+}
+
+function toBrief(row: Row): DecisionBrief {
+  return {
+    taskId: text(row, 'task_id'),
+    changed: text(row, 'changed'),
+    why: text(row, 'why'),
+    verified: text(row, 'verified'),
+    risks: text(row, 'risks'),
+    evidenceRefs: parseJson<string[]>(row.evidence_refs, []),
+    conflictReason: nullableText(row, 'conflict_reason'),
+    generatedAt: number(row, 'generated_at'),
+  };
 }
 
 const ACCEPTANCE_SCHEMA = `
@@ -161,6 +184,23 @@ CREATE TABLE IF NOT EXISTS side_effects (
 );
 CREATE INDEX IF NOT EXISTS idx_side_effects_task ON side_effects(task_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_side_effects_key ON side_effects(idempotency_key);
+`;
+
+const REVIEW_SCHEMA = `
+ALTER TABLE tasks ADD COLUMN finished_at INTEGER;
+ALTER TABLE tasks ADD COLUMN first_viewed_at INTEGER;
+ALTER TABLE tasks ADD COLUMN decided_at INTEGER;
+
+CREATE TABLE IF NOT EXISTS decision_briefs (
+  task_id         TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  changed         TEXT NOT NULL,
+  why             TEXT NOT NULL,
+  verified        TEXT NOT NULL,
+  risks           TEXT NOT NULL,
+  evidence_refs   TEXT NOT NULL,
+  conflict_reason TEXT,
+  generated_at    INTEGER NOT NULL
+);
 `;
 
 const SCHEMA = `
@@ -343,7 +383,7 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 5) return;
+    if (version >= 6) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
@@ -354,7 +394,8 @@ export class Store {
       if (version < 3) this.db.exec(INPUT_SCHEMA);
       if (version < 4) this.db.exec(LEASE_SCHEMA);
       if (version < 5) this.db.exec(AUTHORITY_SCHEMA);
-      this.db.exec('PRAGMA user_version = 5;');
+      if (version < 6) this.db.exec(REVIEW_SCHEMA);
+      this.db.exec('PRAGMA user_version = 6;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -572,7 +613,30 @@ export class Store {
   }
 
   setTaskStatus(id: string, status: TaskStatus): void {
-    this.db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?').run(status, now(), id);
+    const at = now();
+    if (status === 'awaiting_review' || status === 'done') {
+      this.db
+        .prepare(
+          'UPDATE tasks SET status = ?, updated_at = ?, finished_at = COALESCE(finished_at, ?) WHERE id = ?',
+        )
+        .run(status, at, at, id);
+      return;
+    }
+    this.db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?').run(status, at, id);
+  }
+
+  /** 人首次打开验收单；重复调用不覆盖更早的时间。 */
+  markTaskViewed(id: string): void {
+    this.db
+      .prepare('UPDATE tasks SET first_viewed_at = ? WHERE id = ? AND first_viewed_at IS NULL')
+      .run(now(), id);
+  }
+
+  /** 人给出该任务的验收结论。 */
+  markTaskDecided(id: string): void {
+    this.db
+      .prepare('UPDATE tasks SET decided_at = COALESCE(decided_at, ?) WHERE id = ?')
+      .run(now(), id);
   }
 
   setTaskAssignee(id: string, assigneeId: string | null): void {
@@ -599,6 +663,9 @@ export class Store {
       contract: parseJson(row.contract_json, {} as Task['contract']),
       createdAt: number(row, 'created_at'),
       updatedAt: number(row, 'updated_at'),
+      finishedAt: nullableNumber(row, 'finished_at'),
+      firstViewedAt: nullableNumber(row, 'first_viewed_at'),
+      decidedAt: nullableNumber(row, 'decided_at'),
     };
   }
 
@@ -1041,6 +1108,79 @@ export class Store {
       .prepare('SELECT * FROM acceptance_records WHERE task_id = ? ORDER BY criterion_id ASC')
       .all(taskId) as Row[];
     return rows.map(toAcceptanceRecord);
+  }
+
+  // ---------- decision briefs ----------
+
+  upsertBrief(brief: DecisionBrief): void {
+    this.db
+      .prepare(
+        `INSERT INTO decision_briefs
+           (task_id, changed, why, verified, risks, evidence_refs, conflict_reason, generated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(task_id) DO UPDATE SET
+           changed = excluded.changed,
+           why = excluded.why,
+           verified = excluded.verified,
+           risks = excluded.risks,
+           evidence_refs = excluded.evidence_refs,
+           conflict_reason = excluded.conflict_reason,
+           generated_at = excluded.generated_at`,
+      )
+      .run(
+        brief.taskId,
+        brief.changed,
+        brief.why,
+        brief.verified,
+        brief.risks,
+        JSON.stringify(brief.evidenceRefs),
+        brief.conflictReason,
+        brief.generatedAt,
+      );
+  }
+
+  getBrief(taskId: string): DecisionBrief | null {
+    const row = this.db
+      .prepare('SELECT * FROM decision_briefs WHERE task_id = ?')
+      .get(taskId) as Row | undefined;
+    return row ? toBrief(row) : null;
+  }
+
+  /** 反馈延迟：完成 → 首次查看 → 给出结论，按任务落库字段直接统计。 */
+  reviewLatency(projectId?: string | null): ReviewLatency {
+    const rows = (
+      projectId
+        ? this.db
+            .prepare(
+              'SELECT status, finished_at, first_viewed_at, decided_at FROM tasks WHERE project_id = ? AND finished_at IS NOT NULL',
+            )
+            .all(projectId)
+        : this.db
+            .prepare(
+              'SELECT status, finished_at, first_viewed_at, decided_at FROM tasks WHERE finished_at IS NOT NULL',
+            )
+            .all()
+    ) as Row[];
+    const viewLag: number[] = [];
+    const decideLag: number[] = [];
+    let waiting = 0;
+    for (const row of rows) {
+      const finishedAt = nullableNumber(row, 'finished_at');
+      if (finishedAt === null) continue;
+      if (text(row, 'status') === 'awaiting_review') waiting += 1;
+      const viewedAt = nullableNumber(row, 'first_viewed_at');
+      const decidedAt = nullableNumber(row, 'decided_at');
+      if (viewedAt !== null) viewLag.push(Math.max(0, viewedAt - finishedAt));
+      if (decidedAt !== null) decideLag.push(Math.max(0, decidedAt - finishedAt));
+    }
+    return {
+      samples: decideLag.length,
+      waiting,
+      viewLagP50: percentile(viewLag, 50),
+      viewLagP95: percentile(viewLag, 95),
+      decideLagP50: percentile(decideLag, 50),
+      decideLagP95: percentile(decideLag, 95),
+    };
   }
 
   listProjectAcceptance(projectId: string): AcceptanceRecord[] {

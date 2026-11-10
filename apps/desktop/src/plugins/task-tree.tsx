@@ -13,9 +13,12 @@ function TaskTreePanel(): JSX.Element {
       evidence={workbench.evidence}
       stages={workbench.stages}
       inputs={workbench.snapshot.inputs}
+      reviewTask={workbench.reviewTask}
+      brief={workbench.reviewBrief}
       busy={workbench.busy}
       onAction={workbench.onTaskAction}
       onAcceptance={workbench.onAcceptance}
+      onReview={workbench.onReview}
       onInput={workbench.onInput}
       onReassign={workbench.onReassign}
     />

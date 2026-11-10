@@ -297,6 +297,18 @@ export async function apply(ctx: PluginContext): Promise<void> {
     };
   });
 
+  http.route('POST', '/api/tasks/:id/viewed', async (request) => ({
+    json: steward.markViewed(taskIdOf(request)),
+  }));
+
+  http.route('GET', '/api/tasks/:id/brief', async (request) => ({
+    json: steward.brief(taskIdOf(request)),
+  }));
+
+  http.route('GET', '/api/review-latency', async (request) => ({
+    json: store.reviewLatency(request.query.get('projectId')),
+  }));
+
   http.route('GET', '/api/tasks', async (request) => {
     const snapshot = await steward.snapshot(request.query.get('projectId'));
     const kind = request.query.get('stage');

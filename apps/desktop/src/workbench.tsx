@@ -4,6 +4,7 @@ import type {
   AcceptanceRecord,
   ArtifactRecord,
   Assistant,
+  DecisionBrief,
   EventRecord,
   Evidence,
   Project,
@@ -31,6 +32,8 @@ export interface Workbench {
   evidence: Evidence[];
   stages: TaskStageView[];
   summary: string | null;
+  reviewTask: Task | null;
+  reviewBrief: DecisionBrief | null;
   busy: boolean;
   onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
   onTaskAction: (action: TaskAction, note?: string) => void;
@@ -38,6 +41,7 @@ export interface Workbench {
   onReassign: (taskId: string, role: RoleName) => void;
   onApproval: (approvalId: string, status: 'approved' | 'rejected') => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
+  onReview: (taskId: string) => void;
   onInput: (taskId: string, text: string) => void;
   onWorkerAction: (worker: Worker, action: WorkerAction) => void;
   onProjectSettings: (patch: {

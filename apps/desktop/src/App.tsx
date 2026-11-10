@@ -27,6 +27,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
   const projectIdRef = useRef<string | null>(null);
   const bottomTabs = useUiPanels(registry, 'bottom');
@@ -94,6 +95,14 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const acceptance = snapshot?.acceptance.filter((item) => treeIds.has(item.taskId)) ?? [];
   const evidence = snapshot?.evidence.filter((item) => treeIds.has(item.taskId)) ?? [];
   const stages = snapshot?.stages.filter((view) => treeIds.has(view.taskId)) ?? [];
+  const treeTasks = root ? [root, ...children] : [];
+  const reviewTask: Task | null =
+    treeTasks.find((task) => task.id === reviewTaskId && task.status === 'awaiting_review') ??
+    (root?.status === 'awaiting_review'
+      ? root
+      : children.find((task) => task.status === 'awaiting_review') ?? null);
+  const reviewBrief =
+    snapshot?.briefs.find((brief) => brief.taskId === reviewTask?.id) ?? null;
 
   const onPlan = async (goal: string, acceptanceCommand?: string): Promise<boolean> => {
     const project = snapshot?.project;
@@ -119,8 +128,13 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   };
 
   const onAcceptance = (decisions: AcceptanceDecision[]): void => {
-    if (!root) return;
-    void run(() => api.decideAcceptance(root.id, decisions));
+    if (!reviewTask) return;
+    void run(() => api.decideAcceptance(reviewTask.id, decisions));
+  };
+
+  const onReview = (taskId: string): void => {
+    setReviewTaskId(taskId);
+    void run(() => api.markViewed(taskId));
   };
 
   const onInput = (taskId: string, text: string): void => {
@@ -186,7 +200,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     root,
     children,
     edges: snapshot.edges,
-    tasks: root ? [root, ...children] : [],
+    tasks: treeTasks,
     workers,
     events,
     artifacts,
@@ -194,6 +208,8 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     evidence,
     stages,
     summary: snapshot.summary,
+    reviewTask,
+    reviewBrief,
     busy,
     onPlan,
     onTaskAction,
@@ -201,6 +217,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     onReassign,
     onApproval,
     onAcceptance,
+    onReview,
     onInput,
     onWorkerAction,
     onProjectSettings,

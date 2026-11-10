@@ -911,6 +911,45 @@ label.choice input {
 
 /* ---------- 逐条验收 ---------- */
 
+.decision-brief {
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised, #131c26);
+}
+
+.decision-brief h4 {
+  margin: 0 0 8px;
+}
+
+.decision-brief dl {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.decision-brief dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.decision-brief dd {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+}
+
+.evidence-fold summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inbox-latency {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-soft);
+}
+
 .acceptance-panel {
   display: flex;
   flex-direction: column;

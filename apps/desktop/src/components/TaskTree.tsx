@@ -3,6 +3,7 @@ import {
   ROLE_NAMES,
   type AcceptanceDecision,
   type AcceptanceRecord,
+  type DecisionBrief,
   type Evidence,
   type RoleName,
   type Task,
@@ -23,9 +24,12 @@ interface Props {
   evidence: Evidence[];
   stages: TaskStageView[];
   inputs: TaskInput[];
+  reviewTask: Task | null;
+  brief: DecisionBrief | null;
   busy: boolean;
   onAction: (action: TaskAction) => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
+  onReview: (taskId: string) => void;
   onInput: (taskId: string, text: string) => void;
   onReassign: (taskId: string, role: RoleName) => void;
 }
@@ -186,9 +190,12 @@ export function TaskTree({
   evidence,
   stages,
   inputs,
+  reviewTask,
+  brief,
   busy,
   onAction,
   onAcceptance,
+  onReview,
   onInput,
   onReassign,
 }: Props): JSX.Element {
@@ -313,6 +320,13 @@ export function TaskTree({
                 {task.status === 'running' ? (
                   <InputBox taskId={task.id} busy={busy} onSend={onInput} />
                 ) : null}
+                {task.status === 'awaiting_review' ? (
+                  <div className="row">
+                    <button className="primary" disabled={busy} onClick={() => onReview(task.id)}>
+                      单独验收
+                    </button>
+                  </div>
+                ) : null}
                 {task.status === 'failed' || task.status === 'blocked' ? (
                   <ReassignBox task={task} busy={busy} onReassign={onReassign} />
                 ) : null}
@@ -321,9 +335,11 @@ export function TaskTree({
           })}
         </div>
 
-        {root.status === 'awaiting_review' ? (
+        {reviewTask ? (
           <AcceptancePanel
-            tasks={[root, ...children]}
+            key={reviewTask.id}
+            task={reviewTask}
+            brief={brief}
             records={records}
             evidence={evidence}
             busy={busy}

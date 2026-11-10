@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import type {
-  AcceptanceCriterion,
   AcceptanceDecision,
   AcceptanceRecord,
+  DecisionBrief,
   Evidence,
   Task,
 } from '@opencoxswain/shared';
 
 interface Props {
-  tasks: Task[];
+  task: Task;
+  brief: DecisionBrief | null;
   records: AcceptanceRecord[];
   evidence: Evidence[];
   busy: boolean;
@@ -20,31 +21,32 @@ interface Draft {
   note: string;
 }
 
-interface PendingItem {
-  key: string;
-  task: Task;
-  criterion: AcceptanceCriterion;
-  record?: AcceptanceRecord;
-}
+const BRIEF_SECTIONS: Array<{ key: keyof DecisionBrief; label: string }> = [
+  { key: 'changed', label: '改了什么' },
+  { key: 'why', label: '为什么' },
+  { key: 'verified', label: '验过什么' },
+  { key: 'risks', label: '还有什么风险' },
+];
 
 /**
- * 逐条验收：每条未通过的验收项都要单独给结论和理由，
- * 系统已复核的证据只展示、不覆盖。
+ * 验收决策说明 + 逐条验收。
+ * 四段说明由系统按契约与复核结果生成；证据默认折叠，避免盖过结论。
  */
-export function AcceptancePanel({ tasks, records, evidence, busy, onSubmit }: Props): JSX.Element | null {
+export function AcceptancePanel({
+  task,
+  brief,
+  records,
+  evidence,
+  busy,
+  onSubmit,
+}: Props): JSX.Element | null {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const byKey = new Map(records.map((record) => [`${record.taskId}:${record.criterionId}`, record]));
-  const pending: PendingItem[] = [];
-  for (const task of tasks) {
-    for (const criterion of task.contract.acceptance_criteria) {
-      const key = `${task.id}:${criterion.id}`;
-      const record = byKey.get(key);
-      if (record?.verdict === 'passed') continue;
-      pending.push({ key, task, criterion, record });
-    }
-  }
+  const byKey = new Map(records.map((record) => [record.criterionId, record]));
+  const pending = task.contract.acceptance_criteria.filter(
+    (criterion) => byKey.get(criterion.id)?.verdict !== 'passed',
+  );
   if (pending.length === 0) return null;
 
   const patch = (key: string, next: Partial<Draft>): void => {
@@ -56,17 +58,17 @@ export function AcceptancePanel({ tasks, records, evidence, busy, onSubmit }: Pr
 
   const submit = (): void => {
     const decisions: AcceptanceDecision[] = [];
-    for (const item of pending) {
-      const draft = drafts[item.key];
+    for (const criterion of pending) {
+      const draft = drafts[criterion.id];
       if (!draft?.verdict) {
-        setError(`请先为「${item.criterion.desc}」选择结论`);
+        setError(`请先为「${criterion.desc}」选择结论`);
         return;
       }
       if (!draft.note.trim()) {
-        setError(`请填写「${item.criterion.desc}」的判断理由`);
+        setError(`请填写「${criterion.desc}」的判断理由`);
         return;
       }
-      decisions.push({ criterionId: item.key, verdict: draft.verdict, note: draft.note.trim() });
+      decisions.push({ criterionId: criterion.id, verdict: draft.verdict, note: draft.note.trim() });
     }
     setError(null);
     onSubmit(decisions);
@@ -75,47 +77,75 @@ export function AcceptancePanel({ tasks, records, evidence, busy, onSubmit }: Pr
   return (
     <section className="acceptance-panel">
       <header className="panel-subheader">
-        <h3>逐条验收</h3>
+        <h3>验收决策</h3>
         <span className="count">{pending.length}</span>
       </header>
-      {pending.map((item) => {
-        const draft = drafts[item.key] ?? { note: '' };
+      <article className="decision-brief">
+        <h4>{task.parentId === null ? '交付说明' : `子任务：${task.title}`}</h4>
+        {brief ? (
+          <>
+            <dl>
+              {BRIEF_SECTIONS.map((section) => (
+                <div key={section.key}>
+                  <dt>{section.label}</dt>
+                  <dd>{String(brief[section.key] ?? '') || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+            {brief.conflictReason ? (
+              <p className="hint danger-text">冲突判定：{brief.conflictReason}</p>
+            ) : null}
+          </>
+        ) : (
+          <p className="hint">系统还没有生成决策说明；提交验收前会再校验一次。</p>
+        )}
+        <p className="hint">
+          证据由系统复核（命令重跑、diff 复算）；员工自述只作参考，不能替代系统验证。
+        </p>
+      </article>
+      {pending.map((criterion) => {
+        const draft = drafts[criterion.id] ?? { note: '' };
+        const record = byKey.get(criterion.id);
         const items = evidence.filter(
-          (entry) => entry.taskId === item.task.id && entry.criterionId === item.criterion.id,
+          (entry) => entry.taskId === task.id && entry.criterionId === criterion.id,
         );
         return (
-          <article className="acceptance-row" key={item.key}>
+          <article className="acceptance-row" key={criterion.id}>
             <header>
-              <strong>{item.criterion.id}</strong>
-              <span className="role-tag">{item.criterion.type}</span>
-              {item.task.parentId !== null ? <small>{item.task.title}</small> : null}
+              <strong>{criterion.id}</strong>
+              <span className="role-tag">{criterion.type}</span>
             </header>
-            <p className="goal">{item.criterion.desc}</p>
-            {item.record && item.record.verdict !== 'passed' ? (
+            <p className="goal">{criterion.desc}</p>
+            {record && record.verdict !== 'passed' ? (
               <p className="hint">
-                系统结论：{item.record.verdict === 'failed' ? '未通过' : '未验证'}
-                {item.record.note ? ` · ${item.record.note}` : ''}
+                系统结论：{record.verdict === 'failed' ? '未通过' : '未验证'}
+                {record.note ? ` · ${record.note}` : ''}
               </p>
             ) : null}
             {items.length > 0 ? (
-              <ul className="evidence-list">
-                {items.map((entry) => (
-                  <li key={entry.id} title={entry.ref}>
-                    {entry.kind}：{entry.digest}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+              <details className="evidence-fold">
+                <summary>系统证据（{items.length}）</summary>
+                <ul className="evidence-list">
+                  {items.map((entry) => (
+                    <li key={entry.id} title={entry.ref}>
+                      {entry.kind}：{entry.digest}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : (
+              <p className="hint">这项还没有系统证据。</p>
+            )}
             <div className="row wrap">
               <button
                 className={draft.verdict === 'passed' ? 'primary' : 'ghost'}
-                onClick={() => patch(item.key, { verdict: 'passed' })}
+                onClick={() => patch(criterion.id, { verdict: 'passed' })}
               >
                 通过
               </button>
               <button
                 className={draft.verdict === 'failed' ? 'danger' : 'ghost'}
-                onClick={() => patch(item.key, { verdict: 'failed' })}
+                onClick={() => patch(criterion.id, { verdict: 'failed' })}
               >
                 不通过
               </button>
@@ -124,7 +154,7 @@ export function AcceptancePanel({ tasks, records, evidence, busy, onSubmit }: Pr
               rows={2}
               placeholder="判断理由（必填）"
               value={draft.note}
-              onChange={(event) => patch(item.key, { note: event.target.value })}
+              onChange={(event) => patch(criterion.id, { note: event.target.value })}
             />
           </article>
         );

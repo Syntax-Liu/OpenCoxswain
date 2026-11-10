@@ -148,31 +148,64 @@ try {
   const content = await fetch(`${base}/api/artifacts/${artifact.id}`).then((res) => res.text());
   console.log(content.split('\n').slice(0, 8).join('\n'));
 
-  step('用户逐条验收');
-  const decisions = snapshot.tasks
-    .filter((task) => task.id === planned.root.id || task.parentId === planned.root.id)
-    .flatMap((task) =>
-      task.contract.acceptance_criteria
-        .filter(
-          (criterion) =>
-            snapshot.acceptance.find(
-              (record) =>
-                record.taskId === task.id &&
-                record.criterionId === criterion.id &&
-                record.verdict === 'passed',
-            ) === undefined,
-        )
-        .map((criterion) => ({
-          criterionId: `${task.id}:${criterion.id}`,
-          verdict: 'passed',
-          note: 'e2e：人工确认结果符合目标',
-        })),
-    );
+  step('用户逐条验收（子任务优先）');
+  const openFor = (task) =>
+    task.contract.acceptance_criteria
+      .filter(
+        (criterion) =>
+          snapshot.acceptance.find(
+            (record) =>
+              record.taskId === task.id &&
+              record.criterionId === criterion.id &&
+              record.verdict === 'passed',
+          ) === undefined,
+      )
+      .map((criterion) => ({
+        criterionId: criterion.id,
+        verdict: 'passed',
+        note: 'e2e：人工确认结果符合目标',
+      }));
+
+  for (const task of snapshot.tasks.filter(
+    (item) => item.parentId === planned.root.id && item.status === 'awaiting_review',
+  )) {
+    const decisions = openFor(task);
+    if (decisions.length === 0) continue;
+    await call(`/api/tasks/${task.id}/viewed`, { method: 'POST' });
+    const acceptedChild = await call(`/api/tasks/${task.id}/acceptance`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions }),
+    });
+    assert.equal(acceptedChild.status, 'done', `子任务应收口：${task.title}`);
+  }
+
+  const afterChildren = await call('/api/bootstrap');
+  assert.equal(
+    afterChildren.tasks.find((task) => task.id === planned.root.id)?.status,
+    'awaiting_review',
+    '子任务验收不会顺带放行根任务',
+  );
+  const rootBrief = afterChildren.briefs.find((brief) => brief.taskId === planned.root.id);
+  assert.ok(rootBrief, '根任务应有决策说明');
+  for (const field of ['changed', 'why', 'verified', 'risks']) {
+    assert.ok(rootBrief[field].trim(), `决策说明应包含 ${field}`);
+  }
+
+  const rootTask = afterChildren.tasks.find((task) => task.id === planned.root.id);
   const accepted = await call(`/api/tasks/${planned.root.id}/acceptance`, {
     method: 'POST',
-    body: JSON.stringify({ decisions }),
+    body: JSON.stringify({ decisions: openFor(rootTask) }),
   });
   assert.equal(accepted.status, 'done');
+
+  const latency = await call('/api/review-latency');
+  assert.ok(latency.samples >= 1, '反馈延迟应有样本');
+  assert.ok(latency.decideLagP50 !== null, '反馈延迟应能算出 p50');
+  console.log(
+    `反馈延迟：查看 p50 ${Math.round(latency.viewLagP50 ?? 0)}ms · 决策 p50 ${Math.round(
+      latency.decideLagP50 ?? 0,
+    )}ms`,
+  );
 
   step('回放');
   const replay = await call(`/api/tasks/${planned.root.id}/replay`);
