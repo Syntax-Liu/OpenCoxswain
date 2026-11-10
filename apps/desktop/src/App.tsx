@@ -58,16 +58,25 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   projectIdRef.current = projectId;
 
   const load = useCallback(async (id: string | null, first = false): Promise<void> => {
-    try {
-      const data = await api.snapshot(id ?? undefined);
-      setSnapshot(data);
-      setProjectId(data.project?.id ?? null);
-      storeProject(data.project?.id ?? null);
-      setError(null);
-    } catch (caught) {
-      setError(errorText(caught));
-    } finally {
-      if (first) setInitializing(false);
+    // 窗口比 daemon 先出来，首次加载要给它一点启动时间，别一上来就报错。
+    const attempts = first ? 20 : 1;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        const data = await api.snapshot(id ?? undefined);
+        setSnapshot(data);
+        setProjectId(data.project?.id ?? null);
+        storeProject(data.project?.id ?? null);
+        setError(null);
+        if (first) setInitializing(false);
+        return;
+      } catch (caught) {
+        if (attempt === attempts - 1) {
+          setError(errorText(caught));
+          if (first) setInitializing(false);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
     }
   }, []);
 

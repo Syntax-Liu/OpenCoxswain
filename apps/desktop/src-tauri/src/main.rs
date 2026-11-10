@@ -78,6 +78,24 @@ fn append_log(line: &str) {
     }
 }
 
+/// `panic = "abort"` 下 panic 会直接 fail-fast（0xc0000409），窗口模式下连控制台都没有，
+/// 用户只看到「点了没反应」。这里先把原因落盘，再交给 abort。
+fn install_panic_hook() {
+    std::panic::set_hook(Box::new(|info| {
+        let location = info
+            .location()
+            .map(|spot| format!("{}:{}", spot.file(), spot.line()))
+            .unwrap_or_else(|| "未知位置".to_string());
+        let payload = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|text| (*text).to_string())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "未知错误".to_string());
+        append_log(&format!("panic {location}：{payload}"));
+    }));
+}
+
 /// 优先使用安装包自带的 Node 运行时，其次才回退到系统 PATH 里的 node。
 fn node_binary(app: &tauri::App) -> String {
     if let Ok(exe) = std::env::var("OPENCOXSWAIN_NODE_BIN") {
@@ -143,15 +161,18 @@ fn spawn_daemon(app: &tauri::App) -> Option<Child> {
     }
 }
 
+/// 后台确认 daemon 是否就绪。界面不依赖它：daemon 起不来也要先把窗口给用户。
 fn wait_for_daemon() {
     let address: SocketAddr = ([127, 0, 0, 1], PORT).into();
     let deadline = Instant::now() + Duration::from_secs(20);
     while Instant::now() < deadline {
         if TcpStream::connect_timeout(&address, Duration::from_millis(300)).is_ok() {
+            append_log("daemon 已就绪");
             return;
         }
         std::thread::sleep(Duration::from_millis(250));
     }
+    append_log("daemon 20 秒内未就绪：窗口已显示，界面会提示重试");
 }
 
 /// 更新源配置。发布地址与公钥因部署环境而异，且私钥绝不能进仓库，
@@ -279,7 +300,8 @@ async fn update_install(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 fn main() {
-    tauri::Builder::default()
+    install_panic_hook();
+    let app = match tauri::Builder::default()
         .manage(Daemon(Mutex::new(None)))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -294,37 +316,49 @@ fn main() {
                     *slot = Some(child);
                 }
             }
-            wait_for_daemon();
+            // 先建窗口再等 daemon：daemon 慢或起不来时，用户看到的应该是界面里的提示，
+            // 而不是双击图标后一段时间毫无反应。
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("OpenCoxswain · 舵手")
                 .inner_size(1280.0, 860.0)
                 .min_inner_size(1024.0, 720.0)
-                .build()?;
+                .build()
+                .map_err(|error| {
+                    append_log(&format!("窗口创建失败：{error}"));
+                    error
+                })?;
+            std::thread::spawn(wait_for_daemon);
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to build OpenCoxswain")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                if let Ok(mut slot) = app.state::<Daemon>().0.lock() {
-                    if let Some(mut child) = slot.take() {
-                        // Windows 上 child.kill() 只结束 daemon 本身，它拉起的 OpenCode
-                        // 与验收命令会变成孤儿进程；这里按进程树强杀。
-                        #[cfg(windows)]
-                        {
-                            use std::os::windows::process::CommandExt;
-                            let pid = child.id().to_string();
-                            let _ = Command::new("taskkill")
-                                .args(["/pid", &pid, "/T", "/F"])
-                                .creation_flags(0x0800_0000)
-                                .stdout(Stdio::null())
-                                .stderr(Stdio::null())
-                                .status();
-                        }
-                        let _ = child.kill();
-                        let _ = child.wait();
+    {
+        Ok(app) => app,
+        Err(error) => {
+            append_log(&format!("应用启动失败：{error}"));
+            std::process::exit(1);
+        }
+    };
+    app.run(|app, event| {
+        if let tauri::RunEvent::Exit = event {
+            if let Ok(mut slot) = app.state::<Daemon>().0.lock() {
+                if let Some(mut child) = slot.take() {
+                    // Windows 上 child.kill() 只结束 daemon 本身，它拉起的 OpenCode
+                    // 与验收命令会变成孤儿进程；这里按进程树强杀。
+                    #[cfg(windows)]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        let pid = child.id().to_string();
+                        let _ = Command::new("taskkill")
+                            .args(["/pid", &pid, "/T", "/F"])
+                            .creation_flags(0x0800_0000)
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .status();
                     }
+                    let _ = child.kill();
+                    let _ = child.wait();
                 }
             }
-        });
+        }
+    });
 }
