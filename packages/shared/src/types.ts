@@ -195,6 +195,41 @@ export interface DeliveryMergeResult {
   mergedAt: number;
 }
 
+export type DiffFileStatus = 'added' | 'deleted' | 'modified' | 'renamed';
+
+/**
+ * 逐文件 diff：给「改了什么」提供可逐个展开的明细。
+ * 截断与二进制都必须带 notice，避免静默省略。
+ */
+export interface DiffFile {
+  path: string;
+  oldPath?: string;
+  status: DiffFileStatus;
+  binary: boolean;
+  additions: number;
+  deletions: number;
+  /** 该文件的 hunk 文本；二进制或超大文件可能为空或截断。 */
+  hunks: string;
+  truncated: boolean;
+  notice?: string;
+}
+
+/** 某个任务（根任务含子任务）的逐文件 diff 汇总。 */
+export interface DiffReview {
+  taskId: string;
+  files: DiffFile[];
+  additions: number;
+  deletions: number;
+  binary: number;
+  truncated: number;
+  /** 超过单次展示上限而未列出的文件数。 */
+  omitted: number;
+  artifactPaths: string[];
+  /** 读取失败或合并提示；不能静默忽略。 */
+  notes: string[];
+  generatedAt: number;
+}
+
 export const INPUT_SOURCES = ['human', 'supervisor', 'task'] as const;
 export type InputSource = (typeof INPUT_SOURCES)[number];
 

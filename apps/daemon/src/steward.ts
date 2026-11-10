@@ -25,6 +25,8 @@ import {
   type DecisionBrief,
   type DeliveryMergeResult,
   type DeliveryPlan,
+  type DiffFile,
+  type DiffReview,
   type Evidence,
   type MemoryKind,
   type Project,
@@ -52,6 +54,7 @@ import type {
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AppError } from './errors.js';
+import { parseDiffPatch } from './diff-review.js';
 import { inspectRepo } from './git.js';
 
 const MANDATE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -886,6 +889,70 @@ export class Steward implements StewardService {
         409,
       );
     }
+  }
+
+  /**
+   * 逐文件 diff：根任务汇总子任务产物，单个任务只看自己。
+   * 同一路径在多个分支出现时合并计数并明确提示，避免看起来像漏了文件。
+   */
+  diffReview(taskId: string): DiffReview {
+    const task = this.requireTask(taskId);
+    const scope =
+      task.parentId === null ? [task, ...this.store.listChildren(task.id)] : [task];
+    const artifacts = scope
+      .flatMap((item) => this.store.listTaskArtifacts(item.id))
+      .filter((artifact) => artifact.type === 'diff');
+
+    const byPath = new Map<string, DiffFile>();
+    const notes: string[] = [];
+    let omitted = 0;
+    for (const artifact of artifacts) {
+      let patch: string;
+      try {
+        patch = readFileSync(artifact.path, 'utf8');
+      } catch (error) {
+        notes.push(
+          `产物 ${artifact.path} 读取失败：${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        continue;
+      }
+      const parsed = parseDiffPatch(patch);
+      omitted += parsed.omitted;
+      for (const file of parsed.files) {
+        const existing = byPath.get(file.path);
+        if (!existing) {
+          byPath.set(file.path, { ...file });
+          continue;
+        }
+        existing.additions += file.additions;
+        existing.deletions += file.deletions;
+        existing.hunks = [existing.hunks, file.hunks].filter(Boolean).join('\n');
+        existing.binary ||= file.binary;
+        existing.truncated ||= file.truncated;
+        if (existing.status !== file.status) existing.status = 'modified';
+        const merged = [existing.notice, file.notice].filter(Boolean).join('；');
+        existing.notice = merged || undefined;
+        if (!notes.includes('同一文件在多个分支中被修改，已合并展示')) {
+          notes.push('同一文件在多个分支中被修改，已合并展示');
+        }
+      }
+    }
+
+    const files = [...byPath.values()];
+    return {
+      taskId: task.id,
+      files,
+      additions: files.reduce((sum, file) => sum + file.additions, 0),
+      deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+      binary: files.filter((file) => file.binary).length,
+      truncated: files.filter((file) => file.truncated).length,
+      omitted,
+      artifactPaths: artifacts.map((artifact) => artifact.path),
+      notes,
+      generatedAt: now(),
+    };
   }
 
   private briefOf(task: Task): DecisionBrief {

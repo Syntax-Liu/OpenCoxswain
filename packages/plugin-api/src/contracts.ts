@@ -14,6 +14,7 @@ import type {
   DecisionBrief,
   DeliveryMergeResult,
   DeliveryPlan,
+  DiffReview,
   EmployeeDefinition,
   EventRecord,
   Evidence,
@@ -436,6 +437,8 @@ export interface StewardService {
     taskId: string,
     request: { confirm: boolean; planHash: string },
   ): Promise<{ plan: DeliveryPlan; result: DeliveryMergeResult }>;
+  /** 逐文件 diff：给「改了什么」提供可展开明细，根任务汇总子任务。 */
+  diffReview(taskId: string): DiffReview;
   summary(taskId: string): string;
   replay(taskId: string): TaskReplay;
   decideApproval(id: string, status: 'approved' | 'rejected'): Approval;

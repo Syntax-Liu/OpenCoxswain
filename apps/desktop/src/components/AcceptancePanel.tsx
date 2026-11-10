@@ -7,6 +7,7 @@ import type {
   Task,
 } from '@opencoxswain/shared';
 import { DecisionBriefView } from './DecisionBriefView.js';
+import { DiffReviewView } from './DiffReviewView.js';
 
 interface Props {
   task: Task;
@@ -77,6 +78,10 @@ export function AcceptancePanel({
       <article className="decision-brief">
         <h4>{task.parentId === null ? '交付说明' : `子任务：${task.title}`}</h4>
         <DecisionBriefView brief={brief} />
+        <details className="diff-review-fold" open>
+          <summary>逐文件改动（对应「改了什么」）</summary>
+          <DiffReviewView taskId={task.id} />
+        </details>
         <p className="hint">
           证据由系统复核（命令重跑、diff 复算）；员工自述只作参考，不能替代系统验证。
         </p>

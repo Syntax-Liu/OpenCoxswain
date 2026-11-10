@@ -1344,3 +1344,180 @@ label.choice input {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ---------- 逐文件 diff ---------- */
+
+.diff-review-fold {
+  margin-top: 10px;
+}
+
+.diff-review-fold > summary,
+.raw-artifact > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diff-files {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.diff-file {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.diff-file > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.diff-path {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  word-break: break-all;
+}
+
+.diff-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-badge {
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--muted);
+}
+
+.diff-badge.status-added {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.diff-badge.status-deleted {
+  color: var(--danger);
+  border-color: rgba(255, 112, 112, 0.4);
+}
+
+.diff-badge.status-renamed {
+  color: var(--warn);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.diff-body {
+  margin: 0;
+  padding: 10px;
+  max-height: 360px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  background: #0d1117;
+  border-top: 1px solid var(--line);
+}
+
+.raw-artifact {
+  margin-top: 10px;
+}
+
+/* ---------- 任务树审计 ---------- */
+
+.task-audit {
+  margin: 8px 0;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.task-audit > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.audit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.audit-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.audit-grid dd {
+  margin: 2px 0 0;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.audit-block {
+  margin-top: 10px;
+}
+
+.audit-block h5 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.audit-list,
+.audit-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.audit-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.audit-events li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.audit-events time {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.audit-verdict {
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--muted);
+}
+
+.audit-verdict.verdict-passed {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.audit-verdict.verdict-failed {
+  color: var(--danger);
+  border-color: rgba(255, 112, 112, 0.4);
+}

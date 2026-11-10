@@ -5,6 +5,7 @@ import type {
   CreateProjectRequest,
   DeliveryMergeResult,
   DeliveryPlan,
+  DiffReview,
   MemoryCandidate,
   MemoryEntry,
   MemoryMatch,
@@ -107,6 +108,10 @@ export const api = {
 
   delivery(taskId: string): Promise<DeliveryPlan> {
     return request<DeliveryPlan>(`/api/tasks/${taskId}/delivery`);
+  },
+
+  diffReview(taskId: string): Promise<DiffReview> {
+    return request<DiffReview>(`/api/tasks/${taskId}/diff-review`);
   },
 
   mergeDelivery(

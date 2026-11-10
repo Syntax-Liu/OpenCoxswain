@@ -18,7 +18,7 @@
    - **P2 委派固化在结构里**（当前依赖 planner 输出与总管提示词，缺少结构断言）
    - **P2 任务级授权 Mandate + 租约式断点恢复**（当前只有「危险动作审批」，没有任务级授权链；重启只把 running 一律 blocked）
 4. **明确不做 5 项**：云端无状态容器、BYOM 端侧 daemon、Thread 多对多订阅、Inline & Spill 上下文管理、投机执行。理由见 §6，均为「与 Windows 本地优先/插件化目标冲突」或「成本收益不成立」。
-5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）、`v0.12.0`（记忆层）、`v0.13.0`（Tauri 2 桌面壳与 NSIS 安装包）、`v0.14.0`（子任务单独验收 + 验收决策说明 + 反馈延迟可观测）、`v0.15.0`（交付说明 + 低风险一键合并 + 租约 `recovered_unknown` 现场标记）。全部为新增能力，按 SemVer 升 minor。
+5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）、`v0.12.0`（记忆层）、`v0.13.0`（Tauri 2 桌面壳与 NSIS 安装包）、`v0.14.0`（子任务单独验收 + 验收决策说明 + 反馈延迟可观测）、`v0.15.0`（交付说明 + 低风险一键合并 + 租约 `recovered_unknown` 现场标记）、`v0.16.0`（逐文件 diff 审阅 + 任务树审计视图）。全部为新增能力，按 SemVer 升 minor。
 
 ---
 
@@ -640,6 +640,7 @@ export interface StorageService {
 | v0.13.0（已发布） | Tauri 2 桌面壳：Rust 拉起并托管 daemon 子进程、端口就绪后开窗、退出清理；`scripts/package-daemon.mjs` 摊平 daemon 与工作区包产物，NSIS 安装包 | 无（插件契约与加载顺序不变） | 桌面壳只是 daemon 的启动器与展示层，不是沙箱；安装包运行时依赖系统 Node.js >= 22 |
 | v0.14.0（已发布） | 子任务完成即可单独验收，根任务保留最终收口；验收单四段决策说明 + 证据折叠；`finished_at` / `first_viewed_at` / `decided_at` 与 p50/p95 反馈延迟接口 | `StewardService` 增 `markViewed` / `brief`；`StorageService` 增时间戳、决策说明与延迟查询；tasks 表迁移到 v6 | 决策说明只作呈现，验收仍以系统复核为准；未提高默认并发，也未给 rubric/human 自动放行 |
 | v0.15.0（已发布） | 交付说明复用决策说明四段 + 低风险一键合并（二次确认 + `planHash` 防过期 + 失败自动回滚）；G5 补「租约未过期 → 保留 running 并标记 `recovered_unknown`」；G6 判据复核（越根目录 / 过期 / 编制不符拒绝，重派重签） | `StewardService` 增 `delivery` / `mergeDelivery`；`WorktreeService` 增 `inspect` / `merge`；`StorageService` 增 `markRunRecoveredUnknown`；runs 表迁移到 v7 | 合并只对低风险交付开放，高风险只展示分支与手动指引；不改状态机、不提高默认并发、不给 rubric/human 自动放行 |
+| v0.16.0（已发布） | 逐文件 diff：按文件列改动、可展开 / 折叠、标注新增 / 删除 / 重命名与增删行数，二进制与大文件显式提示；根任务汇总子任务并去重；验收单 / 交付说明 / 产物面板共用同一明细，挂在四段说明「改了什么」下。任务树节点可展开审计：负责人、分支、阶段、验收结论、关键事件；失败 / 阻塞 / 被打回直接标出卡点 | `StewardService` 增 `diffReview`；新增 `parseDiffPatch` 解析器与 `GET /api/tasks/:id/diff-review`；前端新增 `DiffReviewView`，`TaskTree` 增加审计块，仍由 `task-tree` / `inspector` 插件注册 | 逐文件是说明层的下钻，不替代系统复核，也不另起一套叙述；DAG 只保留依赖关系；未提高默认并发、未给 rubric/human 自动放行 |
 
 规则：全部是新增能力，按 SemVer 升 minor；若删除旧 `acceptance` 表读取路径，属移除功能，需在 v1.0 前统一处理，不单独升 major。
 

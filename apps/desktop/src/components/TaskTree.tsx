@@ -7,15 +7,17 @@ import {
   type DeliveryMergeResult,
   type DeliveryPlan,
   type Evidence,
+  type EventRecord,
   type RoleName,
   type Task,
   type TaskEdge,
   type TaskInput,
   type TaskStage,
   type TaskStageView,
+  type Worker,
 } from '@opencoxswain/shared';
 import type { TaskAction } from '../api.js';
-import { ROLE_LABELS, StatusChip } from '../ui.js';
+import { formatTime, ROLE_LABELS, StatusChip } from '../ui.js';
 import { AcceptancePanel } from './AcceptancePanel.js';
 import { DeliveryPanel } from './DeliveryPanel.js';
 
@@ -27,6 +29,8 @@ interface Props {
   evidence: Evidence[];
   stages: TaskStageView[];
   inputs: TaskInput[];
+  workers: Worker[];
+  events: EventRecord[];
   reviewTask: Task | null;
   brief: DecisionBrief | null;
   delivery: DeliveryPlan | null;
@@ -51,7 +55,10 @@ function stageText(stage: TaskStage | undefined): string {
   if (!stage) return '';
   switch (stage.kind) {
     case 'person':
-      return stage.reason === 'review' ? '等你验收' : '等你处理';
+      if (stage.reason === 'review') return '等你验收';
+      if (stage.reason === 'failed') return '失败待处理';
+      if (stage.reason === 'blocked') return '阻塞待处理';
+      return '等你处理';
     case 'working':
       return stage.reason === 'running' ? '执行中' : '排队中';
     case 'idle':
@@ -103,6 +110,149 @@ function InputBox({
 
 function latestInput(inputs: TaskInput[], taskId: string): TaskInput | null {
   return inputs.filter((input) => input.taskId === taskId).at(-1) ?? null;
+}
+
+/** 从事件 payload 里取一句可读原因，取不到就留空，避免把整块 JSON 塞进摘要。 */
+function eventText(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const record = payload as Record<string, unknown>;
+  for (const key of ['reason', 'message', 'error', 'detail', 'note', 'decision', 'status']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+/** 失败/阻塞/被打回时，指出卡在哪一步；找不到原因也要明说，不装作正常。 */
+function stuckReason(
+  task: Task,
+  stage: TaskStage | undefined,
+  events: EventRecord[],
+): string | null {
+  if (stage?.kind === 'person' && (stage.reason === 'failed' || stage.reason === 'blocked')) {
+    return stage.detail;
+  }
+  if (task.status === 'failed' || task.status === 'blocked') {
+    const latest = [...events]
+      .reverse()
+      .find((event) => event.taskId === task.id && eventText(event.payload));
+    return latest ? eventText(latest.payload) : '系统未记录原因，请展开审计事件查看';
+  }
+  if (task.status === 'awaiting_approval') {
+    const rejected = [...events]
+      .reverse()
+      .find(
+        (event) =>
+          event.taskId === task.id &&
+          /reject|打回/i.test(`${event.type} ${eventText(event.payload)}`),
+      );
+    if (rejected) return `被打回：${eventText(rejected.payload) || '等待修改后重试'}`;
+  }
+  return null;
+}
+
+const VERDICT_LABELS = {
+  passed: '通过',
+  failed: '未通过',
+  unverified: '未验证',
+  unknown: '未验证',
+} as const;
+
+/** 节点审计：负责人、验收结论、关键事件都挂在该节点下，可展开回溯。 */
+function TaskAudit({
+  task,
+  worker,
+  records,
+  events,
+  stage,
+}: {
+  task: Task;
+  worker: Worker | null;
+  records: AcceptanceRecord[];
+  events: EventRecord[];
+  stage: TaskStage | undefined;
+}): JSX.Element {
+  const criteria = task.contract.acceptance_criteria;
+  const byCriterion = new Map(
+    records.filter((record) => record.taskId === task.id).map((record) => [record.criterionId, record]),
+  );
+  const taskEvents = [...events].filter((event) => event.taskId === task.id).reverse();
+  const shown = taskEvents.slice(0, 12);
+
+  return (
+    <details className="task-audit">
+      <summary>审计详情</summary>
+      <dl className="audit-grid">
+        <div>
+          <dt>负责人</dt>
+          <dd>
+            {worker
+              ? `${ROLE_LABELS[worker.role]} · ${worker.status} · ${worker.model}`
+              : task.contract.assignee
+                ? `${ROLE_LABELS[task.contract.assignee.role]}（未派发）`
+                : '—'}
+          </dd>
+        </div>
+        <div>
+          <dt>分支</dt>
+          <dd>{worker?.branch ?? '—'}</dd>
+        </div>
+        <div>
+          <dt>当前阶段</dt>
+          <dd>
+            {stageText(stage) || '—'}
+            {stage?.kind === 'person' ? `（${stage.detail}）` : ''}
+          </dd>
+        </div>
+      </dl>
+      <div className="audit-block">
+        <h5>验收结论</h5>
+        {criteria.length === 0 ? (
+          <p className="hint">这项任务没有验收标准。</p>
+        ) : (
+          <ul className="audit-list">
+            {criteria.map((criterion) => {
+              const record = byCriterion.get(criterion.id);
+              return (
+                <li key={criterion.id}>
+                  <span className={`audit-verdict verdict-${record?.verdict ?? 'unknown'}`}>
+                    {VERDICT_LABELS[record?.verdict ?? 'unknown']}
+                  </span>
+                  <span>
+                    {criterion.id} · {criterion.desc}
+                  </span>
+                  {record ? (
+                    <span className="muted">
+                      （{record.judgedBy}
+                      {record.note ? `：${record.note}` : ''}）
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <div className="audit-block">
+        <h5>
+          关键事件（最近 {shown.length} / {taskEvents.length}）
+        </h5>
+        {shown.length === 0 ? (
+          <p className="hint">还没有事件。</p>
+        ) : (
+          <ol className="audit-events">
+            {shown.map((event) => (
+              <li key={event.id}>
+                <time>{formatTime(event.createdAt)}</time>
+                <span className="event-type">{event.type}</span>
+                <span>{eventText(event.payload) || '—'}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </details>
+  );
 }
 
 /** 任务依赖图：按拓扑深度分层，只做可视化，不改变调度。 */
@@ -197,6 +347,8 @@ export function TaskTree({
   evidence,
   stages,
   inputs,
+  workers,
+  events,
   reviewTask,
   brief,
   delivery,
@@ -227,6 +379,9 @@ export function TaskTree({
   for (const task of [root, ...children]) titleOf.set(task.id, task.title);
 
   const stageOf = new Map(stages.map((view) => [view.taskId, view.stage]));
+  const workerOf = (taskId: string): Worker | null =>
+    workers.filter((worker) => worker.taskId === taskId).at(-1) ?? null;
+  const rootStuck = stuckReason(root, stageOf.get(root.id), events);
   const canCancel = !['done', 'cancelled'].includes(root.status);
   const actions: Array<{ action: TaskAction; label: string; kind?: string }> = [];
   if (root.status === 'awaiting_approval') {
@@ -254,6 +409,7 @@ export function TaskTree({
         <article className="task-card root-task">
           <h3>{root.title}</h3>
           <p className="goal">{root.goal}</p>
+          {rootStuck ? <p className="hint danger-text">卡在：{rootStuck}</p> : null}
           <dl className="facts">
             <div>
               <dt>预算</dt>
@@ -267,6 +423,13 @@ export function TaskTree({
               <dd>{root.contract.acceptance_criteria.map((item) => item.desc).join('；')}</dd>
             </div>
           </dl>
+          <TaskAudit
+            task={root}
+            worker={workerOf(root.id)}
+            records={records}
+            events={events}
+            stage={stageOf.get(root.id)}
+          />
           {actions.length > 0 ? (
             <div className="row wrap">
               {actions.map((item) => (
@@ -299,6 +462,7 @@ export function TaskTree({
             const deps = edges
               .filter((edge) => edge.toTaskId === task.id)
               .map((edge) => titleOf.get(edge.fromTaskId) ?? edge.fromTaskId);
+            const stuck = stuckReason(task, stageOf.get(task.id), events);
             return (
               <article className="task-card subtask" key={task.id}>
                 <header>
@@ -307,6 +471,7 @@ export function TaskTree({
                   <span className="stage-label">{stageText(stageOf.get(task.id))}</span>
                   <StatusChip status={task.status} />
                 </header>
+                {stuck ? <p className="hint danger-text">卡在：{stuck}</p> : null}
                 <p className="goal">{task.goal}</p>
                 <dl className="facts">
                   <div>
@@ -328,6 +493,13 @@ export function TaskTree({
                     <dd>{task.contract.acceptance_criteria.map((item) => item.type).join(' / ')}</dd>
                   </div>
                 </dl>
+                <TaskAudit
+                  task={task}
+                  worker={workerOf(task.id)}
+                  records={records}
+                  events={events}
+                  stage={stageOf.get(task.id)}
+                />
                 {task.status === 'running' ? (
                   <InputBox taskId={task.id} busy={busy} onSend={onInput} />
                 ) : null}

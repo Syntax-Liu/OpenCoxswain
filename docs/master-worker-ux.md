@@ -1,7 +1,7 @@
 # 主从双 Agent 的用户体验：判断、边界与实现对照
 
 > **材料**：本地完整对话 `D:\Users\37632\Downloads\主从双Agent会不会大幅度提升用户体验？现成产品有TRAE宝，注意这个是TRAE的新功能.md`（8 轮问答，713 行）。此前腾讯元宝公开分享页只返回最后一轮回答，已放弃，不作为本文来源。
-> **对照**：`docs/plan.md`（已推进到 v0.15.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
+> **对照**：`docs/plan.md`（已推进到 v0.16.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
 > **性质**：论点提炼 + 证据分级 + 体验结论 + 差距判定 + 可执行改动。不摘抄原文，不重复竞品清单。
 
 ---
@@ -335,6 +335,14 @@
 - **落点**：`steward` 汇总、`apps/desktop` 任务详情、`worktrees` 服务。
 - **验收**：非工程用户能从「完成」走到「作品可用」，不需要命令行。
 - **实现**：交付说明复用 `DecisionBrief` 四段，风险由系统按交付物类型 / 删除行数 / 副作用计算；只有全部子任务为 document、无删除行、无 `fs.delete` / `net.send`、无未决审批与冲突时才判低风险并显示「一键合并（需确认）」，需再点「确认合并」且 `planHash` 一致；系统合并失败自动 `git merge --abort` + `git reset --hard` 回滚。高风险只展示分支与手动处理指引。
+
+#### G9 产物 diff 是整块、任务树不可审计（已完成，v0.16.0）
+
+- **现状**：产物只有整块 `diff.patch`，人要么全看要么全信；任务树只显示状态，失败或被打回时看不出卡在哪一步，事件只能去时间线里翻。
+- **改什么**：把 diff 拆成按文件明细（可展开 / 折叠、新增 / 删除 / 重命名、增删行数，二进制与大文件显式提示）；任务树节点变成可展开的审计对象（负责人、分支、阶段、验收结论、关键事件）。
+- **落点**：`steward` 的 `diffReview`、`diff-review` 解析器、`apps/desktop` 验收单 / 交付说明 / 产物面板、`task-tree` 插件。
+- **验收**：人能先读四段说明，再按需下钻到具体文件；失败 / 阻塞节点不用翻时间线就能看出卡点。
+- **实现**：逐文件明细挂在决策说明「改了什么」下，不另起叙述；根任务汇总子任务并对同一路径合并提示；大文件截断与二进制都带提示，不静默省略。任务树审计块复用快照里的负责人与事件，卡点优先取阶段详情，取不到时明说「系统未记录原因」。DAG 仍只表达依赖，不加装饰图形。
 
 ### 3.3 与现有决策冲突、需要重新评估的
 

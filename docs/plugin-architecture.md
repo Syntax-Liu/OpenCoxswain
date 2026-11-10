@@ -353,7 +353,13 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 一键合并：`StewardService.mergeDelivery` 只对低风险交付开放，要求二次确认与 `planHash` 一致；`WorktreeService.merge` 校验默认分支与工作区干净，失败自动 `git merge --abort` + `git reset --hard` 回滚，成功后发 `delivery.merged` 事件。
 3. 租约现场标记：`StorageService.markRunRecoveredUnknown` 在重启且租约未过期时标记 `recovered_unknown`，不打断 supervisor 观察；插件契约新增 `delivery` / `mergeDelivery` / `inspect` / `merge` / `markRunRecoveredUnknown`，仍由内核注入服务，无互相直连。
 
+已完成（v0.16.0）：
+
+1. 逐文件 diff：`StewardService.diffReview` 读取任务（根任务含子任务）的 diff 产物，经 `parseDiffPatch` 拆成按文件明细；新增 / 删除 / 重命名、增删行数、二进制与超长文件提示都由系统计算，根任务对同一路径合并并提示；新增 `GET /api/tasks/:id/diff-review`。
+2. 说明层下钻：前端 `DiffReviewView` 由验收单、交付说明与产物面板共用，挂在四段说明「改了什么」下，不新增第二套结论；`DiffReviewView` 自行取数，App.tsx 不写具体实现。
+3. 任务树审计：`task-tree` 插件把负责人、分支、阶段、逐条验收结论与关键事件挂到节点，失败 / 阻塞 / 被打回直接显示卡点；仍走 UiRegistry 注册，未改变插件边界与默认并发。
+
 下一步（P3 剩余）：
 
-1. 产物 diff 逐文件审阅、任务模板、首次引导。
+1. 任务模板、首次引导。
 2. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。

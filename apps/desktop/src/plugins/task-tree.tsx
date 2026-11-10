@@ -13,6 +13,8 @@ function TaskTreePanel(): JSX.Element {
       evidence={workbench.evidence}
       stages={workbench.stages}
       inputs={workbench.snapshot.inputs}
+      workers={workbench.workers}
+      events={workbench.events}
       reviewTask={workbench.reviewTask}
       brief={workbench.reviewBrief}
       delivery={workbench.delivery}

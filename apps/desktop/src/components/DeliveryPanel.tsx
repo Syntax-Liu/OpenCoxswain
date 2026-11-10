@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DeliveryMergeResult, DeliveryPlan } from '@opencoxswain/shared';
 import { DecisionBriefView } from './DecisionBriefView.js';
+import { DiffReviewView } from './DiffReviewView.js';
 
 interface Props {
   plan: DeliveryPlan | null;
@@ -43,6 +44,10 @@ export function DeliveryPanel({ plan, result, merging, onMerge }: Props): JSX.El
       </header>
       <article className="decision-brief">
         <DecisionBriefView brief={value.brief} />
+        <details className="diff-review-fold" open>
+          <summary>逐文件改动（对应「改了什么」）</summary>
+          <DiffReviewView taskId={value.taskId} />
+        </details>
       </article>
       <dl className="delivery-meta">
         <div>

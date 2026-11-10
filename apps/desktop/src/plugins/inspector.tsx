@@ -9,6 +9,7 @@ import type {
 } from '@opencoxswain/shared';
 import { MEMORY_KINDS } from '@opencoxswain/shared';
 import { api, errorText } from '../api.js';
+import { DiffReviewView } from '../components/DiffReviewView.js';
 import {
   formatDateTime,
   formatMinutes,
@@ -132,7 +133,17 @@ function ArtifactsTab(): JSX.Element {
                   : ''}
               </span>
             </header>
-            <pre>{content}</pre>
+            {selected.type === 'diff' ? (
+              <>
+                <DiffReviewView taskId={selected.taskId} />
+                <details className="raw-artifact">
+                  <summary>原始 patch</summary>
+                  <pre>{content}</pre>
+                </details>
+              </>
+            ) : (
+              <pre>{content}</pre>
+            )}
           </>
         ) : null}
       </div>

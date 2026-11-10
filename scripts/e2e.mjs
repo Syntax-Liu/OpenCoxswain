@@ -207,6 +207,19 @@ try {
     )}ms`,
   );
 
+  step('逐文件审阅');
+  const diffReview = await call(`/api/tasks/${planned.root.id}/diff-review`);
+  assert.ok(diffReview.files.length > 0, '应能按文件列出改动');
+  const themeDiff = diffReview.files.find((file) => file.path === 'theme.txt');
+  assert.ok(themeDiff, '逐文件改动应包含 theme.txt');
+  assert.equal(themeDiff.status, 'modified');
+  assert.equal(themeDiff.additions, 1);
+  assert.equal(themeDiff.deletions, 1);
+  assert.equal(themeDiff.binary, false);
+  assert.equal(themeDiff.truncated, false);
+  assert.equal(diffReview.omitted, 0);
+  assert.ok(themeDiff.hunks.includes('dark'), '逐文件 hunk 应包含新增内容');
+
   step('交付说明');
   const delivery = await call(`/api/tasks/${planned.root.id}/delivery`);
   assert.equal(delivery.taskId, planned.root.id);

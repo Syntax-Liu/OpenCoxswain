@@ -309,6 +309,10 @@ export async function apply(ctx: PluginContext): Promise<void> {
     json: await steward.delivery(taskIdOf(request)),
   }));
 
+  http.route('GET', '/api/tasks/:id/diff-review', async (request) => ({
+    json: steward.diffReview(taskIdOf(request)),
+  }));
+
   http.route('POST', '/api/tasks/:id/merge', async (request) => {
     const body = request.body as { confirm?: boolean; planHash?: string };
     return {
