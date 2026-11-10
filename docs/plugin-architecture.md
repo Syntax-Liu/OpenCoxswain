@@ -365,7 +365,13 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 多项目：新增 `projects` 插件（left/order 3），提供切换与接入新项目入口；`Workbench` 暴露 `onSwitchProject` / `onProjectReady`，`App` 将最近项目写入 `localStorage`，切换时清理上一个项目的审阅与交付上下文。
 3. 隔离复核：任务、事件、消息、产物、审批、验收、记忆统计均按 `project_id` 过滤；e2e 新增两仓库场景，断言任务树不重叠、事件不串项目、项目级预算与并发独立。仍走 UiRegistry 注册，未提高默认并发，也未给 rubric/human 自动放行。
 
+已完成（v0.18.0）：
+
+1. 任务模板：新增 `template.registry` 插件（kind `other`，`provides: templates`，`permissions: template:provide`），内置五类模板；`TemplateRegistry` 校验 id 唯一、验收策略只能 `unverified_only`、只读角色不能声明写入范围。
+2. 计划应用：`POST /api/projects/:id/plan` 接受 `templateId`，服务端补目标、子任务、验收与写入范围，并写入 `template_id` / `allow_auto_merge`；模板固定不自动放行验收，状态仍是 `awaiting_approval`。
+3. 交付联动：模板显式 `allowAutoMerge: false` 时，`delivery` 把「该任务模板未允许一键合并」列入阻塞原因；允许合并的模板仍受既有低风险与二次确认约束。
+4. 前端：`conversation` 插件（已注册）在输入框上方增加模板选择与预览，展示默认交付物、验收方式、写入范围、合并开关与项目级联网 / 外发授权；未新增独立面板，UiRegistry 边界不变。
+
 下一步（P3 剩余）：
 
-1. 任务模板。
-2. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。
+1. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。

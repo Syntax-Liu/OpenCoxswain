@@ -20,6 +20,14 @@ export type RoleName = (typeof ROLE_NAMES)[number];
 export const ACCEPTANCE_TYPES = ['command', 'diff', 'rubric', 'human'] as const;
 export type AcceptanceType = (typeof ACCEPTANCE_TYPES)[number];
 
+/** 验收方式的人话标签；模板预览与任务单说明共用。 */
+export const ACCEPTANCE_TYPE_LABELS: Record<AcceptanceType, string> = {
+  command: '命令',
+  diff: '内容差异',
+  rubric: '按标准判断',
+  human: '人工确认',
+};
+
 export const EVIDENCE_KINDS = [
   'command_output',
   'diff_stat',
@@ -38,6 +46,13 @@ export type Verdict = (typeof VERDICTS)[number];
 
 export const DELIVERABLE_TYPES = ['diff', 'file', 'report', 'link'] as const;
 export type DeliverableType = (typeof DELIVERABLE_TYPES)[number];
+
+export const DELIVERABLE_TYPE_LABELS: Record<DeliverableType, string> = {
+  diff: '代码改动',
+  file: '文件',
+  report: '报告',
+  link: '链接',
+};
 
 /** 交付物形态：决定系统跑第一遍验收时采用哪组校验。 */
 export const DELIVERABLE_PROFILES = ['code', 'document', 'dataset', 'design', 'ops'] as const;
@@ -375,6 +390,10 @@ export interface TaskContract {
   project_id: string;
   plan_id?: string;
   plan_revision?: number;
+  /** 应用的任务模板；无模板时为空。 */
+  template_id?: string;
+  /** 模板是否允许一键合并；缺省沿用现有低风险规则。 */
+  allow_auto_merge?: boolean;
   /** 谁决定的分工：planner = 结构派生；user = 手动；steward = 仅调整执行者。 */
   delegated_by?: 'planner' | 'user' | 'steward';
   /** 委派模式；v1 只允许 fixed，缺省即 fixed。 */
@@ -641,6 +660,7 @@ export interface WorkbenchSnapshot {
   messages: Message[];
   artifacts: ArtifactRecord[];
   employees: EmployeeDefinition[];
+  templates: TaskTemplate[];
   acceptance: AcceptanceRecord[];
   evidence: Evidence[];
   stages: TaskStageView[];
@@ -674,9 +694,37 @@ export interface CreatePlanRequest {
   acceptanceCommand?: string;
   budget?: Budget;
   dailyBudgetUsd?: number;
+  /** 任务模板 id；应用后仍要用户确认开工。 */
+  templateId?: string;
   subtasks?: SubtaskDraft[];
   acceptancePolicy?: AcceptancePolicy;
   deliverableProfile?: DeliverableProfile;
+}
+
+/**
+ * 任务模板：把常用任务类型沉淀为可复用默认值。
+ * 应用模板只是预填任务单，不跳过用户确认，也不自动放行验收。
+ */
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  /** 一句话说明适用场景。 */
+  summary: string;
+  /** 目标描述预填；用户仍可改。 */
+  goal: string;
+  /** 主执行角色；模板固定配一个校验员。 */
+  role: RoleName;
+  deliverables: Deliverable[];
+  acceptance: AcceptanceCriterion[];
+  /** 默认写入范围；只读模板为空数组。 */
+  writeScope: string[];
+  /** 是否允许交付阶段的一键合并；仍需低风险与二次确认。 */
+  allowAutoMerge: boolean;
+  deliverableProfile: DeliverableProfile;
+  /** 固定为 unverified_only，避免模板绕过人工验收。 */
+  acceptancePolicy: AcceptancePolicy;
+  /** 提供该模板的插件 id，用于审计。 */
+  pluginId: string;
 }
 
 export interface CreateProjectRequest {

@@ -28,7 +28,7 @@ export interface PlanResult {
   edges: PlanEdge[];
 }
 
-function shortTitle(goal: string): string {
+export function shortTitle(goal: string): string {
   const normalized = goal.replace(/\s+/g, ' ').trim();
   return normalized.length > 48 ? `${normalized.slice(0, 48)}…` : normalized;
 }

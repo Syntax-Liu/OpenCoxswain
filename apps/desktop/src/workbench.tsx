@@ -40,7 +40,7 @@ export interface Workbench {
   deliveryResult: DeliveryMergeResult | null;
   merging: boolean;
   busy: boolean;
-  onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
+  onPlan: (goal: string, acceptanceCommand?: string, templateId?: string) => Promise<boolean>;
   onTaskAction: (action: TaskAction, note?: string) => void;
   onTaskActionFor: (taskId: string, action: TaskAction) => void;
   onReassign: (taskId: string, role: RoleName) => void;

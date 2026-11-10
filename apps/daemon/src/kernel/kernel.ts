@@ -40,6 +40,10 @@ const SERVICE_RULES: Record<
     required: ['employee:use'],
     provider: ['employee:provide'],
   },
+  templates: {
+    required: ['template:use'],
+    provider: ['template:provide'],
+  },
   verification: {
     required: ['verification:run'],
     provider: ['verification:provide'],

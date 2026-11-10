@@ -1,7 +1,7 @@
 # 主从双 Agent 的用户体验：判断、边界与实现对照
 
 > **材料**：本地完整对话 `D:\Users\37632\Downloads\主从双Agent会不会大幅度提升用户体验？现成产品有TRAE宝，注意这个是TRAE的新功能.md`（8 轮问答，713 行）。此前腾讯元宝公开分享页只返回最后一轮回答，已放弃，不作为本文来源。
-> **对照**：`docs/plan.md`（已推进到 v0.17.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
+> **对照**：`docs/plan.md`（已推进到 v0.18.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
 > **性质**：论点提炼 + 证据分级 + 体验结论 + 差距判定 + 可执行改动。不摘抄原文，不重复竞品清单。
 
 ---
@@ -351,6 +351,14 @@
 - **落点**：`inspectRepo` / `steward.createProject`、`apps/desktop` 的 `Setup` / `ProjectForm` / `guide` 插件 / `projects` 插件、`App` 的当前项目状态。
 - **验收**：新用户不读文档也能从安装走到「确认开工」；接入失败能直接看懂下一步该做什么；两个仓库同时接入时任务树、事件、消息与项目配置互不串扰。
 - **实现**：`RepoInspectError` 携带可展示的中文原因，`POST /api/projects` 返回 400；三步清单与项目面板都经 UiRegistry 注册，不改 App 具体实现；多项目沿用存储层按 `project_id` 过滤，e2e 用两个仓库断言隔离，默认并发与验收放行规则不变。
+
+#### G11 模板看起来省事，却让人不知道授权了什么（已完成，v0.18.0）
+
+- **现状**：同类任务每次都要重写目标、验收和写入范围；即使沉淀成模板，如果只显示「修缺陷 / 写文档」，用户签的仍是模糊授权，事后也说不清模板到底放宽了什么。
+- **改什么**：模板在选中时就把默认交付物、验收方式、写入范围、是否允许一键合并，以及继承自项目的联网 / 外发权限一起摊开；套用只预填任务单，仍停在「待确认」；模板不能把验收策略改成 `auto`，不允许合并的模板在交付阶段直接拦住。
+- **落点**：`template.registry` 插件与 `TemplateRegistry`、`steward.createPlan` 的模板展开、`delivery` 的模板闸门、`conversation` 插件的模板选择与预览。
+- **验收**：不选模板也能照常建单；选模板后任务单所有默认值都能在确认前看到；套用后仍是待确认；`docs` 模板写入范围只含文档路径，`bugfix` 模板不允许一键合并。
+- **实现**：模板随 `WorkbenchSnapshot.templates` 下发，预览不另开面板；服务端固定 `acceptancePolicy = unverified_only` 并写入 `template_id` / `allow_auto_merge`，默认并发与人工验收规则不变。
 
 ### 3.3 与现有决策冲突、需要重新评估的
 

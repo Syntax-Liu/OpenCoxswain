@@ -9,6 +9,7 @@ export function apply(ctx: PluginContext): void {
     runtimes: ctx.service('runtimes'),
     scheduler: ctx.service('scheduler'),
     employees: ctx.service('employees'),
+    templates: ctx.service('templates'),
     memory: ctx.service('memory'),
     worktrees: ctx.service('worktrees'),
   });

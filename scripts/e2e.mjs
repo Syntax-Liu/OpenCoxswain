@@ -265,6 +265,23 @@ try {
   assert.ok(replay.events.length > 0);
   console.log(`事件 ${replay.events.length} 条，汇总长度 ${replay.summary.length}`);
 
+  step('任务模板：列表可见权限与验收，套用后仍需确认');
+  const templates = await call('/api/templates');
+  assert.equal(templates.length, 5, '内置模板应全部登记');
+  const docsTemplate = templates.find((template) => template.id === 'docs');
+  const bugfixTemplate = templates.find((template) => template.id === 'bugfix');
+  assert.ok(docsTemplate && bugfixTemplate);
+  assert.equal(docsTemplate.acceptancePolicy, 'unverified_only', '模板不得自动放行验收');
+  assert.equal(docsTemplate.allowAutoMerge, true);
+  assert.deepEqual(docsTemplate.writeScope, ['**/*.md', 'docs/**']);
+  assert.equal(bugfixTemplate.allowAutoMerge, false);
+  for (const template of templates) {
+    assert.equal(template.pluginId, 'template.registry', '模板应来自插件注册表');
+  }
+  console.log(
+    `模板 ${templates.map((template) => template.name).join('、')}；验收策略均不可自动放行`,
+  );
+
   step('多项目：接入第二个仓库并隔离任务树、事件与配置');
   const repoB = path.join(temp, 'second-repo');
   await mkdir(repoB, { recursive: true });
@@ -289,28 +306,22 @@ try {
 
   const plannedB = await call(`/api/projects/${secondProject.id}/plan`, {
     method: 'POST',
-    body: JSON.stringify({
-      goal: '第二个项目：更新 readme',
-      subtasks: [
-        {
-          title: '实施：readme',
-          goal: '把 readme.txt 更新为 second',
-          role: 'implementer',
-          writeScope: ['readme.txt'],
-          acceptance: [{ id: 'ac_diff', type: 'diff', desc: '只修改 readme.txt' }],
-          inputs: { mock: { files: [{ path: 'readme.txt', content: 'second\n' }] } },
-        },
-        {
-          title: '校验：readme',
-          goal: '独立复跑并检查 diff 只改 readme.txt',
-          role: 'verifier',
-          dependsOn: [0],
-          acceptance: [{ id: 'ac_rubric', type: 'rubric', desc: 'diff 符合目标' }],
-        },
-      ],
-    }),
+    body: JSON.stringify({ goal: '第二个项目：更新 readme', templateId: 'docs' }),
   });
-  assert.equal(plannedB.root.status, 'awaiting_approval');
+  assert.equal(plannedB.root.status, 'awaiting_approval', '套模板后仍需用户确认开工');
+  assert.equal(plannedB.root.contract.template_id, 'docs');
+  assert.equal(plannedB.root.contract.allow_auto_merge, true);
+  assert.equal(plannedB.children.length, 2, '模板应落成主执行 + 校验');
+  const templateImplementer = plannedB.children.find(
+    (child) => child.contract.assignee?.role === 'implementer',
+  );
+  assert.ok(templateImplementer);
+  assert.deepEqual(templateImplementer.contract.write_scope, ['**/*.md', 'docs/**']);
+  assert.deepEqual(
+    templateImplementer.contract.acceptance_criteria.map((criterion) => criterion.type),
+    ['diff', 'human'],
+  );
+  console.log('模板 docs：写入范围与验收随任务单落库，状态仍为待确认');
 
   const snapA = await call(`/api/bootstrap?projectId=${project.id}`);
   const snapB = await call(`/api/bootstrap?projectId=${secondProject.id}`);

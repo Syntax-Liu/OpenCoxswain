@@ -155,10 +155,14 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     };
   }, [root?.id, root?.status]);
 
-  const onPlan = async (goal: string, acceptanceCommand?: string): Promise<boolean> => {
+  const onPlan = async (
+    goal: string,
+    acceptanceCommand?: string,
+    templateId?: string,
+  ): Promise<boolean> => {
     const project = snapshot?.project;
     if (!project) return false;
-    return run(() => api.createPlan(project.id, goal, acceptanceCommand));
+    return run(() => api.createPlan(project.id, goal, acceptanceCommand, templateId));
   };
 
   const onTaskAction = (action: TaskAction, note?: string): void => {

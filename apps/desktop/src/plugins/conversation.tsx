@@ -9,6 +9,8 @@ function ConversationPanel(): JSX.Element {
       messages={workbench.snapshot.messages}
       root={workbench.root}
       children={workbench.children}
+      templates={workbench.snapshot.templates}
+      project={workbench.project}
       busy={workbench.busy}
       onPlan={workbench.onPlan}
       onAction={workbench.onTaskAction}

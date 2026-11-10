@@ -80,9 +80,11 @@ export const api = {
     projectId: string,
     goal: string,
     acceptanceCommand?: string,
+    templateId?: string,
   ): Promise<{ root: Task; children: Task[] }> {
     const body: CreatePlanRequest = { goal };
     if (acceptanceCommand) body.acceptanceCommand = acceptanceCommand;
+    if (templateId) body.templateId = templateId;
     return request(`/api/projects/${projectId}/plan`, {
       method: 'POST',
       body: JSON.stringify(body),

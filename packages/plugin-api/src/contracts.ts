@@ -45,6 +45,7 @@ import type {
   TaskMandate,
   TaskReplay,
   TaskStatus,
+  TaskTemplate,
   Worker,
   WorkerResult,
   WorkbenchSnapshot,
@@ -87,6 +88,8 @@ export type Permission =
   | 'net:listen'
   | 'employee:use'
   | 'employee:provide'
+  | 'template:use'
+  | 'template:provide'
   | 'verification:run'
   | 'verification:provide'
   | 'supervisor:use'
@@ -352,6 +355,13 @@ export interface EmployeeRegistry {
   list(): EmployeeDefinition[];
 }
 
+/** 任务模板注册表：内置与外部插件都通过它登记，界面只读不写。 */
+export interface TemplateRegistry {
+  register(template: Omit<TaskTemplate, 'pluginId'>, pluginId: string): () => void;
+  get(id: string): TaskTemplate | undefined;
+  list(): TaskTemplate[];
+}
+
 export interface PlanEdge {
   fromTaskId: string;
   toTaskId: string;
@@ -488,6 +498,7 @@ export interface ServiceMap {
   worktrees: WorktreeService;
   runtimes: RuntimeRegistry;
   employees: EmployeeRegistry;
+  templates: TemplateRegistry;
   verification: VerificationService;
   supervisor: SupervisionService;
   planner: PlannerService;

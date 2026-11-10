@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Message, Task } from '@opencoxswain/shared';
+import {
+  ACCEPTANCE_TYPE_LABELS,
+  DELIVERABLE_TYPE_LABELS,
+  type Message,
+  type Project,
+  type Task,
+  type TaskTemplate,
+} from '@opencoxswain/shared';
 import type { TaskAction } from '../api.js';
 import { formatTime, MarkdownLite, StatusChip } from '../ui.js';
 
@@ -7,8 +14,10 @@ interface Props {
   messages: Message[];
   root: Task | null;
   children: Task[];
+  templates: TaskTemplate[];
+  project: Project;
   busy: boolean;
-  onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
+  onPlan: (goal: string, acceptanceCommand?: string, templateId?: string) => Promise<boolean>;
   onAction: (action: TaskAction, note?: string) => void;
 }
 
@@ -16,12 +25,15 @@ export function Conversation({
   messages,
   root,
   children,
+  templates,
+  project,
   busy,
   onPlan,
   onAction,
 }: Props): JSX.Element {
   const [goal, setGoal] = useState('');
   const [command, setCommand] = useState('');
+  const [templateId, setTemplateId] = useState('');
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState('');
   const bottom = useRef<HTMLDivElement>(null);
@@ -32,13 +44,26 @@ export function Conversation({
 
   const active = root !== null && !['done', 'cancelled', 'failed'].includes(root.status);
   const awaitingApproval = root?.status === 'awaiting_approval';
+  const template = templates.find((item) => item.id === templateId) ?? null;
+
+  const pickTemplate = (id: string): void => {
+    setTemplateId(id);
+    const next = templates.find((item) => item.id === id);
+    if (next) setGoal(next.goal);
+  };
 
   const submit = async (): Promise<void> => {
-    if (!goal.trim() || busy || active) return;
-    const ok = await onPlan(goal.trim(), command.trim() || undefined);
+    const finalGoal = goal.trim() || template?.goal || '';
+    if (!finalGoal || busy || active) return;
+    const ok = await onPlan(
+      finalGoal,
+      command.trim() || undefined,
+      template?.id,
+    );
     if (ok) {
       setGoal('');
       setCommand('');
+      setTemplateId('');
     }
   };
 
@@ -139,6 +164,68 @@ export function Conversation({
       </div>
 
       <footer className="composer">
+        {templates.length > 0 ? (
+          <label className="template-picker">
+            任务模板（可选）
+            <select
+              value={templateId}
+              onChange={(event) => pickTemplate(event.target.value)}
+              disabled={active}
+            >
+              <option value="">不用模板</option>
+              {templates.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {template ? (
+          <div className="template-preview">
+            <p className="hint">{template.summary}</p>
+            <dl className="inline-facts">
+              <div>
+                <dt>默认交付物</dt>
+                <dd>
+                  {template.deliverables
+                    .map((item) => DELIVERABLE_TYPE_LABELS[item.type])
+                    .join('、')}
+                </dd>
+              </div>
+              <div>
+                <dt>验收方式</dt>
+                <dd>
+                  {template.acceptance
+                    .map(
+                      (item) => `${ACCEPTANCE_TYPE_LABELS[item.type]}：${item.desc}`,
+                    )
+                    .join('；')}
+                </dd>
+              </div>
+              <div>
+                <dt>默认写入范围</dt>
+                <dd>{template.writeScope.join('、') || '只读，不写仓库'}</dd>
+              </div>
+              <div>
+                <dt>一键合并</dt>
+                <dd>
+                  {template.allowAutoMerge
+                    ? '允许（仍需低风险与二次确认）'
+                    : '不允许'}
+                </dd>
+              </div>
+              <div>
+                <dt>项目授权</dt>
+                <dd>
+                  {project.allowNetwork ? '允许联网读取' : '禁止联网'} /{' '}
+                  {project.allowExternalSend ? '允许外发（逐次审批）' : '禁止外发'}
+                </dd>
+              </div>
+            </dl>
+            <p className="hint">套用模板只是预填任务单，确认开工前不会派发员工。</p>
+          </div>
+        ) : null}
         <textarea
           value={goal}
           onChange={(event) => setGoal(event.target.value)}
@@ -147,7 +234,13 @@ export function Conversation({
               void submit();
             }
           }}
-          placeholder={active ? '当前有进行中的任务，完成或取消后再开始新目标' : '例如：修复夜间模式切换后不生效'}
+          placeholder={
+            active
+              ? '当前有进行中的任务，完成或取消后再开始新目标'
+              : template
+                ? '可修改模板预填的目标，再交给总管'
+                : '例如：修复夜间模式切换后不生效'
+          }
           rows={3}
           disabled={active}
         />
@@ -159,7 +252,11 @@ export function Conversation({
         />
         <div className="row">
           <span className="hint">Ctrl+Enter 发送</span>
-          <button className="primary" onClick={() => void submit()} disabled={busy || active || !goal.trim()}>
+          <button
+            className="primary"
+            onClick={() => void submit()}
+            disabled={busy || active || (!goal.trim() && !template)}
+          >
             {busy ? '处理中…' : '交给总管'}
           </button>
         </div>

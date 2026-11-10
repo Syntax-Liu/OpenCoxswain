@@ -120,9 +120,12 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const config = ctx.service('config');
   const secrets = ctx.service('secrets');
   const employees = ctx.service('employees');
+  const templates = ctx.service('templates');
   const memory = ctx.service('memory');
 
   http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
+
+  http.route('GET', '/api/templates', async () => ({ json: templates.list() }));
 
   http.route('GET', '/api/employees/:id/capabilities', async ({ params, query }) => {
     const id = params.id;

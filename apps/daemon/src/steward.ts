@@ -10,6 +10,7 @@ import {
   type TransitionActor,
 } from '@opencoxswain/core';
 import {
+  ACCEPTANCE_TYPE_LABELS,
   newId,
   now,
   type AcceptanceCriterion,
@@ -32,12 +33,14 @@ import {
   type Project,
   type ReviewLatency,
   type RoleName,
+  type SubtaskDraft,
   type Task,
   type TaskContract,
   type TaskInput,
   type TaskMandate,
   type TaskReplay,
   type TaskStageView,
+  type TaskTemplate,
   type WorkbenchSnapshot,
 } from '@opencoxswain/shared';
 import type {
@@ -49,6 +52,7 @@ import type {
   SchedulerService,
   StewardService,
   StorageService,
+  TemplateRegistry,
   WorktreeService,
 } from '@opencoxswain/plugin-api';
 import { existsSync, readFileSync } from 'node:fs';
@@ -56,6 +60,7 @@ import path from 'node:path';
 import { AppError } from './errors.js';
 import { parseDiffPatch } from './diff-review.js';
 import { inspectRepo, RepoInspectError } from './git.js';
+import { shortTitle } from './planner.js';
 
 const MANDATE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -66,6 +71,7 @@ export interface StewardOptions {
   runtimes: RuntimeRegistry;
   scheduler: SchedulerService;
   employees: EmployeeRegistry;
+  templates: TemplateRegistry;
   memory: MemoryService;
   worktrees: WorktreeService;
 }
@@ -77,6 +83,7 @@ export class Steward implements StewardService {
   private readonly runtimes: RuntimeRegistry;
   private readonly scheduler: SchedulerService;
   private readonly employees: EmployeeRegistry;
+  private readonly templates: TemplateRegistry;
   private readonly memory: MemoryService;
   private readonly worktrees: WorktreeService;
   private readonly announced = new Set<string>();
@@ -88,6 +95,7 @@ export class Steward implements StewardService {
     this.runtimes = options.runtimes;
     this.scheduler = options.scheduler;
     this.employees = options.employees;
+    this.templates = options.templates;
     this.memory = options.memory;
     this.worktrees = options.worktrees;
   }
@@ -113,6 +121,7 @@ export class Steward implements StewardService {
         messages: [],
         artifacts: [],
         employees: this.employees.list(),
+        templates: this.templates.list(),
         acceptance: [],
         evidence: [],
         stages: [],
@@ -144,6 +153,7 @@ export class Steward implements StewardService {
       messages: this.store.listMessages(project.id),
       artifacts: this.store.listArtifacts(project.id),
       employees: this.employees.list(),
+      templates: this.templates.list(),
       acceptance: this.store.listProjectAcceptance(project.id),
       evidence: this.store.listProjectEvidence(project.id),
       stages: this.stages(project.id, tasks, inputs),
@@ -250,7 +260,27 @@ export class Steward implements StewardService {
 
   async createPlan(projectId: string, request: CreatePlanRequest): Promise<{ root: Task; children: Task[] }> {
     const project = this.requireProject(projectId);
-    if (!request.goal?.trim()) throw new AppError('请先描述目标');
+    const template: TaskTemplate | undefined = request.templateId
+      ? this.templates.get(request.templateId)
+      : undefined;
+    if (request.templateId && !template) {
+      throw new AppError(`任务模板不存在：${request.templateId}`);
+    }
+    const goal = request.goal?.trim() || template?.goal.trim() || '';
+    if (!goal) throw new AppError('请先描述目标');
+    const effective: CreatePlanRequest = template
+      ? {
+          ...request,
+          goal,
+          subtasks:
+            request.subtasks && request.subtasks.length > 0
+              ? request.subtasks
+              : this.draftsFromTemplate(template, goal),
+          // 模板固定为 unverified_only，请求不能借模板绕过人工验收。
+          acceptancePolicy: template.acceptancePolicy,
+          deliverableProfile: request.deliverableProfile ?? template.deliverableProfile,
+        }
+      : { ...request, goal };
 
     const roots = this.store.listRootTasks(project.id);
     const draftRoots = roots.filter(
@@ -266,7 +296,11 @@ export class Steward implements StewardService {
       throw new AppError('已有进行中的任务，请先完成或取消', 409);
     }
 
-    const plan = await this.planner.plan(project, request);
+    const plan = await this.planner.plan(project, effective);
+    if (template) {
+      plan.root.template_id = template.id;
+      plan.root.allow_auto_merge = template.allowAutoMerge;
+    }
     const createdAt = now();
 
     const root: Task = {
@@ -305,7 +339,7 @@ export class Steward implements StewardService {
     this.store.insertMessage({
       projectId: project.id,
       role: 'user',
-      content: request.goal.trim(),
+      content: goal,
     });
     for (const task of [root, ...children]) {
       const event = this.store.appendEvent({
@@ -354,6 +388,7 @@ export class Steward implements StewardService {
       [
         '任务单已生成，等你确认开工。',
         `目标：${plan.root.goal}`,
+        ...(template ? this.templateBrief(template) : []),
         '子任务：',
         ...children.map((child, index) => `${index + 1}. [${child.contract.assignee?.role}] ${child.title}`),
         `预算：${budgetText}`,
@@ -727,6 +762,9 @@ export class Steward implements StewardService {
 
     if (task.status !== 'done') {
       blocked.push(`任务状态是 ${task.status}，完成最终验收后才能合并`);
+    }
+    if (task.contract.allow_auto_merge === false) {
+      blocked.push('该任务模板未允许一键合并，请手动合并');
     }
     const unfinished = children.filter((child) => child.status !== 'done');
     if (unfinished.length > 0) {
@@ -1204,6 +1242,42 @@ export class Steward implements StewardService {
     });
     this.bus.publish(event);
     return this.requireTask(taskId);
+  }
+
+  /** 模板落成两个子任务：主执行 + 独立校验；校验员沿用默认验收。 */
+  private draftsFromTemplate(template: TaskTemplate, goal: string): SubtaskDraft[] {
+    return [
+      {
+        title: `${template.name}：${shortTitle(goal)}`,
+        goal,
+        role: template.role,
+        acceptance: template.acceptance.map((criterion) => ({ ...criterion })),
+        writeScope: [...template.writeScope],
+        deliverables: template.deliverables.map((item) => ({ ...item })),
+        acceptancePolicy: template.acceptancePolicy,
+        deliverableProfile: template.deliverableProfile,
+      },
+      {
+        title: `校验：${shortTitle(goal)}`,
+        goal: `独立复核：${goal}`,
+        role: 'verifier',
+        dependsOn: [0],
+        deliverables: [{ type: 'report' }],
+      },
+    ];
+  }
+
+  /** 在任务单说明里把模板默认授权的范围与验收讲清楚，避免套了模板却不知道授权了什么。 */
+  private templateBrief(template: TaskTemplate): string[] {
+    const acceptance = template.acceptance
+      .map((criterion) => `${ACCEPTANCE_TYPE_LABELS[criterion.type]}：${criterion.desc}`)
+      .join('；');
+    return [
+      `模板：${template.name}（${template.summary}）`,
+      `默认写入范围：${template.writeScope.join('、') || '只读，不写仓库'}`,
+      `默认验收：${acceptance}`,
+      `一键合并：${template.allowAutoMerge ? '允许（仍需低风险与二次确认）' : '不允许'}`,
+    ];
   }
 
   private announce(projectId: string, content: string, taskId: string | null = null): void {
