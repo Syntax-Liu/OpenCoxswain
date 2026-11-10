@@ -107,6 +107,7 @@ interface PluginContext {
 | `planner` | 目标 → 任务契约 | `planner.llm`（无 Key 时回退静态引擎） | `planner:use` |
 | `scheduler` | 派发、暂停、恢复、终止 | `scheduler` | `scheduler:control` |
 | `steward` | 总管编排与快照 | `steward` | `steward:call` |
+| `schedules` | 定时任务：增删改查、启停、立即生成、到点检查 | `trigger.schedule` | `schedule:use` |
 | `secrets` | 密钥读写与来源查询（DPAPI 优先，环境变量回退） | `secrets.dpapi` | `secrets:read` |
 | `http` | 路由注册、监听、关闭 | `transport.http` | `http:route` |
 
@@ -155,6 +156,7 @@ interface PluginContext {
 | `secrets:provide` | 提供密钥托管服务 |
 | `http:route` | 注册 HTTP/SSE 路由 |
 | `net:listen` | 监听本地端口 |
+| `schedule:use` / `schedule:provide` | 消费 / 提供定时任务服务 |
 | `ui:panel` | 注册界面面板/检查器 |
 
 ### 6.2 执行点
@@ -374,4 +376,12 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 
 下一步（P3 剩余）：
 
-1. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。
+1. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。本版仍未开工：当前没有外部插件，完整 RPC 隔离需要重写全部服务面，收益不抵风险，继续推迟到确有外部插件需求时。
+
+已完成（v0.19.0）：
+
+1. 定时任务：新增 `trigger.schedule` 插件（kind `other`，`provides: schedules`，`permissions: schedule:provide`），实现 `Schedules` 服务并注册 `schedules` 服务键与 `schedule:use` / `schedule:provide` 权限；`SERVICE_RULES` 同步补齐。
+2. 存储：`schedules` 表随迁移到 `user_version = 8` 落地（按 `project_id` 级联删除，`enabled, next_run_at` 建索引）；`StorageService` 增加增删改查与到期查询。
+3. 触发语义：到点只调用 `steward.createPlan` 落一张 `awaiting_approval` 任务单，不自动开工、不降低验收强度；项目已有未完成根任务时整次跳过并落 `schedule.skipped`，错过时段不补跑，`nextRunAt` 按间隔推进；「立即生成」与到点共用同一条 `fire()`，并用串行链避免并发重复建单。
+4. 接口与界面：`GET/POST /api/schedules`、`POST /api/schedules/:id/enabled`、`POST /api/schedules/:id/run`、`DELETE /api/schedules/:id` 由 `api.rest` 暴露；前端新增 `inspector.schedule` 插件（bottom/order 47），支持新建、启停、立即生成与删除。
+5. 契约收敛：`PERMISSIONS`、`SERVICE_KEYS` 收拢到 `@opencoxswain/plugin-api` 作为唯一事实来源，`loader.ts` 改为引用，顺带修掉服务键缺 `templates` / `memory` 的既有不一致。

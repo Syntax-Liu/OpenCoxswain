@@ -2,57 +2,13 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  PERMISSIONS,
   PLUGIN_API_VERSION,
+  SERVICE_KEYS,
   type Permission,
   type PluginManifest,
   type ServiceKey,
 } from '@opencoxswain/plugin-api';
-
-const SERVICE_KEYS: ServiceKey[] = [
-  'config',
-  'events',
-  'storage',
-  'worktrees',
-  'runtimes',
-  'employees',
-  'verification',
-  'supervisor',
-  'planner',
-  'scheduler',
-  'steward',
-  'secrets',
-  'http',
-];
-
-const PERMISSIONS: Permission[] = [
-  'events:publish',
-  'events:read',
-  'storage:read',
-  'storage:write',
-  'storage:provide',
-  'fs:data',
-  'fs:worktree',
-  'process:spawn',
-  'runtime:use',
-  'runtime:provide',
-  'planner:use',
-  'scheduler:control',
-  'steward:call',
-  'secrets:read',
-  'secrets:write',
-  'secrets:provide',
-  'http:route',
-  'net:listen',
-  'employee:use',
-  'employee:provide',
-  'verification:run',
-  'verification:provide',
-  'supervisor:use',
-  'supervisor:provide',
-  'mandate:read',
-  'mandate:issue',
-  'ui:panel',
-];
 
 const KINDS = new Set([
   'runtime',

@@ -122,6 +122,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const employees = ctx.service('employees');
   const templates = ctx.service('templates');
   const memory = ctx.service('memory');
+  const schedules = ctx.service('schedules');
 
   http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
 
@@ -385,6 +386,61 @@ export async function apply(ctx: PluginContext): Promise<void> {
       return { text: replayMarkdown(replay) };
     }
     return { json: replay };
+  });
+
+  http.route('GET', '/api/schedules', async ({ query }) => ({
+    json: { schedules: schedules.list(query.get('projectId')) },
+  }));
+
+  http.route('POST', '/api/schedules', async ({ body }) => {
+    const input = body as {
+      projectId?: string;
+      title?: string;
+      goal?: string;
+      templateId?: string | null;
+      intervalMinutes?: number;
+      enabled?: boolean;
+    };
+    if (!input.projectId) throw new AppError('缺少项目 id');
+    if (!store.getProject(input.projectId)) throw new AppError('项目不存在', 404);
+    if (typeof input.title !== 'string') throw new AppError('缺少定时任务标题');
+    if (typeof input.goal !== 'string') throw new AppError('缺少定时任务目标');
+    if (typeof input.intervalMinutes !== 'number') throw new AppError('缺少间隔分钟数');
+    if (input.templateId && !templates.get(input.templateId)) {
+      throw new AppError(`未知任务模板：${input.templateId}`);
+    }
+    return {
+      status: 201,
+      json: schedules.create({
+        projectId: input.projectId,
+        title: input.title,
+        goal: input.goal,
+        templateId: input.templateId ?? null,
+        intervalMinutes: input.intervalMinutes,
+        enabled: input.enabled,
+      }),
+    };
+  });
+
+  http.route('POST', '/api/schedules/:id/enabled', async ({ params, body }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少定时任务 id');
+    const enabled = (body as { enabled?: unknown }).enabled;
+    if (typeof enabled !== 'boolean') throw new AppError('enabled 必须是布尔值');
+    return { json: schedules.setEnabled(id, enabled) };
+  });
+
+  http.route('POST', '/api/schedules/:id/run', async ({ params }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少定时任务 id');
+    return { json: await schedules.run(id) };
+  });
+
+  http.route('DELETE', '/api/schedules/:id', async ({ params }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少定时任务 id');
+    if (!schedules.remove(id)) throw new AppError('定时任务不存在', 404);
+    return { json: { ok: true } };
   });
 
   http.route('GET', '/api/projects/:id/costs', async ({ params }) => {

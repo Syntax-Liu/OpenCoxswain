@@ -767,3 +767,34 @@ export interface TaskReplay {
   sideEffects: SideEffect[];
   summary: string | null;
 }
+
+/**
+ * 定时任务：按固定间隔为项目预生成任务单。
+ * 触发只落一张待审批任务单，不自动开工，也不跳过人工验收。
+ */
+export interface Schedule {
+  id: string;
+  projectId: string;
+  title: string;
+  goal: string;
+  /** 可选任务模板；应用后仍要用户确认开工。 */
+  templateId: string | null;
+  /** 触发间隔（分钟），最小 1。 */
+  intervalMinutes: number;
+  enabled: boolean;
+  /** 下次到点时间；错过的时间段不补跑。 */
+  nextRunAt: number;
+  /** 上次触发时间（含跳过与失败）；从未触发为 null。 */
+  lastRunAt: number | null;
+  /** 最近一次成功生成的任务单；跳过或失败保留上一次的值。 */
+  lastTaskId: string | null;
+  createdAt: number;
+}
+
+/** 一次定时触发的结局：生成任务单、因项目有未完成任务而跳过、或失败。 */
+export interface ScheduleRun {
+  schedule: Schedule;
+  outcome: 'created' | 'skipped' | 'failed';
+  taskId: string | null;
+  reason: string | null;
+}

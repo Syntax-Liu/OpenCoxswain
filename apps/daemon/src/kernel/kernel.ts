@@ -58,6 +58,7 @@ const SERVICE_RULES: Record<
     provider: ['memory:provide', 'memory:read', 'memory:write', 'fs:data'],
   },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
+  schedules: { required: ['schedule:use'], provider: ['schedule:provide'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },
   secrets: {
     required: ['secrets:read'],

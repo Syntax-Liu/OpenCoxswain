@@ -33,6 +33,8 @@ import type {
   RoleName,
   Run,
   RuntimeStatus,
+  Schedule,
+  ScheduleRun,
   SideEffect,
   SideEffectKind,
   SideEffectState,
@@ -67,39 +69,45 @@ export type PluginKind =
   | 'employee'
   | 'other';
 
-export type Permission =
-  | 'events:publish'
-  | 'events:read'
-  | 'storage:read'
-  | 'storage:write'
-  | 'storage:provide'
-  | 'fs:data'
-  | 'fs:worktree'
-  | 'process:spawn'
-  | 'runtime:use'
-  | 'runtime:provide'
-  | 'planner:use'
-  | 'scheduler:control'
-  | 'steward:call'
-  | 'secrets:read'
-  | 'secrets:write'
-  | 'secrets:provide'
-  | 'http:route'
-  | 'net:listen'
-  | 'employee:use'
-  | 'employee:provide'
-  | 'template:use'
-  | 'template:provide'
-  | 'verification:run'
-  | 'verification:provide'
-  | 'supervisor:use'
-  | 'supervisor:provide'
-  | 'mandate:read'
-  | 'mandate:issue'
-  | 'memory:read'
-  | 'memory:write'
-  | 'memory:provide'
-  | 'ui:panel';
+/** 权限清单是唯一事实来源：清单校验、内核闸门与外部插件都用这一份。 */
+export const PERMISSIONS = [
+  'events:publish',
+  'events:read',
+  'storage:read',
+  'storage:write',
+  'storage:provide',
+  'fs:data',
+  'fs:worktree',
+  'process:spawn',
+  'runtime:use',
+  'runtime:provide',
+  'planner:use',
+  'scheduler:control',
+  'steward:call',
+  'secrets:read',
+  'secrets:write',
+  'secrets:provide',
+  'http:route',
+  'net:listen',
+  'employee:use',
+  'employee:provide',
+  'template:use',
+  'template:provide',
+  'verification:run',
+  'verification:provide',
+  'supervisor:use',
+  'supervisor:provide',
+  'mandate:read',
+  'mandate:issue',
+  'memory:read',
+  'memory:write',
+  'memory:provide',
+  'schedule:use',
+  'schedule:provide',
+  'ui:panel',
+] as const;
+
+export type Permission = (typeof PERMISSIONS)[number];
 
 export interface OpenCoxswainConfig {
   version: string;
@@ -261,6 +269,36 @@ export interface StorageService {
   sumTaskCost(taskId: string): CostLedger;
   sumProjectCostSince(projectId: string, since: number): number;
   projectCostReport(projectId: string): ProjectCostReport;
+  insertSchedule(input: {
+    projectId: string;
+    title: string;
+    goal: string;
+    templateId: string | null;
+    intervalMinutes: number;
+    enabled: boolean;
+    nextRunAt: number;
+  }): Schedule;
+  listSchedules(projectId?: string | null): Schedule[];
+  /** 到点且启用的定时任务，按 nextRunAt 升序。 */
+  listDueSchedules(at: number): Schedule[];
+  getSchedule(id: string): Schedule | null;
+  updateSchedule(
+    id: string,
+    patch: Partial<
+      Pick<
+        Schedule,
+        | 'title'
+        | 'goal'
+        | 'templateId'
+        | 'intervalMinutes'
+        | 'enabled'
+        | 'nextRunAt'
+        | 'lastRunAt'
+        | 'lastTaskId'
+      >
+    >,
+  ): Schedule;
+  deleteSchedule(id: string): boolean;
 }
 
 export interface EventService {
@@ -491,6 +529,28 @@ export interface HttpService {
   close(): Promise<void>;
 }
 
+/**
+ * 定时任务：按固定间隔为项目预生成任务单。
+ * 到点只落一张待审批任务单，不自动开工，也不降低验收强度。
+ */
+export interface ScheduleService {
+  list(projectId?: string | null): Schedule[];
+  create(input: {
+    projectId: string;
+    title: string;
+    goal: string;
+    templateId?: string | null;
+    intervalMinutes: number;
+    enabled?: boolean;
+  }): Schedule;
+  setEnabled(id: string, enabled: boolean): Schedule;
+  remove(id: string): boolean;
+  /** 立即触发一次；与到点触发走同一条路径。 */
+  run(id: string): Promise<ScheduleRun>;
+  /** 到点检查；插件内部定时调用，测试可直接驱动。 */
+  tick(at?: number): Promise<ScheduleRun[]>;
+}
+
 export interface ServiceMap {
   config: OpenCoxswainConfig;
   events: EventService;
@@ -505,8 +565,29 @@ export interface ServiceMap {
   memory: MemoryService;
   scheduler: SchedulerService;
   steward: StewardService;
+  schedules: ScheduleService;
   secrets: SecretsService;
   http: HttpService;
 }
 
-export type ServiceKey = keyof ServiceMap;
+/** 服务键清单是唯一事实来源：外部清单校验与内核服务表共用这一份。 */
+export const SERVICE_KEYS = [
+  'config',
+  'events',
+  'storage',
+  'worktrees',
+  'runtimes',
+  'employees',
+  'templates',
+  'verification',
+  'supervisor',
+  'planner',
+  'memory',
+  'scheduler',
+  'steward',
+  'schedules',
+  'secrets',
+  'http',
+] as const satisfies readonly (keyof ServiceMap)[];
+
+export type ServiceKey = (typeof SERVICE_KEYS)[number];

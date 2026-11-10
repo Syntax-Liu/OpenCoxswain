@@ -4,6 +4,7 @@ import { guidePlugin } from './guide.js';
 import { inboxPlugin } from './inbox.js';
 import { inspectorTabPlugins } from './inspector.js';
 import { projectsPlugin } from './projects.js';
+import { schedulePlugin } from './schedule.js';
 import { taskTreePlugin } from './task-tree.js';
 import { workerBoardPlugin } from './worker-board.js';
 
@@ -15,6 +16,7 @@ export function registerBuiltinUiPlugins(registry: UiRegistry): void {
     taskTreePlugin,
     conversationPlugin,
     workerBoardPlugin,
+    schedulePlugin,
     ...inspectorTabPlugins,
   ]) {
     registry.register(plugin);

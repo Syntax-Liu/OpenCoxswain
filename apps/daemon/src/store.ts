@@ -16,6 +16,7 @@ import {
   type ReviewLatency,
   type Run,
   type RunStatus,
+  type Schedule,
   type SideEffect,
   type SideEffectKind,
   type SideEffectState,
@@ -207,6 +208,24 @@ const RECOVERY_SCHEMA = `
 ALTER TABLE runs ADD COLUMN recovered_unknown INTEGER NOT NULL DEFAULT 0;
 `;
 
+const SCHEDULE_SCHEMA = `
+CREATE TABLE schedules (
+  id               TEXT PRIMARY KEY,
+  project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title            TEXT NOT NULL,
+  goal             TEXT NOT NULL,
+  template_id      TEXT,
+  interval_minutes INTEGER NOT NULL,
+  enabled          INTEGER NOT NULL DEFAULT 1,
+  next_run_at      INTEGER NOT NULL,
+  last_run_at      INTEGER,
+  last_task_id     TEXT,
+  created_at       INTEGER NOT NULL
+);
+CREATE INDEX idx_schedules_project ON schedules(project_id);
+CREATE INDEX idx_schedules_due ON schedules(enabled, next_run_at);
+`;
+
 const SCHEMA = `
 CREATE TABLE projects (
   id               TEXT PRIMARY KEY,
@@ -387,7 +406,7 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 7) return;
+    if (version >= 8) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
@@ -400,7 +419,8 @@ export class Store {
       if (version < 5) this.db.exec(AUTHORITY_SCHEMA);
       if (version < 6) this.db.exec(REVIEW_SCHEMA);
       if (version < 7) this.db.exec(RECOVERY_SCHEMA);
-      this.db.exec('PRAGMA user_version = 7;');
+      if (version < 8) this.db.exec(SCHEDULE_SCHEMA);
+      this.db.exec('PRAGMA user_version = 8;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -1662,6 +1682,114 @@ export class Store {
       daily: daily.map((row) => ({ day: text(row, 'day'), usd: number(row, 'usd') })),
     };
   }
+
+  insertSchedule(input: {
+    projectId: string;
+    title: string;
+    goal: string;
+    templateId: string | null;
+    intervalMinutes: number;
+    enabled: boolean;
+    nextRunAt: number;
+  }): Schedule {
+    const id = newId('sch');
+    this.db
+      .prepare(
+        `INSERT INTO schedules
+           (id, project_id, title, goal, template_id, interval_minutes, enabled, next_run_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.projectId,
+        input.title,
+        input.goal,
+        input.templateId,
+        input.intervalMinutes,
+        input.enabled ? 1 : 0,
+        input.nextRunAt,
+        now(),
+      );
+    const schedule = this.getSchedule(id);
+    if (!schedule) throw new Error(`定时任务 ${id} 写入失败`);
+    return schedule;
+  }
+
+  listSchedules(projectId?: string | null): Schedule[] {
+    const rows = projectId
+      ? (this.db
+          .prepare('SELECT * FROM schedules WHERE project_id = ? ORDER BY created_at')
+          .all(projectId) as Row[])
+      : (this.db.prepare('SELECT * FROM schedules ORDER BY created_at').all() as Row[]);
+    return rows.map(mapSchedule);
+  }
+
+  listDueSchedules(at: number): Schedule[] {
+    const rows = this.db
+      .prepare(
+        'SELECT * FROM schedules WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at',
+      )
+      .all(at) as Row[];
+    return rows.map(mapSchedule);
+  }
+
+  getSchedule(id: string): Schedule | null {
+    const row = this.db.prepare('SELECT * FROM schedules WHERE id = ?').get(id) as
+      | Row
+      | undefined;
+    return row ? mapSchedule(row) : null;
+  }
+
+  updateSchedule(
+    id: string,
+    patch: Partial<
+      Pick<
+        Schedule,
+        | 'title'
+        | 'goal'
+        | 'templateId'
+        | 'intervalMinutes'
+        | 'enabled'
+        | 'nextRunAt'
+        | 'lastRunAt'
+        | 'lastTaskId'
+      >
+    >,
+  ): Schedule {
+    const columns: Array<[keyof typeof patch, string, (value: unknown) => unknown]> = [
+      ['title', 'title', (value) => value],
+      ['goal', 'goal', (value) => value],
+      ['templateId', 'template_id', (value) => value],
+      ['intervalMinutes', 'interval_minutes', (value) => value],
+      ['enabled', 'enabled', (value) => (value ? 1 : 0)],
+      ['nextRunAt', 'next_run_at', (value) => value],
+      ['lastRunAt', 'last_run_at', (value) => value],
+      ['lastTaskId', 'last_task_id', (value) => value],
+    ];
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    for (const [key, column, convert] of columns) {
+      if (!(key in patch)) continue;
+      sets.push(`${column} = ?`);
+      values.push(convert(patch[key]));
+    }
+    if (sets.length === 0) return this.requireSchedule(id);
+    this.db
+      .prepare(`UPDATE schedules SET ${sets.join(', ')} WHERE id = ?`)
+      .run(...(values as never[]), id);
+    return this.requireSchedule(id);
+  }
+
+  deleteSchedule(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM schedules WHERE id = ?').run(id);
+    return Number(result.changes) > 0;
+  }
+
+  private requireSchedule(id: string): Schedule {
+    const schedule = this.getSchedule(id);
+    if (!schedule) throw new Error(`定时任务 ${id} 不存在`);
+    return schedule;
+  }
 }
 
 function toAcceptanceRecord(row: Row): AcceptanceRecord {
@@ -1761,5 +1889,21 @@ function mapSideEffect(row: Row): SideEffect {
     result: nullableText(row, 'result'),
     createdAt: number(row, 'created_at'),
     updatedAt: number(row, 'updated_at'),
+  };
+}
+
+function mapSchedule(row: Row): Schedule {
+  return {
+    id: text(row, 'id'),
+    projectId: text(row, 'project_id'),
+    title: text(row, 'title'),
+    goal: text(row, 'goal'),
+    templateId: nullableText(row, 'template_id'),
+    intervalMinutes: number(row, 'interval_minutes'),
+    enabled: number(row, 'enabled') === 1,
+    nextRunAt: number(row, 'next_run_at'),
+    lastRunAt: nullableNumber(row, 'last_run_at'),
+    lastTaskId: nullableText(row, 'last_task_id'),
+    createdAt: number(row, 'created_at'),
   };
 }

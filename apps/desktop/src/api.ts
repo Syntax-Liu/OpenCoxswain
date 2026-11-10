@@ -13,6 +13,8 @@ import type {
   MemoryWriteResult,
   Project,
   RoleName,
+  Schedule,
+  ScheduleRun,
   Task,
   WorkbenchSnapshot,
 } from '@opencoxswain/shared';
@@ -181,6 +183,40 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(patch),
     });
+  },
+
+  schedules(projectId: string): Promise<{ schedules: Schedule[] }> {
+    return request(`/api/schedules?projectId=${encodeURIComponent(projectId)}`);
+  },
+
+  createSchedule(body: {
+    projectId: string;
+    title: string;
+    goal: string;
+    templateId?: string | null;
+    intervalMinutes: number;
+  }): Promise<Schedule> {
+    return request<Schedule>('/api/schedules', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  setScheduleEnabled(id: string, enabled: boolean): Promise<Schedule> {
+    return request<Schedule>(`/api/schedules/${encodeURIComponent(id)}/enabled`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+  },
+
+  runSchedule(id: string): Promise<ScheduleRun> {
+    return request<ScheduleRun>(`/api/schedules/${encodeURIComponent(id)}/run`, {
+      method: 'POST',
+    });
+  },
+
+  removeSchedule(id: string): Promise<{ ok: boolean }> {
+    return request(`/api/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };
 
