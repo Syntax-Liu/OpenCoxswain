@@ -297,12 +297,15 @@ export async function apply(ctx: PluginContext): Promise<void> {
   http.route('POST', '/api/llm/test', async () => ({ json: await planner.testLlm() }));
 
   http.route('GET', '/api/health', async () => {
-    const status = await runtimes.health();
+    // 报真正在跑任务的运行时，而不是注册表里的第一个（通常是 mock）。
+    const { runtime } = (await planner.llmStatus()).executor;
+    const preferred = runtimes.get(runtime);
+    const status = preferred ? await preferred.healthCheck() : await runtimes.health();
     return {
       json: {
         ok: status.ok,
         version: config.version,
-        adapter: status.adapter,
+        adapter: preferred?.name ?? runtime,
         detail: status.detail,
       },
     };

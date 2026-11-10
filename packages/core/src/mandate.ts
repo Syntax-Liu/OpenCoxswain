@@ -27,6 +27,18 @@ const TOOL_ALIASES: Record<string, string> = {
   rm: 'delete',
   run_test: 'test',
   test_run: 'test',
+  // OpenCode CLI 的检索/列举工具等价于读仓库，不授予额外能力。
+  glob: 'read',
+  grep: 'read',
+  list: 'read',
+  ls: 'read',
+  // OpenCode 用 patch 做结构化改写。
+  patch: 'write',
+  // 待办清单是运行时内部状态，不触达仓库与网络，按只读放行。
+  todowrite: 'read',
+  todoread: 'read',
+  fetch_url: 'web_search',
+  webfetch: 'web_search',
   search: 'web_search',
   web_search: 'web_search',
   fetch: 'web_search',

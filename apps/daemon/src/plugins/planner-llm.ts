@@ -3,9 +3,11 @@ import type {
   LlmConfigStatus,
   LlmProvider,
   LlmTestResult,
+  OpenCoxswainConfig,
   PlanResult,
   PlannerService,
   PluginContext,
+  RuntimeRegistry,
   SecretSource,
   StorageService,
 } from '@opencoxswain/plugin-api';
@@ -21,6 +23,17 @@ import type {
 } from '@opencoxswain/shared';
 import { PLAN_NOT_DECOMPOSED } from '@opencoxswain/core';
 import { Planner } from '../planner.js';
+import {
+  currentBaseUrl,
+  currentModel,
+  DEFAULT_BASE_URL,
+  DEFAULT_MODEL,
+  OPENCODE_FREE_MODEL,
+  OPENCODE_PROVIDER_ID,
+  SETTING_BASE_URL,
+  SETTING_MODEL,
+  SETTING_PROVIDER,
+} from './llm-target.js';
 
 const ROLES: ReadonlySet<string> = new Set<RoleName>([
   'implementer',
@@ -54,26 +67,14 @@ const SYSTEM_PROMPT = [
   'writeScope 使用仓库相对路径或目录前缀；verifier / researcher 留空数组。',
 ].join('\n');
 
-const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
-const DEFAULT_MODEL = 'deepseek-v4-flash';
-
 const PROVIDERS: ReadonlySet<string> = new Set<LlmProvider>(['deepseek', 'openai', 'custom']);
-
-/** 官方给出的旧模型名映射：deepseek-chat → 非思考模式，deepseek-reasoner → 思考模式。 */
-const LEGACY_DEEPSEEK_MODELS: Record<string, string> = {
-  'deepseek-chat': 'deepseek-v4-flash',
-  'deepseek-reasoner': 'deepseek-v4-pro',
-};
-
-const SETTING_PROVIDER = 'llm.provider';
-const SETTING_BASE_URL = 'llm.baseUrl';
-const SETTING_MODEL = 'llm.model';
 
 interface LlmPlannerOptions {
   engine: Planner;
   resolveKey: () => Promise<{ key: string; source: SecretSource; backend: string }>;
   recall: (query: string, projectId: string) => MemoryMatch[];
   settings: Pick<StorageService, 'getSetting' | 'setSetting'>;
+  executor: () => { runtime: string; model: string };
   envBaseUrl?: string;
   envModel?: string;
   timeoutMs: number;
@@ -96,18 +97,9 @@ export class LlmPlanner implements PlannerService {
   config(): LlmConfig {
     const stored = this.options.settings.getSetting(SETTING_PROVIDER) ?? '';
     const provider = (PROVIDERS.has(stored) ? stored : 'deepseek') as LlmProvider;
-    const baseUrl = (
-      this.options.settings.getSetting(SETTING_BASE_URL) ??
-      this.options.envBaseUrl ??
-      DEFAULT_BASE_URL
-    ).trim();
-    const storedModel = (
-      this.options.settings.getSetting(SETTING_MODEL) ??
-      this.options.envModel ??
-      DEFAULT_MODEL
-    ).trim();
+    const baseUrl = currentBaseUrl(this.options.settings, this.options.envBaseUrl);
     // deepseek-chat / deepseek-reasoner 已于 2026-07-24 弃用，旧配置按官方映射换到 V4 名称。
-    const model = provider === 'deepseek' ? (LEGACY_DEEPSEEK_MODELS[storedModel] ?? storedModel) : storedModel;
+    const model = currentModel(this.options.settings, this.options.envModel);
     return { provider, baseUrl: baseUrl || DEFAULT_BASE_URL, model: model || DEFAULT_MODEL };
   }
 
@@ -118,6 +110,7 @@ export class LlmPlanner implements PlannerService {
       backend,
       key: { configured: key !== '', source },
       planner: await this.status(),
+      executor: this.options.executor(),
       lastError: this.lastError,
     };
   }
@@ -406,17 +399,53 @@ function normalizeDeliverable(value: unknown): Deliverable | null {
   return { type: type as Deliverable['type'], ...(scope ? { scope } : {}) };
 }
 
+/**
+ * 决定由谁真正执行子任务：显式配置优先；auto 时探测 OpenCode，可用就用真实执行体，
+ * 否则退回 mock（mock 不改代码，任务会被判为空转失败）。
+ */
+async function resolveExecutor(
+  config: OpenCoxswainConfig,
+  storage: Pick<StorageService, 'getSetting'>,
+  runtimes: RuntimeRegistry,
+  apiKey: string,
+): Promise<{ runtime: string; model: string }> {
+  const name = config.defaultRuntime.trim();
+  if (name && name !== 'auto') return { runtime: name, model: config.defaultModel };
+
+  const opencode = runtimes.list().find((adapter) => adapter.name === 'opencode');
+  if (!opencode) return { runtime: 'mock', model: config.defaultModel };
+  let ok = false;
+  try {
+    ok = (await opencode.healthCheck()).ok;
+  } catch {
+    ok = false;
+  }
+  if (!ok) return { runtime: 'mock', model: config.defaultModel };
+  return {
+    runtime: 'opencode',
+    // 有 Key 用用户自己的模型；没有 Key 退回 OpenCode 免费模型，任务照样真实执行。
+    model: apiKey
+      ? `${OPENCODE_PROVIDER_ID}/${currentModel(storage, config.defaultModel)}`
+      : OPENCODE_FREE_MODEL,
+  };
+}
+
 export async function apply(ctx: PluginContext): Promise<void> {
   const config = ctx.config;
   const employees = ctx.service('employees');
-  const engine = new Planner({
-    runtime: config.defaultRuntime,
-    model: config.defaultModel,
-    employees,
-  });
   const secrets = ctx.service('secrets');
   const memory = ctx.service('memory');
   const storage = ctx.service('storage');
+  const runtimes = ctx.service('runtimes');
+
+  const apiKey = (await secrets.get('llm_api_key')) ?? '';
+  const executor = await resolveExecutor(config, storage, runtimes, apiKey);
+
+  const engine = new Planner({
+    runtime: executor.runtime,
+    model: executor.model,
+    employees,
+  });
 
   ctx.provide(
     'planner',
@@ -429,6 +458,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
       },
       recall: (query, projectId) => memory.recall(query, { projectId, limit: 5 }),
       settings: storage,
+      executor: () => ({ runtime: executor.runtime, model: executor.model }),
       envBaseUrl: process.env.OPENCOXSWAIN_LLM_BASE_URL,
       envModel: process.env.OPENCOXSWAIN_LLM_MODEL,
       timeoutMs: 30_000,

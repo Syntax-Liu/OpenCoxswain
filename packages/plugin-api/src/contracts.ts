@@ -451,6 +451,8 @@ export interface LlmConfigStatus {
   backend: string;
   key: { configured: boolean; source: SecretSource };
   planner: PlannerStatus;
+  /** 真正执行子任务的运行时与模型；mock 表示只做演示，不会改代码。 */
+  executor: { runtime: string; model: string };
   lastError: { message: string; at: number } | null;
 }
 

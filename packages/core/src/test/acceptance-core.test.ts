@@ -150,6 +150,14 @@ test('Mandate：能力集合、根目录、写域与过期', () => {
     ),
     null,
   );
+  // 真实运行时（OpenCode）的检索工具按只读放行，patch 按写入校验写域。
+  assert.equal(mandateViolation(mandate, 'glob', { pattern: '**/*.md' }, { now: 1000 }), null);
+  assert.equal(mandateViolation(mandate, 'grep', { pattern: 'hello' }, { now: 1000 }), null);
+  assert.equal(mandateViolation(mandate, 'todowrite', { todos: [] }, { now: 1000 }), null);
+  assert.equal(
+    mandateViolation(mandate, 'patch', { path: 'src/secret.ts' }, { now: 1000, writeScope: ['docs/'] }),
+    '写入路径 src/secret.ts 超出任务写域',
+  );
   assert.equal(
     mandateViolation(
       mandate,

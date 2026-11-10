@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.34.0';
+export const APP_VERSION = '0.35.0';
 
 export type DaemonConfig = OpenCoxswainConfig;
 
@@ -35,8 +35,8 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
     maxConcurrency:
       Number.isFinite(maxConcurrency) && maxConcurrency > 0 ? maxConcurrency : 2,
     defaultRuntime:
-      (overrides.defaultRuntime ?? process.env.OPENCOXSWAIN_DEFAULT_RUNTIME ?? 'mock').trim() ||
-      'mock',
+      (overrides.defaultRuntime ?? process.env.OPENCOXSWAIN_DEFAULT_RUNTIME ?? 'auto').trim() ||
+      'auto',
     defaultModel: (overrides.defaultModel ?? process.env.OPENCOXSWAIN_DEFAULT_MODEL ?? '').trim(),
     opencodeBin: (overrides.opencodeBin ?? process.env.OPENCOXSWAIN_OPENCODE_BIN ?? '').trim(),
     commandTimeoutMs: overrides.commandTimeoutMs ?? 5 * 60 * 1000,

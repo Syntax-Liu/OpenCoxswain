@@ -55,6 +55,8 @@ export interface LlmStatus {
   backend: string;
   key: { configured: boolean; source: 'vault' | 'env' | 'none' | string };
   planner: { mode: 'llm' | 'static'; reason: string | null };
+  /** 真正执行子任务的运行时与模型；runtime 为 mock 时不会改代码。 */
+  executor: { runtime: string; model: string };
   lastError: { message: string; at: number } | null;
 }
 

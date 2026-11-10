@@ -46,6 +46,8 @@ export async function makeDaemon(
     worktreesDir: path.join(home, 'worktrees'),
     artifactsDir: path.join(home, 'artifacts'),
     port: 0,
+    // 内核测试依赖 mock 运行时按 inputs.mock 落盘；真实执行体的行为由 adapter 自己的测试覆盖。
+    defaultRuntime: 'mock',
     ...overrides,
   });
   const base = `http://127.0.0.1:${app.port}`;

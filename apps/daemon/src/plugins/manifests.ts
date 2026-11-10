@@ -60,7 +60,7 @@ export function builtinManifests(): PluginManifest[] {
       kind: 'runtime',
       entry: entry('runtime-opencode'),
       provides: [],
-      inject: ['runtimes'],
+      inject: ['runtimes', 'secrets', 'storage'],
       permissions: [
         'runtime:use',
         'runtime:provide',
@@ -68,6 +68,9 @@ export function builtinManifests(): PluginManifest[] {
         'process:spawn',
         'events:read',
         'events:publish',
+        'secrets:read',
+        'storage:read',
+        'storage:write',
       ],
     },
     {
@@ -206,7 +209,7 @@ export function builtinManifests(): PluginManifest[] {
       kind: 'planner',
       entry: entry('planner-llm'),
       provides: ['planner'],
-      inject: ['config', 'events', 'secrets', 'employees', 'memory', 'storage'],
+      inject: ['config', 'events', 'secrets', 'employees', 'memory', 'storage', 'runtimes'],
       permissions: [
         'planner:use',
         'events:publish',
@@ -215,6 +218,7 @@ export function builtinManifests(): PluginManifest[] {
         'memory:read',
         'storage:read',
         'storage:write',
+        'runtime:use',
       ],
     },
     {

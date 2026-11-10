@@ -1127,6 +1127,16 @@ function SettingsTab(): JSX.Element {
               ? `当前 ${llm.config.model}（${llm.key.source === 'vault' ? '本机凭据库' : '环境变量'}提供密钥）`
               : '未配置密钥，规划走静态规则'}
         </p>
+        {llm === null ? null : llm.executor.runtime === 'mock' ? (
+          <p className="notice">
+            当前是演示运行时（mock），员工不会真正改动代码，任务会因「没有产生变更」判定失败。
+            未检测到可用的 OpenCode，请确认已安装并能在 PATH 中运行 opencode。
+          </p>
+        ) : (
+          <p className="hint">
+            执行体：{llm.executor.runtime}（{llm.executor.model}）
+          </p>
+        )}
         <label>
           提供商
           <select

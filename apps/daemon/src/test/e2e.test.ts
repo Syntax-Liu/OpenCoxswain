@@ -38,6 +38,8 @@ test('v0 闭环：规划 -> 审批 -> 实施/校验 -> 汇总 -> 验收', async 
     worktreesDir: path.join(home, 'worktrees'),
     artifactsDir: path.join(home, 'artifacts'),
     port: 0,
+    // 闭环用 mock 运行时复现：真实执行体的接入由 adapter 与 planner 的测试覆盖。
+    defaultRuntime: 'mock',
   });
   const base = `http://127.0.0.1:${app.port}`;
 

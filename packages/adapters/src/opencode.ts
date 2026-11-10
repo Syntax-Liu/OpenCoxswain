@@ -160,6 +160,15 @@ export interface OpenCodeOptions {
   /** PID 台账目录；daemon 被强杀后按台账回收遗留进程。 */
   ledgerDir?: string;
   env?: Record<string, string>;
+  /** 每次派发前解析的动态环境与 provider 配置，跟随用户后来保存的模型设置。 */
+  setup?: () => Promise<OpenCodeSetup>;
+}
+
+export interface OpenCodeSetup {
+  /** 追加到子进程环境变量，例如 DEEPSEEK_API_KEY。 */
+  env?: Record<string, string>;
+  /** 写入会话隔离的 opencode.json，用于声明自定义 provider 与模型。 */
+  config?: Record<string, unknown>;
 }
 
 /**
@@ -185,6 +194,7 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   private readonly runTimeoutMs: number;
   private readonly ledger: PidLedger | null;
   private readonly env: Record<string, string>;
+  private readonly setup: (() => Promise<OpenCodeSetup>) | null;
   private resolved: string | null | undefined;
 
   constructor(options: OpenCodeOptions = {}) {
@@ -193,6 +203,7 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     this.runTimeoutMs = options.runTimeoutMs ?? 15 * 60_000;
     this.ledger = options.ledgerDir ? new PidLedger(options.ledgerDir) : null;
     this.env = options.env ?? {};
+    this.setup = options.setup ?? null;
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -300,12 +311,14 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     if (target.cancelled) return;
 
     const startedAt = Date.now();
-    const isolation = await this.prepareIsolation(artifactsDir, session.id);
+    const setup = this.setup ? await this.setup() : {};
+    const isolation = await this.prepareIsolation(artifactsDir, session.id, setup.config);
     const child = spawn(bin, this.buildArgs(session, task), {
       cwd: session.worktree,
       env: {
         ...process.env,
         ...this.env,
+        ...setup.env,
         ...session.options.env,
         ...isolation,
         CI: '1',
@@ -556,6 +569,7 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   private async prepareIsolation(
     artifactsDir: string,
     sessionId: string,
+    config?: Record<string, unknown>,
   ): Promise<Record<string, string>> {
     const root = path.join(artifactsDir, 'opencode', sessionId);
     const env = {
@@ -566,6 +580,16 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     };
     for (const dir of Object.values(env)) {
       await mkdir(dir, { recursive: true });
+    }
+    if (config) {
+      // OpenCode 在 Windows 上也认 XDG_CONFIG_HOME，写在这里不会污染用户全局配置与工作区。
+      const configDir = path.join(env.XDG_CONFIG_HOME, 'opencode');
+      await mkdir(configDir, { recursive: true });
+      await writeFile(
+        path.join(configDir, 'opencode.json'),
+        `${JSON.stringify(config, null, 2)}\n`,
+        'utf8',
+      );
     }
     return env;
   }
