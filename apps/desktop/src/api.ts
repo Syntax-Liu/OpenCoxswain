@@ -4,6 +4,7 @@ import type {
   ChannelInput,
   ChannelTestResult,
   ChannelView,
+  CostLedger,
   CreatePlanRequest,
   CreateProjectRequest,
   DeliveryMergeResult,
@@ -47,6 +48,58 @@ export interface UpdateStatus {
   notes: string | null;
   date: string | null;
   error: string | null;
+}
+
+export type RemoteNodeStatus = 'idle' | 'busy' | 'offline';
+
+export type RemoteJobStatus =
+  | 'queued'
+  | 'assigned'
+  | 'succeeded'
+  | 'failed'
+  | 'expired'
+  | 'cancelled';
+
+/** 远程执行节点：由节点主动连入，daemon 不主动外连。 */
+export interface RemoteNodeView {
+  id: string;
+  name: string;
+  status: RemoteNodeStatus;
+  capabilities: string[];
+  registeredAt: number;
+  lastSeenAt: number;
+  currentJobId: string | null;
+}
+
+/** 远程任务：节点只执行，代码包回传后仍由本地复核。 */
+export interface RemoteJobView {
+  id: string;
+  taskId: string;
+  status: RemoteJobStatus;
+  nodeId: string | null;
+  branch: string;
+  runtime: string;
+  model: string;
+  prompt: string;
+  timeoutMs: number;
+  attempts: number;
+  createdAt: number;
+  assignedAt: number | null;
+  finishedAt: number | null;
+  summary: string | null;
+  error: string | null;
+  exitCode: number | null;
+  log: string;
+  cost: CostLedger | null;
+}
+
+/** 远程执行总状态；接入令牌仅在开启后可见。 */
+export interface RemoteStatus {
+  enabled: boolean;
+  enrollmentToken: string;
+  heartbeatMs: number;
+  nodes: RemoteNodeView[];
+  jobs: RemoteJobView[];
 }
 
 interface TauriCore {
@@ -327,6 +380,22 @@ export const api = {
 
   removeChannel(id: string): Promise<{ ok: boolean }> {
     return request(`/api/channels/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  remote(): Promise<RemoteStatus> {
+    return request<RemoteStatus>('/api/remote');
+  },
+
+  remoteEnable(): Promise<RemoteStatus> {
+    return request<RemoteStatus>('/api/remote/enable', { method: 'POST' });
+  },
+
+  remoteDisable(): Promise<RemoteStatus> {
+    return request<RemoteStatus>('/api/remote/disable', { method: 'POST' });
+  },
+
+  remoteRemoveNode(id: string): Promise<{ ok: boolean }> {
+    return request(`/api/remote/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };
 

@@ -14,7 +14,14 @@ import type {
 } from '@opencoxswain/shared';
 import { CHANNEL_EVENT_KINDS, MEMORY_KINDS } from '@opencoxswain/shared';
 import { api, DAEMON_URL, desktop, errorText } from '../api.js';
-import type { SecretsStatus, UpdateStatus } from '../api.js';
+import type {
+  RemoteJobStatus,
+  RemoteNodeStatus,
+  RemoteNodeView,
+  RemoteStatus,
+  SecretsStatus,
+  UpdateStatus,
+} from '../api.js';
 import { DiffReviewView } from '../components/DiffReviewView.js';
 import {
   formatDateTime,
@@ -659,6 +666,165 @@ function VersionSettings(): JSX.Element {
   );
 }
 
+const REMOTE_NODE_LABELS: Record<RemoteNodeStatus, string> = {
+  idle: '空闲',
+  busy: '忙碌',
+  offline: '离线',
+};
+
+const REMOTE_JOB_LABELS: Record<RemoteJobStatus, string> = {
+  queued: '排队中',
+  assigned: '执行中',
+  succeeded: '已完成',
+  failed: '失败',
+  expired: '已过期',
+  cancelled: '已取消',
+};
+
+function RemoteSettings(): JSX.Element {
+  const [status, setStatus] = useState<RemoteStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .remote()
+      .then((data) => {
+        if (alive) setStatus(data);
+      })
+      .catch((caught: unknown) => {
+        if (alive) setNotice(errorText(caught));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const load = async (): Promise<void> => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      setStatus(await api.remote());
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async (): Promise<void> => {
+    if (!status) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      setStatus(status.enabled ? await api.remoteDisable() : await api.remoteEnable());
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async (text: string): Promise<void> => {
+    const ok = await copyToClipboard(text);
+    setNotice(ok ? '接入令牌已复制' : '复制失败，请手动选中复制');
+  };
+
+  const remove = async (node: RemoteNodeView): Promise<void> => {
+    if (!window.confirm(`移除节点「${node.name}」？`)) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await api.remoteRemoveNode(node.id);
+      setStatus(await api.remote());
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const enabled = status?.enabled === true;
+  const token = status?.enrollmentToken ?? '';
+  const nodes = status?.nodes ?? [];
+  const openJobs = (status?.jobs ?? []).filter(
+    (job) => job.status === 'queued' || job.status === 'assigned',
+  );
+  const nodeName = (id: string | null): string =>
+    nodes.find((node) => node.id === id)?.name ?? '待分配';
+
+  return (
+    <div className="settings-block settings-wide">
+      <h3>远程节点</h3>
+      <p className="muted">
+        当前：
+        {status === null ? '读取中…' : enabled ? '已开启' : '未开启'}
+        {enabled ? `；节点每 ${Math.round((status?.heartbeatMs ?? 0) / 1000)} 秒心跳一次` : ''}
+      </p>
+      <p className="hint">
+        开启后节点用接入令牌主动连入；代码仍会回传本地复核，节点自报的结论不采信。
+      </p>
+      {enabled ? (
+        <div>
+          <p className="muted">接入令牌（节点注册时填写）</p>
+          <div className="row">
+            <input readOnly value={token} onFocus={(event) => event.currentTarget.select()} />
+            <button className="ghost" onClick={() => void copy(token)}>
+              复制
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="row">
+        <button disabled={busy || status === null} onClick={() => void toggle()}>
+          {enabled ? '关闭远程执行' : '开启远程执行'}
+        </button>
+        <button className="ghost" disabled={busy} onClick={() => void load()}>
+          刷新
+        </button>
+      </div>
+      <div>
+        <p className="muted">节点</p>
+        {loading ? <p className="muted">读取中…</p> : null}
+        {!loading && nodes.length === 0 ? (
+          <p className="hint">还没有节点接入，开启远程执行后把令牌填到节点侧。</p>
+        ) : null}
+        {nodes.map((node) => (
+          <div className="row wrap" key={node.id}>
+            <strong>{node.name}</strong>
+            <span className="muted">{REMOTE_NODE_LABELS[node.status]}</span>
+            <span className="hint">最近心跳：{formatDateTime(node.lastSeenAt)}</span>
+            <button className="ghost" disabled={busy} onClick={() => void remove(node)}>
+              移除
+            </button>
+          </div>
+        ))}
+      </div>
+      <div>
+        <p className="muted">进行中的远程任务</p>
+        {openJobs.length === 0 ? (
+          <p className="hint">当前没有进行中的远程任务。</p>
+        ) : (
+          openJobs.map((job) => (
+            <div className="row wrap" key={job.id}>
+              <span>{job.id}</span>
+              <span className="muted">{job.branch}</span>
+              <span className="muted">{REMOTE_JOB_LABELS[job.status]}</span>
+              <span className="hint">节点：{nodeName(job.nodeId)}</span>
+            </div>
+          ))
+        )}
+      </div>
+      {notice ? <p className="hint">{notice}</p> : null}
+    </div>
+  );
+}
+
 function SettingsTab(): JSX.Element {
   const { project, assistant, busy, onProjectSettings, onAssistant } = useWorkbench();
   const [budget, setBudget] = useState(String(project.dailyBudgetUsd));
@@ -847,6 +1013,7 @@ function SettingsTab(): JSX.Element {
       </div>
       <ChannelSettings />
       <VersionSettings />
+      <RemoteSettings />
       {notice ? <p className="notice">{notice}</p> : null}
     </div>
   );
