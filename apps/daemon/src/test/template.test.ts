@@ -9,7 +9,10 @@ import type {
   WorkbenchSnapshot,
 } from '@opencoxswain/shared';
 import { InMemoryTemplateRegistry } from '../plugins/templates/registry.js';
-import { makeDaemon, makeRepo } from './helpers.js';
+import { makeDaemon, makeRepo, waitFor } from './helpers.js';
+
+const FLIP_CHECK =
+  'node -e "const fs=require(\'fs\');if(!fs.existsSync(\'flip.flag\')){fs.writeFileSync(\'flip.flag\',\'1\');process.exit(0)}process.exit(9)"';
 
 const BASE: Omit<TaskTemplate, 'pluginId'> = {
   id: 'template.test',
@@ -133,6 +136,147 @@ test('任务模板：应用后仍待确认，权限与验收可见，自动合�
     );
     assert.equal(failed.status, 400);
     assert.match(await failed.text(), /任务模板不存在/);
+  } finally {
+    await daemon.app.close();
+    await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('模板任务：员工自报通过但系统重跑 command 失败时任务失败，模板策略不放行', async () => {
+  const fixture = await makeRepo({ 'note.txt': 'before\n' });
+  const daemon = await makeDaemon(fixture.home);
+  try {
+    const project = await daemon.call<Project>('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify({ path: fixture.repo }),
+    });
+    const planned = await daemon.call<{ root: Task; children: Task[] }>(
+      `/api/projects/${project.id}/plan`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: 'bugfix',
+          goal: '改一行说明',
+          subtasks: [
+            {
+              title: '实施：改说明',
+              goal: '把说明改成 after',
+              role: 'implementer',
+              writeScope: ['note.txt'],
+              acceptance: [
+                { id: 'ac_flip', type: 'command', desc: '首次通过、复核失败', check: FLIP_CHECK },
+              ],
+              inputs: { mock: { files: [{ path: 'note.txt', content: 'after\n' }] } },
+            },
+            {
+              title: '记录：验收日志',
+              goal: '写一份验收日志',
+              role: 'writer',
+              writeScope: ['docs/'],
+              inputs: { mock: { files: [{ path: 'docs/acceptance.md', content: '# log\n' }] } },
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(planned.root.contract.template_id, 'bugfix');
+    assert.equal(planned.root.contract.acceptance_policy, 'unverified_only');
+
+    await daemon.call(`/api/tasks/${planned.root.id}/approve`, { method: 'POST' });
+    const snapshot = await waitFor(async () => {
+      const current = await daemon.call<WorkbenchSnapshot>(
+        `/api/bootstrap?projectId=${project.id}`,
+      );
+      const root = current.tasks.find((task) => task.id === planned.root.id);
+      return root?.status === 'failed' ? current : null;
+    });
+
+    const implementer = snapshot.tasks.find(
+      (task) => task.parentId === planned.root.id && task.contract.assignee?.role === 'implementer',
+    );
+    assert.equal(implementer?.status, 'failed', '系统复核失败时不得因模板策略放过');
+    const record = snapshot.acceptance.find(
+      (item) => item.taskId === implementer?.id && item.criterionId === 'ac_flip',
+    );
+    assert.equal(record?.verdict, 'failed');
+    assert.equal(record?.judgedBy, 'system');
+
+    // 员工自报仍留在事件里供审计，但没有参与判定。
+    const event = snapshot.events.find(
+      (item) => item.type === 'acceptance.verified' && item.taskId === implementer?.id,
+    );
+    const payload = event?.payload as { reported?: Array<{ status?: string }> } | undefined;
+    assert.equal(payload?.reported?.[0]?.status, 'passed');
+  } finally {
+    await daemon.app.close();
+    await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('模板任务：系统复核通过但人工项未决时按策略落到 awaiting_review', async () => {
+  const fixture = await makeRepo({ 'note.txt': 'before\n' });
+  const daemon = await makeDaemon(fixture.home);
+  try {
+    const project = await daemon.call<Project>('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify({ path: fixture.repo }),
+    });
+    const planned = await daemon.call<{ root: Task; children: Task[] }>(
+      `/api/projects/${project.id}/plan`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: 'bugfix',
+          goal: '改一行说明',
+          subtasks: [
+            {
+              title: '实施：改说明',
+              goal: '把说明改成 after',
+              role: 'implementer',
+              writeScope: ['note.txt'],
+              acceptance: [
+                { id: 'ac_diff', type: 'diff', desc: '改动与修复目标一致' },
+                { id: 'ac_human', type: 'human', desc: '用户确认缺陷已修复' },
+              ],
+              inputs: { mock: { files: [{ path: 'note.txt', content: 'after\n' }] } },
+            },
+            {
+              title: '记录：验收日志',
+              goal: '写一份验收日志',
+              role: 'writer',
+              writeScope: ['docs/'],
+              inputs: { mock: { files: [{ path: 'docs/acceptance.md', content: '# log\n' }] } },
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(planned.root.contract.template_id, 'bugfix');
+    assert.equal(planned.root.contract.acceptance_policy, 'unverified_only');
+
+    await daemon.call(`/api/tasks/${planned.root.id}/approve`, { method: 'POST' });
+    const snapshot = await waitFor(async () => {
+      const current = await daemon.call<WorkbenchSnapshot>(
+        `/api/bootstrap?projectId=${project.id}`,
+      );
+      const root = current.tasks.find((task) => task.id === planned.root.id);
+      return root?.status === 'awaiting_review' ? current : null;
+    });
+
+    const implementer = snapshot.tasks.find(
+      (task) => task.parentId === planned.root.id && task.contract.assignee?.role === 'implementer',
+    );
+    assert.equal(implementer?.status, 'awaiting_review', '人工项未决时不能直接 done');
+    const diff = snapshot.acceptance.find(
+      (item) => item.taskId === implementer?.id && item.criterionId === 'ac_diff',
+    );
+    assert.equal(diff?.verdict, 'passed', 'diff 由系统复算通过');
+    assert.equal(diff?.judgedBy, 'system');
+    const human = snapshot.acceptance.find(
+      (item) => item.taskId === implementer?.id && item.criterionId === 'ac_human',
+    );
+    assert.equal(human?.verdict, 'unverified', '人工项保留给用户判定');
+    assert.equal(human?.judgedBy, 'system');
   } finally {
     await daemon.app.close();
     await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
