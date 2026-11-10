@@ -55,9 +55,15 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
-const DEFAULT_MODEL = 'deepseek-chat';
+const DEFAULT_MODEL = 'deepseek-v4-flash';
 
 const PROVIDERS: ReadonlySet<string> = new Set<LlmProvider>(['deepseek', 'openai', 'custom']);
+
+/** 官方给出的旧模型名映射：deepseek-chat → 非思考模式，deepseek-reasoner → 思考模式。 */
+const LEGACY_DEEPSEEK_MODELS: Record<string, string> = {
+  'deepseek-chat': 'deepseek-v4-flash',
+  'deepseek-reasoner': 'deepseek-v4-pro',
+};
 
 const SETTING_PROVIDER = 'llm.provider';
 const SETTING_BASE_URL = 'llm.baseUrl';
@@ -95,11 +101,13 @@ export class LlmPlanner implements PlannerService {
       this.options.envBaseUrl ??
       DEFAULT_BASE_URL
     ).trim();
-    const model = (
+    const storedModel = (
       this.options.settings.getSetting(SETTING_MODEL) ??
       this.options.envModel ??
       DEFAULT_MODEL
     ).trim();
+    // deepseek-chat / deepseek-reasoner 已于 2026-07-24 弃用，旧配置按官方映射换到 V4 名称。
+    const model = provider === 'deepseek' ? (LEGACY_DEEPSEEK_MODELS[storedModel] ?? storedModel) : storedModel;
     return { provider, baseUrl: baseUrl || DEFAULT_BASE_URL, model: model || DEFAULT_MODEL };
   }
 
@@ -203,7 +211,7 @@ export class LlmPlanner implements PlannerService {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: this.userPrompt(request, references) },
       ],
-      { json: true, temperature: 0.2 },
+      { json: true, temperature: 0.2, maxTokens: 2048 },
     );
 
     let parsed: unknown;
@@ -237,6 +245,8 @@ export class LlmPlanner implements PlannerService {
       },
       body: JSON.stringify({
         model: config.model,
+        // DeepSeek 默认开启思考模式，会忽略 temperature 并拖长响应；规划这类结构化输出关掉更稳。
+        ...(config.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
         ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
         ...(options.json ? { response_format: { type: 'json_object' } } : {}),
         ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),

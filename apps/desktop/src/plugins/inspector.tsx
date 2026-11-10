@@ -902,7 +902,7 @@ const LLM_PROVIDERS: Array<{
     id: 'deepseek',
     label: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
-    models: ['deepseek-chat', 'deepseek-reasoner'],
+    models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   },
   {
     id: 'openai',
@@ -1142,23 +1142,18 @@ function SettingsTab(): JSX.Element {
         </label>
         <label>
           模型
-          {provider === 'custom' ? (
-            <input
-              value={model}
-              placeholder="如 qwen-plus"
-              onChange={(event) => setModel(event.target.value)}
-            />
-          ) : (
-            <select value={model} onChange={(event) => setModel(event.target.value)}>
-              {presetModels.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-              {presetModels.includes(model) ? null : <option value={model}>{model}</option>}
-            </select>
-          )}
+          <input
+            value={model}
+            list="llm-model-options"
+            placeholder="从预设里选，或直接填模型名"
+            onChange={(event) => setModel(event.target.value)}
+          />
         </label>
+        <datalist id="llm-model-options">
+          {presetModels.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
         <label>
           API 地址
           <input

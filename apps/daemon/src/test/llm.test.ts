@@ -89,7 +89,7 @@ test('模型配置：保存后真实调用、测试连接与失败原因可见',
       key: { configured: boolean };
     }>('/api/llm');
     assert.equal(initial.config.provider, 'deepseek');
-    assert.equal(initial.config.model, 'deepseek-chat');
+    assert.equal(initial.config.model, 'deepseek-v4-flash');
     assert.equal(initial.key.configured, true);
 
     const saved = await call<{ config: { baseUrl: string; model: string } }>('/api/llm', {
