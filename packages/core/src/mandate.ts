@@ -32,6 +32,10 @@ const TOOL_ALIASES: Record<string, string> = {
   grep: 'read',
   list: 'read',
   ls: 'read',
+  list_dir: 'read',
+  list_files: 'read',
+  search_files: 'read',
+  find_files: 'read',
   // OpenCode 用 patch 做结构化改写。
   patch: 'write',
   // 待办清单是运行时内部状态，不触达仓库与网络，按只读放行。

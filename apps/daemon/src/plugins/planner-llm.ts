@@ -22,7 +22,7 @@ import type {
   SubtaskDraft,
 } from '@opencoxswain/shared';
 import { PLAN_NOT_DECOMPOSED } from '@opencoxswain/core';
-import { Planner } from '../planner.js';
+import { Planner, type PlannerOptions } from '../planner.js';
 import {
   currentBaseUrl,
   currentModel,
@@ -65,6 +65,10 @@ const SYSTEM_PROMPT = [
   '校验类子任务必须通过 dependsOn 指向实施任务（0 基索引）。',
   '每个子任务的 acceptance 至少包含一个可自动验证的标准：command（带 check）、diff（依赖 writeScope），或 rubric + evidence_required（如 anchor/assertion）；human 只用于确实需要主观判断的项。',
   'writeScope 使用仓库相对路径或目录前缀；verifier / researcher 留空数组。',
+  `验收 command 会直接在用户的系统 shell 中执行（${process.platform === 'win32' ? 'Windows，cmd.exe' : 'POSIX shell'}），check 必须是该 shell 能直接运行的命令。`,
+  process.platform === 'win32'
+    ? 'Windows 上禁止使用 Unix 命令（test / cat / grep / awk / wc / touch / rm 等）：判断文件用 `if exist 路径\\文件 (echo OK) else (exit /b 1)`，查看内容用 `type 路径\\文件`，匹配文本用 `findstr /c:"文本" 路径\\文件`。'
+    : '验收命令可用 test / cat / grep 等系统自带工具。',
 ].join('\n');
 
 const PROVIDERS: ReadonlySet<string> = new Set<LlmProvider>(['deepseek', 'openai', 'custom']);
@@ -75,6 +79,8 @@ interface LlmPlannerOptions {
   recall: (query: string, projectId: string) => MemoryMatch[];
   settings: Pick<StorageService, 'getSetting' | 'setSetting'>;
   executor: () => { runtime: string; model: string };
+  /** 每次规划/读取状态前重算执行体，用户刚填的 Key 无需重启就能生效。 */
+  syncExecutor?: () => Promise<{ runtime: string; model: string }>;
   envBaseUrl?: string;
   envModel?: string;
   timeoutMs: number;
@@ -110,9 +116,18 @@ export class LlmPlanner implements PlannerService {
       backend,
       key: { configured: key !== '', source },
       planner: await this.status(),
-      executor: this.options.executor(),
+      executor: await this.refreshExecutor(),
       lastError: this.lastError,
     };
+  }
+
+  private async refreshExecutor(): Promise<{ runtime: string; model: string }> {
+    if (!this.options.syncExecutor) return this.options.executor();
+    try {
+      return await this.options.syncExecutor();
+    } catch {
+      return this.options.executor();
+    }
   }
 
   async configureLlm(patch: Partial<LlmConfig>): Promise<LlmConfigStatus> {
@@ -161,6 +176,7 @@ export class LlmPlanner implements PlannerService {
       return this.options.engine.plan(project, request);
     }
 
+    await this.refreshExecutor();
     const { key, source } = await this.options.resolveKey();
     if (!key) {
       this.options.notify('planner.fallback', {
@@ -400,8 +416,8 @@ function normalizeDeliverable(value: unknown): Deliverable | null {
 }
 
 /**
- * 决定由谁真正执行子任务：显式配置优先；auto 时探测 OpenCode，可用就用真实执行体，
- * 否则退回 mock（mock 不改代码，任务会被判为空转失败）。
+ * 决定由谁真正执行子任务：显式配置优先；auto 时优先用内置执行体（有 Key 即可跑，
+ * 不依赖任何外部 CLI），其次探测 OpenCode，最后退回 mock（mock 不改代码，会被判为空转失败）。
  */
 async function resolveExecutor(
   config: OpenCoxswainConfig,
@@ -410,7 +426,13 @@ async function resolveExecutor(
   apiKey: string,
 ): Promise<{ runtime: string; model: string }> {
   const name = config.defaultRuntime.trim();
-  if (name && name !== 'auto') return { runtime: name, model: config.defaultModel };
+  const model = currentModel(storage, config.defaultModel);
+  if (name && name !== 'auto') {
+    return { runtime: name, model: name === 'builtin' ? model : config.defaultModel };
+  }
+
+  const builtin = runtimes.list().find((adapter) => adapter.name === 'builtin');
+  if (builtin && apiKey) return { runtime: 'builtin', model };
 
   const opencode = runtimes.list().find((adapter) => adapter.name === 'opencode');
   if (!opencode) return { runtime: 'mock', model: config.defaultModel };
@@ -441,11 +463,20 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const apiKey = (await secrets.get('llm_api_key')) ?? '';
   const executor = await resolveExecutor(config, storage, runtimes, apiKey);
 
-  const engine = new Planner({
+  // Planner 直接读取这份对象；重算后改写即可让新填的 Key / 新设置立即生效。
+  const plannerOptions: PlannerOptions = {
     runtime: executor.runtime,
     model: executor.model,
     employees,
-  });
+  };
+  const engine = new Planner(plannerOptions);
+  const syncExecutor = async (): Promise<{ runtime: string; model: string }> => {
+    const key = (await secrets.get('llm_api_key')) ?? '';
+    const next = await resolveExecutor(config, storage, runtimes, key);
+    plannerOptions.runtime = next.runtime;
+    plannerOptions.model = next.model;
+    return next;
+  };
 
   ctx.provide(
     'planner',
@@ -458,7 +489,11 @@ export async function apply(ctx: PluginContext): Promise<void> {
       },
       recall: (query, projectId) => memory.recall(query, { projectId, limit: 5 }),
       settings: storage,
-      executor: () => ({ runtime: executor.runtime, model: executor.model }),
+      executor: () => ({
+        runtime: plannerOptions.runtime ?? executor.runtime,
+        model: plannerOptions.model ?? executor.model,
+      }),
+      syncExecutor,
       envBaseUrl: process.env.OPENCOXSWAIN_LLM_BASE_URL,
       envModel: process.env.OPENCOXSWAIN_LLM_MODEL,
       timeoutMs: 30_000,

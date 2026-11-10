@@ -1129,12 +1129,13 @@ function SettingsTab(): JSX.Element {
         </p>
         {llm === null ? null : llm.executor.runtime === 'mock' ? (
           <p className="notice">
-            当前是演示运行时（mock），员工不会真正改动代码，任务会因「没有产生变更」判定失败。
-            未检测到可用的 OpenCode，请确认已安装并能在 PATH 中运行 opencode。
+            当前未启用真实执行体：员工不会改动代码，任务会因「没有产生变更」判定失败。
+            在下方填写 API Key 即可启用内置执行体，无需安装任何外部工具。
           </p>
         ) : (
           <p className="hint">
-            执行体：{llm.executor.runtime}（{llm.executor.model}）
+            执行体：{llm.executor.runtime === 'builtin' ? '内置执行体' : llm.executor.runtime}（
+            {llm.executor.model}）
           </p>
         )}
         <label>
