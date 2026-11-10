@@ -1,7 +1,7 @@
 # 主从双 Agent 的用户体验：判断、边界与实现对照
 
 > **材料**：本地完整对话 `D:\Users\37632\Downloads\主从双Agent会不会大幅度提升用户体验？现成产品有TRAE宝，注意这个是TRAE的新功能.md`（8 轮问答，713 行）。此前腾讯元宝公开分享页只返回最后一轮回答，已放弃，不作为本文来源。
-> **对照**：`docs/plan.md`（已推进到 v0.14.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
+> **对照**：`docs/plan.md`（已推进到 v0.15.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
 > **性质**：论点提炼 + 证据分级 + 体验结论 + 差距判定 + 可执行改动。不摘抄原文，不重复竞品清单。
 
 ---
@@ -328,12 +328,13 @@
 - **落点**：复用 G2 类型；`scheduler.fail` 组装。
 - **验收**：失败任务在收件箱里能读出「下一步怎么办」，不是一堆日志。
 
-#### G8 交付最后一公里没有分级
+#### G8 交付最后一公里没有分级（已完成，v0.15.0）
 
 - **现状**：系统不修改用户主分支；任务完成后产物在分支 / worktree 里，需要用户自己合并。对工程师合理，对不懂代码的人是断点。
 - **改什么**：增加「交付说明 + 一键合并（需确认）」：列出分支、改动文件、验证结果、回滚方式；自动合并只对 B5 允许的类型开放，且必须二次确认。
 - **落点**：`steward` 汇总、`apps/desktop` 任务详情、`worktrees` 服务。
 - **验收**：非工程用户能从「完成」走到「作品可用」，不需要命令行。
+- **实现**：交付说明复用 `DecisionBrief` 四段，风险由系统按交付物类型 / 删除行数 / 副作用计算；只有全部子任务为 document、无删除行、无 `fs.delete` / `net.send`、无未决审批与冲突时才判低风险并显示「一键合并（需确认）」，需再点「确认合并」且 `planHash` 一致；系统合并失败自动 `git merge --abort` + `git reset --hard` 回滚。高风险只展示分支与手动处理指引。
 
 ### 3.3 与现有决策冲突、需要重新评估的
 

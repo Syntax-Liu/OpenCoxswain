@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   assertTransition,
   buildSummary,
@@ -22,6 +23,8 @@ import {
   type CreatePlanRequest,
   type CreateProjectRequest,
   type DecisionBrief,
+  type DeliveryMergeResult,
+  type DeliveryPlan,
   type Evidence,
   type MemoryKind,
   type Project,
@@ -44,6 +47,7 @@ import type {
   SchedulerService,
   StewardService,
   StorageService,
+  WorktreeService,
 } from '@opencoxswain/plugin-api';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -60,6 +64,7 @@ export interface StewardOptions {
   scheduler: SchedulerService;
   employees: EmployeeRegistry;
   memory: MemoryService;
+  worktrees: WorktreeService;
 }
 
 export class Steward implements StewardService {
@@ -70,6 +75,7 @@ export class Steward implements StewardService {
   private readonly scheduler: SchedulerService;
   private readonly employees: EmployeeRegistry;
   private readonly memory: MemoryService;
+  private readonly worktrees: WorktreeService;
   private readonly announced = new Set<string>();
 
   constructor(options: StewardOptions) {
@@ -80,6 +86,7 @@ export class Steward implements StewardService {
     this.scheduler = options.scheduler;
     this.employees = options.employees;
     this.memory = options.memory;
+    this.worktrees = options.worktrees;
   }
 
   async snapshot(projectId?: string | null): Promise<WorkbenchSnapshot> {
@@ -691,6 +698,194 @@ export class Steward implements StewardService {
    */
   brief(taskId: string): DecisionBrief {
     return this.briefOf(this.requireTask(taskId));
+  }
+
+  /** 交付说明 + 合并计划；四段说明直接复用决策说明，避免两套叙述。 */
+  async delivery(taskId: string): Promise<DeliveryPlan> {
+    const task = this.requireTask(taskId);
+    if (task.parentId !== null) {
+      throw new AppError('只有根任务有交付计划', 409);
+    }
+    const project = this.requireProject(task.projectId);
+    const brief = this.briefOf(task);
+    const children = this.store.listChildren(task.id);
+    const subtree = [task, ...children];
+    const blocked: string[] = [];
+
+    if (task.status !== 'done') {
+      blocked.push(`任务状态是 ${task.status}，完成最终验收后才能合并`);
+    }
+    const unfinished = children.filter((child) => child.status !== 'done');
+    if (unfinished.length > 0) {
+      blocked.push(`还有 ${unfinished.length} 个子任务未完成：${unfinished
+        .map((child) => child.title)
+        .slice(0, 3)
+        .join('、')}${unfinished.length > 3 ? ' 等' : ''}`);
+    }
+    if (children.length === 0) {
+      blocked.push('没有子任务产物，没有可合并的分支');
+    }
+
+    const branches: string[] = [];
+    for (const child of children) {
+      if (child.status !== 'done') continue;
+      const worker = this.store.getWorkerByTask(child.id);
+      if (!worker?.branch) {
+        blocked.push(`子任务「${child.title}」没有可交付分支`);
+        continue;
+      }
+      if (!branches.includes(worker.branch)) branches.push(worker.branch);
+    }
+    if (branches.length === 0) blocked.push('没有可合并的分支');
+
+    const pendingApprovals = this.store
+      .listApprovals(project.id)
+      .filter(
+        (approval) =>
+          approval.status === 'pending' && subtree.some((item) => item.id === approval.taskId),
+      );
+    if (pendingApprovals.length > 0) {
+      blocked.push(`还有 ${pendingApprovals.length} 个审批未处理`);
+    }
+    if (this.store.listTaskSideEffects(task.id).some((effect) => effect.kind === 'net.send')) {
+      blocked.push('存在外发动作，不能自动合并');
+    }
+
+    let state = {
+      branch: '',
+      head: '',
+      clean: false,
+      diffs: [] as Array<{
+        ref: string;
+        files: number;
+        additions: number;
+        deletions: number;
+        paths: string[];
+      }>,
+    };
+    if (branches.length > 0) {
+      try {
+        state = await this.worktrees.inspect(project, branches);
+      } catch (error) {
+        blocked.push(
+          `检查仓库失败：${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    if (state.branch && state.branch !== project.defaultBranch) {
+      blocked.push(`当前分支是 ${state.branch}，请切回 ${project.defaultBranch}`);
+    }
+    if (state.branch && !state.clean) {
+      blocked.push('工作区有未提交改动，请先提交或清理');
+    }
+
+    const changedFiles = [...new Set(state.diffs.flatMap((diff) => diff.paths))];
+    const additions = state.diffs.reduce((total, diff) => total + diff.additions, 0);
+    const deletions = state.diffs.reduce((total, diff) => total + diff.deletions, 0);
+
+    const riskReasons: string[] = [];
+    const profiles = new Set(
+      subtree.map((item) => item.contract.deliverable_profile ?? 'code'),
+    );
+    if (!(profiles.size === 1 && profiles.has('document'))) {
+      riskReasons.push('交付物不全是文档类型');
+    }
+    if (deletions > 0) riskReasons.push(`包含删除（${deletions} 行）`);
+    const riskyEffects = subtree.flatMap((item) => this.store.listTaskSideEffects(item.id));
+    if (riskyEffects.some((effect) => effect.kind === 'fs.delete')) {
+      riskReasons.push('存在删除文件的副作用');
+    }
+    if (riskyEffects.some((effect) => effect.kind === 'net.send')) {
+      riskReasons.push('存在外发副作用');
+    }
+    if (pendingApprovals.some((approval) => approval.type === 'merge_conflict')) {
+      riskReasons.push('有未解决的合并冲突');
+    }
+    const risk = riskReasons.length === 0 ? 'low' : 'high';
+    if (risk === 'high') {
+      blocked.push(`高风险交付不提供一键合并：${riskReasons.join('；')}`);
+    }
+
+    const planHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          taskId: task.id,
+          baseBranch: project.defaultBranch,
+          baseHead: state.head,
+          branches,
+          changedFiles,
+          additions,
+          deletions,
+          risk,
+        }),
+      )
+      .digest('hex')
+      .slice(0, 16);
+
+    return {
+      taskId: task.id,
+      brief,
+      baseBranch: project.defaultBranch,
+      baseHead: state.head,
+      branches,
+      changedFiles,
+      additions,
+      deletions,
+      risk,
+      riskReasons,
+      mergeable: blocked.length === 0,
+      blockedReasons: blocked,
+      rollback: `git reset --hard ${state.head || '<合并前提交>'}`,
+      planHash,
+      generatedAt: now(),
+    };
+  }
+
+  async mergeDelivery(
+    taskId: string,
+    request: { confirm: boolean; planHash: string },
+  ): Promise<{ plan: DeliveryPlan; result: DeliveryMergeResult }> {
+    if (!request.confirm) throw new AppError('请先确认合并计划', 400);
+    const plan = await this.delivery(taskId);
+    if (plan.planHash !== request.planHash) {
+      throw new AppError('交付内容已变化，请重新预览后再确认', 409);
+    }
+    if (!plan.mergeable) {
+      throw new AppError(plan.blockedReasons.join('；') || '当前不满足合并条件', 409);
+    }
+    const task = this.requireTask(taskId);
+    const project = this.requireProject(task.projectId);
+    try {
+      const merged = await this.worktrees.merge(project, plan.branches);
+      this.bus.publish(
+        this.store.appendEvent({
+          taskId: task.id,
+          type: 'delivery.merged',
+          payload: {
+            baseBranch: merged.baseBranch,
+            head: merged.head,
+            branches: merged.branches,
+            risk: plan.risk,
+          },
+        }),
+      );
+      return {
+        plan,
+        result: {
+          baseBranch: merged.baseBranch,
+          head: merged.head,
+          branches: merged.branches,
+          mergedAt: now(),
+        },
+      };
+    } catch (error) {
+      throw new AppError(
+        `合并失败，已回滚到 ${plan.rollback}：${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        409,
+      );
+    }
   }
 
   private briefOf(task: Task): DecisionBrief {

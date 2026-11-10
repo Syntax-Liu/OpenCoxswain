@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AcceptanceDecision,
   Assistant,
+  DeliveryMergeResult,
+  DeliveryPlan,
   Project,
   RoleName,
   Task,
@@ -28,6 +30,9 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
+  const [delivery, setDelivery] = useState<DeliveryPlan | null>(null);
+  const [deliveryResult, setDeliveryResult] = useState<DeliveryMergeResult | null>(null);
+  const [merging, setMerging] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const projectIdRef = useRef<string | null>(null);
   const bottomTabs = useUiPanels(registry, 'bottom');
@@ -104,6 +109,26 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const reviewBrief =
     snapshot?.briefs.find((brief) => brief.taskId === reviewTask?.id) ?? null;
 
+  useEffect(() => {
+    if (!root || root.status !== 'done') {
+      setDelivery(null);
+      setDeliveryResult(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .delivery(root.id)
+      .then((plan) => {
+        if (!cancelled) setDelivery(plan);
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(errorText(caught));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [root?.id, root?.status]);
+
   const onPlan = async (goal: string, acceptanceCommand?: string): Promise<boolean> => {
     const project = snapshot?.project;
     if (!project) return false;
@@ -135,6 +160,25 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const onReview = (taskId: string): void => {
     setReviewTaskId(taskId);
     void run(() => api.markViewed(taskId));
+  };
+
+  const onMerge = (planHash: string): void => {
+    if (!root) return;
+    setMerging(true);
+    void api
+      .mergeDelivery(root.id, planHash)
+      .then(async ({ result }) => {
+        setDeliveryResult(result);
+        await load(projectIdRef.current);
+      })
+      .catch((caught) => {
+        setError(errorText(caught));
+        void api
+          .delivery(root.id)
+          .then(setDelivery)
+          .catch(() => undefined);
+      })
+      .finally(() => setMerging(false));
   };
 
   const onInput = (taskId: string, text: string): void => {
@@ -210,6 +254,9 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     summary: snapshot.summary,
     reviewTask,
     reviewBrief,
+    delivery,
+    deliveryResult,
+    merging,
     busy,
     onPlan,
     onTaskAction,
@@ -218,6 +265,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     onApproval,
     onAcceptance,
     onReview,
+    onMerge,
     onInput,
     onWorkerAction,
     onProjectSettings,

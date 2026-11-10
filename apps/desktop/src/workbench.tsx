@@ -5,6 +5,8 @@ import type {
   ArtifactRecord,
   Assistant,
   DecisionBrief,
+  DeliveryMergeResult,
+  DeliveryPlan,
   EventRecord,
   Evidence,
   Project,
@@ -34,6 +36,9 @@ export interface Workbench {
   summary: string | null;
   reviewTask: Task | null;
   reviewBrief: DecisionBrief | null;
+  delivery: DeliveryPlan | null;
+  deliveryResult: DeliveryMergeResult | null;
+  merging: boolean;
   busy: boolean;
   onPlan: (goal: string, acceptanceCommand?: string) => Promise<boolean>;
   onTaskAction: (action: TaskAction, note?: string) => void;
@@ -42,6 +47,7 @@ export interface Workbench {
   onApproval: (approvalId: string, status: 'approved' | 'rejected') => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
   onReview: (taskId: string) => void;
+  onMerge: (planHash: string) => void;
   onInput: (taskId: string, text: string) => void;
   onWorkerAction: (worker: Worker, action: WorkerAction) => void;
   onProjectSettings: (patch: {

@@ -214,7 +214,7 @@ export function builtinManifests(): PluginManifest[] {
       kind: 'steward',
       entry: entry('steward'),
       provides: ['steward'],
-      inject: ['events', 'storage', 'planner', 'scheduler', 'runtimes', 'employees', 'memory'],
+      inject: ['events', 'storage', 'planner', 'scheduler', 'runtimes', 'employees', 'memory', 'worktrees'],
       permissions: [
         'steward:call',
         'events:read',
@@ -229,6 +229,8 @@ export function builtinManifests(): PluginManifest[] {
         'mandate:read',
         'memory:read',
         'memory:write',
+        'fs:worktree',
+        'process:spawn',
       ],
     },
     {

@@ -80,6 +80,67 @@ test('顺序合并：多依赖分支冲突时抛出 MergeConflictError 并清理
   }
 });
 
+test('交付合并：干净仓库可合并，冲突时回滚到合并前提交', async () => {
+  const fixture = await makeRepo({ 'a.txt': 'base\n' });
+  try {
+    await runGit(fixture.repo, ['checkout', '-b', 'b1']);
+    await writeFile(path.join(fixture.repo, 'b.txt'), 'b1\n', 'utf8');
+    await runGit(fixture.repo, ['add', '-A']);
+    await runGit(fixture.repo, ['commit', '-m', 'b1 adds b']);
+    await runGit(fixture.repo, ['checkout', 'main']);
+
+    await runGit(fixture.repo, ['checkout', '-b', 'b2']);
+    await writeFile(path.join(fixture.repo, 'b.txt'), 'b2\n', 'utf8');
+    await runGit(fixture.repo, ['add', '-A']);
+    await runGit(fixture.repo, ['commit', '-m', 'b2 adds b']);
+    await runGit(fixture.repo, ['checkout', 'main']);
+
+    const manager = new WorktreeManager(fixture.home);
+    const project = projectOf(fixture.repo);
+    const before = (await runGit(fixture.repo, ['rev-parse', 'HEAD'])).stdout.trim();
+
+    const state = await manager.inspect(project, ['b1']);
+    assert.equal(state.branch, 'main');
+    assert.equal(state.clean, true);
+    assert.equal(state.diffs[0]?.deletions, 0);
+    assert.deepEqual(state.diffs[0]?.paths, ['b.txt']);
+
+    await assert.rejects(
+      () => manager.merge(project, ['b1', 'b2']),
+      /冲突|CONFLICT|Merge conflict/i,
+    );
+    const after = (await runGit(fixture.repo, ['rev-parse', 'HEAD'])).stdout.trim();
+    assert.equal(after, before, '失败后回到合并前提交');
+    assert.equal((await runGit(fixture.repo, ['status', '--porcelain'])).stdout.trim(), '');
+    await assert.rejects(() => readFile(path.join(fixture.repo, 'b.txt'), 'utf8'), '合并产物已回滚');
+
+    const merged = await manager.merge(project, ['b1']);
+    assert.equal(merged.baseBranch, 'main');
+    assert.deepEqual(merged.branches, ['b1']);
+    assert.equal((await readFile(path.join(fixture.repo, 'b.txt'), 'utf8')).trim(), 'b1');
+  } finally {
+    await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('交付合并：工作区不干净时拒绝', async () => {
+  const fixture = await makeRepo({ 'a.txt': 'base\n' });
+  try {
+    await runGit(fixture.repo, ['checkout', '-b', 'b1']);
+    await commitFile(fixture.repo, 'b1\n');
+    await runGit(fixture.repo, ['checkout', 'main']);
+    await writeFile(path.join(fixture.repo, 'a.txt'), 'dirty\n', 'utf8');
+
+    const manager = new WorktreeManager(fixture.home);
+    await assert.rejects(
+      () => manager.merge(projectOf(fixture.repo), ['b1']),
+      /未提交改动/,
+    );
+  } finally {
+    await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
 test('顺序合并：单依赖正常检出且内容正确', async () => {
   const fixture = await makeRepo({ 'a.txt': 'base\n' });
   try {

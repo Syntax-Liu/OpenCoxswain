@@ -72,6 +72,8 @@ export interface Run {
   startedAt: number;
   endedAt: number | null;
   error: string | null;
+  /** 重启时租约仍未过期：保留 running，但标记为“结果未知”，由监察观察 */
+  recoveredUnknown?: boolean;
 }
 
 /** 一次执行的租约；过期即视为孤儿，可被重新认领。 */
@@ -156,6 +158,41 @@ export interface ReviewLatency {
   viewLagP95: number | null;
   decideLagP50: number | null;
   decideLagP95: number | null;
+}
+
+export type DeliveryRisk = 'low' | 'high';
+
+/**
+ * 交付说明 + 一键合并计划。
+ * 说明四段直接复用 DecisionBrief，不另造一套叙述；风险由系统按产物与副作用判定。
+ */
+export interface DeliveryPlan {
+  taskId: string;
+  brief: DecisionBrief;
+  baseBranch: string;
+  baseHead: string;
+  branches: string[];
+  changedFiles: string[];
+  additions: number;
+  deletions: number;
+  risk: DeliveryRisk;
+  riskReasons: string[];
+  /** 低风险且前置条件全部满足时才允许一键合并 */
+  mergeable: boolean;
+  blockedReasons: string[];
+  /** 合并失败时回到该提交 */
+  rollback: string;
+  /** 合并前必须原样带回，防止计划过期后误合 */
+  planHash: string;
+  generatedAt: number;
+}
+
+/** 一键合并结果。失败时系统已回滚，不返回半成品。 */
+export interface DeliveryMergeResult {
+  baseBranch: string;
+  head: string;
+  branches: string[];
+  mergedAt: number;
 }
 
 export const INPUT_SOURCES = ['human', 'supervisor', 'task'] as const;

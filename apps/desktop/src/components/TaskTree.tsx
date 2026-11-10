@@ -4,6 +4,8 @@ import {
   type AcceptanceDecision,
   type AcceptanceRecord,
   type DecisionBrief,
+  type DeliveryMergeResult,
+  type DeliveryPlan,
   type Evidence,
   type RoleName,
   type Task,
@@ -15,6 +17,7 @@ import {
 import type { TaskAction } from '../api.js';
 import { ROLE_LABELS, StatusChip } from '../ui.js';
 import { AcceptancePanel } from './AcceptancePanel.js';
+import { DeliveryPanel } from './DeliveryPanel.js';
 
 interface Props {
   root: Task | null;
@@ -26,10 +29,14 @@ interface Props {
   inputs: TaskInput[];
   reviewTask: Task | null;
   brief: DecisionBrief | null;
+  delivery: DeliveryPlan | null;
+  deliveryResult: DeliveryMergeResult | null;
+  merging: boolean;
   busy: boolean;
   onAction: (action: TaskAction) => void;
   onAcceptance: (decisions: AcceptanceDecision[]) => void;
   onReview: (taskId: string) => void;
+  onMerge: (planHash: string) => void;
   onInput: (taskId: string, text: string) => void;
   onReassign: (taskId: string, role: RoleName) => void;
 }
@@ -192,10 +199,14 @@ export function TaskTree({
   inputs,
   reviewTask,
   brief,
+  delivery,
+  deliveryResult,
+  merging,
   busy,
   onAction,
   onAcceptance,
   onReview,
+  onMerge,
   onInput,
   onReassign,
 }: Props): JSX.Element {
@@ -346,6 +357,12 @@ export function TaskTree({
             onSubmit={onAcceptance}
           />
         ) : null}
+        <DeliveryPanel
+          plan={delivery}
+          result={deliveryResult}
+          merging={merging}
+          onMerge={onMerge}
+        />
       </div>
     </section>
   );

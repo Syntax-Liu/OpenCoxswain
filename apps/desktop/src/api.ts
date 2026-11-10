@@ -3,6 +3,8 @@ import type {
   Assistant,
   CreatePlanRequest,
   CreateProjectRequest,
+  DeliveryMergeResult,
+  DeliveryPlan,
   MemoryCandidate,
   MemoryEntry,
   MemoryMatch,
@@ -101,6 +103,23 @@ export const api = {
   /** 记录人首次打开验收单的时间，用于反馈延迟统计。 */
   markViewed(taskId: string): Promise<Task> {
     return request<Task>(`/api/tasks/${taskId}/viewed`, { method: 'POST' });
+  },
+
+  delivery(taskId: string): Promise<DeliveryPlan> {
+    return request<DeliveryPlan>(`/api/tasks/${taskId}/delivery`);
+  },
+
+  mergeDelivery(
+    taskId: string,
+    planHash: string,
+  ): Promise<{ plan: DeliveryPlan; result: DeliveryMergeResult }> {
+    return request<{ plan: DeliveryPlan; result: DeliveryMergeResult }>(
+      `/api/tasks/${taskId}/merge`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ confirm: true, planHash }),
+      },
+    );
   },
 
   reassignTask(taskId: string, role: RoleName, note?: string): Promise<Task> {

@@ -278,10 +278,12 @@ export class Scheduler {
         if (task.status === 'running' && task.parentId !== null) {
           const active = this.store.getActiveRun(task.id);
           if (active && active.leaseExpiresAt !== null && active.leaseExpiresAt > Date.now()) {
+            this.store.markRunRecoveredUnknown(active.id);
             this.emit(task.id, active.workerId, 'task.recovered', {
               mode: 'lease_active',
               runId: active.id,
               expiresAt: active.leaseExpiresAt,
+              recoveredUnknown: true,
               message: '租约仍然有效，保留运行现场等待续约或过期回收。',
             });
             continue;

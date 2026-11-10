@@ -305,6 +305,20 @@ export async function apply(ctx: PluginContext): Promise<void> {
     json: steward.brief(taskIdOf(request)),
   }));
 
+  http.route('GET', '/api/tasks/:id/delivery', async (request) => ({
+    json: await steward.delivery(taskIdOf(request)),
+  }));
+
+  http.route('POST', '/api/tasks/:id/merge', async (request) => {
+    const body = request.body as { confirm?: boolean; planHash?: string };
+    return {
+      json: await steward.mergeDelivery(taskIdOf(request), {
+        confirm: body.confirm === true,
+        planHash: typeof body.planHash === 'string' ? body.planHash : '',
+      }),
+    };
+  });
+
   http.route('GET', '/api/review-latency', async (request) => ({
     json: store.reviewLatency(request.query.get('projectId')),
   }));

@@ -111,6 +111,9 @@ test('G5 租约：并发认领互斥、过期回收、复用 run 记录', async 
   assert.equal(store.listExpiredRuns(Date.now()).length, 0);
   assert.equal(store.takeOrphanRun(task.id), null);
 
+  store.markRunRecoveredUnknown('run_1');
+  assert.equal(store.getActiveRun(task.id)?.recoveredUnknown, true, '租约未过期的重启现场会标记结果未知');
+
   store.finishRun('run_1', null, 'boom');
   assert.equal(store.getActiveRun(task.id), null);
 });

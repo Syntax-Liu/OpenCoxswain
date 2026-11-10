@@ -347,6 +347,12 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 决策说明服务：`StewardService.brief` 由契约、产物与系统复核记录生成四段说明并落 `decision_briefs`；说明不替代 command 重跑与 diff 复算。
 3. 反馈延迟：tasks 表记录 `finished_at` / `first_viewed_at` / `decided_at`，`StorageService.reviewLatency` 与 `GET /api/review-latency` 输出 p50/p95 与当前等待数；插件契约新增 `markViewed` / `brief`，无新增互相直连。
 
+已完成（v0.15.0）：
+
+1. 交付服务：`StewardService.delivery` 复用决策说明四段，经 `WorktreeService.inspect` 汇总分支 diff、改动文件与增删行数，风险按交付物类型 / 删除行数 / 副作用判定，并生成 `planHash` 与回退命令。
+2. 一键合并：`StewardService.mergeDelivery` 只对低风险交付开放，要求二次确认与 `planHash` 一致；`WorktreeService.merge` 校验默认分支与工作区干净，失败自动 `git merge --abort` + `git reset --hard` 回滚，成功后发 `delivery.merged` 事件。
+3. 租约现场标记：`StorageService.markRunRecoveredUnknown` 在重启且租约未过期时标记 `recovered_unknown`，不打断 supervisor 观察；插件契约新增 `delivery` / `mergeDelivery` / `inspect` / `merge` / `markRunRecoveredUnknown`，仍由内核注入服务，无互相直连。
+
 下一步（P3 剩余）：
 
 1. 产物 diff 逐文件审阅、任务模板、首次引导。

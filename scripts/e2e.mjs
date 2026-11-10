@@ -207,6 +207,25 @@ try {
     )}ms`,
   );
 
+  step('交付说明');
+  const delivery = await call(`/api/tasks/${planned.root.id}/delivery`);
+  assert.equal(delivery.taskId, planned.root.id);
+  for (const field of ['changed', 'why', 'verified', 'risks']) {
+    assert.ok(delivery.brief[field].trim(), `交付说明复用决策说明：${field}`);
+  }
+  assert.ok(delivery.branches.length > 0, '应有可交付分支');
+  assert.ok(delivery.rollback.startsWith('git reset --hard'), '应给出失败回退命令');
+  assert.equal(delivery.mergeable, false, '代码类交付默认不提供一键合并');
+  assert.ok(delivery.blockedReasons.length > 0, '不可合并时应说明原因');
+  await assert.rejects(
+    call(`/api/tasks/${planned.root.id}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: false, planHash: delivery.planHash }),
+    }),
+    /400/,
+    '合并必须确认',
+  );
+
   step('回放');
   const replay = await call(`/api/tasks/${planned.root.id}/replay`);
   assert.ok(replay.events.length > 0);

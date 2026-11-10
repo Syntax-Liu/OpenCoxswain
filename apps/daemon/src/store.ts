@@ -203,6 +203,10 @@ CREATE TABLE IF NOT EXISTS decision_briefs (
 );
 `;
 
+const RECOVERY_SCHEMA = `
+ALTER TABLE runs ADD COLUMN recovered_unknown INTEGER NOT NULL DEFAULT 0;
+`;
+
 const SCHEMA = `
 CREATE TABLE projects (
   id               TEXT PRIMARY KEY,
@@ -383,7 +387,7 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 6) return;
+    if (version >= 7) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
@@ -395,7 +399,8 @@ export class Store {
       if (version < 4) this.db.exec(LEASE_SCHEMA);
       if (version < 5) this.db.exec(AUTHORITY_SCHEMA);
       if (version < 6) this.db.exec(REVIEW_SCHEMA);
-      this.db.exec('PRAGMA user_version = 6;');
+      if (version < 7) this.db.exec(RECOVERY_SCHEMA);
+      this.db.exec('PRAGMA user_version = 7;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -865,6 +870,13 @@ export class Store {
         `UPDATE runs SET status = 'orphaned', lease_owner = NULL, lease_expires_at = NULL
          WHERE id = ?`,
       )
+      .run(runId);
+  }
+
+  /** 重启时租约仍未过期：保留 running，但持久化“结果未知”，供监察与重试判断。 */
+  markRunRecoveredUnknown(runId: string): void {
+    this.db
+      .prepare('UPDATE runs SET recovered_unknown = 1 WHERE id = ?')
       .run(runId);
   }
 
@@ -1717,6 +1729,7 @@ function mapRun(row: Row): Run {
     startedAt: number(row, 'started_at'),
     endedAt: nullableNumber(row, 'ended_at'),
     error: nullableText(row, 'error'),
+    recoveredUnknown: number(row, 'recovered_unknown') === 1,
   };
 }
 

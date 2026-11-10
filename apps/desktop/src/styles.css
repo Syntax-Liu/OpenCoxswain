@@ -938,6 +938,37 @@ label.choice input {
   white-space: pre-wrap;
 }
 
+.delivery-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+.delivery-meta {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.delivery-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.delivery-meta dd {
+  margin: 2px 0 0;
+  word-break: break-all;
+}
+
+.merge-confirm {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-raised, #131c26);
+}
+
 .evidence-fold summary {
   cursor: pointer;
   color: var(--muted);

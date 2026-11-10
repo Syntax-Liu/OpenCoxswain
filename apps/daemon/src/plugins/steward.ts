@@ -10,6 +10,7 @@ export function apply(ctx: PluginContext): void {
     scheduler: ctx.service('scheduler'),
     employees: ctx.service('employees'),
     memory: ctx.service('memory'),
+    worktrees: ctx.service('worktrees'),
   });
 
   ctx.provide('steward', steward);

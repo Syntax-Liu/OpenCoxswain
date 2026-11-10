@@ -12,6 +12,8 @@ import type {
   CreatePlanRequest,
   CreateProjectRequest,
   DecisionBrief,
+  DeliveryMergeResult,
+  DeliveryPlan,
   EmployeeDefinition,
   EventRecord,
   Evidence,
@@ -170,6 +172,8 @@ export interface StorageService {
   /** 列出已过期但未结束的 run。 */
   listExpiredRuns(now: number): Array<{ taskId: string; runId: string; workerId: string }>;
   markRunOrphaned(runId: string): void;
+  /** 租约未过期的重启现场：保留 running，标记结果未知。 */
+  markRunRecoveredUnknown(runId: string): void;
   /** 复用孤儿 run 记录重新派发，避免重复计费。 */
   reviveRun(runId: string, workerId: string, owner: string, ttlMs: number): void;
   takeOrphanRun(taskId: string): string | null;
@@ -263,6 +267,21 @@ export interface EventService {
   parallel(event: string, payload: unknown): Promise<void>;
 }
 
+export interface RepositoryDiff {
+  ref: string;
+  files: number;
+  additions: number;
+  deletions: number;
+  paths: string[];
+}
+
+export interface RepositoryState {
+  branch: string;
+  head: string;
+  clean: boolean;
+  diffs: RepositoryDiff[];
+}
+
 export interface WorktreeService {
   create(
     project: Project,
@@ -270,6 +289,13 @@ export interface WorktreeService {
     baseRefs?: string[],
   ): Promise<{ path: string; branch: string }>;
   remove(repoPath: string, worktreePath: string): Promise<void>;
+  /** 交付前检查：当前分支、工作区是否干净，以及各分支相对基线的 diff。 */
+  inspect(project: Project, refs: string[]): Promise<RepositoryState>;
+  /** 将分支依次合入默认分支；任一步失败都回滚到合并前的提交。 */
+  merge(
+    project: Project,
+    refs: string[],
+  ): Promise<{ baseBranch: string; head: string; branches: string[] }>;
 }
 
 export interface RuntimeRegistry {
@@ -404,6 +430,12 @@ export interface StewardService {
   markViewed(taskId: string): Task;
   /** 决策说明：由系统按契约与复核结果生成，员工自述不参与。 */
   brief(taskId: string): DecisionBrief;
+  /** 交付说明 + 一键合并计划；说明复用决策说明，不另造叙述。 */
+  delivery(taskId: string): Promise<DeliveryPlan>;
+  mergeDelivery(
+    taskId: string,
+    request: { confirm: boolean; planHash: string },
+  ): Promise<{ plan: DeliveryPlan; result: DeliveryMergeResult }>;
   summary(taskId: string): string;
   replay(taskId: string): TaskReplay;
   decideApproval(id: string, status: 'approved' | 'rejected'): Approval;

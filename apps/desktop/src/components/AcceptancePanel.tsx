@@ -6,6 +6,7 @@ import type {
   Evidence,
   Task,
 } from '@opencoxswain/shared';
+import { DecisionBriefView } from './DecisionBriefView.js';
 
 interface Props {
   task: Task;
@@ -20,13 +21,6 @@ interface Draft {
   verdict?: 'passed' | 'failed';
   note: string;
 }
-
-const BRIEF_SECTIONS: Array<{ key: keyof DecisionBrief; label: string }> = [
-  { key: 'changed', label: '改了什么' },
-  { key: 'why', label: '为什么' },
-  { key: 'verified', label: '验过什么' },
-  { key: 'risks', label: '还有什么风险' },
-];
 
 /**
  * 验收决策说明 + 逐条验收。
@@ -82,23 +76,7 @@ export function AcceptancePanel({
       </header>
       <article className="decision-brief">
         <h4>{task.parentId === null ? '交付说明' : `子任务：${task.title}`}</h4>
-        {brief ? (
-          <>
-            <dl>
-              {BRIEF_SECTIONS.map((section) => (
-                <div key={section.key}>
-                  <dt>{section.label}</dt>
-                  <dd>{String(brief[section.key] ?? '') || '—'}</dd>
-                </div>
-              ))}
-            </dl>
-            {brief.conflictReason ? (
-              <p className="hint danger-text">冲突判定：{brief.conflictReason}</p>
-            ) : null}
-          </>
-        ) : (
-          <p className="hint">系统还没有生成决策说明；提交验收前会再校验一次。</p>
-        )}
+        <DecisionBriefView brief={brief} />
         <p className="hint">
           证据由系统复核（命令重跑、diff 复算）；员工自述只作参考，不能替代系统验证。
         </p>
