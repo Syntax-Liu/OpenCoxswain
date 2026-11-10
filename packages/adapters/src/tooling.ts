@@ -47,11 +47,14 @@ export function runCommand(
   });
 }
 
+/** 中文路径默认会被 git 转义成八进制，统一关掉，让路径与补丁头原样保留。 */
+const QUOTEPATH_OFF = ['-c', 'core.quotepath=false'];
+
 export function git(cwd: string, args: string[]): Promise<CommandResult> {
   return new Promise((resolve) => {
     execFile(
       'git',
-      args,
+      [...QUOTEPATH_OFF, ...args],
       { cwd, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout, stderr) => {
         const code =

@@ -406,3 +406,9 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 1. 门禁质量：`StorageService.gateQuality(projectId?)` 只读聚合 `acceptance.verified` / `acceptance.decided` 事件，按「任务 + 验收项取最后一次判定」分别统计系统自动判定、系统通过 / 拦下、待人工与人工收口，并给出自动 / 人工通过率（无样本返回 `null`）。
 2. 服务与接口：`GateQuality` 归入 `@opencoxswain/shared`，`StorageService` 契约同步新增方法；`GET /api/gate-quality` 由 `api.rest` 暴露，前端 `api.gateQuality` 在成本页「验收门禁」展示。
 3. 边界：不改验收记录、不改状态机、不提供事件里无法证实的「误报率」；系统失败直接判任务失败、人工只能裁决非 passed 项，统计只描述分布。
+
+已完成（v0.23.1）：
+
+1. 中文与空格路径：`runGit`（daemon）、`git`（adapters 工具层）与验收侧 `git` 子进程统一加 `-c core.quotepath=false`，`diff --name-only`、`--numstat` 与补丁头不再把中文文件名转义成八进制。
+2. 回归覆盖：新增「worktree 创建 / 检视 / 合并 / 清理」与「diff 产物 + 逐文件明细」两条测试，仓库、worktree 根、产物目录与文件名都带中文与空格，断言路径原样返回且 `parseDiffPatch` 可读。
+3. 边界：只改 git 调用参数，不改插件契约、不改状态机；长路径与进程清理仍待后续。

@@ -8,11 +8,14 @@ export interface GitResult {
   stderr: string;
 }
 
+/** 中文路径默认会被 git 转义成八进制，统一关掉，让路径原样返回。 */
+const QUOTEPATH_OFF = ['-c', 'core.quotepath=false'];
+
 export function runGit(cwd: string, args: string[]): Promise<GitResult> {
   return new Promise((resolve) => {
     execFile(
       'git',
-      args,
+      [...QUOTEPATH_OFF, ...args],
       { cwd, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout, stderr) => {
         const code =

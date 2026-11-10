@@ -521,7 +521,10 @@ function runCommand(command: string, cwd: string, timeoutMs: number): Promise<Co
 
 function diffDetails(cwd: string, baseRef: string): Promise<DiffDetails> {
   return new Promise((resolve) => {
-    const numstat = spawn('git', ['diff', '--numstat', baseRef], { cwd, windowsHide: true });
+    const numstat = spawn('git', ['-c', 'core.quotepath=false', 'diff', '--numstat', baseRef], {
+      cwd,
+      windowsHide: true,
+    });
     let numstatOut = '';
     let stderr = '';
     numstat.stdout?.on('data', (chunk: Buffer) => {
@@ -580,7 +583,10 @@ async function collectNamesAndPatch(
 
 function gitOutput(cwd: string, args: string[]): Promise<{ output: string; error?: string }> {
   return new Promise((resolve) => {
-    const child = spawn('git', args, { cwd, windowsHide: true });
+    const child = spawn('git', ['-c', 'core.quotepath=false', ...args], {
+      cwd,
+      windowsHide: true,
+    });
     let output = '';
     let stderr = '';
     child.stdout?.on('data', (chunk: Buffer) => {
