@@ -177,6 +177,9 @@ export interface StorageService {
   updateAssistant(
     patch: Partial<Pick<Assistant, 'name' | 'avatar' | 'persona' | 'tone' | 'proactivity'>>,
   ): Assistant;
+  /** 全局键值设置（模型配置等），按 key 覆盖写入。 */
+  getSetting(key: string): string | null;
+  setSetting(key: string, value: string): void;
   insertTask(task: Task): void;
   getTask(id: string): Task | null;
   listTasks(projectId: string): Task[];
@@ -433,9 +436,41 @@ export interface PlanResult {
   edges: PlanEdge[];
 }
 
+/** LLM 提供商预设；baseUrl 与 model 都可被用户覆盖。 */
+export type LlmProvider = 'deepseek' | 'openai' | 'custom';
+
+export interface LlmConfig {
+  provider: LlmProvider;
+  baseUrl: string;
+  model: string;
+}
+
+/** 设置页需要的一屏信息：配置、密钥来源、最近一次调用失败原因。 */
+export interface LlmConfigStatus {
+  config: LlmConfig;
+  backend: string;
+  key: { configured: boolean; source: SecretSource };
+  planner: PlannerStatus;
+  lastError: { message: string; at: number } | null;
+}
+
+export interface LlmTestResult {
+  ok: boolean;
+  provider: LlmProvider;
+  baseUrl: string;
+  model: string;
+  latencyMs: number;
+  error: string | null;
+}
+
 export interface PlannerService {
   plan(project: Project, request: CreatePlanRequest): PlanResult | Promise<PlanResult>;
   status(): PlannerStatus | Promise<PlannerStatus>;
+  llmStatus(): Promise<LlmConfigStatus>;
+  /** 保存模型配置；下一次规划立即生效。 */
+  configureLlm(patch: Partial<LlmConfig>): Promise<LlmConfigStatus>;
+  /** 用当前配置真实请求一次，返回可展示的成功或失败原因。 */
+  testLlm(): Promise<LlmTestResult>;
 }
 
 /**

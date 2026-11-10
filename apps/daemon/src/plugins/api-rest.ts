@@ -14,7 +14,7 @@ import type {
 } from '@opencoxswain/shared';
 import { CHANNEL_EVENT_KINDS, MEMORY_KINDS, ROLE_NAMES } from '@opencoxswain/shared';
 import { capabilityDiff, projectCapabilities } from '@opencoxswain/core';
-import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
+import type { HttpRouteRequest, LlmConfig, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
 
 const TASK_ACTIONS = ['approve', 'reject', 'cancel', 'pause', 'resume', 'retry'] as const;
@@ -173,6 +173,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const templates = ctx.service('templates');
   const memory = ctx.service('memory');
   const schedules = ctx.service('schedules');
+  const planner = ctx.service('planner');
   const router = ctx.service('router');
   const channels = ctx.service('channels');
 
@@ -285,6 +286,15 @@ export async function apply(ctx: PluginContext): Promise<void> {
       },
     };
   });
+
+  http.route('GET', '/api/llm', async () => ({ json: await planner.llmStatus() }));
+
+  http.route('PUT', '/api/llm', async ({ body }) => {
+    const input = body as Partial<LlmConfig>;
+    return { json: await planner.configureLlm(input) };
+  });
+
+  http.route('POST', '/api/llm/test', async () => ({ json: await planner.testLlm() }));
 
   http.route('GET', '/api/health', async () => {
     const status = await runtimes.health();

@@ -40,6 +40,33 @@ export interface SecretsStatus {
   llm: { configured: boolean; source: 'vault' | 'env' | 'none' | string };
 }
 
+export type LlmProvider = 'deepseek' | 'openai' | 'custom';
+
+/** LLM 规划配置：提供商预设 + 可覆盖的 API 地址与模型名。 */
+export interface LlmConfig {
+  provider: LlmProvider;
+  baseUrl: string;
+  model: string;
+}
+
+/** 设置页一屏信息：配置、密钥来源、Planner 模式与最近一次失败原因。 */
+export interface LlmStatus {
+  config: LlmConfig;
+  backend: string;
+  key: { configured: boolean; source: 'vault' | 'env' | 'none' | string };
+  planner: { mode: 'llm' | 'static'; reason: string | null };
+  lastError: { message: string; at: number } | null;
+}
+
+export interface LlmTestResult {
+  ok: boolean;
+  provider: LlmProvider;
+  baseUrl: string;
+  model: string;
+  latencyMs: number;
+  error: string | null;
+}
+
 /** 自动更新检查结果；未配置更新源时 configured 为 false，其余字段为空。 */
 export interface UpdateStatus {
   configured: boolean;
@@ -199,6 +226,18 @@ export const api = {
 
   clearLlmKey(): Promise<SecretsStatus> {
     return request<SecretsStatus>('/api/secrets/llm', { method: 'DELETE' });
+  },
+
+  llm(): Promise<LlmStatus> {
+    return request<LlmStatus>('/api/llm');
+  },
+
+  setLlmConfig(patch: Partial<LlmConfig>): Promise<LlmStatus> {
+    return request<LlmStatus>('/api/llm', { method: 'PUT', body: JSON.stringify(patch) });
+  },
+
+  testLlm(): Promise<LlmTestResult> {
+    return request<LlmTestResult>('/api/llm/test', { method: 'POST' });
   },
 
   rememberMemory(body: MemoryCandidate): Promise<MemoryWriteResult> {

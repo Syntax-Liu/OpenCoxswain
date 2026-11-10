@@ -15,11 +15,13 @@ import type {
 import { CHANNEL_EVENT_KINDS, MEMORY_KINDS } from '@opencoxswain/shared';
 import { api, DAEMON_URL, desktop, errorText } from '../api.js';
 import type {
+  LlmProvider,
+  LlmStatus,
+  LlmTestResult,
   RemoteJobStatus,
   RemoteNodeStatus,
   RemoteNodeView,
   RemoteStatus,
-  SecretsStatus,
   UpdateStatus,
 } from '../api.js';
 import { DiffReviewView } from '../components/DiffReviewView.js';
@@ -889,6 +891,28 @@ function RemoteSettings(): JSX.Element {
   );
 }
 
+/** 内置提供商预设；自定义提供商需要自己填地址与模型名。 */
+const LLM_PROVIDERS: Array<{
+  id: LlmProvider;
+  label: string;
+  baseUrl: string;
+  models: string[];
+}> = [
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+  },
+  { id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', models: [] },
+];
+
 function SettingsTab(): JSX.Element {
   const { project, assistant, busy, onProjectSettings, onAssistant } = useWorkbench();
   const [budget, setBudget] = useState(String(project.dailyBudgetUsd));
@@ -897,16 +921,28 @@ function SettingsTab(): JSX.Element {
   const [tone, setTone] = useState<Assistant['tone']>(assistant.tone);
   const [proactivity, setProactivity] = useState<Assistant['proactivity']>(assistant.proactivity);
   const [notice, setNotice] = useState<string | null>(null);
-  const [llm, setLlm] = useState<SecretsStatus | null>(null);
+  const [llm, setLlm] = useState<LlmStatus | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [keyBusy, setKeyBusy] = useState(false);
+  const [provider, setProvider] = useState<LlmProvider>('deepseek');
+  const [model, setModel] = useState('deepseek-chat');
+  const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com/v1');
+  const [modelBusy, setModelBusy] = useState(false);
+  const [testResult, setTestResult] = useState<LlmTestResult | null>(null);
+
+  const applyLlm = (status: LlmStatus): void => {
+    setLlm(status);
+    setProvider(status.config.provider);
+    setModel(status.config.model);
+    setBaseUrl(status.config.baseUrl);
+  };
 
   useEffect(() => {
     let alive = true;
     api
-      .secrets()
+      .llm()
       .then((status) => {
-        if (alive) setLlm(status);
+        if (alive) applyLlm(status);
       })
       .catch((caught: unknown) => {
         if (alive) setNotice(errorText(caught));
@@ -965,10 +1001,12 @@ function SettingsTab(): JSX.Element {
     }
     setKeyBusy(true);
     setNotice(null);
+    setTestResult(null);
     try {
-      setLlm(await api.setLlmKey(value));
+      await api.setLlmKey(value);
+      setLlm(await api.llm());
       setApiKey('');
-      setNotice('密钥已保存；点顶栏刷新后规划切换为 LLM。');
+      setNotice('密钥已保存，下一次规划直接使用。');
     } catch (caught) {
       setNotice(errorText(caught));
     } finally {
@@ -979,15 +1017,58 @@ function SettingsTab(): JSX.Element {
   const clearKey = async (): Promise<void> => {
     setKeyBusy(true);
     setNotice(null);
+    setTestResult(null);
     try {
-      setLlm(await api.clearLlmKey());
-      setNotice('已清除密钥；规划回落到静态规则。');
+      await api.clearLlmKey();
+      setLlm(await api.llm());
+      setNotice('已清除密钥，规划回落到静态规则。');
     } catch (caught) {
       setNotice(errorText(caught));
     } finally {
       setKeyBusy(false);
     }
   };
+
+  const changeProvider = (next: LlmProvider): void => {
+    setProvider(next);
+    const preset = LLM_PROVIDERS.find((item) => item.id === next);
+    if (preset && next !== 'custom') {
+      setBaseUrl(preset.baseUrl);
+      setModel(preset.models[0] ?? '');
+    }
+    setTestResult(null);
+  };
+
+  const saveModel = async (): Promise<void> => {
+    setModelBusy(true);
+    setNotice(null);
+    setTestResult(null);
+    try {
+      applyLlm(await api.setLlmConfig({ provider, baseUrl: baseUrl.trim(), model: model.trim() }));
+      setNotice('模型设置已保存，下一次规划直接使用。');
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setModelBusy(false);
+    }
+  };
+
+  const testConnection = async (): Promise<void> => {
+    setModelBusy(true);
+    setNotice(null);
+    setTestResult(null);
+    try {
+      const result = await api.testLlm();
+      setTestResult(result);
+      setLlm(await api.llm());
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setModelBusy(false);
+    }
+  };
+
+  const presetModels = LLM_PROVIDERS.find((item) => item.id === provider)?.models ?? [];
 
   return (
     <div className="settings">
@@ -1038,13 +1119,86 @@ function SettingsTab(): JSX.Element {
         </button>
       </div>
       <div className="settings-block">
+        <h3>模型</h3>
+        <p className="muted">
+          {llm === null
+            ? '读取中…'
+            : llm.key.configured
+              ? `当前 ${llm.config.model}（${llm.key.source === 'vault' ? '本机凭据库' : '环境变量'}提供密钥）`
+              : '未配置密钥，规划走静态规则'}
+        </p>
+        <label>
+          提供商
+          <select
+            value={provider}
+            onChange={(event) => changeProvider(event.target.value as LlmProvider)}
+          >
+            {LLM_PROVIDERS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          模型
+          {provider === 'custom' ? (
+            <input
+              value={model}
+              placeholder="如 qwen-plus"
+              onChange={(event) => setModel(event.target.value)}
+            />
+          ) : (
+            <select value={model} onChange={(event) => setModel(event.target.value)}>
+              {presetModels.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {presetModels.includes(model) ? null : <option value={model}>{model}</option>}
+            </select>
+          )}
+        </label>
+        <label>
+          API 地址
+          <input
+            value={baseUrl}
+            placeholder="https://api.deepseek.com/v1"
+            onChange={(event) => setBaseUrl(event.target.value)}
+          />
+        </label>
+        <div className="row">
+          <button disabled={modelBusy || busy} onClick={() => void saveModel()}>
+            保存模型设置
+          </button>
+          <button
+            className="ghost"
+            disabled={modelBusy || keyBusy || busy || !llm?.key.configured}
+            onClick={() => void testConnection()}
+          >
+            {modelBusy ? '请求中…' : '测试连接'}
+          </button>
+        </div>
+        {llm?.lastError ? (
+          <p className="notice">最近一次调用失败：{llm.lastError.message}</p>
+        ) : null}
+        {testResult ? (
+          <p className={testResult.ok ? 'hint' : 'notice'}>
+            {testResult.ok
+              ? `连接正常，${testResult.model} 用时 ${testResult.latencyMs} ms`
+              : `连接失败：${testResult.error}`}
+          </p>
+        ) : null}
+        <p className="hint">测试连接按已保存的设置真实请求一次，失败原因会显示在这里。</p>
+      </div>
+      <div className="settings-block">
         <h3>模型密钥</h3>
         <p className="muted">
           当前：
           {llm === null
             ? '读取中…'
-            : llm.llm.configured
-              ? `已配置（${llm.llm.source === 'vault' ? '本机凭据库' : '环境变量'}）`
+            : llm.key.configured
+              ? `已配置（${llm.key.source === 'vault' ? '本机凭据库' : '环境变量'}）`
               : '未配置，规划走静态规则'}
         </p>
         <label>
@@ -1065,14 +1219,14 @@ function SettingsTab(): JSX.Element {
           </button>
           <button
             className="ghost"
-            disabled={keyBusy || busy || !llm?.llm.configured}
+            disabled={keyBusy || busy || !llm?.key.configured}
             onClick={() => void clearKey()}
           >
             清除
           </button>
         </div>
         <p className="hint">
-          密钥只存本机凭据库（{llm?.backend === 'dpapi' ? 'Windows DPAPI' : '本机'}），不会写进项目文件；保存后点顶栏刷新即可生效。
+          密钥只存本机凭据库（{llm?.backend === 'dpapi' ? 'Windows DPAPI' : '本机'}），不会写进项目文件。
         </p>
       </div>
       <ChannelSettings />

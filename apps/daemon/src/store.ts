@@ -227,6 +227,13 @@ CREATE INDEX idx_schedules_project ON schedules(project_id);
 CREATE INDEX idx_schedules_due ON schedules(enabled, next_run_at);
 `;
 
+const SETTINGS_SCHEMA = `
+CREATE TABLE settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`;
+
 const SCHEMA = `
 CREATE TABLE projects (
   id               TEXT PRIMARY KEY,
@@ -407,7 +414,7 @@ export class Store {
   private migrate(): void {
     const row = this.db.prepare('PRAGMA user_version').get() as Row;
     const version = number(row, 'user_version');
-    if (version >= 8) return;
+    if (version >= 9) return;
     this.db.exec('BEGIN;');
     try {
       if (version < 1) {
@@ -421,7 +428,8 @@ export class Store {
       if (version < 6) this.db.exec(REVIEW_SCHEMA);
       if (version < 7) this.db.exec(RECOVERY_SCHEMA);
       if (version < 8) this.db.exec(SCHEDULE_SCHEMA);
-      this.db.exec('PRAGMA user_version = 8;');
+      if (version < 9) this.db.exec(SETTINGS_SCHEMA);
+      this.db.exec('PRAGMA user_version = 9;');
       this.db.exec('COMMIT;');
     } catch (error) {
       this.db.exec('ROLLBACK;');
@@ -585,6 +593,21 @@ export class Store {
       proactivity: text(row, 'proactivity') as Assistant['proactivity'],
       createdAt: number(row, 'created_at'),
     };
+  }
+
+  // ---------- settings ----------
+
+  getSetting(key: string): string | null {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      | Row
+      | undefined;
+    return row ? text(row, 'value') : null;
+  }
+
+  setSetting(key: string, value: string): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(key, value);
   }
 
   // ---------- tasks ----------

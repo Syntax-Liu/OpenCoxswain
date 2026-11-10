@@ -1,8 +1,13 @@
 import type {
+  LlmConfig,
+  LlmConfigStatus,
+  LlmProvider,
+  LlmTestResult,
   PlanResult,
   PlannerService,
   PluginContext,
   SecretSource,
+  StorageService,
 } from '@opencoxswain/plugin-api';
 import type {
   AcceptanceCriterion,
@@ -49,17 +54,29 @@ const SYSTEM_PROMPT = [
   'writeScope 使用仓库相对路径或目录前缀；verifier / researcher 留空数组。',
 ].join('\n');
 
+const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
+const DEFAULT_MODEL = 'deepseek-chat';
+
+const PROVIDERS: ReadonlySet<string> = new Set<LlmProvider>(['deepseek', 'openai', 'custom']);
+
+const SETTING_PROVIDER = 'llm.provider';
+const SETTING_BASE_URL = 'llm.baseUrl';
+const SETTING_MODEL = 'llm.model';
+
 interface LlmPlannerOptions {
   engine: Planner;
-  resolveKey: () => Promise<{ key: string; source: SecretSource }>;
+  resolveKey: () => Promise<{ key: string; source: SecretSource; backend: string }>;
   recall: (query: string, projectId: string) => MemoryMatch[];
-  baseUrl: string;
-  model: string;
+  settings: Pick<StorageService, 'getSetting' | 'setSetting'>;
+  envBaseUrl?: string;
+  envModel?: string;
   timeoutMs: number;
   notify: (type: string, payload: unknown) => void;
 }
 
 export class LlmPlanner implements PlannerService {
+  private lastError: { message: string; at: number } | null = null;
+
   constructor(private readonly options: LlmPlannerOptions) {}
 
   async status(): Promise<PlannerStatus> {
@@ -67,6 +84,74 @@ export class LlmPlanner implements PlannerService {
     return key
       ? { mode: 'llm', reason: null }
       : { mode: 'static', reason: '未配置 LLM Key，使用静态拆分' };
+  }
+
+  /** 读取当前生效的模型配置：已保存设置 → 环境变量 → 内置默认值。 */
+  config(): LlmConfig {
+    const stored = this.options.settings.getSetting(SETTING_PROVIDER) ?? '';
+    const provider = (PROVIDERS.has(stored) ? stored : 'deepseek') as LlmProvider;
+    const baseUrl = (
+      this.options.settings.getSetting(SETTING_BASE_URL) ??
+      this.options.envBaseUrl ??
+      DEFAULT_BASE_URL
+    ).trim();
+    const model = (
+      this.options.settings.getSetting(SETTING_MODEL) ??
+      this.options.envModel ??
+      DEFAULT_MODEL
+    ).trim();
+    return { provider, baseUrl: baseUrl || DEFAULT_BASE_URL, model: model || DEFAULT_MODEL };
+  }
+
+  async llmStatus(): Promise<LlmConfigStatus> {
+    const { key, source, backend } = await this.options.resolveKey();
+    return {
+      config: this.config(),
+      backend,
+      key: { configured: key !== '', source },
+      planner: await this.status(),
+      lastError: this.lastError,
+    };
+  }
+
+  async configureLlm(patch: Partial<LlmConfig>): Promise<LlmConfigStatus> {
+    const current = this.config();
+    const provider = patch.provider ?? current.provider;
+    if (!PROVIDERS.has(provider)) {
+      throw new Error(`未知的模型提供商：${String(provider)}`);
+    }
+    const baseUrl = (patch.baseUrl ?? current.baseUrl).trim().replace(/\/+$/, '');
+    if (!/^https?:\/\/[^\s]+$/i.test(baseUrl)) {
+      throw new Error('API 地址必须是 http(s) 开头的完整 URL');
+    }
+    const model = (patch.model ?? current.model).trim();
+    if (!model || model.length > 100) {
+      throw new Error('模型名不能为空，且不超过 100 个字符');
+    }
+
+    this.options.settings.setSetting(SETTING_PROVIDER, provider);
+    this.options.settings.setSetting(SETTING_BASE_URL, baseUrl);
+    this.options.settings.setSetting(SETTING_MODEL, model);
+    this.lastError = null;
+    return this.llmStatus();
+  }
+
+  async testLlm(): Promise<LlmTestResult> {
+    const config = this.config();
+    const { key } = await this.options.resolveKey();
+    const started = Date.now();
+    if (!key) {
+      return { ok: false, ...config, latencyMs: 0, error: '未配置 API Key' };
+    }
+    try {
+      await this.chat(key, config, [{ role: 'user', content: '只回复 ok' }], { maxTokens: 16 });
+      this.lastError = null;
+      return { ok: true, ...config, latencyMs: Date.now() - started, error: null };
+    } catch (error) {
+      const message = errorText(error);
+      this.lastError = { message, at: Date.now() };
+      return { ok: false, ...config, latencyMs: Date.now() - started, error: message };
+    }
   }
 
   async plan(project: Project, request: CreatePlanRequest): Promise<PlanResult> {
@@ -84,19 +169,23 @@ export class LlmPlanner implements PlannerService {
       return this.options.engine.plan(project, request);
     }
 
+    const config = this.config();
     try {
       const references = this.options.recall(request.goal, project.id);
-      const subtasks = await this.draft(request, key, references);
+      const subtasks = await this.draft(request, key, references, config);
+      this.lastError = null;
       this.options.notify('planner.llm.used', {
-        model: this.options.model,
+        model: config.model,
+        baseUrl: config.baseUrl,
         subtasks: subtasks.length,
         keySource: source,
         memories: references.map((match) => match.entry.id),
       });
       return this.options.engine.plan(project, { ...request, subtasks });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      this.options.notify('planner.fallback', { reason });
+      const reason = errorText(error);
+      this.lastError = { message: reason, at: Date.now() };
+      this.options.notify('planner.fallback', { reason, model: config.model, baseUrl: config.baseUrl });
       return this.options.engine.plan(project, request);
     }
   }
@@ -105,37 +194,17 @@ export class LlmPlanner implements PlannerService {
     request: CreatePlanRequest,
     apiKey: string,
     references: MemoryMatch[],
+    config: LlmConfig,
   ): Promise<SubtaskDraft[]> {
-    const url = `${this.options.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.options.model,
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: this.userPrompt(request, references) },
-        ],
-      }),
-      signal: AbortSignal.timeout(this.options.timeoutMs),
-    });
-
-    if (!response.ok) {
-      throw new Error(`LLM 请求失败：HTTP ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || content.trim() === '') {
-      throw new Error('LLM 返回为空');
-    }
+    const content = await this.chat(
+      apiKey,
+      config,
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: this.userPrompt(request, references) },
+      ],
+      { json: true, temperature: 0.2 },
+    );
 
     let parsed: unknown;
     try {
@@ -150,6 +219,45 @@ export class LlmPlanner implements PlannerService {
     const drafts = normalizeSubtasks(raw);
     assertDecomposed(drafts);
     return drafts;
+  }
+
+  /** 一次真实的 OpenAI 兼容调用；失败时把服务端原因带回给调用方。 */
+  private async chat(
+    apiKey: string,
+    config: LlmConfig,
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    options: { json?: boolean; temperature?: number; maxTokens?: number } = {},
+  ): Promise<string> {
+    const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.model,
+        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+        ...(options.json ? { response_format: { type: 'json_object' } } : {}),
+        ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+        messages,
+      }),
+      signal: AbortSignal.timeout(this.options.timeoutMs),
+    });
+
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => '')).trim().slice(0, 400);
+      throw new Error(`HTTP ${response.status}${detail ? `：${detail}` : ''}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || content.trim() === '') {
+      throw new Error('LLM 返回为空');
+    }
+    return content;
   }
 
   private userPrompt(request: CreatePlanRequest, references: MemoryMatch[] = []): string {
@@ -182,6 +290,21 @@ export class LlmPlanner implements PlannerService {
       .filter((line): line is string => line !== null)
       .join('\n');
   }
+}
+
+/** 把网络异常、超时与 HTTP 错误整理成一句可直接展示的原因。 */
+function errorText(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+    return '请求超时（30 秒）';
+  }
+  const cause = (error as { cause?: unknown }).cause;
+  const causeText =
+    cause instanceof Error ? cause.message : typeof cause === 'string' ? cause : '';
+  if (causeText && !error.message.includes(causeText)) {
+    return `${error.message}（${causeText}）`;
+  }
+  return error.message;
 }
 
 function stripFence(content: string): string {
@@ -283,10 +406,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   });
   const secrets = ctx.service('secrets');
   const memory = ctx.service('memory');
-  const baseUrl = (
-    process.env.OPENCOXSWAIN_LLM_BASE_URL ?? 'https://api.deepseek.com/v1'
-  ).trim();
-  const model = (process.env.OPENCOXSWAIN_LLM_MODEL ?? 'deepseek-chat').trim();
+  const storage = ctx.service('storage');
 
   ctx.provide(
     'planner',
@@ -295,11 +415,12 @@ export async function apply(ctx: PluginContext): Promise<void> {
       resolveKey: async () => {
         const key = (await secrets.get('llm_api_key')) ?? '';
         const source = key ? await secrets.source('llm_api_key') : 'none';
-        return { key, source };
+        return { key, source, backend: secrets.backend };
       },
       recall: (query, projectId) => memory.recall(query, { projectId, limit: 5 }),
-      baseUrl,
-      model,
+      settings: storage,
+      envBaseUrl: process.env.OPENCOXSWAIN_LLM_BASE_URL,
+      envModel: process.env.OPENCOXSWAIN_LLM_MODEL,
       timeoutMs: 30_000,
       notify: (type, payload) => ctx.emit(type, payload),
     }),
