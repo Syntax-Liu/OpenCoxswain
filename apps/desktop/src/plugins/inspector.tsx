@@ -10,6 +10,7 @@ import type {
 } from '@opencoxswain/shared';
 import { MEMORY_KINDS } from '@opencoxswain/shared';
 import { api, errorText } from '../api.js';
+import type { SecretsStatus } from '../api.js';
 import { DiffReviewView } from '../components/DiffReviewView.js';
 import {
   formatDateTime,
@@ -239,6 +240,24 @@ function SettingsTab(): JSX.Element {
   const [tone, setTone] = useState<Assistant['tone']>(assistant.tone);
   const [proactivity, setProactivity] = useState<Assistant['proactivity']>(assistant.proactivity);
   const [notice, setNotice] = useState<string | null>(null);
+  const [llm, setLlm] = useState<SecretsStatus | null>(null);
+  const [apiKey, setApiKey] = useState('');
+  const [keyBusy, setKeyBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .secrets()
+      .then((status) => {
+        if (alive) setLlm(status);
+      })
+      .catch((caught: unknown) => {
+        if (alive) setNotice(errorText(caught));
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     setBudget(String(project.dailyBudgetUsd));
@@ -278,6 +297,38 @@ function SettingsTab(): JSX.Element {
       setNotice('总管设置已保存');
     } catch (caught) {
       setNotice(errorText(caught));
+    }
+  };
+
+  const saveKey = async (): Promise<void> => {
+    const value = apiKey.trim();
+    if (value === '') {
+      setNotice('先填入密钥');
+      return;
+    }
+    setKeyBusy(true);
+    setNotice(null);
+    try {
+      setLlm(await api.setLlmKey(value));
+      setApiKey('');
+      setNotice('密钥已保存；点顶栏刷新后规划切换为 LLM。');
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setKeyBusy(false);
+    }
+  };
+
+  const clearKey = async (): Promise<void> => {
+    setKeyBusy(true);
+    setNotice(null);
+    try {
+      setLlm(await api.clearLlmKey());
+      setNotice('已清除密钥；规划回落到静态规则。');
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setKeyBusy(false);
     }
   };
 
@@ -328,6 +379,44 @@ function SettingsTab(): JSX.Element {
         <button disabled={busy} onClick={() => void saveAssistant()}>
           保存总管设置
         </button>
+      </div>
+      <div className="settings-block">
+        <h3>模型密钥</h3>
+        <p className="muted">
+          当前：
+          {llm === null
+            ? '读取中…'
+            : llm.llm.configured
+              ? `已配置（${llm.llm.source === 'vault' ? '本机凭据库' : '环境变量'}）`
+              : '未配置，规划走静态规则'}
+        </p>
+        <label>
+          API Key
+          <input
+            type="password"
+            value={apiKey}
+            placeholder="sk-…"
+            onChange={(event) => setApiKey(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void saveKey();
+            }}
+          />
+        </label>
+        <div className="row">
+          <button disabled={keyBusy || busy} onClick={() => void saveKey()}>
+            保存密钥
+          </button>
+          <button
+            className="ghost"
+            disabled={keyBusy || busy || !llm?.llm.configured}
+            onClick={() => void clearKey()}
+          >
+            清除
+          </button>
+        </div>
+        <p className="hint">
+          密钥只存本机凭据库（{llm?.backend === 'dpapi' ? 'Windows DPAPI' : '本机'}），不会写进项目文件；保存后点顶栏刷新即可生效。
+        </p>
       </div>
       {notice ? <p className="notice">{notice}</p> : null}
     </div>

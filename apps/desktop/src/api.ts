@@ -29,6 +29,12 @@ export const DAEMON_URL =
 export type TaskAction = 'approve' | 'reject' | 'cancel' | 'pause' | 'resume' | 'retry';
 export type WorkerAction = 'pause' | 'resume' | 'terminate';
 
+/** 密钥状态：只报是否配置与来源，不回传明文。 */
+export interface SecretsStatus {
+  backend: string;
+  llm: { configured: boolean; source: 'vault' | 'env' | 'none' | string };
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
@@ -75,6 +81,21 @@ export const api = {
   /** 全局路由：只返回候选项目与依据，不建单。 */
   routeGoal(goal: string): Promise<{ suggestions: RouteSuggestion[] }> {
     return request('/api/route', { method: 'POST', body: JSON.stringify({ goal }) });
+  },
+
+  secrets(): Promise<SecretsStatus> {
+    return request<SecretsStatus>('/api/secrets');
+  },
+
+  setLlmKey(apiKey: string): Promise<SecretsStatus> {
+    return request<SecretsStatus>('/api/secrets/llm', {
+      method: 'PUT',
+      body: JSON.stringify({ apiKey }),
+    });
+  },
+
+  clearLlmKey(): Promise<SecretsStatus> {
+    return request<SecretsStatus>('/api/secrets/llm', { method: 'DELETE' });
   },
 
   rememberMemory(body: MemoryCandidate): Promise<MemoryWriteResult> {
