@@ -353,6 +353,17 @@ export function builtinManifests(): PluginManifest[] {
     },
     {
       apiVersion: 1,
+      id: 'channel.telegram',
+      name: 'Telegram 通知通道',
+      version,
+      kind: 'transport',
+      entry: entry('channel-telegram'),
+      provides: [],
+      inject: ['http', 'channels'],
+      permissions: ['http:route', 'channel:use'],
+    },
+    {
+      apiVersion: 1,
       id: 'api.rest',
       name: 'REST API',
       version,

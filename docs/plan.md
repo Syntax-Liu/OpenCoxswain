@@ -31,7 +31,7 @@
 | 测试 | `node:test` | 不引入测试框架，降低依赖。 |
 | 校验 | 手写契约校验器 | 按 PRD 附录字段逐项校验，不引入 JSON Schema 运行时依赖。 |
 | 密钥 | Windows Credential Manager / DPAPI | v0.4.0 已接入 `secrets.dpapi` 插件：按当前用户 DPAPI 加密落盘，读取优先仓库、回退环境变量；`cmdkey` 无法读回密钥，故未采用 Credential Manager。 |
-| 打包 | NSIS + Tauri Updater | NSIS 安装包已接入（v0.13.0，currentUser 安装）；MSI 与自动更新留待后续。 |
+| 打包 | NSIS + Tauri Updater | NSIS 安装包已接入（v0.13.0，currentUser 安装）；自动更新已接入（v0.27.0）；MSI 留待后续。 |
 
 ## 3. 模块划分
 
@@ -142,7 +142,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 全局路由（已完成，v0.20.0）：`router` 服务由 `router.global` 插件提供，`POST /api/route` 用本地规则把一句话目标映射到已有项目，按项目名/路径命中 ×3、项目记忆命中 ×2、最近任务命中 ×1 打分，最多返回 3 个候选与 3 条理由；只给建议，不建单、不改项目状态。
 - 跨项目记忆检索（已完成，v0.20.0）：`GET /api/memory?scope=all&q=` 覆盖所有项目与全局记忆，结果自带 `projectId`；检索只读，不改写 `useCount` / `lastUsedAt`，不影响时间衰减排序；不带 `scope` 时仍只查全局记忆。
 - 门禁质量（已完成，v0.23.0）：`GET /api/gate-quality?projectId=` 只读聚合验收事件，按「任务 + 验收项取最后一次判定」分别给出系统自动判定、系统通过 / 拦下、待人工与人工收口数量及通过率；无样本返回 `null`，不改验收记录，也不编造事件里无法证实的误报率。
-- IM 入口（已完成飞书部分，v0.26.0）：`channels` 服务负责配置落盘（`<home>/channels.json`）、事件路由与静默窗口去重，`channel.feishu` 插件负责出站签名（`timestamp + sign`）与入站回调（`X-Lark-Signature` 校验、`encrypt` 解密、challenge 应答）；设置页可配 Webhook、签名密钥、通知类别与启停，凭据不回显；群内支持「待办 / 状态 / 批准 / 退回」只读与拍板指令，退回必须带理由，不开放建单。Telegram 通道留待后续。
+- IM 入口（飞书已完成 v0.26.0，Telegram 已完成 v0.30.0）：`channels` 服务负责配置落盘（`<home>/channels.json`）、事件路由与静默窗口去重；`channel.feishu` 插件负责出站签名（`timestamp + sign`）与入站回调（`X-Lark-Signature` 校验、`encrypt` 解密、challenge 应答），`channel.telegram` 插件走 Bot API `sendMessage`，入站地址为 `/api/channels/<id>/inbound/telegram`，用 `setWebhook` 的 `secret_token`（即通道入站 token）校验、按 `update_id` 去重，并只处理绑定会话的消息。设置页可配 Webhook / 签名密钥或 Bot Token / 会话 ID、通知类别与启停，凭据不回显；群内支持「待办 / 状态 / 批准 / 退回」只读与拍板指令，退回必须带理由，不开放建单。
 - 自动更新（已完成，v0.27.0）：桌面壳接入 Tauri Updater，新增 `app_version` / `update_check` / `update_install` 三个命令与设置页「版本与更新」区块，可显示当前版本、检查新版本、查看发布说明并一键安装后重启；更新源地址与公钥放本机 `updater.json`（也可用 `OPENCOXSWAIN_UPDATER_ENDPOINT` / `OPENCOXSWAIN_UPDATER_PUBKEY` 覆盖），未配置时不发网络请求。`pnpm desktop:release` 通过 `tauri.release.json` 打开 `createUpdaterArtifacts`，为安装包产出 `.sig` 签名，普通 `desktop:build` 不受影响。
 - 远程执行节点（骨架已完成，v0.28.0）：`runtime.remote` 适配器 + `remote` 协调器。任务分支用 `git bundle` 打到 daemon 的 `<home>/remote/`，节点注册时领取接入令牌、每 10 秒心跳领任务，完成后提交并回传代码包；适配器把结果分支 `fetch + reset --hard` 回任务 worktree，再由本地调度器重跑验收，节点自报验收一律丢弃（`acceptance: []`）。默认关闭，`POST /api/remote/enable` 开启并签发令牌；30 秒无心跳判离线，任务回队列且最多换 3 个节点；认领/执行超时分别由 `OPENCOXSWAIN_REMOTE_CLAIM_MS`（默认 45s）与 `OPENCOXSWAIN_REMOTE_JOB_MS`（默认 30min）控制，超时可回退 `OPENCOXSWAIN_REMOTE_FALLBACK` 指定的本地运行时。节点侧 CLI 为 `apps/daemon/src/remote-agent.ts`，仅出站连接。
 - 远程节点面板（已完成，v0.29.0）：设置页「远程节点」区块调用既有 `GET /api/remote`、`POST /api/remote/enable|disable`、`DELETE /api/remote/nodes/:id`，可在界面里启停远程执行、只读展示与复制接入令牌、查看节点在线状态与最近心跳、确认后移除节点，并列出排队中 / 执行中的远程任务。只做展示与开关，不改协调器判定，也不放开建单与验收。

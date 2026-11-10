@@ -48,6 +48,8 @@ interface StoredChannel {
   enabled: boolean;
   webhookUrl: string;
   secret: string;
+  botToken: string;
+  chatId: string;
   inboundToken: string;
   notify: ChannelEventKind[];
   createdAt: number;
@@ -146,20 +148,26 @@ export class Channels implements ChannelsService {
         channel.webhookUrl = this.cleanUrl(input.webhookUrl);
       }
       if (input.secret !== undefined) channel.secret = input.secret.trim();
+      if (input.botToken !== undefined) channel.botToken = input.botToken.trim();
+      if (input.chatId !== undefined) channel.chatId = input.chatId.trim();
       if (input.notify !== undefined) channel.notify = this.cleanNotify(input.notify);
       channel.updatedAt = at;
       this.persist();
       return this.view(channel);
     }
 
+    const kind: ChannelKind = input.kind === 'telegram' ? 'telegram' : 'feishu';
     const channel: StoredChannel = {
       id: newId('chn'),
-      kind: input.kind ?? 'feishu',
-      name: input.name?.trim() || '飞书',
+      kind,
+      name: input.name?.trim() || (kind === 'telegram' ? 'Telegram' : '飞书'),
       enabled: input.enabled ?? true,
       webhookUrl: this.cleanUrl(input.webhookUrl ?? ''),
       secret: input.secret?.trim() ?? '',
+      botToken: input.botToken?.trim() ?? '',
+      chatId: input.chatId?.trim() ?? '',
       // 入站 token 一旦生成就固定，复制到飞书后台后不需要再改。
+      // Telegram 侧直接把它用作 setWebhook 的 secret_token。
       inboundToken: newId('itk'),
       notify: this.cleanNotify(input.notify),
       createdAt: at,
@@ -185,7 +193,8 @@ export class Channels implements ChannelsService {
 
   async test(id: string): Promise<ChannelTestResult> {
     const channel = this.require(id);
-    if (channel.webhookUrl === '') throw new AppError('先填 Webhook 地址');
+    const missing = this.missingConfig(channel);
+    if (missing !== null) throw new AppError(missing);
     try {
       await this.deliver(channel, '【OpenCoxswain】通道测试：收到这条消息说明配置可用。');
       this.markSent(channel);
@@ -232,7 +241,7 @@ export class Channels implements ChannelsService {
 
   async sendText(channelId: string, text: string): Promise<boolean> {
     const channel = this.stored.find((item) => item.id === channelId);
-    if (!channel || channel.webhookUrl === '') return false;
+    if (!channel || this.missingConfig(channel) !== null) return false;
     try {
       await this.deliver(channel, text);
       this.markSent(channel);
@@ -252,7 +261,9 @@ export class Channels implements ChannelsService {
   notice(input: { kind: ChannelEventKind; dedupKey: string; text: string }): void {
     const targets = this.stored.filter(
       (channel) =>
-        channel.enabled && channel.webhookUrl !== '' && channel.notify.includes(input.kind),
+        channel.enabled &&
+        this.missingConfig(channel) === null &&
+        channel.notify.includes(input.kind),
     );
     if (targets.length === 0) return;
     const at = now();
@@ -486,7 +497,23 @@ export class Channels implements ChannelsService {
     if (!transport) {
       throw new AppError(`通道 ${channel.kind} 的发送实现尚未加载`, 503);
     }
-    await transport.send({ webhookUrl: channel.webhookUrl, secret: channel.secret, text });
+    await transport.send({
+      webhookUrl: channel.webhookUrl,
+      secret: channel.secret,
+      botToken: channel.botToken,
+      chatId: channel.chatId,
+      text,
+    });
+  }
+
+  /** 返回还缺哪项配置；null 表示可以直接发送。 */
+  private missingConfig(channel: StoredChannel): string | null {
+    if (channel.kind === 'telegram') {
+      if (channel.botToken === '') return '先填 Bot Token';
+      if (channel.chatId === '') return '先填会话 ID（chat_id）';
+      return null;
+    }
+    return channel.webhookUrl === '' ? '先填 Webhook 地址' : null;
   }
 
   private markSent(channel: StoredChannel): void {
@@ -509,8 +536,13 @@ export class Channels implements ChannelsService {
       enabled: channel.enabled,
       webhookConfigured: channel.webhookUrl !== '',
       secretConfigured: channel.secret !== '',
+      botTokenConfigured: channel.botToken !== '',
+      chatId: channel.chatId,
       notify: [...channel.notify],
-      inboundPath: `/api/channels/${channel.id}/inbound`,
+      inboundPath:
+        channel.kind === 'telegram'
+          ? `/api/channels/${channel.id}/inbound/telegram`
+          : `/api/channels/${channel.id}/inbound`,
       inboundToken: channel.inboundToken,
       createdAt: channel.createdAt,
       updatedAt: channel.updatedAt,
@@ -572,17 +604,19 @@ export class Channels implements ChannelsService {
   private normalize(value: unknown): StoredChannel | null {
     const raw = asRecord(value);
     if (typeof raw.id !== 'string' || typeof raw.webhookUrl !== 'string') return null;
-    const kind: ChannelKind = raw.kind === 'feishu' ? 'feishu' : 'feishu';
+    const kind: ChannelKind = raw.kind === 'telegram' ? 'telegram' : 'feishu';
     const notify = Array.isArray(raw.notify)
       ? this.cleanNotify(raw.notify.filter((item): item is ChannelEventKind => typeof item === 'string'))
       : [...CHANNEL_EVENT_KINDS];
     return {
       id: raw.id,
       kind,
-      name: typeof raw.name === 'string' ? raw.name : '飞书',
+      name: typeof raw.name === 'string' ? raw.name : kind === 'telegram' ? 'Telegram' : '飞书',
       enabled: raw.enabled !== false,
       webhookUrl: raw.webhookUrl,
       secret: typeof raw.secret === 'string' ? raw.secret : '',
+      botToken: typeof raw.botToken === 'string' ? raw.botToken : '',
+      chatId: typeof raw.chatId === 'string' ? raw.chatId : '',
       inboundToken: typeof raw.inboundToken === 'string' ? raw.inboundToken : newId('itk'),
       notify,
       createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : now(),

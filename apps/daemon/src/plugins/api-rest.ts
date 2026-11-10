@@ -120,6 +120,12 @@ function channelPatch(body: unknown): ChannelInput {
   if (typeof body !== 'object' || body === null) throw new AppError('缺少通道配置');
   const raw = body as Record<string, unknown>;
   const patch: ChannelInput = {};
+  if (raw.kind !== undefined) {
+    if (raw.kind !== 'feishu' && raw.kind !== 'telegram') {
+      throw new AppError('kind 只支持 feishu / telegram');
+    }
+    patch.kind = raw.kind;
+  }
   if (raw.name !== undefined) {
     if (typeof raw.name !== 'string') throw new AppError('name 必须是字符串');
     patch.name = raw.name;
@@ -135,6 +141,14 @@ function channelPatch(body: unknown): ChannelInput {
   if (raw.secret !== undefined) {
     if (typeof raw.secret !== 'string') throw new AppError('secret 必须是字符串');
     patch.secret = raw.secret;
+  }
+  if (raw.botToken !== undefined) {
+    if (typeof raw.botToken !== 'string') throw new AppError('botToken 必须是字符串');
+    patch.botToken = raw.botToken;
+  }
+  if (raw.chatId !== undefined) {
+    if (typeof raw.chatId !== 'string') throw new AppError('chatId 必须是字符串');
+    patch.chatId = raw.chatId;
   }
   if (raw.notify !== undefined) {
     if (!Array.isArray(raw.notify) || raw.notify.some((item) => typeof item !== 'string')) {
@@ -504,7 +518,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
 
   http.route('POST', '/api/channels', async ({ body }) => ({
     status: 201,
-    json: channels.save({ ...channelPatch(body), kind: 'feishu' }),
+    json: channels.save(channelPatch(body)),
   }));
 
   http.route('POST', '/api/channels/:id', async ({ params, body }) => {

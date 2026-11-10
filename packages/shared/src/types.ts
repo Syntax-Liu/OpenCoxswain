@@ -837,7 +837,7 @@ export interface RouteSuggestion {
 }
 
 /** IM 通道只做「推送 + 只读/决策指令」，不开放建单，避免手机误触产生成本。 */
-export type ChannelKind = 'feishu';
+export type ChannelKind = 'feishu' | 'telegram';
 
 /** 可订阅的通知类别；同类事件在静默窗口内只推一条。 */
 export const CHANNEL_EVENT_KINDS = ['approval', 'review', 'budget', 'failure', 'orphan'] as const;
@@ -855,6 +855,10 @@ export interface ChannelView {
   enabled: boolean;
   webhookConfigured: boolean;
   secretConfigured: boolean;
+  /** Telegram 的 Bot Token 同样只报「已配置」，不回显明文。 */
+  botTokenConfigured: boolean;
+  /** Telegram 的会话 ID（chat_id），不是密钥，可回显。 */
+  chatId: string;
   notify: ChannelEventKind[];
   /** 入站指令的完整路径，拼在 daemon 地址后面。 */
   inboundPath: string;
@@ -873,6 +877,8 @@ export interface ChannelInput {
   enabled?: boolean;
   webhookUrl?: string;
   secret?: string;
+  botToken?: string;
+  chatId?: string;
   notify?: ChannelEventKind[];
 }
 

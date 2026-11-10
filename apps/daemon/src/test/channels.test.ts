@@ -24,6 +24,12 @@ import {
   feishuSign,
   sendFeishuMessage,
 } from '../plugins/channel-feishu.js';
+import {
+  extractTelegramText,
+  sendTelegramMessage,
+  telegramChatId,
+  telegramUpdateId,
+} from '../plugins/channel-telegram.js';
 import { delay, makeDaemon, makeRepo } from './helpers.js';
 
 function project(): Project {
@@ -396,4 +402,123 @@ function encryptForTest(key: string, plain: string): string {
 test('飞书：解密函数可还原明文', () => {
   const payload = encryptForTest('enc-key', '{"hello":"world"}');
   assert.equal(decryptFeishu('enc-key', payload), '{"hello":"world"}');
+});
+
+test('Telegram：出站地址、请求体与失败返回校验', async () => {
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await sendTelegramMessage({
+    botToken: '123456:ABC',
+    chatId: '-100123',
+    text: 'hello',
+    fetchImpl,
+  });
+  assert.equal(calls[0]?.url, 'https://api.telegram.org/bot123456:ABC/sendMessage');
+  assert.equal(calls[0]?.body.chat_id, '-100123');
+  assert.equal(calls[0]?.body.text, 'hello');
+
+  const failing = (async () =>
+    new Response(JSON.stringify({ ok: false, description: 'chat not found' }), {
+      status: 200,
+    })) as unknown as typeof fetch;
+  await assert.rejects(
+    sendTelegramMessage({ botToken: 't', chatId: '1', text: 'x', fetchImpl: failing }),
+    /chat not found/,
+  );
+
+  const httpError = (async () =>
+    new Response('Unauthorized', { status: 401 })) as unknown as typeof fetch;
+  await assert.rejects(
+    sendTelegramMessage({ botToken: 't', chatId: '1', text: 'x', fetchImpl: httpError }),
+    /HTTP 401/,
+  );
+});
+
+test('Telegram：update 解析只认文本与数字 update_id', () => {
+  const update = {
+    update_id: 42,
+    message: { chat: { id: -100123 }, text: '待办' },
+    edited_message: { chat: { id: 9 }, text: '忽略' },
+  };
+  assert.equal(telegramUpdateId(update), 42);
+  assert.equal(telegramChatId(update), '-100123');
+  assert.equal(extractTelegramText(update), '待办');
+  assert.equal(telegramUpdateId({ message: {} }), null);
+  assert.equal(telegramChatId({ message: {} }), null);
+  assert.equal(extractTelegramText({ message: { sticker: {} } }), null);
+});
+
+test('Telegram：入站校验 secret_token、只处理绑定会话并去重', async () => {
+  const repo = await makeRepo({ 'README.md': 'origin\n' });
+  const daemon = await makeDaemon(repo.home);
+  const originalFetch = globalThis.fetch;
+  const pushed: Array<{ url: string; body: Record<string, unknown> }> = [];
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (String(url).startsWith('https://api.telegram.org/')) {
+      pushed.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+      return new Response(JSON.stringify({ ok: true, result: {} }), { status: 200 });
+    }
+    return originalFetch(url, init);
+  }) as typeof fetch;
+  try {
+    const channel = await daemon.call<ChannelView>('/api/channels', {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: 'telegram',
+        name: 'Telegram',
+        botToken: '123456:ABC',
+        chatId: '-100123',
+      }),
+    });
+    assert.equal(channel.kind, 'telegram');
+    assert.equal(channel.botTokenConfigured, true);
+    assert.equal(channel.chatId, '-100123');
+    assert.match(channel.inboundPath, /\/inbound\/telegram$/);
+
+    const base = `http://127.0.0.1:${daemon.app.port}${channel.inboundPath}`;
+    const send = (body: unknown, secret?: string) =>
+      fetch(base, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(secret === undefined ? {} : { 'x-telegram-bot-api-secret-token': secret }),
+        },
+        body: JSON.stringify(body),
+      });
+
+    const unauthorized = await send({ update_id: 1, message: { chat: { id: -100123 }, text: '待办' } });
+    assert.equal(unauthorized.status, 401);
+
+    const wrongChat = await send(
+      { update_id: 2, message: { chat: { id: 777 }, text: '待办' } },
+      channel.inboundToken,
+    );
+    assert.equal(wrongChat.status, 200);
+    assert.equal(pushed.length, 0, '非绑定会话不回复');
+
+    const delivered = await send(
+      { update_id: 3, message: { chat: { id: -100123 }, text: '待办' } },
+      channel.inboundToken,
+    );
+    assert.equal(delivered.status, 200);
+    assert.equal(pushed.length, 1);
+    assert.equal(pushed[0]?.body.chat_id, '-100123');
+    assert.match(String(pushed[0]?.body.text), /待审批|待验收/);
+
+    // 同一个 update_id 重投不再执行。
+    const duplicated = await send(
+      { update_id: 3, message: { chat: { id: -100123 }, text: '待办' } },
+      channel.inboundToken,
+    );
+    assert.equal(duplicated.status, 200);
+    assert.equal(pushed.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await daemon.app.close();
+    await rm(repo.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
 });

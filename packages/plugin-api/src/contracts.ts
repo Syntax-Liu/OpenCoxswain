@@ -587,6 +587,9 @@ export interface RouterService {
 export interface ChannelTransportMessage {
   webhookUrl: string;
   secret: string;
+  /** Telegram 使用：Bot Token 与目标会话 ID。其他通道留空。 */
+  botToken?: string;
+  chatId?: string;
   text: string;
 }
 

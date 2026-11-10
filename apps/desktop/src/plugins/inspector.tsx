@@ -359,16 +359,21 @@ function ChannelSettings(): JSX.Element {
     };
   }, []);
 
-  const add = async (): Promise<void> => {
+  const add = async (kind: 'feishu' | 'telegram'): Promise<void> => {
     setBusy(true);
     setNotice(null);
     try {
+      const label = kind === 'telegram' ? 'Telegram' : '飞书';
       const channel = await api.createChannel({
-        kind: 'feishu',
-        name: `飞书 ${channels.length + 1}`,
+        kind,
+        name: `${label} ${channels.length + 1}`,
       });
       setChannels((prev) => [...prev, channel]);
-      setNotice('已创建；填好 Webhook 后点「发测试消息」验证。');
+      setNotice(
+        kind === 'telegram'
+          ? '已创建；填好 Bot Token 与会话 ID 后点「发测试消息」验证。'
+          : '已创建；填好 Webhook 后点「发测试消息」验证。',
+      );
     } catch (caught) {
       setNotice(errorText(caught));
     } finally {
@@ -380,11 +385,15 @@ function ChannelSettings(): JSX.Element {
     <div className="settings-block settings-wide">
       <h3>通知通道</h3>
       <p className="hint">
-        任务有进展时推到飞书群；群里回「待办」「批准 id」「退回 id 理由」即可处理。验收结论与派单仍在桌面端完成。
+        任务有进展时推到飞书群或 Telegram；在群里回「待办」「批准 id」「退回 id 理由」即可处理。验收结论与派单仍在桌面端完成。
+      </p>
+      <p className="hint">
+        Telegram 的入站指令要求公开 HTTPS 地址，本机测试可先用 `setWebhook` 把入站地址通过隧道暴露出去；只填 Bot Token
+        与会话 ID 也能收到全部推送。
       </p>
       {loading ? <p className="muted">读取中…</p> : null}
       {!loading && channels.length === 0 ? (
-        <p className="muted">还没有通道，先建一个飞书群机器人。</p>
+        <p className="muted">还没有通道，先建一个飞书群机器人或 Telegram 机器人。</p>
       ) : null}
       {channels.map((channel) => (
         <ChannelCard
@@ -396,9 +405,14 @@ function ChannelSettings(): JSX.Element {
           onRemoved={(id) => setChannels((prev) => prev.filter((item) => item.id !== id))}
         />
       ))}
-      <button disabled={busy} onClick={() => void add()}>
-        新增飞书通道
-      </button>
+      <div className="row">
+        <button disabled={busy} onClick={() => void add('feishu')}>
+          新增飞书通道
+        </button>
+        <button disabled={busy} onClick={() => void add('telegram')}>
+          新增 Telegram 通道
+        </button>
+      </div>
       {notice ? <p className="hint">{notice}</p> : null}
     </div>
   );
@@ -413,8 +427,11 @@ function ChannelCard({
   onChanged: (channel: ChannelView) => void;
   onRemoved: (id: string) => void;
 }): JSX.Element {
+  const isTelegram = channel.kind === 'telegram';
   const [webhook, setWebhook] = useState('');
   const [secret, setSecret] = useState('');
+  const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState(channel.chatId);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -433,11 +450,18 @@ function ChannelCard({
   };
 
   const saveCredentials = async (): Promise<void> => {
-    const input: ChannelInput = { webhookUrl: webhook.trim() };
-    if (secret.trim() !== '') input.secret = secret.trim();
+    const input: ChannelInput = {};
+    if (isTelegram) {
+      if (botToken.trim() !== '') input.botToken = botToken.trim();
+      input.chatId = chatId.trim();
+    } else {
+      input.webhookUrl = webhook.trim();
+      if (secret.trim() !== '') input.secret = secret.trim();
+    }
     await patch(input, '凭据已保存');
     setWebhook('');
     setSecret('');
+    setBotToken('');
   };
 
   const test = async (): Promise<void> => {
@@ -466,37 +490,71 @@ function ChannelCard({
   };
 
   const inboundUrl = `${DAEMON_URL}${channel.inboundPath}`;
+  const configuredText = isTelegram
+    ? `${channel.botTokenConfigured ? 'Bot Token 已配置' : 'Bot Token 未配置'} · ${
+        channel.chatId !== '' ? '会话已绑定' : '会话未填'
+      }`
+    : channel.webhookConfigured
+      ? 'Webhook 已配置'
+      : 'Webhook 未配置';
 
   return (
     <div className="channel-card">
       <div className="channel-head">
         <strong>{channel.name}</strong>
         <span className="channel-state">
-          {channel.enabled ? '已启用' : '已停用'} ·{' '}
-          {channel.webhookConfigured ? 'Webhook 已配置' : 'Webhook 未配置'}
+          {channel.enabled ? '已启用' : '已停用'} · {configuredText}
         </span>
       </div>
-      <label>
-        Webhook 地址
-        <input
-          value={webhook}
-          placeholder={
-            channel.webhookConfigured
-              ? '已配置；留空保存会清除'
-              : 'https://open.feishu.cn/open-apis/bot/v2/hook/…'
-          }
-          onChange={(event) => setWebhook(event.target.value)}
-        />
-      </label>
-      <label>
-        签名密钥（可选）
-        <input
-          type="password"
-          value={secret}
-          placeholder={channel.secretConfigured ? '已配置；填写新值覆盖' : '飞书机器人签名校验'}
-          onChange={(event) => setSecret(event.target.value)}
-        />
-      </label>
+      {isTelegram ? (
+        <>
+          <label>
+            Bot Token
+            <input
+              type="password"
+              value={botToken}
+              placeholder={
+                channel.botTokenConfigured
+                  ? '已配置；留空保存表示不修改'
+                  : '从 @BotFather 获取的 123456:ABC-DEF…'
+              }
+              onChange={(event) => setBotToken(event.target.value)}
+            />
+          </label>
+          <label>
+            会话 ID（chat_id）
+            <input
+              value={chatId}
+              placeholder="先给机器人发条消息，再用 getUpdates 查看 chat.id"
+              onChange={(event) => setChatId(event.target.value)}
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <label>
+            Webhook 地址
+            <input
+              value={webhook}
+              placeholder={
+                channel.webhookConfigured
+                  ? '已配置；留空保存会清除'
+                  : 'https://open.feishu.cn/open-apis/bot/v2/hook/…'
+              }
+              onChange={(event) => setWebhook(event.target.value)}
+            />
+          </label>
+          <label>
+            签名密钥（可选）
+            <input
+              type="password"
+              value={secret}
+              placeholder={channel.secretConfigured ? '已配置；填写新值覆盖' : '飞书机器人签名校验'}
+              onChange={(event) => setSecret(event.target.value)}
+            />
+          </label>
+        </>
+      )}
       <div className="row">
         <button disabled={busy} onClick={() => void saveCredentials()}>
           保存凭据
@@ -546,7 +604,9 @@ function ChannelCard({
         </div>
       </div>
       <div>
-        <p className="muted">入站指令地址（填到飞书事件订阅）</p>
+        <p className="muted">
+          {isTelegram ? '入站地址（setWebhook 的 url）' : '入站指令地址（填到飞书事件订阅）'}
+        </p>
         <div className="row">
           <input readOnly value={inboundUrl} onFocus={(event) => event.currentTarget.select()} />
           <button className="ghost" onClick={() => void copy(inboundUrl, '地址')}>
@@ -555,7 +615,11 @@ function ChannelCard({
         </div>
       </div>
       <div>
-        <p className="muted">入站 token（签名密钥，或拼在地址后的 ?token=）</p>
+        <p className="muted">
+          {isTelegram
+            ? 'secret_token（setWebhook 时填这个值）'
+            : '入站 token（签名密钥，或拼在地址后的 ?token=）'}
+        </p>
         <div className="row">
           <input
             readOnly
