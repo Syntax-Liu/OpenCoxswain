@@ -187,7 +187,7 @@ function TaskAudit({
           <dt>负责人</dt>
           <dd>
             {worker
-              ? `${ROLE_LABELS[worker.role]} · ${worker.status} · ${worker.model}`
+              ? `${ROLE_LABELS[worker.role]}，${worker.status}，${worker.model}`
               : task.contract.assignee
                 ? `${ROLE_LABELS[task.contract.assignee.role]}（未派发）`
                 : '—'}
@@ -219,7 +219,7 @@ function TaskAudit({
                     {VERDICT_LABELS[record?.verdict ?? 'unknown']}
                   </span>
                   <span>
-                    {criterion.id} · {criterion.desc}
+                    {criterion.id}　{criterion.desc}
                   </span>
                   {record ? (
                     <span className="muted">
@@ -365,11 +365,8 @@ export function TaskTree({
   if (!root) {
     return (
       <section className="panel task-tree">
-        <header className="panel-header">
-          <h2>任务树</h2>
-        </header>
         <div className="panel-body">
-          <p className="placeholder">还没有任务。先在中间对总管描述目标。</p>
+          <p className="placeholder">还没有任务。先到「总管对话」描述目标。</p>
         </div>
       </section>
     );
@@ -398,13 +395,6 @@ export function TaskTree({
 
   return (
     <section className="panel task-tree">
-      <header className="panel-header">
-        <h2>任务树</h2>
-        <span className="stage-label" data-stage={stageOf.get(root.id)?.kind}>
-          {stageText(stageOf.get(root.id))}
-        </span>
-        <StatusChip status={root.status} />
-      </header>
       <div className="panel-body">
         <article className="task-card root-task">
           <h3>{root.title}</h3>
@@ -414,7 +404,7 @@ export function TaskTree({
             <div>
               <dt>预算</dt>
               <dd>
-                ${(root.contract.budget.usd ?? 0).toFixed(2)} ·{' '}
+                ${(root.contract.budget.usd ?? 0).toFixed(2)}，{' '}
                 {(root.contract.budget.tokens ?? 0).toLocaleString()} tokens
               </dd>
             </div>

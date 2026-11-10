@@ -319,7 +319,7 @@ fn main() {
             // 先建窗口再等 daemon：daemon 慢或起不来时，用户看到的应该是界面里的提示，
             // 而不是双击图标后一段时间毫无反应。
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                .title("OpenCoxswain · 舵手")
+                .title("OpenCoxswain 舵手")
                 .inner_size(1280.0, 860.0)
                 .min_inner_size(1024.0, 720.0)
                 .build()

@@ -20,9 +20,9 @@ function InboxPanel(): JSX.Element {
 }
 
 export const inboxPlugin: UiPlugin = {
-  id: 'panel.inbox',
+  id: 'page.inbox',
   title: '待决策',
-  slot: 'left',
-  order: 5,
+  slot: 'page',
+  order: 20,
   render: InboxPanel,
 };

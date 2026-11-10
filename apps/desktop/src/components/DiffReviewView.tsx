@@ -47,10 +47,10 @@ export function DiffReviewView({ taskId }: { taskId: string }): JSX.Element {
   return (
     <div className="diff-review">
       <p className="hint">
-        {review.files.length} 个文件 · +{review.additions} / -{review.deletions}
-        {review.binary > 0 ? ` · ${review.binary} 个二进制` : ''}
-        {review.truncated > 0 ? ` · ${review.truncated} 个已截断` : ''}
-        {review.omitted > 0 ? ` · ${review.omitted} 个未列出` : ''}
+        {review.files.length} 个文件，+{review.additions} / -{review.deletions}
+        {review.binary > 0 ? `，${review.binary} 个二进制` : ''}
+        {review.truncated > 0 ? `，${review.truncated} 个已截断` : ''}
+        {review.omitted > 0 ? `，${review.omitted} 个未列出` : ''}
       </p>
       {review.notes.map((note) => (
         <p key={note} className="hint">

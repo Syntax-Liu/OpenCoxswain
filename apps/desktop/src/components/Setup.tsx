@@ -5,7 +5,7 @@ export function Setup({ onReady }: { onReady: (project: Project) => void }): JSX
   return (
     <main className="setup">
       <div className="setup-card">
-        <p className="eyebrow">OpenCoxswain · 舵手</p>
+        <p className="eyebrow">OpenCoxswain 舵手</p>
         <h1>接入你的第一个项目</h1>
         <p className="muted">
           舵手只做规划、派单和验收。员工在独立 git worktree 里动手，开工前不会写你的仓库。

@@ -19,9 +19,9 @@ function ConversationPanel(): JSX.Element {
 }
 
 export const conversationPlugin: UiPlugin = {
-  id: 'panel.conversation',
+  id: 'page.conversation',
   title: '总管对话',
-  slot: 'center',
+  slot: 'page',
   order: 10,
   render: ConversationPanel,
 };

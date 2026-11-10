@@ -55,13 +55,12 @@ function ProjectsPanel(): JSX.Element {
 
   return (
     <section className="panel projects">
-      <header className="panel-header">
-        <h2>项目</h2>
-        <button className="ghost" onClick={() => setAdding((value) => !value)}>
-          {adding ? '收起' : '接入新项目'}
-        </button>
-      </header>
       <div className="panel-body">
+        <div className="row end">
+          <button className="ghost" onClick={() => setAdding((value) => !value)}>
+            {adding ? '收起' : '接入新项目'}
+          </button>
+        </div>
         <select
           value={workbench.project.id}
           onChange={(event) => workbench.onSwitchProject(event.target.value)}
@@ -126,7 +125,7 @@ function ProjectsPanel(): JSX.Element {
                       生成任务单
                     </button>
                   </div>
-                  <p className="hint">{item.reasons.join(' · ')}</p>
+                  <p className="hint">{item.reasons.join('，')}</p>
                 </li>
               ))}
             </ul>
@@ -141,9 +140,9 @@ function ProjectsPanel(): JSX.Element {
 }
 
 export const projectsPlugin: UiPlugin = {
-  id: 'panel.projects',
+  id: 'page.projects',
   title: '项目',
-  slot: 'left',
-  order: 3,
+  slot: 'page',
+  order: 90,
   render: ProjectsPanel,
 };

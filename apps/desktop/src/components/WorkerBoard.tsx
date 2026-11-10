@@ -34,10 +34,6 @@ export function WorkerBoard({ workers, tasks, employees, busy, onAction }: Props
 
   return (
     <section className="panel workers">
-      <header className="panel-header">
-        <h2>员工看板</h2>
-        <span className="count">{workers.length}</span>
-      </header>
       <div className="panel-body">
         {workers.length === 0 ? (
           <p className="placeholder">员工会在你确认开工后出现，每人一个 worktree。</p>

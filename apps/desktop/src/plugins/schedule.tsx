@@ -113,8 +113,8 @@ function ScheduleTab(): JSX.Element {
             <div className="schedule-main">
               <strong>{schedule.title}</strong>
               <span className="muted">
-                每 {schedule.intervalMinutes} 分钟 · 下次 {formatDateTime(schedule.nextRunAt)}
-                {schedule.lastRunAt ? ` · 上次 ${formatDateTime(schedule.lastRunAt)}` : ''}
+                每 {schedule.intervalMinutes} 分钟，下次 {formatDateTime(schedule.nextRunAt)}
+                {schedule.lastRunAt ? `，上次 ${formatDateTime(schedule.lastRunAt)}` : ''}
               </span>
               <span>{schedule.goal}</span>
               {schedule.templateId ? (
@@ -165,9 +165,9 @@ function ScheduleTab(): JSX.Element {
 }
 
 export const schedulePlugin: UiPlugin = {
-  id: 'inspector.schedule',
-  title: '定时',
-  slot: 'bottom',
-  order: 47,
+  id: 'page.schedule',
+  title: '自动化',
+  slot: 'page',
+  order: 50,
   render: ScheduleTab,
 };

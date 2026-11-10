@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ComponentType } from 'react';
 
-export type UiSlot = 'left' | 'center' | 'right' | 'bottom';
+export type UiSlot = 'page' | 'context';
 
 export interface UiPlugin {
   id: string;
@@ -10,12 +10,12 @@ export interface UiPlugin {
   render: ComponentType;
 }
 
-const SLOTS: UiSlot[] = ['left', 'center', 'right', 'bottom'];
+const SLOTS: UiSlot[] = ['page', 'context'];
 
 export class UiRegistry {
   private readonly plugins = new Map<string, UiPlugin>();
   private readonly listeners = new Set<() => void>();
-  private snapshot: Record<UiSlot, UiPlugin[]> = { left: [], center: [], right: [], bottom: [] };
+  private snapshot: Record<UiSlot, UiPlugin[]> = { page: [], context: [] };
 
   register(plugin: UiPlugin): () => void {
     if (this.plugins.has(plugin.id)) {
@@ -42,7 +42,7 @@ export class UiRegistry {
   };
 
   private refresh(): void {
-    const next: Record<UiSlot, UiPlugin[]> = { left: [], center: [], right: [], bottom: [] };
+    const next: Record<UiSlot, UiPlugin[]> = { page: [], context: [] };
     for (const plugin of this.plugins.values()) next[plugin.slot].push(plugin);
     for (const slot of SLOTS) next[slot].sort((a, b) => a.order - b.order);
     this.snapshot = next;
@@ -52,22 +52,4 @@ export class UiRegistry {
 
 export function useUiPanels(registry: UiRegistry, slot: UiSlot): UiPlugin[] {
   return useSyncExternalStore(registry.subscribe, () => registry.list(slot));
-}
-
-export function PanelSlot({
-  registry,
-  slot,
-}: {
-  registry: UiRegistry;
-  slot: UiSlot;
-}): JSX.Element {
-  const panels = useUiPanels(registry, slot);
-  return (
-    <>
-      {panels.map((panel) => {
-        const Panel = panel.render;
-        return <Panel key={panel.id} />;
-      })}
-    </>
-  );
 }

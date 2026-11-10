@@ -142,7 +142,7 @@ function ArtifactsTab(): JSX.Element {
               <span className="muted">
                 {formatDateTime(selected.createdAt)}
                 {selected.meta
-                  ? ` · ${selected.meta.files ?? 0} 文件 +${selected.meta.additions ?? 0} -${selected.meta.deletions ?? 0}`
+                  ? `，${selected.meta.files ?? 0} 文件 +${selected.meta.additions ?? 0} -${selected.meta.deletions ?? 0}`
                   : ''}
               </span>
             </header>
@@ -262,7 +262,7 @@ function CostTab(): JSX.Element {
               </div>
             </div>
             <p className="hint">
-              自动通过率 {percent(gates.autoPassRate)} · 人工通过率 {percent(gates.humanPassRate)}
+              自动通过率 {percent(gates.autoPassRate)}，人工通过率 {percent(gates.humanPassRate)}
               。系统判失败会直接让任务失败，不接受人工覆盖；只有未能判定的项才交给人。
             </p>
           </>
@@ -491,7 +491,7 @@ function ChannelCard({
 
   const inboundUrl = `${DAEMON_URL}${channel.inboundPath}`;
   const configuredText = isTelegram
-    ? `${channel.botTokenConfigured ? 'Bot Token 已配置' : 'Bot Token 未配置'} · ${
+    ? `${channel.botTokenConfigured ? 'Bot Token 已配置' : 'Bot Token 未配置'}，${
         channel.chatId !== '' ? '会话已绑定' : '会话未填'
       }`
     : channel.webhookConfigured
@@ -503,7 +503,7 @@ function ChannelCard({
       <div className="channel-head">
         <strong>{channel.name}</strong>
         <span className="channel-state">
-          {channel.enabled ? '已启用' : '已停用'} · {configuredText}
+          {channel.enabled ? '已启用' : '已停用'}，{configuredText}
         </span>
       </div>
       {isTelegram ? (
@@ -1269,10 +1269,10 @@ function MemoryTab(): JSX.Element {
 }
 
 export const inspectorTabPlugins: UiPlugin[] = [
-  { id: 'inspector.timeline', title: '时间线', slot: 'bottom', order: 10, render: TimelineTab },
-  { id: 'inspector.artifacts', title: '产物', slot: 'bottom', order: 20, render: ArtifactsTab },
-  { id: 'inspector.summary', title: '汇总', slot: 'bottom', order: 30, render: SummaryTab },
-  { id: 'inspector.cost', title: '花费', slot: 'bottom', order: 40, render: CostTab },
-  { id: 'inspector.memory', title: '记忆', slot: 'bottom', order: 45, render: MemoryTab },
-  { id: 'inspector.settings', title: '设置', slot: 'bottom', order: 50, render: SettingsTab },
+  { id: 'context.timeline', title: '时间线', slot: 'context', order: 20, render: TimelineTab },
+  { id: 'page.artifacts', title: '产物', slot: 'page', order: 40, render: ArtifactsTab },
+  { id: 'context.summary', title: '汇总', slot: 'context', order: 30, render: SummaryTab },
+  { id: 'page.cost', title: '花费', slot: 'page', order: 70, render: CostTab },
+  { id: 'page.memory', title: '记忆', slot: 'page', order: 60, render: MemoryTab },
+  { id: 'page.settings', title: '设置', slot: 'page', order: 80, render: SettingsTab },
 ];

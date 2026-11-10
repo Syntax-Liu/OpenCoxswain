@@ -32,9 +32,9 @@ function TaskTreePanel(): JSX.Element {
 }
 
 export const taskTreePlugin: UiPlugin = {
-  id: 'panel.task-tree',
-  title: '任务树',
-  slot: 'left',
-  order: 10,
+  id: 'page.task-tree',
+  title: '任务',
+  slot: 'page',
+  order: 30,
   render: TaskTreePanel,
 };

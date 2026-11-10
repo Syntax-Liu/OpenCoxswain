@@ -16,9 +16,9 @@ function WorkerBoardPanel(): JSX.Element {
 }
 
 export const workerBoardPlugin: UiPlugin = {
-  id: 'panel.worker-board',
-  title: '员工看板',
-  slot: 'right',
+  id: 'context.workers',
+  title: '员工',
+  slot: 'context',
   order: 10,
   render: WorkerBoardPanel,
 };

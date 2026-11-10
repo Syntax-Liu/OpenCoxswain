@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type { RoleName, TaskStatus } from '@opencoxswain/shared';
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -27,23 +26,6 @@ export function StatusChip({ status }: { status: TaskStatus }): JSX.Element {
     <span className="chip" data-status={status}>
       {STATUS_LABELS[status]}
     </span>
-  );
-}
-
-export function Panel(props: {
-  title: string;
-  actions?: ReactNode;
-  className?: string;
-  children: ReactNode;
-}): JSX.Element {
-  return (
-    <section className={`panel ${props.className ?? ''}`}>
-      <header className="panel-header">
-        <h2>{props.title}</h2>
-        {props.actions}
-      </header>
-      <div className="panel-body">{props.children}</div>
-    </section>
   );
 }
 

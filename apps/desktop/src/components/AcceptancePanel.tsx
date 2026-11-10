@@ -102,7 +102,7 @@ export function AcceptancePanel({
             {record && record.verdict !== 'passed' ? (
               <p className="hint">
                 系统结论：{record.verdict === 'failed' ? '未通过' : '未验证'}
-                {record.note ? ` · ${record.note}` : ''}
+                {record.note ? `，${record.note}` : ''}
               </p>
             ) : null}
             {items.length > 0 ? (

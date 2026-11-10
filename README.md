@@ -56,7 +56,7 @@ docs/
   super-agent-adoption.md
 ```
 
-## 当前能力（v0.30.0）
+## 当前能力（v0.31.0）
 
 已实现：
 
@@ -101,10 +101,10 @@ docs/
 - 进程清理：验收命令与系统复核命令超时后按整棵进程树结束（Windows `taskkill /T /F`，POSIX 按进程组），不再残留孙进程占用 worktree；内核停止时收回所有活跃 OpenCode 会话，未捕获异常与未处理拒绝同样走一次卸载；桌面壳退出改为结束 daemon 进程树，关掉应用不会留下后台员工进程。
 - PID 台账：OpenCode 进程启动时写入 `<home>/pids/<pid>.json`（可执行文件名、任务、worktree、启动时间），正常结束、超时、取消都会即时销账；daemon 启动时（`runtime.opencode` 的 `reapOrphans`）回收上次被任务管理器强杀后仍存活的进程树，进程名与台账不符（PID 已被系统复用）只删记录、不误杀无关进程。
 - 任务树审计：节点可展开查看负责人、分支、当前阶段、逐条验收结论与最近关键事件；失败 / 阻塞 / 被打回在卡片上直接显示「卡在：…」，事件可回溯；DAG 只保留依赖关系。
-- 首次引导：首次启动直接进入接入表单，并在左栏显示三步清单（接入仓库 → 生成任务单 → 确认开工），全部完成后自动隐藏；`inspectRepo` 区分路径不存在、不是文件夹、没有权限、不是 git 仓库、git 不可用与空仓库，接口以 400 返回可直接展示的中文原因，不把错误码甩给用户。
-- 多项目：左栏「项目」面板与顶栏下拉可在多个仓库间切换，也可直接接入新项目；任务、事件、消息、产物、审批、验收与记忆统计均按 `project_id` 隔离，项目级预算与并发上限各自独立；最近使用的项目记在本地，下次启动优先恢复。
+- 首次引导：首次启动直接进入接入表单；`inspectRepo` 区分路径不存在、不是文件夹、没有权限、不是 git 仓库、git 不可用与空仓库，接口以 400 返回可直接展示的中文原因，不把错误码甩给用户。对话页空状态只保留一句话目标提示，不再重复三步清单。
+- 多项目：左侧边栏「项目」列表可在多个仓库间切换，也可直接接入新项目；任务、事件、消息、产物、审批、验收与记忆统计均按 `project_id` 隔离，项目级预算与并发上限各自独立；最近使用的项目记在本地，下次启动优先恢复。
 - 任务模板：内置「修缺陷 / 小功能 / 写文档 / 重构 / 调研」五类，由 `template.registry` 插件登记，`GET /api/templates` 与工作台快照可读。每个模板声明目标描述、默认交付物、验收方式、写入范围、是否允许一键合并；选中后在输入框上方完整预览，并注明项目级联网 / 外发授权。套用模板只预填任务单（主执行 + 校验两个子任务），仍停在「待确认」，`acceptancePolicy` 固定为 `unverified_only`，交付阶段只有模板允许且低风险时才开放一键合并。
-- 定时任务：`schedules` 服务 + `trigger.schedule` 插件，`GET/POST /api/schedules`、`POST /api/schedules/:id/enabled`、`POST /api/schedules/:id/run`、`DELETE /api/schedules/:id`。每条任务属于一个项目，声明标题、目标、可选模板与间隔（1 分钟起）；到点只调用 `steward.createPlan` 落一张 `awaiting_approval` 任务单，不自动开工、不降低验收强度；项目已有未完成任务时整次跳过并落 `schedule.skipped`，错过时段不补跑，下一次按间隔重算。工作台底部「定时」标签可新建、停用/启用、立即生成与删除。
+- 定时任务：`schedules` 服务 + `trigger.schedule` 插件，`GET/POST /api/schedules`、`POST /api/schedules/:id/enabled`、`POST /api/schedules/:id/run`、`DELETE /api/schedules/:id`。每条任务属于一个项目，声明标题、目标、可选模板与间隔（1 分钟起）；到点只调用 `steward.createPlan` 落一张 `awaiting_approval` 任务单，不自动开工、不降低验收强度；项目已有未完成任务时整次跳过并落 `schedule.skipped`，错过时段不补跑，下一次按间隔重算。侧边栏「自动化」页可新建、停用/启用、立即生成与删除。
 - 全局路由：`router` 服务 + `router.global` 插件，`POST /api/route` 只返回候选项目、分数与命中依据（项目名/路径、项目记忆、最近任务），最多 3 个候选、3 条理由，不做语义模型推断，不建单、不改项目状态；是否派活由用户在「生成任务单」时决定，任务单仍停在待确认。
 - 跨项目记忆检索：`GET /api/memory?scope=all&q=` 覆盖所有项目与全局记忆，结果自带 `projectId` 由界面分组；检索只读，不改写 `useCount` / `lastUsedAt`，因此不会污染时间衰减排序。不带 `scope` 时语义不变（只查全局记忆）。工作台「记忆」页提供跨项目搜索。
 - 阶段视图：`GET /api/tasks?stage=person|working|idle` 与工作台「在等谁」标签，明确当前是等人、等依赖还是执行中。
@@ -112,10 +112,11 @@ docs/
 - 规则监察：`supervisor.rules` 插件按规则检查越权写入、空转完成、无心跳、重复调用、停滞、预算逼近与长尾；动作写入 `supervision_actions` 并进入回放，同一规则重复触发升级为暂停。只做规则判断，不调用 LLM、不改提示词。
 - Mock 运行时：真实写文件、跑验收命令、产出 diff 与报告，离线可跑。
 - OpenCode 运行时：调用桌面版 CLI 执行真实任务，JSONL 事件映射、会话隔离、进程树终止。
-- LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分，工作台顶部常驻「规划 · 静态回退」标识，悬停可看原因，`GET /api/secrets` 可查看 Key 是否已配置。设置页「模型密钥」可直接保存/清除 Key，只存本机凭据库（Windows DPAPI），保存后点顶栏刷新即可切换规划模式。
+- LLM Planner：OpenAI 兼容端点，BYO Key；无 Key 自动回退静态拆分，侧边栏底部常驻「LLM 规划」/「静态规划」状态点，悬停可看原因，`GET /api/secrets` 可查看 Key 是否已配置。设置页「模型密钥」可直接保存/清除 Key，只存本机凭据库（Windows DPAPI），保存后点主区刷新即可切换规划模式。
 - 模型密钥设置：设置页显示当前是否已配置及来源（本机凭据库 / 环境变量），`PUT/DELETE /api/secrets/llm` 保存与清除；密钥不回传明文、不写项目文件，清除后规划立即回落静态规则。
 - Windows 路径：git 调用统一关掉路径转义并按长路径处理，中文加空格的文件名在 worktree、diff 产物与逐文件明细里都保持原样；进程工作目录超过 260 字符时不再让 daemon 崩溃，改为在接入项目与会话启动处返回可直接展示的中文原因；仓库路径不长时，超过 260 字符的深层文件仍能正常加入版本库。
-- 浏览器工作台：对话、任务树、员工看板、时间线、产物、汇总、花费、设置。
+- 三栏工作台：左侧边栏放品牌、新建任务、页面导航、项目列表与 Planner / 运行时状态；中间主区由统一标题栏承载页面标题、任务状态与刷新，对话页为 Trae 风格输入框；右侧上下文面板可折叠，容纳员工、时间线、汇总。页面切换与上下文开关状态记在本地，窗口窄于 1180px 时默认收起右栏。
+- 浏览器工作台页面：对话、待决策、任务、产物、自动化、记忆、花费、项目、设置。
 - Tauri 2 桌面壳：Rust 侧拉起并托管本地 daemon（固定 127.0.0.1:47821），端口就绪后再开窗，退出时结束子进程；日志在 `%LOCALAPPDATA%\OpenCoxswain\logs\daemon.log`。`pnpm desktop` 为开发态，`pnpm desktop:build` 产出 currentUser 模式的 NSIS 安装包，daemon 与工作区包由 `scripts/package-daemon.mjs` 摊平进安装资源。
 - 自带运行时：打包时把构建机的 Node.js 可执行文件与许可证复制到 `staging/runtime`，桌面壳优先用它启动 daemon（可用 `OPENCOXSWAIN_NODE_BIN` 覆盖），找不到或启动失败才回退系统 `node`，并在日志里写明用了哪一个。安装包因此不再要求目标机器预装 Node.js。
 - IM 通道（飞书 / Telegram）：`channels` 服务负责配置落盘（`<home>/channels.json`）、事件路由与去重，`channel.feishu` / `channel.telegram` 插件各自负责发送与入站回调。设置页可保存飞书 Webhook 与签名密钥，或 Telegram 的 Bot Token 与会话 ID，并配置通知类别与启停；凭据保存后不回显明文，入站地址与 token 可直接复制。审批请求、待验收、预算超限、执行失败、遗留进程回收按类别推送，同一事件 60 秒内只推一条。群内发「待办 / 状态 / 批准 / 退回」即可查询与拍板，退回必须带理由；不开放建单。飞书入站支持 `X-Lark-Signature` 校验与 `encrypt` 字段解密；Telegram 入站路径为 `/api/channels/<id>/inbound/telegram`，`setWebhook` 时把入站 token 填作 `secret_token`，请求按 `update_id` 去重，non-command 消息与未绑定会话一律忽略；Telegram 只要求公开 HTTPS 回调，纯本机测试可只配 Bot Token 与会话 ID 收推送，要发指令再用隧道把入站地址暴露出去。

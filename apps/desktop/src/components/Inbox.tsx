@@ -36,6 +36,21 @@ function lagText(value: number | null): string {
   return `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
 }
 
+/** 需要人处理的事项总数；侧边栏与页面标题共用。 */
+export function pendingDecisionCount(
+  root: Task | null,
+  tasks: Task[],
+  approvals: Approval[],
+): number {
+  const pending = approvals.filter((approval) => approval.status === 'pending').length;
+  const stuck = tasks.filter(
+    (task) =>
+      task.parentId !== null && (task.status === 'blocked' || task.status === 'failed'),
+  ).length;
+  const reviews = tasks.filter((task) => task.status === 'awaiting_review').length;
+  return pending + stuck + reviews + (root?.status === 'awaiting_approval' ? 1 : 0);
+}
+
 /** 待决策收件箱：只列需要人处理的事，不重复展示执行过程。 */
 export function Inbox({
   root,
@@ -47,7 +62,7 @@ export function Inbox({
   onTaskAction,
   onApproval,
   onReview,
-}: Props): JSX.Element | null {
+}: Props): JSX.Element {
   const pending = approvals.filter((approval) => approval.status === 'pending');
   const children = tasks.filter((task) => task.parentId !== null);
   const stuck = children.filter(
@@ -55,18 +70,19 @@ export function Inbox({
   );
   const reviews = tasks.filter((task) => task.status === 'awaiting_review');
   const planWaiting = root?.status === 'awaiting_approval';
-  const total =
-    pending.length + stuck.length + reviews.length + (planWaiting ? 1 : 0);
-  if (total === 0) return null;
+  const total = pendingDecisionCount(root, tasks, approvals);
+  if (total === 0) {
+    return (
+      <section className="panel inbox">
+        <p className="page-empty">没有待处理的事，总管和员工都在按计划推进。</p>
+      </section>
+    );
+  }
 
   const doneChildren = children.filter((task) => task.status === 'done').length;
 
   return (
     <section className="panel inbox">
-      <header className="panel-header">
-        <h2>待决策</h2>
-        <span className="count">{total}</span>
-      </header>
       {planWaiting && root ? (
         <div className="inbox-item">
           <div>
@@ -90,8 +106,10 @@ export function Inbox({
           <div className="inbox-item" key={task.id}>
             <div>
               <strong>
-                {isRoot ? '汇总待收口' : '子任务待验收'} ·{' '}
-                {task.contract.assignee ? ROLE_LABELS[task.contract.assignee.role] : '总管'}
+                {isRoot ? '汇总待收口' : '子任务待验收'}
+                <span className="muted role-inline">
+                  {task.contract.assignee ? ROLE_LABELS[task.contract.assignee.role] : '总管'}
+                </span>
               </strong>
               <p>
                 {isRoot && pendingChildren > 0
@@ -132,8 +150,10 @@ export function Inbox({
         <div className="inbox-item" key={task.id}>
           <div>
             <strong>
-              {task.status === 'blocked' ? '任务阻塞' : '任务失败'} ·{' '}
-              {task.contract.assignee ? ROLE_LABELS[task.contract.assignee.role] : '未指派'}
+              {task.status === 'blocked' ? '任务阻塞' : '任务失败'}
+              <span className="muted role-inline">
+                {task.contract.assignee ? ROLE_LABELS[task.contract.assignee.role] : '未指派'}
+              </span>
             </strong>
             <p>{task.title}</p>
           </div>
@@ -149,7 +169,7 @@ export function Inbox({
       ))}
       {latency.samples > 0 || latency.waiting > 0 ? (
         <footer className="inbox-latency hint">
-          反馈延迟 p50 {lagText(latency.viewLagP50)} · p95 {lagText(latency.viewLagP95)}
+          反馈延迟 p50 {lagText(latency.viewLagP50)}，p95 {lagText(latency.viewLagP95)}
           （样本 {latency.samples}，待处理 {latency.waiting}）
         </footer>
       ) : null}
