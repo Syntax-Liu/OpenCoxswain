@@ -61,6 +61,27 @@ const call = async (url, init) => {
 };
 
 try {
+  step('接入失败给人能看懂的原因');
+  const createProject = async (repoPath) => {
+    const response = await fetch(`${base}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: repoPath }),
+    });
+    return { status: response.status, text: await response.text() };
+  };
+
+  const missing = await createProject(path.join(temp, 'no-such-repo'));
+  assert.equal(missing.status, 400, '路径不存在应返回 400');
+  assert.match(missing.text, /路径不存在/, '应说明路径不存在');
+
+  const plainDir = path.join(temp, 'not-a-repo');
+  await mkdir(plainDir, { recursive: true });
+  const notGit = await createProject(plainDir);
+  assert.equal(notGit.status, 400, '非 git 仓库应返回 400');
+  assert.match(notGit.text, /不是 git 仓库/, '应说明不是 git 仓库');
+  console.log('失败提示：路径不存在 / 不是 git 仓库');
+
   step('接入项目');
   const project = await call('/api/projects', {
     method: 'POST',
@@ -243,6 +264,88 @@ try {
   const replay = await call(`/api/tasks/${planned.root.id}/replay`);
   assert.ok(replay.events.length > 0);
   console.log(`事件 ${replay.events.length} 条，汇总长度 ${replay.summary.length}`);
+
+  step('多项目：接入第二个仓库并隔离任务树、事件与配置');
+  const repoB = path.join(temp, 'second-repo');
+  await mkdir(repoB, { recursive: true });
+  await writeFile(path.join(repoB, 'readme.txt'), 'origin\n', 'utf8');
+  git(repoB, ['init', '-b', 'main']);
+  git(repoB, ['config', 'user.name', 'OpenCoxswain E2E']);
+  git(repoB, ['config', 'user.email', 'e2e@opencoxswain.local']);
+  git(repoB, ['add', '-A']);
+  git(repoB, ['commit', '-m', 'init']);
+
+  const secondProject = await call('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify({
+      path: repoB,
+      name: 'second',
+      dailyBudgetUsd: 3,
+      maxConcurrency: 1,
+    }),
+  });
+  assert.equal(secondProject.dailyBudgetUsd, 3, '第二个项目的日预算独立');
+  assert.equal(secondProject.maxConcurrency, 1, '第二个项目的并发上限独立');
+
+  const plannedB = await call(`/api/projects/${secondProject.id}/plan`, {
+    method: 'POST',
+    body: JSON.stringify({
+      goal: '第二个项目：更新 readme',
+      subtasks: [
+        {
+          title: '实施：readme',
+          goal: '把 readme.txt 更新为 second',
+          role: 'implementer',
+          writeScope: ['readme.txt'],
+          acceptance: [{ id: 'ac_diff', type: 'diff', desc: '只修改 readme.txt' }],
+          inputs: { mock: { files: [{ path: 'readme.txt', content: 'second\n' }] } },
+        },
+        {
+          title: '校验：readme',
+          goal: '独立复跑并检查 diff 只改 readme.txt',
+          role: 'verifier',
+          dependsOn: [0],
+          acceptance: [{ id: 'ac_rubric', type: 'rubric', desc: 'diff 符合目标' }],
+        },
+      ],
+    }),
+  });
+  assert.equal(plannedB.root.status, 'awaiting_approval');
+
+  const snapA = await call(`/api/bootstrap?projectId=${project.id}`);
+  const snapB = await call(`/api/bootstrap?projectId=${secondProject.id}`);
+  assert.equal(snapA.projects.length, 2, '两个项目都应被列出');
+  assert.equal(snapB.projects.length, 2);
+  assert.equal(snapA.project.id, project.id);
+  assert.equal(snapB.project.id, secondProject.id);
+  assert.equal(snapA.project.dailyBudgetUsd, 5);
+  assert.equal(snapA.project.maxConcurrency, 2);
+  assert.equal(snapA.tasks.every((task) => task.projectId === project.id), true, 'A 的任务都属于 A');
+  assert.equal(
+    snapB.tasks.every((task) => task.projectId === secondProject.id),
+    true,
+    'B 的任务都属于 B',
+  );
+
+  const idsA = new Set(snapA.tasks.map((task) => task.id));
+  const idsB = new Set(snapB.tasks.map((task) => task.id));
+  for (const id of idsB) assert.ok(!idsA.has(id), '两个项目的任务树不重叠');
+  assert.ok(
+    snapA.events.every((event) => event.taskId === null || idsA.has(event.taskId)),
+    'A 的事件不串到 B',
+  );
+  assert.ok(
+    snapB.events.every((event) => event.taskId === null || idsB.has(event.taskId)),
+    'B 的事件不串到 A',
+  );
+  assert.ok(
+    !snapB.messages.some((message) => message.content.includes('夜间模式')),
+    'B 的消息不应包含 A 的目标',
+  );
+  console.log(
+    `项目 A ${snapA.tasks.length} 个任务 / 项目 B ${snapB.tasks.length} 个任务，事件与配置均隔离`,
+  );
+
   console.log('\nE2E 通过。');
 } finally {
   await app.close();

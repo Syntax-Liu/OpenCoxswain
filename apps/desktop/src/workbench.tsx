@@ -50,6 +50,8 @@ export interface Workbench {
   onMerge: (planHash: string) => void;
   onInput: (taskId: string, text: string) => void;
   onWorkerAction: (worker: Worker, action: WorkerAction) => void;
+  onSwitchProject: (projectId: string) => void;
+  onProjectReady: (project: Project) => void;
   onProjectSettings: (patch: {
     dailyBudgetUsd: number;
     maxConcurrency: number;

@@ -23,10 +23,28 @@ import { PanelSlot, useUiPanels, type UiRegistry } from './plugins/registry.js';
 import { WorkbenchProvider, type Workbench } from './workbench.js';
 
 const SETTLED = ['done', 'cancelled', 'failed'];
+const CURRENT_PROJECT_KEY = 'opencoxswain.currentProject';
+
+function readStoredProject(): string | null {
+  try {
+    return window.localStorage.getItem(CURRENT_PROJECT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeProject(id: string | null): void {
+  try {
+    if (id) window.localStorage.setItem(CURRENT_PROJECT_KEY, id);
+    else window.localStorage.removeItem(CURRENT_PROJECT_KEY);
+  } catch {
+    // 存储不可用时不阻断使用，只是下次启动回到默认项目。
+  }
+}
 
 export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(() => readStoredProject());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
@@ -44,6 +62,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
       const data = await api.snapshot(id ?? undefined);
       setSnapshot(data);
       setProjectId(data.project?.id ?? null);
+      storeProject(data.project?.id ?? null);
       setError(null);
     } catch (caught) {
       setError(errorText(caught));
@@ -53,8 +72,15 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
   }, []);
 
   useEffect(() => {
-    void load(null, true);
+    void load(projectIdRef.current, true);
   }, [load]);
+
+  // 切换项目时清掉上一个项目的审阅与交付上下文，避免串台。
+  useEffect(() => {
+    setReviewTaskId(null);
+    setDelivery(null);
+    setDeliveryResult(null);
+  }, [snapshot?.project?.id]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -206,8 +232,15 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     await load(projectIdRef.current);
   };
 
+  const onSwitchProject = (next: string): void => {
+    setProjectId(next);
+    storeProject(next);
+    void load(next);
+  };
+
   const onProjectReady = (project: Project): void => {
     setProjectId(project.id);
+    storeProject(project.id);
     void load(project.id);
   };
 
@@ -268,6 +301,8 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
     onMerge,
     onInput,
     onWorkerAction,
+    onSwitchProject,
+    onProjectReady,
     onProjectSettings,
     onAssistant,
   };
@@ -286,11 +321,7 @@ export function App({ registry }: { registry: UiRegistry }): JSX.Element {
           <div className="project-switch">
             <select
               value={project.id}
-              onChange={(event) => {
-                const next = event.target.value;
-                setProjectId(next);
-                void load(next);
-              }}
+              onChange={(event) => onSwitchProject(event.target.value)}
               aria-label="选择项目"
             >
               {snapshot.projects.map((item) => (

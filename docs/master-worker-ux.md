@@ -1,7 +1,7 @@
 # 主从双 Agent 的用户体验：判断、边界与实现对照
 
 > **材料**：本地完整对话 `D:\Users\37632\Downloads\主从双Agent会不会大幅度提升用户体验？现成产品有TRAE宝，注意这个是TRAE的新功能.md`（8 轮问答，713 行）。此前腾讯元宝公开分享页只返回最后一轮回答，已放弃，不作为本文来源。
-> **对照**：`docs/plan.md`（已推进到 v0.16.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
+> **对照**：`docs/plan.md`（已推进到 v0.17.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
 > **性质**：论点提炼 + 证据分级 + 体验结论 + 差距判定 + 可执行改动。不摘抄原文，不重复竞品清单。
 
 ---
@@ -343,6 +343,14 @@
 - **落点**：`steward` 的 `diffReview`、`diff-review` 解析器、`apps/desktop` 验收单 / 交付说明 / 产物面板、`task-tree` 插件。
 - **验收**：人能先读四段说明，再按需下钻到具体文件；失败 / 阻塞节点不用翻时间线就能看出卡点。
 - **实现**：逐文件明细挂在决策说明「改了什么」下，不另起叙述；根任务汇总子任务并对同一路径合并提示；大文件截断与二进制都带提示，不静默省略。任务树审计块复用快照里的负责人与事件，卡点优先取阶段详情，取不到时明说「系统未记录原因」。DAG 仍只表达依赖，不加装饰图形。
+
+#### G10 第一次用不起来，多项目会串（已完成，v0.17.0）
+
+- **现状**：首次启动只有一张接入表单，没有把「接入仓库 → 生成任务单 → 确认开工」讲清楚；接入失败只抛错误码或笼统的「不是 git 仓库」；多个仓库只能在顶栏切换，没有接入第二个项目的入口，切换后审阅与交付上下文可能停在旧项目。
+- **改什么**：首次启动给出三步清单并随进度勾选，完成后自动隐藏；接入失败区分路径不存在、不是文件夹、没有权限、不是 git 仓库、git 不可用与空仓库；左栏增加项目面板，支持切换与接入新项目，最近项目本地记忆，切换时清掉上一个项目的审阅与交付上下文。
+- **落点**：`inspectRepo` / `steward.createProject`、`apps/desktop` 的 `Setup` / `ProjectForm` / `guide` 插件 / `projects` 插件、`App` 的当前项目状态。
+- **验收**：新用户不读文档也能从安装走到「确认开工」；接入失败能直接看懂下一步该做什么；两个仓库同时接入时任务树、事件、消息与项目配置互不串扰。
+- **实现**：`RepoInspectError` 携带可展示的中文原因，`POST /api/projects` 返回 400；三步清单与项目面板都经 UiRegistry 注册，不改 App 具体实现；多项目沿用存储层按 `project_id` 过滤，e2e 用两个仓库断言隔离，默认并发与验收放行规则不变。
 
 ### 3.3 与现有决策冲突、需要重新评估的
 

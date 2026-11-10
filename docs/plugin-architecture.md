@@ -359,7 +359,13 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 说明层下钻：前端 `DiffReviewView` 由验收单、交付说明与产物面板共用，挂在四段说明「改了什么」下，不新增第二套结论；`DiffReviewView` 自行取数，App.tsx 不写具体实现。
 3. 任务树审计：`task-tree` 插件把负责人、分支、阶段、逐条验收结论与关键事件挂到节点，失败 / 阻塞 / 被打回直接显示卡点；仍走 UiRegistry 注册，未改变插件边界与默认并发。
 
+已完成（v0.17.0）：
+
+1. 首次引导：`inspectRepo` 新增 `RepoInspectError`（`missing` / `not_directory` / `forbidden` / `not_git` / `git_unavailable` / `empty_repo`），`steward.createProject` 把失败原因转成 400 与中文说明；前端新增 `guide` 插件（left/order 1）展示三步清单，完成后自动隐藏，`Setup` 与项目表单共用 `ProjectForm`。
+2. 多项目：新增 `projects` 插件（left/order 3），提供切换与接入新项目入口；`Workbench` 暴露 `onSwitchProject` / `onProjectReady`，`App` 将最近项目写入 `localStorage`，切换时清理上一个项目的审阅与交付上下文。
+3. 隔离复核：任务、事件、消息、产物、审批、验收、记忆统计均按 `project_id` 过滤；e2e 新增两仓库场景，断言任务树不重叠、事件不串项目、项目级预算与并发独立。仍走 UiRegistry 注册，未提高默认并发，也未给 rubric/human 自动放行。
+
 下一步（P3 剩余）：
 
-1. 任务模板、首次引导。
+1. 任务模板。
 2. 进程级插件隔离（Tauri 2 桌面壳已完成，见 v0.13.0）。

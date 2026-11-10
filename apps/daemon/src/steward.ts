@@ -55,7 +55,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AppError } from './errors.js';
 import { parseDiffPatch } from './diff-review.js';
-import { inspectRepo } from './git.js';
+import { inspectRepo, RepoInspectError } from './git.js';
 
 const MANDATE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -193,8 +193,18 @@ export class Steward implements StewardService {
 
   async createProject(request: CreateProjectRequest): Promise<Project> {
     if (!request.path?.trim()) throw new AppError('请提供本地 git 仓库路径');
-    const repo = await inspectRepo(request.path.trim());
-    const existing = this.store.listProjects().find((project) => project.path === repo.root);
+    let repo: Awaited<ReturnType<typeof inspectRepo>>;
+    try {
+      repo = await inspectRepo(request.path.trim());
+    } catch (error) {
+      // 接入失败要给人能看懂的原因，不让界面只看到错误码。
+      if (error instanceof RepoInspectError) throw new AppError(error.message, 400);
+      throw error;
+    }
+    const repoKey = normalizePath(repo.root);
+    const existing = this.store
+      .listProjects()
+      .find((project) => normalizePath(project.path) === repoKey);
     if (existing) {
       throw new AppError(`该项目已接入：${existing.name}`, 409);
     }
@@ -1272,6 +1282,12 @@ function detectStack(repoRoot: string): string | null {
   if (read('go.mod')) found.push('Go');
   if (read('pyproject.toml') || read('requirements.txt')) found.push('Python');
   return found.length > 0 ? found.join('；') : null;
+}
+
+/** Windows 路径大小写不敏感，重复接入判断统一规范化。 */
+function normalizePath(value: string): string {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
 function emptyReviewLatency(): ReviewLatency {

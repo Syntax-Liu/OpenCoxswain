@@ -212,6 +212,76 @@ label.choice input {
   text-transform: uppercase;
 }
 
+.steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.project-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* ---------- 引导与多项目面板 ---------- */
+
+.guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.guide-index {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.guide-steps li[data-done='true'] .guide-index {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04121f;
+}
+
+.guide-steps strong {
+  font-size: 12px;
+}
+
+.guide-steps p {
+  margin-top: 2px;
+}
+
+.projects .path {
+  margin: 8px 0;
+  word-break: break-all;
+}
+
+.projects .inline-facts {
+  display: flex;
+  gap: 14px;
+  margin: 0 0 4px;
+}
+
 /* ---------- 顶栏 ---------- */
 
 .app {
