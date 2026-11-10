@@ -730,6 +730,9 @@ export class Steward implements StewardService {
 
     const summary = this.summary(settled.id);
     this.announce(settled.projectId, summary, settled.id);
+    if (settled.contract.allow_auto_merge !== false) {
+      void this.autoMerge(settled).catch(() => undefined);
+    }
     return this.requireTask(settled.id);
   }
 
@@ -833,14 +836,11 @@ export class Steward implements StewardService {
     const changedFiles = [...new Set(state.diffs.flatMap((diff) => diff.paths))];
     const additions = state.diffs.reduce((total, diff) => total + diff.additions, 0);
     const deletions = state.diffs.reduce((total, diff) => total + diff.deletions, 0);
+    if (branches.length > 0 && changedFiles.length === 0 && additions === 0 && deletions === 0) {
+      blocked.push('任务改动已经在项目目录中，无需再次合并');
+    }
 
     const riskReasons: string[] = [];
-    const profiles = new Set(
-      subtree.map((item) => item.contract.deliverable_profile ?? 'code'),
-    );
-    if (!(profiles.size === 1 && profiles.has('document'))) {
-      riskReasons.push('交付物不全是文档类型');
-    }
     if (deletions > 0) riskReasons.push(`包含删除（${deletions} 行）`);
     const riskyEffects = subtree.flatMap((item) => this.store.listTaskSideEffects(item.id));
     if (riskyEffects.some((effect) => effect.kind === 'fs.delete')) {
@@ -1173,6 +1173,39 @@ export class Steward implements StewardService {
       payload: { summary },
     });
     this.bus.publish(event);
+    if (root.status === 'done' && root.contract.allow_auto_merge !== false) {
+      void this.autoMerge(root).catch(() => undefined);
+    }
+  }
+
+  /** 验收通过后自动把子任务分支合回项目目录，用户不必再手动点一次合并。 */
+  private async autoMerge(root: Task): Promise<void> {
+    try {
+      const plan = await this.delivery(root.id);
+      if (!plan.mergeable) return;
+      const { result } = await this.mergeDelivery(root.id, {
+        confirm: true,
+        planHash: plan.planHash,
+      });
+      const project = this.store.getProject(root.projectId);
+      const files = plan.changedFiles.slice(0, 5).join('、');
+      const more = plan.changedFiles.length > 5 ? ' 等' : '';
+      this.announce(
+        root.projectId,
+        `任务「${root.title}」已验收通过并自动合并到 ${result.baseBranch}` +
+          `${files ? `，改动文件：${files}${more}` : ''}` +
+          `${project ? `，现在可以在 ${project.path} 看到。` : '。'}`,
+        root.id,
+      );
+    } catch (error) {
+      this.announce(
+        root.projectId,
+        `任务「${root.title}」已验收通过，但自动合并没有完成：${
+          error instanceof Error ? error.message : String(error)
+        }。可在交付面板手动合并。`,
+        root.id,
+      );
+    }
   }
 
   decideApproval(id: string, status: 'approved' | 'rejected'): Approval {
