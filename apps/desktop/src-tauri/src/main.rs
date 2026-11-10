@@ -177,6 +177,19 @@ fn main() {
             if let tauri::RunEvent::Exit = event {
                 if let Ok(mut slot) = app.state::<Daemon>().0.lock() {
                     if let Some(mut child) = slot.take() {
+                        // Windows 上 child.kill() 只结束 daemon 本身，它拉起的 OpenCode
+                        // 与验收命令会变成孤儿进程；这里按进程树强杀。
+                        #[cfg(windows)]
+                        {
+                            use std::os::windows::process::CommandExt;
+                            let pid = child.id().to_string();
+                            let _ = Command::new("taskkill")
+                                .args(["/pid", &pid, "/T", "/F"])
+                                .creation_flags(0x0800_0000)
+                                .stdout(Stdio::null())
+                                .stderr(Stdio::null())
+                                .status();
+                        }
                         let _ = child.kill();
                         let _ = child.wait();
                     }

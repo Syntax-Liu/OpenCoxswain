@@ -418,4 +418,11 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 1. 长路径拦截：实测 Windows 下 git 无法在超过 260 字符的工作目录里运行，且 Node 20+ 的 `spawn` 在这种目录上会抛出不可捕获的错误，直接把 daemon 打挂。`runGit`、adapters 工具层 `git` / `runCommand` 与验收侧 `gitOutput` 现在先判断 `gitCwdTooLong` 再决定是否起子进程，超限时返回中文原因而不是崩溃；`WorktreeManager.create` 在建目录前校验目标路径，`inspectRepo` 新增 `path_too_long` 错误码（REST 仍按 400 返回可直接展示的原因）。
 2. 长路径支持：统一 git 参数补上 `-c core.longpaths=true`，仓库路径不长时超过 260 字符的深层文件可以正常 `add` / `commit`。
 3. 回归覆盖：新增「工作目录超 260 字符给中文错误且不崩溃」「worktree 根过长直接报错且不落盘」「深层文件超过 260 字符仍可入库」三条测试。
-4. 边界：不改写 `\\?\` 形式路径，不引入新依赖；超过 260 字符的仓库仍需用户移动位置；进程清理仍待后续。
+4. 边界：不改写 `\\?\` 形式路径，不引入新依赖；超过 260 字符的仓库仍需用户移动位置；进程清理见 v0.24.0。
+
+已完成（v0.24.0）：
+
+1. 命令超时按进程树清理：`killTree` 统一处理——Windows 用 `taskkill /pid <pid> /T /F`，POSIX 按进程组 `SIGKILL`；`runCommand`（adapters）、验收侧命令与 OpenCode 诊断探针都改走该函数，`shell: true` 拉起的孙进程不再残留占住 worktree。
+2. 退出清理：`OpenCodeRuntimeAdapter.disposeAll()` 收回全部活跃会话，`runtime.opencode` 用 `ctx.effect` 挂到内核卸载；daemon 增加 `uncaughtException` / `unhandledRejection` 卸载路径；桌面壳退出时在 Windows 用 `taskkill /T /F` 结束 daemon 进程树。
+3. 回归覆盖：新增四条测试——验收命令超时后孙进程消失、系统复核命令超时后孙进程消失、`killTree` 按进程组回收、`disposeAll` 清空会话。
+4. 边界：不改插件契约、不引入依赖；外部强制结束 daemon 后的遗留进程尚无启动时台账回收，留待后续。

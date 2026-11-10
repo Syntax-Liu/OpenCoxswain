@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -30,6 +30,42 @@ function longCwdError(cwd: string): string | null {
     : null;
 }
 
+/**
+ * 结束整棵进程树。
+ *
+ * Windows 上 `shell: true` 起的是 cmd.exe，`child.kill()` 只杀外壳，
+ * 被执行的命令及其孙进程会残留并占用 worktree 文件。POSIX 上对应的是
+ * `/bin/sh -c`，需要按进程组杀（调用方要传 `detached: true`）。
+ */
+export async function killTree(
+  child: ChildProcess | null,
+  options: { group?: boolean } = {},
+): Promise<void> {
+  if (!child || !child.pid) return;
+  if (process.platform === 'win32') {
+    if (child.exitCode !== null) return;
+    await new Promise<void>((resolve) => {
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      killer.on('close', () => resolve());
+      killer.on('error', () => resolve());
+    });
+    return;
+  }
+  try {
+    if (!options.group) throw new Error('not a group');
+    process.kill(-child.pid, 'SIGKILL');
+  } catch {
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      // 进程已退出。
+    }
+  }
+}
+
 export function runCommand(
   command: string,
   cwd: string,
@@ -39,10 +75,16 @@ export function runCommand(
   const tooLong = longCwdError(cwd);
   if (tooLong) return Promise.resolve({ code: -1, stdout: '', stderr: tooLong });
   return new Promise((resolve) => {
-    const child = spawn(command, { cwd, env, shell: true, windowsHide: true });
+    const child = spawn(command, {
+      cwd,
+      env,
+      shell: true,
+      windowsHide: true,
+      detached: process.platform !== 'win32',
+    });
     let stdout = '';
     let stderr = '';
-    const timer = setTimeout(() => child.kill(), timeoutMs);
+    const timer = setTimeout(() => void killTree(child, { group: true }), timeoutMs);
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });

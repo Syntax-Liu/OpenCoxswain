@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { verifyProvenance, extractAnchors, type ProvenanceReport } from '@opencoxswain/core';
+import { killTree } from '@opencoxswain/adapters';
 import { newId, now } from '@opencoxswain/shared';
 import type {
   AcceptanceCriterion,
@@ -498,6 +499,7 @@ function runCommand(command: string, cwd: string, timeoutMs: number): Promise<Co
       shell: true,
       windowsHide: true,
       env: process.env,
+      detached: process.platform !== 'win32',
     });
     let output = '';
     const append = (chunk: Buffer): void => {
@@ -505,10 +507,7 @@ function runCommand(command: string, cwd: string, timeoutMs: number): Promise<Co
     };
     child.stdout?.on('data', append);
     child.stderr?.on('data', append);
-    const timer = setTimeout(() => {
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 2000).unref();
-    }, timeoutMs);
+    const timer = setTimeout(() => void killTree(child, { group: true }), timeoutMs);
     child.on('error', (error) => {
       clearTimeout(timer);
       resolve({ code: 1, output: `${output}\n${error.message}`.trim() });

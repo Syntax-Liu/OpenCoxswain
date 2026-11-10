@@ -25,6 +25,7 @@ import {
   commitChanges,
   headOf,
   judgeCriterion,
+  killTree,
 } from './tooling.js';
 
 interface OpenCodeRecord {
@@ -130,7 +131,7 @@ function probe(command: string, env: NodeJS.ProcessEnv): Promise<ProbeResult> {
     });
     let stdout = '';
     let stderr = '';
-    const timer = setTimeout(() => child.kill(), 15_000);
+    const timer = setTimeout(() => void killTree(child), 15_000);
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });
@@ -253,6 +254,15 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     this.sessions.delete(session.id);
   }
 
+  /** daemon 退出时回收所有仍存活的会话，避免 OpenCode 进程树变成孤儿。 */
+  async disposeAll(): Promise<void> {
+    for (const session of [...this.sessions.values()]) {
+      session.cancelled = true;
+      await this.kill(session.child);
+      this.sessions.delete(session.id);
+    }
+  }
+
   async *send(session: RuntimeSession, task: TaskContract): AsyncIterable<RuntimeEvent> {
     const target = this.requireSession(session);
     const artifactsDir = path.join(this.artifactsRoot(session), task.task_id);
@@ -291,6 +301,7 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
         CI: '1',
       },
       windowsHide: true,
+      detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     target.child = child;
@@ -560,18 +571,6 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   }
 
   private async kill(child: ChildProcess | null): Promise<void> {
-    if (!child || child.exitCode !== null || !child.pid) return;
-    if (process.platform === 'win32') {
-      await new Promise<void>((resolve) => {
-        const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-          windowsHide: true,
-          stdio: 'ignore',
-        });
-        killer.on('close', () => resolve());
-        killer.on('error', () => resolve());
-      });
-      return;
-    }
-    child.kill('SIGTERM');
+    await killTree(child, { group: true });
   }
 }
