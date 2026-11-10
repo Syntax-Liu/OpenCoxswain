@@ -18,7 +18,7 @@
    - **P2 委派固化在结构里**（当前依赖 planner 输出与总管提示词，缺少结构断言）
    - **P2 任务级授权 Mandate + 租约式断点恢复**（当前只有「危险动作审批」，没有任务级授权链；重启只把 running 一律 blocked）
 4. **明确不做 5 项**：云端无状态容器、BYOM 端侧 daemon、Thread 多对多订阅、Inline & Spill 上下文管理、投机执行。理由见 §6，均为「与 Windows 本地优先/插件化目标冲突」或「成本收益不成立」。
-5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）、`v0.12.0`（记忆层）、`v0.13.0`（Tauri 2 桌面壳与 NSIS 安装包）、`v0.14.0`（子任务单独验收 + 验收决策说明 + 反馈延迟可观测）、`v0.15.0`（交付说明 + 低风险一键合并 + 租约 `recovered_unknown` 现场标记）、`v0.16.0`（逐文件 diff 审阅 + 任务树审计视图）、`v0.17.0`（首次引导 + 多项目切换与隔离）、`v0.18.0`（任务模板：默认交付物 / 验收 / 权限与合并开关）、`v0.19.0`（定时任务：到点只生成待审批任务单）。全部为新增能力，按 SemVer 升 minor。
+5. 版本节奏（按可行性评审 §3.2 重排）：`v0.9.0`（验收闭环：AcceptancePolicy + DeliverableProfile + ProvenanceVerifier + 内容级 diff，含已完成的 G5/G6 基础）、`v0.10.0`（授权与副作用：SideEffect + Mandate 越权拦截）、`v0.11.0`（委派与恢复：DelegationMode + 孤儿 worktree 清理与重派）、`v0.12.0`（记忆层）、`v0.13.0`（Tauri 2 桌面壳与 NSIS 安装包）、`v0.14.0`（子任务单独验收 + 验收决策说明 + 反馈延迟可观测）、`v0.15.0`（交付说明 + 低风险一键合并 + 租约 `recovered_unknown` 现场标记）、`v0.16.0`（逐文件 diff 审阅 + 任务树审计视图）、`v0.17.0`（首次引导 + 多项目切换与隔离）、`v0.18.0`（任务模板：默认交付物 / 验收 / 权限与合并开关）、`v0.19.0`（定时任务：到点只生成待审批任务单）、`v0.20.0`（全局路由 + 跨项目记忆检索：只给建议与依据，检索只读）。全部为新增能力，按 SemVer 升 minor。
 
 ---
 
@@ -644,6 +644,7 @@ export interface StorageService {
 | v0.17.0（已发布） | 首次引导：接入仓库 → 生成任务单 → 确认开工三步清单，完成后自动隐藏；接入失败区分路径不存在 / 不是文件夹 / 无权限 / 非 git / git 不可用 / 空仓库，返回中文原因而非错误码。多项目：左栏面板与顶栏切换、接入新项目，任务树、事件、消息、产物、审批、验收与记忆统计按 `project_id` 隔离，项目级预算与并发独立，最近项目本地记忆 | `git.ts` 增 `RepoInspectError`；`steward.createProject` 映射 400；前端新增 `guide` / `projects` 插件与共用 `ProjectForm`；`Workbench` 增 `onSwitchProject` / `onProjectReady` | 引导只复用现有 Setup / 对话 / 确认开工路径，不新增状态机；多项目沿用现有按项目过滤，不新增全局路由；未提高默认并发、未给 rubric/human 自动放行、未做事件级流式推送 |
 | v0.18.0（已发布） | 任务模板：修缺陷 / 小功能 / 写文档 / 重构 / 调研五类默认值，声明目标、交付物、验收方式、写入范围与是否允许一键合并；套用前完整预览，套用后仍待用户确认开工；模板不允许合并时交付阶段直接阻止 | 新增 `template.registry` 插件与 `TemplateRegistry`（`templates` 服务、`template:provide` / `template:use`）；`CreatePlanRequest.templateId` 由服务端补默认值并写入 `template_id` / `allow_auto_merge`；`delivery` 增加模板合并闸门；`conversation` 插件增加模板选择与预览，`WorkbenchSnapshot.templates` 随快照下发 | 模板只是预填，不新增状态机；`acceptancePolicy` 固定 `unverified_only`，不能借模板自动放行；允许合并的模板仍受低风险与二次确认约束；未提高默认并发、未做事件级流式推送 |
 | v0.19.0（已发布） | 定时任务：按项目配置标题、目标、可选模板与间隔（1 分钟起），到点只生成一张 `awaiting_approval` 任务单，不自动开工；项目已有未完成任务时整次跳过，错过时段不补跑；底部「定时」标签可新建、启停、立即生成与删除 | 新增 `trigger.schedule` 插件与 `schedule` 服务（`Schedules`），`StorageService` 增 `schedules` 表（user_version=8）与到期查询；`api.rest` 增 5 条路由；`PERMISSIONS` / `SERVICE_KEYS` 收拢到 `@opencoxswain/plugin-api` | 触发只调用 `steward.createPlan`，不绕过用户确认、不降低验收强度；跳过而非排队或抢占；未提高默认并发、未给 rubric/human 自动放行、未做事件级流式推送 |
+| v0.20.0（已发布） | 全局路由：一句话目标映射到已有项目，按项目名/路径、项目记忆、最近任务打分，最多 3 个候选与 3 条理由，只给建议不建单；跨项目记忆检索：覆盖所有项目与全局，只读不改使用统计 | 新增 `router.global` 插件与 `router` 服务（`RouterService`）；`MemoryService.search` 与 `GET /api/memory?scope=all`；`POST /api/route`；前端项目面板「全局派活」与记忆检查器「跨项目搜索」 | 路由是本地规则而非语义模型，避免把活悄悄派错；生成任务单仍停在待确认；检索不污染衰减排序；未提高默认并发、未给 rubric/human 自动放行、未做事件级流式推送 |
 
 规则：全部是新增能力，按 SemVer 升 minor；若删除旧 `acceptance` 表读取路径，属移除功能，需在 v1.0 前统一处理，不单独升 major。
 

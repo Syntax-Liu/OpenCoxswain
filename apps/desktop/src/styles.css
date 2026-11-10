@@ -443,6 +443,40 @@ label.choice input {
   flex: none;
 }
 
+.route-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.2));
+}
+
+.route-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-list li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  font-size: 12px;
+}
+
+.route-list .row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.route-block .hint {
+  margin: 0;
+}
+
 .memory-text {
   flex: 1;
   word-break: break-word;

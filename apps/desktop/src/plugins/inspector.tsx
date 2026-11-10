@@ -5,6 +5,7 @@ import type {
   EventRecord,
   MemoryEntry,
   MemoryKind,
+  MemoryMatch,
   MemoryReport,
 } from '@opencoxswain/shared';
 import { MEMORY_KINDS } from '@opencoxswain/shared';
@@ -348,6 +349,9 @@ function MemoryTab(): JSX.Element {
   const [text, setText] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [query, setQuery] = useState('');
+  const [matches, setMatches] = useState<MemoryMatch[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -398,6 +402,27 @@ function MemoryTab(): JSX.Element {
     }
   };
 
+  /** 跨项目检索：只读，不改变各条记忆的使用统计。 */
+  const searchAll = async (): Promise<void> => {
+    const keyword = query.trim();
+    if (keyword === '') return;
+    setSearching(true);
+    try {
+      const result = await api.memorySearchAll(keyword);
+      setMatches(result.matches);
+      if (result.matches.length === 0) setNotice('所有项目里都没有匹配的记忆。');
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const projectName = (projectId: string | null): string =>
+    projectId === null
+      ? '全局'
+      : (snapshot.projects.find((item) => item.id === projectId)?.name ?? projectId);
+
   const stats = report?.stats ?? snapshot.memory;
 
   return (
@@ -434,6 +459,38 @@ function MemoryTab(): JSX.Element {
           </button>
         </div>
         <p className="muted">写入有门槛：拒绝临时指令、疑似密钥与过短内容。</p>
+      </div>
+      <div className="settings-block">
+        <h3>跨项目搜索</h3>
+        <div className="row">
+          <input
+            value={query}
+            placeholder="例如：pnpm 工作区"
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void searchAll();
+            }}
+          />
+          <button
+            className="ghost"
+            onClick={() => void searchAll()}
+            disabled={!query.trim() || searching}
+          >
+            {searching ? '搜索中…' : '搜索'}
+          </button>
+        </div>
+        {matches && matches.length > 0 ? (
+          <ul className="memory-list">
+            {matches.map((match) => (
+              <li key={match.entry.id}>
+                <span className="memory-kind">{projectName(match.entry.projectId)}</span>
+                <span className="memory-text">{match.entry.text}</span>
+                <span className="muted">{match.entry.source}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <p className="muted">覆盖所有项目与全局记忆，只读，不改变使用统计。</p>
       </div>
       {notice ? <p className="notice">{notice}</p> : null}
       {report && report.issues.length > 0 ? (

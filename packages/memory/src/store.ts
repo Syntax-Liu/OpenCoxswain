@@ -194,28 +194,48 @@ export class MemoryStore {
     return matches;
   }
 
-  private candidates(query: string, tokens: string[], projectId: string | null): MemoryEntry[] {
+  /** 全库检索（含所有项目与全局），不改变使用统计。 */
+  search(query: string, options: { limit?: number } = {}): MemoryMatch[] {
+    const limit = Math.max(1, Math.min(50, options.limit ?? 20));
+    const tokens = tokenize(query);
+    if (tokens.length === 0) return [];
+    const candidates = this.candidates(query, tokens, null, true);
+    return rankEntries(candidates, query, this.now(), limit);
+  }
+
+  private candidates(
+    query: string,
+    tokens: string[],
+    projectId: string | null,
+    allProjects = false,
+  ): MemoryEntry[] {
     if (this.ftsEnabled) {
       const expression = matchExpression(tokens);
       if (expression) {
         try {
-          const rows = this.db
-            .prepare(
-              `SELECT e.* FROM memory_fts f
+          const base = `SELECT e.* FROM memory_fts f
                JOIN memory_entries e ON e.id = f.entry_id
                WHERE memory_fts MATCH ?
-                 AND e.superseded_by IS NULL
-                 AND (e.project_id IS NULL OR e.project_id IS ?)
-               LIMIT 200`,
-            )
-            .all(expression, projectId) as unknown as EntryRow[];
+                 AND e.superseded_by IS NULL`;
+          const rows = (allProjects
+            ? this.db.prepare(`${base} LIMIT 200`).all(expression)
+            : this.db
+                .prepare(`${base} AND (e.project_id IS NULL OR e.project_id IS ?) LIMIT 200`)
+                .all(expression, projectId)) as unknown as EntryRow[];
           if (rows.length > 0) return rows.map(mapRow);
         } catch {
           // FTS 查询语法异常时回退全量扫描。
         }
       }
     }
+    if (allProjects) return this.allActiveRows().map(mapRow);
     return this.activeRows(projectId).map(mapRow);
+  }
+
+  private allActiveRows(): EntryRow[] {
+    return this.db
+      .prepare('SELECT * FROM memory_entries WHERE superseded_by IS NULL')
+      .all() as unknown as EntryRow[];
   }
 
   private activeRows(projectId: string | null): EntryRow[] {

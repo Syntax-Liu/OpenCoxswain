@@ -108,6 +108,7 @@ interface PluginContext {
 | `scheduler` | 派发、暂停、恢复、终止 | `scheduler` | `scheduler:control` |
 | `steward` | 总管编排与快照 | `steward` | `steward:call` |
 | `schedules` | 定时任务：增删改查、启停、立即生成、到点检查 | `trigger.schedule` | `schedule:use` |
+| `router` | 全局路由：目标 → 项目建议与命中依据（只读，不建单） | `router.global` | `router:use` |
 | `secrets` | 密钥读写与来源查询（DPAPI 优先，环境变量回退） | `secrets.dpapi` | `secrets:read` |
 | `http` | 路由注册、监听、关闭 | `transport.http` | `http:route` |
 
@@ -157,6 +158,7 @@ interface PluginContext {
 | `http:route` | 注册 HTTP/SSE 路由 |
 | `net:listen` | 监听本地端口 |
 | `schedule:use` / `schedule:provide` | 消费 / 提供定时任务服务 |
+| `router:use` / `router:provide` | 消费 / 提供全局路由服务 |
 | `ui:panel` | 注册界面面板/检查器 |
 
 ### 6.2 执行点
@@ -385,3 +387,11 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. 触发语义：到点只调用 `steward.createPlan` 落一张 `awaiting_approval` 任务单，不自动开工、不降低验收强度；项目已有未完成根任务时整次跳过并落 `schedule.skipped`，错过时段不补跑，`nextRunAt` 按间隔推进；「立即生成」与到点共用同一条 `fire()`，并用串行链避免并发重复建单。
 4. 接口与界面：`GET/POST /api/schedules`、`POST /api/schedules/:id/enabled`、`POST /api/schedules/:id/run`、`DELETE /api/schedules/:id` 由 `api.rest` 暴露；前端新增 `inspector.schedule` 插件（bottom/order 47），支持新建、启停、立即生成与删除。
 5. 契约收敛：`PERMISSIONS`、`SERVICE_KEYS` 收拢到 `@opencoxswain/plugin-api` 作为唯一事实来源，`loader.ts` 改为引用，顺带修掉服务键缺 `templates` / `memory` 的既有不一致。
+
+已完成（v0.20.0）：
+
+1. 全局路由：新增 `router.global` 插件（kind `other`，`provides: router`，`permissions: router:provide`），实现 `RouterService.route(goal)` 并注册 `router` 服务键与 `router:use` / `router:provide` 权限；`SERVICE_RULES` 同步补齐。
+2. 路由规则：`tokenize` 后按项目名/路径命中 ×3、项目记忆命中 ×2、最近 5 个根任务命中 ×1 打分，`score > 0` 才进候选，取前 3 并给最多 3 条理由；不做语义模型推断，不建单、不改项目状态。
+3. 跨项目记忆检索：`MemoryService.search(query, { limit })` 与 `GET /api/memory?scope=all&q=`，覆盖所有项目与全局记忆；检索只读，不改写 `useCount` / `lastUsedAt`，不影响时间衰减排序；不带 `scope` 时行为不变。
+4. 接口与界面：`POST /api/route` 由 `api.rest` 暴露；前端项目面板新增「全局派活」（建议 → 生成任务单，仍待确认），记忆检查器新增「跨项目搜索」。
+5. 权限说明：`router.global` 按 `SERVICE_RULES.storage` 同时声明 `storage:read` / `storage:write`，与既有存储消费插件一致；服务本身只读。

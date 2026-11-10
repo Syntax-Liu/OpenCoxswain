@@ -798,3 +798,15 @@ export interface ScheduleRun {
   taskId: string | null;
   reason: string | null;
 }
+
+/**
+ * 全局路由建议：用户只描述目标，由本地规则判断该落到哪个项目。
+ * 只给建议，不建单；是否派活仍由用户决定。
+ */
+export interface RouteSuggestion {
+  projectId: string;
+  projectName: string;
+  score: number;
+  /** 命中的依据，便于用户判断而不是黑箱。 */
+  reasons: string[];
+}

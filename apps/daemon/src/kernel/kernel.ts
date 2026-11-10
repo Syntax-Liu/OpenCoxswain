@@ -59,6 +59,7 @@ const SERVICE_RULES: Record<
   },
   scheduler: { required: ['scheduler:control'], provider: ['scheduler:control'] },
   schedules: { required: ['schedule:use'], provider: ['schedule:provide'] },
+  router: { required: ['router:use'], provider: ['router:provide'] },
   steward: { required: ['steward:call'], provider: ['steward:call'] },
   secrets: {
     required: ['secrets:read'],

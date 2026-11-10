@@ -123,6 +123,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const templates = ctx.service('templates');
   const memory = ctx.service('memory');
   const schedules = ctx.service('schedules');
+  const router = ctx.service('router');
 
   http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
 
@@ -157,7 +158,15 @@ export async function apply(ctx: PluginContext): Promise<void> {
     const projectId = query.get('projectId');
     const keyword = query.get('q')?.trim();
     if (keyword) {
-      return { json: { matches: memory.recall(keyword, { projectId, limit: 20 }) } };
+      // scope=all 时跨项目检索（含全局），结果自带 projectId 由前端分组。
+      const scopeAll = query.get('scope') === 'all';
+      return {
+        json: {
+          matches: scopeAll
+            ? memory.search(keyword, { limit: 20 })
+            : memory.recall(keyword, { projectId, limit: 20 }),
+        },
+      };
     }
     return {
       json: {
@@ -386,6 +395,13 @@ export async function apply(ctx: PluginContext): Promise<void> {
       return { text: replayMarkdown(replay) };
     }
     return { json: replay };
+  });
+
+  // 全局路由：只给建议与依据，不建单；是否派活由用户在界面上决定。
+  http.route('POST', '/api/route', async ({ body }) => {
+    const input = body as { goal?: unknown } | null;
+    if (!input || typeof input.goal !== 'string') throw new AppError('缺少目标');
+    return { json: { suggestions: router.route(input.goal) } };
   });
 
   http.route('GET', '/api/schedules', async ({ query }) => ({

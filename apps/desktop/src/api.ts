@@ -13,6 +13,7 @@ import type {
   MemoryWriteResult,
   Project,
   RoleName,
+  RouteSuggestion,
   Schedule,
   ScheduleRun,
   Task,
@@ -64,6 +65,16 @@ export const api = {
     return request(
       `/api/memory?projectId=${encodeURIComponent(projectId)}&q=${encodeURIComponent(q)}`,
     );
+  },
+
+  /** 跨项目检索记忆（含全局），结果自带 projectId。 */
+  memorySearchAll(q: string): Promise<{ matches: MemoryMatch[] }> {
+    return request(`/api/memory?scope=all&q=${encodeURIComponent(q)}`);
+  },
+
+  /** 全局路由：只返回候选项目与依据，不建单。 */
+  routeGoal(goal: string): Promise<{ suggestions: RouteSuggestion[] }> {
+    return request('/api/route', { method: 'POST', body: JSON.stringify({ goal }) });
   },
 
   rememberMemory(body: MemoryCandidate): Promise<MemoryWriteResult> {

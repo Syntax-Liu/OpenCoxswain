@@ -31,6 +31,7 @@ import type {
   ProjectCostReport,
   ReviewLatency,
   RoleName,
+  RouteSuggestion,
   Run,
   RuntimeStatus,
   Schedule,
@@ -104,6 +105,8 @@ export const PERMISSIONS = [
   'memory:provide',
   'schedule:use',
   'schedule:provide',
+  'router:use',
+  'router:provide',
   'ui:panel',
 ] as const;
 
@@ -423,6 +426,8 @@ export interface PlannerService {
 export interface MemoryService {
   remember(candidate: MemoryCandidate): MemoryWriteResult;
   recall(query: string, options?: { projectId?: string | null; limit?: number }): MemoryMatch[];
+  /** 全库检索（含所有项目与全局），不改变使用统计，用于跨项目查找。 */
+  search(query: string, options?: { limit?: number }): MemoryMatch[];
   list(projectId?: string | null): MemoryEntry[];
   remove(id: string): boolean;
   report(projectId?: string | null): MemoryReport;
@@ -551,6 +556,14 @@ export interface ScheduleService {
   tick(at?: number): Promise<ScheduleRun[]>;
 }
 
+/**
+ * 全局路由：把一句话目标映射到最合适的已有项目。
+ * 只做本地规则打分并给出依据，不建单、不改项目状态。
+ */
+export interface RouterService {
+  route(goal: string): RouteSuggestion[];
+}
+
 export interface ServiceMap {
   config: OpenCoxswainConfig;
   events: EventService;
@@ -566,6 +579,7 @@ export interface ServiceMap {
   scheduler: SchedulerService;
   steward: StewardService;
   schedules: ScheduleService;
+  router: RouterService;
   secrets: SecretsService;
   http: HttpService;
 }
@@ -586,6 +600,7 @@ export const SERVICE_KEYS = [
   'scheduler',
   'steward',
   'schedules',
+  'router',
   'secrets',
   'http',
 ] as const satisfies readonly (keyof ServiceMap)[];
