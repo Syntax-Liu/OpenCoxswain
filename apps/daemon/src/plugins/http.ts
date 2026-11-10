@@ -117,7 +117,7 @@ export function apply(ctx: PluginContext): void {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         ...CORS,
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type,Last-Event-ID',
       });
       res.end();
