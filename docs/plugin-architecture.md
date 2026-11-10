@@ -395,3 +395,8 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. 跨项目记忆检索：`MemoryService.search(query, { limit })` 与 `GET /api/memory?scope=all&q=`，覆盖所有项目与全局记忆；检索只读，不改写 `useCount` / `lastUsedAt`，不影响时间衰减排序；不带 `scope` 时行为不变。
 4. 接口与界面：`POST /api/route` 由 `api.rest` 暴露；前端项目面板新增「全局派活」（建议 → 生成任务单，仍待确认），记忆检查器新增「跨项目搜索」。
 5. 权限说明：`router.global` 按 `SERVICE_RULES.storage` 同时声明 `storage:read` / `storage:write`，与既有存储消费插件一致；服务本身只读。
+
+已完成（v0.22.0）：
+
+1. 发行收口：`scripts/package-daemon.mjs` 额外把构建机的 Node.js 可执行文件、MIT 许可证与版本标记复制到 `staging/runtime`；桌面壳 `node_binary` 优先使用它，`OPENCOXSWAIN_NODE_BIN` 可覆盖，缺失或启动失败才回退系统 `node`，选择结果写入 daemon 日志。
+2. 插件契约不变：内核、清单、加载顺序与服务规则均未改动，安装包不再要求目标机器预装 Node.js；git 仍依赖系统安装（worktree 与合并）。

@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
  * staging/
  *   daemon/{package.json,dist}
  *   node_modules/@opencoxswain/{shared,core,adapters,plugin-api,memory}/{package.json,dist}
- * 运行时只需要系统安装的 Node.js，不再依赖 pnpm 的符号链接。
+ *   runtime/{node.exe,LICENSE,version.txt}
+ * 自带 Node 运行时后，安装包不再依赖用户预装的 Node.js；构建机仍需 Node >= 22。
  */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const staging = path.join(root, 'apps', 'desktop', 'src-tauri', 'staging');
@@ -70,4 +71,23 @@ for (const name of packages) {
   copyDist(source, target);
 }
 
-console.log(`daemon 资源已打包到 ${staging}`);
+// 把构建机上的 Node 运行时一并带走：目标机器不再需要预装 Node。
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+if (process.platform !== 'win32' || nodeMajor < 22) {
+  throw new Error(`打包需要 Windows 且 Node >= 22（当前 ${process.platform} / ${process.versions.node}）`);
+}
+const runtimeTarget = path.join(staging, 'runtime');
+mkdirSync(runtimeTarget, { recursive: true });
+cpSync(process.execPath, path.join(runtimeTarget, 'node.exe'));
+// Node.js 以 MIT 许可证分发，二进制随包分发时要带上许可证原文。
+const licenseSource = path.join(path.dirname(process.execPath), 'LICENSE');
+if (existsSync(licenseSource)) {
+  cpSync(licenseSource, path.join(runtimeTarget, 'LICENSE'));
+}
+writeFileSync(
+  path.join(runtimeTarget, 'version.txt'),
+  `Node.js ${process.versions.node}\n`,
+  'utf8',
+);
+
+console.log(`daemon 资源已打包到 ${staging}（含 Node.js ${process.versions.node} 运行时）`);

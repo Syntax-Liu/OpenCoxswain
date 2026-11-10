@@ -20,7 +20,7 @@
 
 | 层 | 选型 | 实施说明 |
 | --- | --- | --- |
-| 桌面壳 | Tauri 2 | 已完成（v0.13.0）：Rust 侧 spawn 系统 Node 运行打包后的 daemon，WebView2 承载同一套 React 工作台；dev 与 NSIS 打包两条路径都已接通。 |
+| 桌面壳 | Tauri 2 | 已完成（v0.13.0）：Rust 侧启动 daemon 运行打包后的代码，WebView2 承载同一套 React 工作台；dev 与 NSIS 打包两条路径都已接通。v0.22.0 起安装包自带 Node.js 运行时，不再要求目标机器预装 Node。 |
 | 验收 | 系统复核 + 人决策 | 已完成（v0.14.0）：子任务完成即可单独验收，根任务保留最终收口；四段决策说明与 p50/p95 反馈延迟用于呈现，不改变系统复核权威。交付侧（v0.15.0）复用同一说明，低风险才开放一键合并且需二次确认，失败自动回滚。 |
 | UI | React 18 + TypeScript + Vite | 不引入组件库，工作台样式手写 CSS，避免额外依赖。 |
 | 本地 Daemon | Node 22 + TypeScript | `engines >= 22`；当前验证环境为 Node 24 LTS，仅使用 Node 22 已支持的 API。 |
@@ -99,7 +99,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 接入 LLM Planner（已完成，v0.3.0）：`planner.llm` 使用 OpenAI 兼容端点（默认 DeepSeek），BYO Key；无 Key、超时或解析失败自动回退静态拆分。v0.4.0 起 Key 优先从 DPAPI 仓库读取，环境变量仅作回退。
 - 跑通真实仓库的「修夜间模式」剧本；危险动作人审（delete/push/publish/pay/external_send）已完成，见 v0.4.0。
 - Windows 专项：中文/空格路径、长路径、worktree 清理、进程清理。
-- Tauri 2 桌面壳（已完成，v0.13.0）：桌面壳作为 daemon 的入口，启动时先拉起本地 daemon（`OPENCOXSWAIN_PORT` 固定端口），端口就绪后再创建窗口；退出时结束子进程。安装包由 `scripts/package-daemon.mjs` 把 daemon 与工作区包摊平进 `src-tauri/staging`，运行时只依赖系统 Node.js。
+- Tauri 2 桌面壳（已完成，v0.13.0）：桌面壳作为 daemon 的入口，启动时先拉起本地 daemon（`OPENCOXSWAIN_PORT` 固定端口），端口就绪后再创建窗口；退出时结束子进程。安装包由 `scripts/package-daemon.mjs` 把 daemon 与工作区包摊平进 `src-tauri/staging`；v0.22.0 起同时带上 Node.js 运行时，安装后不再要求系统预装 Node（开发与构建仍需 Node >= 22）。
 
 **交付物**：插件化 Daemon 与工作台；真实 OpenCode 员工；真实 diff 与测试报告；预算硬停；Tauri 安装包（v0.13.0 已产出 NSIS）。
 

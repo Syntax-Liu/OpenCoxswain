@@ -1,7 +1,7 @@
 # 主从双 Agent 的用户体验：判断、边界与实现对照
 
 > **材料**：本地完整对话 `D:\Users\37632\Downloads\主从双Agent会不会大幅度提升用户体验？现成产品有TRAE宝，注意这个是TRAE的新功能.md`（8 轮问答，713 行）。此前腾讯元宝公开分享页只返回最后一轮回答，已放弃，不作为本文来源。
-> **对照**：`docs/plan.md`（已推进到 v0.21.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
+> **对照**：`docs/plan.md`（已推进到 v0.22.0）、`docs/plugin-architecture.md`、`docs/super-agent-adoption.md`、`docs/feasibility-critique-response.md`、`docs/questionnaire-final.md`，以及 `apps/daemon`、`apps/desktop`、`packages/core` 当前代码。
 > **性质**：论点提炼 + 证据分级 + 体验结论 + 差距判定 + 可执行改动。不摘抄原文，不重复竞品清单。
 
 ---

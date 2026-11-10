@@ -107,7 +107,8 @@ export class Scheduler {
   private readonly taskWarned = new Set<string>();
   private readonly supervisionHits = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
-  private ticking = false;
+  private pendingTick: Promise<void> | null = null;
+  private pendingRecovery: Promise<void> | null = null;
   private stopping = false;
   private lastSupervisedAt = 0;
 
@@ -125,17 +126,31 @@ export class Scheduler {
 
   start(): void {
     this.stopping = false;
-    void this.recover();
+    this.pendingRecovery = this.recover().finally(() => {
+      this.pendingRecovery = null;
+    });
     this.timer = setInterval(() => {
-      void this.tick();
+      this.queueTick();
     }, 350);
-    void this.tick();
+    this.queueTick();
+  }
+
+  /** 串行排队 tick；stop 时据此等待正在进行的扫描落定。 */
+  private queueTick(): void {
+    if (this.pendingTick) return;
+    const pending = this.tick().finally(() => {
+      if (this.pendingTick === pending) this.pendingTick = null;
+    });
+    this.pendingTick = pending;
   }
 
   async stop(): Promise<void> {
     this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    // 先等启动恢复与进行中的扫描落定，避免它们在数据库关闭后继续写入或派单。
+    await this.pendingRecovery?.catch(() => undefined);
+    await this.pendingTick?.catch(() => undefined);
     for (const run of this.active.values()) {
       await run.adapter.cancel(run.session).catch(() => undefined);
     }
@@ -357,22 +372,17 @@ export class Scheduler {
   }
 
   private async tick(): Promise<void> {
-    if (this.ticking || this.stopping) return;
-    this.ticking = true;
-    try {
-      this.renewLeases();
-      this.reapExpiredRuns();
-      await this.flushHumanInputs();
-      for (const project of this.store.listProjects()) {
-        if (this.stopping) break;
-        await this.tickProject(project);
-      }
-      if (Date.now() - this.lastSupervisedAt >= this.config.supervisionIntervalMs) {
-        this.lastSupervisedAt = Date.now();
-        await this.supervise();
-      }
-    } finally {
-      this.ticking = false;
+    if (this.stopping) return;
+    this.renewLeases();
+    this.reapExpiredRuns();
+    await this.flushHumanInputs();
+    for (const project of this.store.listProjects()) {
+      if (this.stopping) break;
+      await this.tickProject(project);
+    }
+    if (Date.now() - this.lastSupervisedAt >= this.config.supervisionIntervalMs) {
+      this.lastSupervisedAt = Date.now();
+      await this.supervise();
     }
   }
 

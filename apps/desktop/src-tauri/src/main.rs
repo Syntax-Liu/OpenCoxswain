@@ -2,7 +2,7 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::net::{SocketAddr, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -77,12 +77,31 @@ fn append_log(line: &str) {
     }
 }
 
-fn spawn_daemon(app: &tauri::App) -> Option<Child> {
-    let entry = daemon_entry(app)?;
-    append_log(&format!("daemon entry: {}", entry.display()));
-    let mut command = Command::new("node");
+/// 优先使用安装包自带的 Node 运行时，其次才回退到系统 PATH 里的 node。
+fn node_binary(app: &tauri::App) -> String {
+    if let Ok(exe) = std::env::var("OPENCOXSWAIN_NODE_BIN") {
+        if PathBuf::from(&exe).exists() {
+            return exe;
+        }
+    }
+    if let Ok(resource) = app.path().resource_dir() {
+        let bundled = normalize(
+            resource
+                .join("staging")
+                .join("runtime")
+                .join("node.exe"),
+        );
+        if bundled.exists() {
+            return bundled.to_string_lossy().into_owned();
+        }
+    }
+    "node".to_string()
+}
+
+fn daemon_command(node: &str, entry: &Path) -> Command {
+    let mut command = Command::new(node);
     command
-        .arg(&entry)
+        .arg(entry)
         .env("OPENCOXSWAIN_PORT", PORT.to_string());
     match log_file() {
         Some(file) => {
@@ -99,7 +118,28 @@ fn spawn_daemon(app: &tauri::App) -> Option<Child> {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x0800_0000);
     }
-    command.spawn().ok()
+    command
+}
+
+fn spawn_daemon(app: &tauri::App) -> Option<Child> {
+    let entry = daemon_entry(app)?;
+    let node = node_binary(app);
+    append_log(&format!(
+        "daemon entry: {}（node: {}）",
+        entry.display(),
+        node
+    ));
+    match daemon_command(&node, &entry).spawn() {
+        Ok(child) => Some(child),
+        Err(error) => {
+            if node == "node" {
+                append_log(&format!("daemon 启动失败：{error}"));
+                return None;
+            }
+            append_log(&format!("自带 Node 运行时启动失败（{error}），回退到系统 node"));
+            daemon_command("node", &entry).spawn().ok()
+        }
+    }
 }
 
 fn wait_for_daemon() {
