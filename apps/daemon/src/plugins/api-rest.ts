@@ -3,6 +3,8 @@ import path from 'node:path';
 import type {
   AcceptanceDecision,
   Capability,
+  ChannelEventKind,
+  ChannelInput,
   CreatePlanRequest,
   CreateProjectRequest,
   MemoryCandidate,
@@ -10,7 +12,7 @@ import type {
   RoleName,
   TaskReplay,
 } from '@opencoxswain/shared';
-import { MEMORY_KINDS, ROLE_NAMES } from '@opencoxswain/shared';
+import { CHANNEL_EVENT_KINDS, MEMORY_KINDS, ROLE_NAMES } from '@opencoxswain/shared';
 import { capabilityDiff, projectCapabilities } from '@opencoxswain/core';
 import type { HttpRouteRequest, PluginContext } from '@opencoxswain/plugin-api';
 import { AppError } from '../errors.js';
@@ -111,6 +113,40 @@ function taskIdOf(request: HttpRouteRequest): string {
   return id;
 }
 
+const CHANNEL_KINDS = new Set<ChannelEventKind>(CHANNEL_EVENT_KINDS);
+
+/** 通道入参只接受已知字段；密钥与 Webhook 传空串表示清空。 */
+function channelPatch(body: unknown): ChannelInput {
+  if (typeof body !== 'object' || body === null) throw new AppError('缺少通道配置');
+  const raw = body as Record<string, unknown>;
+  const patch: ChannelInput = {};
+  if (raw.name !== undefined) {
+    if (typeof raw.name !== 'string') throw new AppError('name 必须是字符串');
+    patch.name = raw.name;
+  }
+  if (raw.enabled !== undefined) {
+    if (typeof raw.enabled !== 'boolean') throw new AppError('enabled 必须是布尔值');
+    patch.enabled = raw.enabled;
+  }
+  if (raw.webhookUrl !== undefined) {
+    if (typeof raw.webhookUrl !== 'string') throw new AppError('webhookUrl 必须是字符串');
+    patch.webhookUrl = raw.webhookUrl;
+  }
+  if (raw.secret !== undefined) {
+    if (typeof raw.secret !== 'string') throw new AppError('secret 必须是字符串');
+    patch.secret = raw.secret;
+  }
+  if (raw.notify !== undefined) {
+    if (!Array.isArray(raw.notify) || raw.notify.some((item) => typeof item !== 'string')) {
+      throw new AppError('notify 必须是字符串数组');
+    }
+    patch.notify = (raw.notify as string[]).filter((item): item is ChannelEventKind =>
+      CHANNEL_KINDS.has(item as ChannelEventKind),
+    );
+  }
+  return patch;
+}
+
 export async function apply(ctx: PluginContext): Promise<void> {
   const http = ctx.service('http');
   const store = ctx.service('storage');
@@ -124,6 +160,7 @@ export async function apply(ctx: PluginContext): Promise<void> {
   const memory = ctx.service('memory');
   const schedules = ctx.service('schedules');
   const router = ctx.service('router');
+  const channels = ctx.service('channels');
 
   http.route('GET', '/api/employees', async () => ({ json: employees.list() }));
 
@@ -460,6 +497,32 @@ export async function apply(ctx: PluginContext): Promise<void> {
     const id = params.id;
     if (!id) throw new AppError('缺少定时任务 id');
     if (!schedules.remove(id)) throw new AppError('定时任务不存在', 404);
+    return { json: { ok: true } };
+  });
+
+  http.route('GET', '/api/channels', async () => ({ json: { channels: channels.list() } }));
+
+  http.route('POST', '/api/channels', async ({ body }) => ({
+    status: 201,
+    json: channels.save({ ...channelPatch(body), kind: 'feishu' }),
+  }));
+
+  http.route('POST', '/api/channels/:id', async ({ params, body }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少通道 id');
+    return { json: channels.save({ ...channelPatch(body), id }) };
+  });
+
+  http.route('POST', '/api/channels/:id/test', async ({ params }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少通道 id');
+    return { json: await channels.test(id) };
+  });
+
+  http.route('DELETE', '/api/channels/:id', async ({ params }) => {
+    const id = params.id;
+    if (!id) throw new AppError('缺少通道 id');
+    if (!channels.remove(id)) throw new AppError('通道不存在', 404);
     return { json: { ok: true } };
   });
 

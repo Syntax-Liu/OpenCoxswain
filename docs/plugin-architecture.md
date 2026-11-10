@@ -434,3 +434,11 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 3. 启动回收：`runtime.opencode` 传入 `<home>/pids`，`apply` 改为 async，先 `await adapter.reapOrphans()`；进程仍存活且进程名与台账一致时按进程树强杀（Windows `taskkill /T /F`，POSIX 进程组），PID 已被复用（进程名不符）或进程已退出则只删记录；回收结果写日志并广播 `runtime.reaped` 事件。
 4. 回归覆盖：新增五条测试——存活遗留进程被回收且记录删除、空台账返回空、已退出进程只清记录、进程名不符不误杀、未配置台账目录时 `reapOrphans` 返回空。
 5. 边界：只按可执行文件名匹配，不解析命令行；台账不参与任务状态机，也不改变默认并发与验收规则。
+
+已完成（v0.26.0）：
+
+1. 通道服务：新增 `channels` 服务（`apps/daemon/src/channels.ts`），负责配置落盘到 `<home>/channels.json`、事件订阅与通知类别过滤、60 秒静默窗口去重（10 分钟清理）、入站指令解析与执行；`channels` 插件以 `ctx.provide('channels', ...)` 提供，并在 `kernel.ready` 时 `ctx.effect(channels.start())`。
+2. 飞书适配：`channel.feishu` 插件实现 `ChannelTransport.send()`（`timestamp + sign` 签名，`code` / `StatusCode` 非 0 报错）与 `http.rawRoute` 入站（`X-Lark-Signature` 校验、`encrypt` 字段 AES-256-CBC 解密、`challenge` 应答、无签名时校验 `?token=`）；插件之间只通过 `channels` 服务交互，不互相直连。
+3. 指令范围：只做只读查询（待办 / 任务状态 / 帮助）与决策动作（批准 / 退回，退回必须带理由），不开放建单；验收仍要求逐条结论，因此 review 通知只提示回桌面端处理。
+4. 权限与契约：`PERMISSIONS` 新增 `channel:use` / `channel:provide`，`SERVICE_KEYS` 新增 `channels`，`SERVICE_RULES` 同步；`runtime.opencode` 补上 `events:publish`，并把 `runtime.reaped` 广播延后到 `kernel.ready`，避免通道插件加载晚于运行时导致漏收事件。
+5. 边界：密钥保存在本机 `channels.json`，界面只回显是否已配置；不引入外部依赖、不提高默认并发、不给 rubric/human 自动放行；Telegram 通道留待后续。

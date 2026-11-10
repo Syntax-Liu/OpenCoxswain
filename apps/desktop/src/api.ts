@@ -1,6 +1,9 @@
 import type {
   AcceptanceDecision,
   Assistant,
+  ChannelInput,
+  ChannelTestResult,
+  ChannelView,
   CreatePlanRequest,
   CreateProjectRequest,
   DeliveryMergeResult,
@@ -255,6 +258,34 @@ export const api = {
 
   removeSchedule(id: string): Promise<{ ok: boolean }> {
     return request(`/api/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  channels(): Promise<{ channels: ChannelView[] }> {
+    return request<{ channels: ChannelView[] }>('/api/channels');
+  },
+
+  createChannel(body: ChannelInput): Promise<ChannelView> {
+    return request<ChannelView>('/api/channels', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  updateChannel(id: string, body: ChannelInput): Promise<ChannelView> {
+    return request<ChannelView>(`/api/channels/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  testChannel(id: string): Promise<ChannelTestResult> {
+    return request<ChannelTestResult>(`/api/channels/${encodeURIComponent(id)}/test`, {
+      method: 'POST',
+    });
+  },
+
+  removeChannel(id: string): Promise<{ ok: boolean }> {
+    return request(`/api/channels/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };
 

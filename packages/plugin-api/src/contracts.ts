@@ -8,6 +8,12 @@ import type {
   ArtifactRecord,
   ArtifactRef,
   Assistant,
+  ChannelEventKind,
+  ChannelInboundResult,
+  ChannelInput,
+  ChannelKind,
+  ChannelTestResult,
+  ChannelView,
   CostLedger,
   CreatePlanRequest,
   CreateProjectRequest,
@@ -108,6 +114,8 @@ export const PERMISSIONS = [
   'schedule:provide',
   'router:use',
   'router:provide',
+  'channel:use',
+  'channel:provide',
   'ui:panel',
 ] as const;
 
@@ -567,6 +575,41 @@ export interface RouterService {
   route(goal: string): RouteSuggestion[];
 }
 
+/** 出站传输只需要知道往哪发、怎么签名，不关心事件从哪来。 */
+export interface ChannelTransportMessage {
+  webhookUrl: string;
+  secret: string;
+  text: string;
+}
+
+export interface ChannelTransport {
+  send(message: ChannelTransportMessage): Promise<void>;
+}
+
+/**
+ * IM 通知通道：事件转推送 + 入站指令执行。
+ * 通道插件只负责签名与收发，路由、去重与指令语义留在服务里。
+ */
+export interface ChannelsService {
+  list(): ChannelView[];
+  get(id: string): ChannelView | null;
+  save(input: ChannelInput): ChannelView;
+  remove(id: string): boolean;
+  /** 发一条测试消息，返回是否送达；失败原因同时写进通道状态。 */
+  test(id: string): Promise<ChannelTestResult>;
+  registerTransport(kind: ChannelKind, transport: ChannelTransport): () => void;
+  /** 通道插件校验完签名后把正文交回来解析执行。 */
+  inbound(channelId: string, text: string): Promise<ChannelInboundResult>;
+  /** 主动发送一条文本（回执等）；失败只记录不抛。 */
+  sendText(channelId: string, text: string): Promise<boolean>;
+  /** 事件路由；插件订阅事件总线后逐条转进来，测试可直接驱动。 */
+  dispatch(event: EventRecord): void;
+  /** 非持久化提示（如遗留进程回收），走同一套通道与去重。 */
+  notice(input: { kind: ChannelEventKind; dedupKey: string; text: string }): void;
+  /** 内核就绪后开始订阅事件总线；返回取消订阅的清理函数。 */
+  start(): () => void;
+}
+
 export interface ServiceMap {
   config: OpenCoxswainConfig;
   events: EventService;
@@ -583,6 +626,7 @@ export interface ServiceMap {
   steward: StewardService;
   schedules: ScheduleService;
   router: RouterService;
+  channels: ChannelsService;
   secrets: SecretsService;
   http: HttpService;
 }
@@ -604,6 +648,7 @@ export const SERVICE_KEYS = [
   'steward',
   'schedules',
   'router',
+  'channels',
   'secrets',
   'http',
 ] as const satisfies readonly (keyof ServiceMap)[];

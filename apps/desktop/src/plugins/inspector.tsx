@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import type {
   ArtifactRecord,
   Assistant,
+  ChannelEventKind,
+  ChannelInput,
+  ChannelView,
   EventRecord,
   GateQuality,
   MemoryEntry,
@@ -9,8 +12,8 @@ import type {
   MemoryMatch,
   MemoryReport,
 } from '@opencoxswain/shared';
-import { MEMORY_KINDS } from '@opencoxswain/shared';
-import { api, errorText } from '../api.js';
+import { CHANNEL_EVENT_KINDS, MEMORY_KINDS } from '@opencoxswain/shared';
+import { api, DAEMON_URL, errorText } from '../api.js';
 import type { SecretsStatus } from '../api.js';
 import { DiffReviewView } from '../components/DiffReviewView.js';
 import {
@@ -293,6 +296,279 @@ function CostTab(): JSX.Element {
   );
 }
 
+const CHANNEL_KIND_LABELS: Record<ChannelEventKind, string> = {
+  approval: '待审批',
+  review: '待验收',
+  budget: '预算/受阻',
+  failure: '执行失败',
+  orphan: '遗留进程',
+};
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // 回退到 execCommand，桌面端不保证有剪贴板权限
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(area);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function ChannelSettings(): JSX.Element {
+  const [channels, setChannels] = useState<ChannelView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .channels()
+      .then((data) => {
+        if (alive) setChannels(data.channels);
+      })
+      .catch((caught: unknown) => {
+        if (alive) setNotice(errorText(caught));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const add = async (): Promise<void> => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const channel = await api.createChannel({
+        kind: 'feishu',
+        name: `飞书 ${channels.length + 1}`,
+      });
+      setChannels((prev) => [...prev, channel]);
+      setNotice('已创建；填好 Webhook 后点「发测试消息」验证。');
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-block settings-wide">
+      <h3>通知通道</h3>
+      <p className="hint">
+        任务有进展时推到飞书群；群里回「待办」「批准 id」「退回 id 理由」即可处理。验收结论与派单仍在桌面端完成。
+      </p>
+      {loading ? <p className="muted">读取中…</p> : null}
+      {!loading && channels.length === 0 ? (
+        <p className="muted">还没有通道，先建一个飞书群机器人。</p>
+      ) : null}
+      {channels.map((channel) => (
+        <ChannelCard
+          key={channel.id}
+          channel={channel}
+          onChanged={(updated) =>
+            setChannels((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+          }
+          onRemoved={(id) => setChannels((prev) => prev.filter((item) => item.id !== id))}
+        />
+      ))}
+      <button disabled={busy} onClick={() => void add()}>
+        新增飞书通道
+      </button>
+      {notice ? <p className="hint">{notice}</p> : null}
+    </div>
+  );
+}
+
+function ChannelCard({
+  channel,
+  onChanged,
+  onRemoved,
+}: {
+  channel: ChannelView;
+  onChanged: (channel: ChannelView) => void;
+  onRemoved: (id: string) => void;
+}): JSX.Element {
+  const [webhook, setWebhook] = useState('');
+  const [secret, setSecret] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const patch = async (input: ChannelInput, message: string): Promise<void> => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const updated = await api.updateChannel(channel.id, input);
+      onChanged(updated);
+      setNotice(message);
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveCredentials = async (): Promise<void> => {
+    const input: ChannelInput = { webhookUrl: webhook.trim() };
+    if (secret.trim() !== '') input.secret = secret.trim();
+    await patch(input, '凭据已保存');
+    setWebhook('');
+    setSecret('');
+  };
+
+  const test = async (): Promise<void> => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await api.testChannel(channel.id);
+      setNotice(result.ok ? '测试消息已发出，去群里看看' : `发送失败：${result.error ?? '未知错误'}`);
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleNotify = async (kind: ChannelEventKind): Promise<void> => {
+    const notify = channel.notify.includes(kind)
+      ? channel.notify.filter((item) => item !== kind)
+      : [...channel.notify, kind];
+    await patch({ notify }, '通知范围已保存');
+  };
+
+  const copy = async (text: string, label: string): Promise<void> => {
+    const ok = await copyToClipboard(text);
+    setNotice(ok ? `${label}已复制` : '复制失败，请手动选中复制');
+  };
+
+  const inboundUrl = `${DAEMON_URL}${channel.inboundPath}`;
+
+  return (
+    <div className="channel-card">
+      <div className="channel-head">
+        <strong>{channel.name}</strong>
+        <span className="channel-state">
+          {channel.enabled ? '已启用' : '已停用'} ·{' '}
+          {channel.webhookConfigured ? 'Webhook 已配置' : 'Webhook 未配置'}
+        </span>
+      </div>
+      <label>
+        Webhook 地址
+        <input
+          value={webhook}
+          placeholder={
+            channel.webhookConfigured
+              ? '已配置；留空保存会清除'
+              : 'https://open.feishu.cn/open-apis/bot/v2/hook/…'
+          }
+          onChange={(event) => setWebhook(event.target.value)}
+        />
+      </label>
+      <label>
+        签名密钥（可选）
+        <input
+          type="password"
+          value={secret}
+          placeholder={channel.secretConfigured ? '已配置；填写新值覆盖' : '飞书机器人签名校验'}
+          onChange={(event) => setSecret(event.target.value)}
+        />
+      </label>
+      <div className="row">
+        <button disabled={busy} onClick={() => void saveCredentials()}>
+          保存凭据
+        </button>
+        <button disabled={busy} onClick={() => void test()}>
+          发测试消息
+        </button>
+        <button
+          className="ghost"
+          disabled={busy}
+          onClick={() => void patch({ enabled: !channel.enabled }, channel.enabled ? '已停用' : '已启用')}
+        >
+          {channel.enabled ? '停用' : '启用'}
+        </button>
+        <button
+          className="ghost"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm(`删除通道「${channel.name}」？`)) return;
+            setBusy(true);
+            try {
+              await api.removeChannel(channel.id);
+              onRemoved(channel.id);
+            } catch (caught) {
+              setNotice(errorText(caught));
+              setBusy(false);
+            }
+          }}
+        >
+          删除
+        </button>
+      </div>
+      <div>
+        <p className="muted">通知范围</p>
+        <div className="row">
+          {CHANNEL_EVENT_KINDS.map((kind) => (
+            <label className="channel-check" key={kind}>
+              <input
+                type="checkbox"
+                checked={channel.notify.includes(kind)}
+                disabled={busy}
+                onChange={() => void toggleNotify(kind)}
+              />
+              {CHANNEL_KIND_LABELS[kind]}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="muted">入站指令地址（填到飞书事件订阅）</p>
+        <div className="row">
+          <input readOnly value={inboundUrl} onFocus={(event) => event.currentTarget.select()} />
+          <button className="ghost" onClick={() => void copy(inboundUrl, '地址')}>
+            复制
+          </button>
+        </div>
+      </div>
+      <div>
+        <p className="muted">入站 token（签名密钥，或拼在地址后的 ?token=）</p>
+        <div className="row">
+          <input
+            readOnly
+            value={channel.inboundToken}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <button className="ghost" onClick={() => void copy(channel.inboundToken, 'token')}>
+            复制
+          </button>
+        </div>
+      </div>
+      {channel.lastSentAt ? (
+        <p className="hint">最近发送：{formatDateTime(channel.lastSentAt)}</p>
+      ) : null}
+      {channel.lastError ? <p className="hint">最近错误：{channel.lastError}</p> : null}
+      {notice ? <p className="hint">{notice}</p> : null}
+    </div>
+  );
+}
+
 function SettingsTab(): JSX.Element {
   const { project, assistant, busy, onProjectSettings, onAssistant } = useWorkbench();
   const [budget, setBudget] = useState(String(project.dailyBudgetUsd));
@@ -479,6 +755,7 @@ function SettingsTab(): JSX.Element {
           密钥只存本机凭据库（{llm?.backend === 'dpapi' ? 'Windows DPAPI' : '本机'}），不会写进项目文件；保存后点顶栏刷新即可生效。
         </p>
       </div>
+      <ChannelSettings />
       {notice ? <p className="notice">{notice}</p> : null}
     </div>
   );

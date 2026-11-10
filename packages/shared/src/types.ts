@@ -835,3 +835,54 @@ export interface RouteSuggestion {
   /** 命中的依据，便于用户判断而不是黑箱。 */
   reasons: string[];
 }
+
+/** IM 通道只做「推送 + 只读/决策指令」，不开放建单，避免手机误触产生成本。 */
+export type ChannelKind = 'feishu';
+
+/** 可订阅的通知类别；同类事件在静默窗口内只推一条。 */
+export const CHANNEL_EVENT_KINDS = ['approval', 'review', 'budget', 'failure', 'orphan'] as const;
+
+export type ChannelEventKind = (typeof CHANNEL_EVENT_KINDS)[number];
+
+/**
+ * 面向前端的通道视图：Webhook 与签名密钥只报「已配置」，不回显明文；
+ * 入站 token 需要复制到飞书后台，所以明文展示。
+ */
+export interface ChannelView {
+  id: string;
+  kind: ChannelKind;
+  name: string;
+  enabled: boolean;
+  webhookConfigured: boolean;
+  secretConfigured: boolean;
+  notify: ChannelEventKind[];
+  /** 入站指令的完整路径，拼在 daemon 地址后面。 */
+  inboundPath: string;
+  inboundToken: string;
+  createdAt: number;
+  updatedAt: number;
+  lastSentAt: number | null;
+  lastError: string | null;
+}
+
+/** 创建/更新通道入参；字段缺省表示保持不变，空字符串表示清空。 */
+export interface ChannelInput {
+  id?: string;
+  kind?: ChannelKind;
+  name?: string;
+  enabled?: boolean;
+  webhookUrl?: string;
+  secret?: string;
+  notify?: ChannelEventKind[];
+}
+
+export interface ChannelTestResult {
+  ok: boolean;
+  error: string | null;
+}
+
+/** 入站指令执行结果：handled 为 false 时表示只是寒暄或帮助。 */
+export interface ChannelInboundResult {
+  handled: boolean;
+  reply: string;
+}
