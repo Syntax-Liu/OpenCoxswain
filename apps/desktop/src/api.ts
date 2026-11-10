@@ -39,6 +39,47 @@ export interface SecretsStatus {
   llm: { configured: boolean; source: 'vault' | 'env' | 'none' | string };
 }
 
+/** 自动更新检查结果；未配置更新源时 configured 为 false，其余字段为空。 */
+export interface UpdateStatus {
+  configured: boolean;
+  currentVersion: string;
+  latestVersion: string | null;
+  notes: string | null;
+  date: string | null;
+  error: string | null;
+}
+
+interface TauriCore {
+  invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
+}
+
+const tauriCore = (window as unknown as { __TAURI__?: { core?: TauriCore } }).__TAURI__?.core;
+
+/**
+ * 桌面壳能力（Tauri 命令）。浏览器里跑工作台时不可用，
+ * 调用方要先看 available，避免把「没有桌面壳」当成更新失败。
+ */
+export const desktop = {
+  get available(): boolean {
+    return Boolean(tauriCore);
+  },
+
+  version(): Promise<string> {
+    if (!tauriCore) return Promise.reject(new Error('只有桌面端才能读取版本'));
+    return tauriCore.invoke<string>('app_version');
+  },
+
+  updateCheck(): Promise<UpdateStatus> {
+    if (!tauriCore) return Promise.reject(new Error('只有桌面端才能检查更新'));
+    return tauriCore.invoke<UpdateStatus>('update_check');
+  },
+
+  updateInstall(): Promise<string> {
+    if (!tauriCore) return Promise.reject(new Error('只有桌面端才能安装更新'));
+    return tauriCore.invoke<string>('update_install');
+  },
+};
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),

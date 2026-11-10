@@ -13,8 +13,8 @@ import type {
   MemoryReport,
 } from '@opencoxswain/shared';
 import { CHANNEL_EVENT_KINDS, MEMORY_KINDS } from '@opencoxswain/shared';
-import { api, DAEMON_URL, errorText } from '../api.js';
-import type { SecretsStatus } from '../api.js';
+import { api, DAEMON_URL, desktop, errorText } from '../api.js';
+import type { SecretsStatus, UpdateStatus } from '../api.js';
 import { DiffReviewView } from '../components/DiffReviewView.js';
 import {
   formatDateTime,
@@ -569,6 +569,96 @@ function ChannelCard({
   );
 }
 
+function VersionSettings(): JSX.Element {
+  const [current, setCurrent] = useState('—');
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!desktop.available) return;
+    let alive = true;
+    desktop
+      .version()
+      .then((version) => {
+        if (alive) setCurrent(version);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const check = async (): Promise<void> => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await desktop.updateCheck();
+      setStatus(result);
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const install = async (): Promise<void> => {
+    setBusy(true);
+    setNotice('正在下载并安装，完成后应用会自动重启…');
+    try {
+      const version = await desktop.updateInstall();
+      setNotice(`已安装 ${version}，正在重启`);
+    } catch (caught) {
+      setNotice(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-block settings-wide">
+      <h3>版本与更新</h3>
+      <p className="muted">
+        当前版本 {current}
+        {desktop.available ? '' : '（浏览器调试环境不支持自动更新）'}
+      </p>
+      {desktop.available ? (
+        <div className="row">
+          <button disabled={busy} onClick={() => void check()}>
+            检查更新
+          </button>
+          {status?.latestVersion ? (
+            <button disabled={busy} onClick={() => void install()}>
+              更新到 {status.latestVersion}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {status && !status.configured ? (
+        <p className="hint">
+          还没有配置更新源。在 <code>%LOCALAPPDATA%\OpenCoxswain\updater.json</code> 写入{' '}
+          <code>{'{"endpoint":"https://…/latest.json","pubkey":"…"}'}</code> 后重启应用；升级包与
+          <code>.sig</code> 由发布机用私钥签名。
+        </p>
+      ) : null}
+      {status?.error ? <p className="error">{status.error}</p> : null}
+      {status?.latestVersion ? (
+        <>
+          <p className="hint">
+            发现新版本 {status.latestVersion}
+            {status.date ? `（${status.date.slice(0, 10)} 发布）` : ''}
+          </p>
+          {status.notes ? <pre className="update-notes">{status.notes}</pre> : null}
+        </>
+      ) : null}
+      {status && status.configured && !status.error && !status.latestVersion ? (
+        <p className="hint">已是最新版本。</p>
+      ) : null}
+      {notice ? <p className="hint">{notice}</p> : null}
+    </div>
+  );
+}
+
 function SettingsTab(): JSX.Element {
   const { project, assistant, busy, onProjectSettings, onAssistant } = useWorkbench();
   const [budget, setBudget] = useState(String(project.dailyBudgetUsd));
@@ -756,6 +846,7 @@ function SettingsTab(): JSX.Element {
         </p>
       </div>
       <ChannelSettings />
+      <VersionSettings />
       {notice ? <p className="notice">{notice}</p> : null}
     </div>
   );

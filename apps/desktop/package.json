@@ -1,6 +1,6 @@
 {
   "name": "@opencoxswain/desktop",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "desktop:release": "tauri build --config src-tauri/tauri.release.json"
   },
   "dependencies": {
     "@opencoxswain/shared": "workspace:*",
