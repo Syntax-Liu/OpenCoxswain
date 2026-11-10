@@ -27,6 +27,7 @@ import {
   judgeCriterion,
   killTree,
 } from './tooling.js';
+import { PidLedger, type ReapResult } from './pid-ledger.js';
 
 interface OpenCodeRecord {
   type?: string;
@@ -156,6 +157,8 @@ export interface OpenCodeOptions {
   commandTimeoutMs?: number;
   /** 单次 OpenCode 执行总超时。 */
   runTimeoutMs?: number;
+  /** PID 台账目录；daemon 被强杀后按台账回收遗留进程。 */
+  ledgerDir?: string;
   env?: Record<string, string>;
 }
 
@@ -180,6 +183,7 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
   private readonly binPath: string;
   private readonly commandTimeoutMs: number;
   private readonly runTimeoutMs: number;
+  private readonly ledger: PidLedger | null;
   private readonly env: Record<string, string>;
   private resolved: string | null | undefined;
 
@@ -187,6 +191,7 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     this.binPath = options.binPath?.trim() ?? '';
     this.commandTimeoutMs = options.commandTimeoutMs ?? 120_000;
     this.runTimeoutMs = options.runTimeoutMs ?? 15 * 60_000;
+    this.ledger = options.ledgerDir ? new PidLedger(options.ledgerDir) : null;
     this.env = options.env ?? {};
   }
 
@@ -263,6 +268,11 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
     }
   }
 
+  /** daemon 上次被强制结束时，回收台账里仍存活的 OpenCode 进程树。 */
+  async reapOrphans(): Promise<ReapResult> {
+    return this.ledger ? this.ledger.reap() : { killed: [], stale: [] };
+  }
+
   async *send(session: RuntimeSession, task: TaskContract): AsyncIterable<RuntimeEvent> {
     const target = this.requireSession(session);
     const artifactsDir = path.join(this.artifactsRoot(session), task.task_id);
@@ -305,6 +315,19 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     target.child = child;
+    if (this.ledger && child.pid) {
+      const pid = child.pid;
+      // 正常结束、超时、取消都会触发 close，退出后立即销账。
+      child.on('close', () => {
+        void this.ledger?.release(pid);
+      });
+      await this.ledger.track(pid, {
+        image: path.basename(bin),
+        taskId: task.task_id,
+        worktree: session.worktree,
+        startedAt: now(),
+      });
+    }
 
     let stderr = '';
     let timedOut = false;

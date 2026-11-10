@@ -426,3 +426,11 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 2. 退出清理：`OpenCodeRuntimeAdapter.disposeAll()` 收回全部活跃会话，`runtime.opencode` 用 `ctx.effect` 挂到内核卸载；daemon 增加 `uncaughtException` / `unhandledRejection` 卸载路径；桌面壳退出时在 Windows 用 `taskkill /T /F` 结束 daemon 进程树。
 3. 回归覆盖：新增四条测试——验收命令超时后孙进程消失、系统复核命令超时后孙进程消失、`killTree` 按进程组回收、`disposeAll` 清空会话。
 4. 边界：不改插件契约、不引入依赖；外部强制结束 daemon 后的遗留进程尚无启动时台账回收，留待后续。
+
+已完成（v0.25.0）：
+
+1. PID 台账：新增 `PidLedger`（`packages/adapters/src/pid-ledger.ts`），把运行时进程写到 `<dir>/<pid>.json`（`pid`、`image`、`taskId`、`worktree`、`startedAt`）；`track` / `release` 都是尽力而为，磁盘异常不阻断任务执行。
+2. 记账与销账：`OpenCodeRuntimeAdapter` 新增 `ledgerDir` 选项，`spawn` 成功后立即 `track`，`close` 事件（正常结束、超时、取消）统一 `release`，不留僵尸记录。
+3. 启动回收：`runtime.opencode` 传入 `<home>/pids`，`apply` 改为 async，先 `await adapter.reapOrphans()`；进程仍存活且进程名与台账一致时按进程树强杀（Windows `taskkill /T /F`，POSIX 进程组），PID 已被复用（进程名不符）或进程已退出则只删记录；回收结果写日志并广播 `runtime.reaped` 事件。
+4. 回归覆盖：新增五条测试——存活遗留进程被回收且记录删除、空台账返回空、已退出进程只清记录、进程名不符不误杀、未配置台账目录时 `reapOrphans` 返回空。
+5. 边界：只按可执行文件名匹配，不解析命令行；台账不参与任务状态机，也不改变默认并发与验收规则。

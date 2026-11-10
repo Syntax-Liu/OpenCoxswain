@@ -30,6 +30,31 @@ function longCwdError(cwd: string): string | null {
     : null;
 }
 
+/** 按 PID 结束整棵进程树；进程已退出时静默返回。 */
+export async function killPidTree(pid: number): Promise<void> {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  if (process.platform === 'win32') {
+    await new Promise<void>((resolve) => {
+      const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      killer.on('close', () => resolve());
+      killer.on('error', () => resolve());
+    });
+    return;
+  }
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // 进程已退出。
+    }
+  }
+}
+
 /**
  * 结束整棵进程树。
  *
@@ -44,25 +69,21 @@ export async function killTree(
   if (!child || !child.pid) return;
   if (process.platform === 'win32') {
     if (child.exitCode !== null) return;
-    await new Promise<void>((resolve) => {
-      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-        windowsHide: true,
-        stdio: 'ignore',
-      });
-      killer.on('close', () => resolve());
-      killer.on('error', () => resolve());
-    });
+    await killPidTree(child.pid);
     return;
   }
-  try {
-    if (!options.group) throw new Error('not a group');
-    process.kill(-child.pid, 'SIGKILL');
-  } catch {
+  if (options.group) {
     try {
-      child.kill('SIGKILL');
+      process.kill(-child.pid, 'SIGKILL');
+      return;
     } catch {
-      // 进程已退出。
+      // 不是进程组，退回单进程。
     }
+  }
+  try {
+    child.kill('SIGKILL');
+  } catch {
+    // 进程已退出。
   }
 }
 
