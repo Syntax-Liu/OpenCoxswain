@@ -8,14 +8,29 @@ export interface GitResult {
   stderr: string;
 }
 
-/** 中文路径默认会被 git 转义成八进制，统一关掉，让路径原样返回。 */
-const QUOTEPATH_OFF = ['-c', 'core.quotepath=false'];
+/** 中文路径默认会被 git 转义成八进制；长路径默认报 Filename too long，两项都交给 git 自己处理。 */
+const GIT_CONFIG = ['-c', 'core.quotepath=false', '-c', 'core.longpaths=true'];
+
+/** Windows 创建进程时工作目录上限为 260 字符（实测 259 起 spawn 直接失败，且 Node 会抛出不可捕获的 ENOTCONN）。 */
+const WINDOWS_MAX_CWD = 258;
+
+export function gitCwdTooLong(cwd: string): boolean {
+  return process.platform === 'win32' && path.resolve(cwd).length > WINDOWS_MAX_CWD;
+}
+
+export function longPathMessage(cwd: string): string {
+  const resolved = path.resolve(cwd);
+  return `工作目录路径过长（${resolved.length} 个字符，Windows 上限 260）：${resolved}。请把仓库或工作区移到更短的路径后重试。`;
+}
 
 export function runGit(cwd: string, args: string[]): Promise<GitResult> {
+  if (gitCwdTooLong(cwd)) {
+    return Promise.resolve({ code: 1, stdout: '', stderr: longPathMessage(cwd) });
+  }
   return new Promise((resolve) => {
     execFile(
       'git',
-      [...QUOTEPATH_OFF, ...args],
+      [...GIT_CONFIG, ...args],
       { cwd, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout, stderr) => {
         const code =
@@ -41,7 +56,8 @@ export type RepoInspectCode =
   | 'forbidden'
   | 'not_git'
   | 'git_unavailable'
-  | 'empty_repo';
+  | 'empty_repo'
+  | 'path_too_long';
 
 /** 接入仓库失败：message 直接给用户看，不让界面只看到错误码。 */
 export class RepoInspectError extends Error {
@@ -81,6 +97,9 @@ function describeGitFailure(repoPath: string, stderr: string): RepoInspectError 
 }
 
 export async function inspectRepo(repoPath: string): Promise<RepoInfo> {
+  if (gitCwdTooLong(repoPath)) {
+    throw new RepoInspectError('path_too_long', longPathMessage(repoPath));
+  }
   let info: Awaited<ReturnType<typeof stat>> | null = null;
   try {
     info = await stat(repoPath);

@@ -412,3 +412,10 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 1. 中文与空格路径：`runGit`（daemon）、`git`（adapters 工具层）与验收侧 `git` 子进程统一加 `-c core.quotepath=false`，`diff --name-only`、`--numstat` 与补丁头不再把中文文件名转义成八进制。
 2. 回归覆盖：新增「worktree 创建 / 检视 / 合并 / 清理」与「diff 产物 + 逐文件明细」两条测试，仓库、worktree 根、产物目录与文件名都带中文与空格，断言路径原样返回且 `parseDiffPatch` 可读。
 3. 边界：只改 git 调用参数，不改插件契约、不改状态机；长路径与进程清理仍待后续。
+
+已完成（v0.23.2）：
+
+1. 长路径拦截：实测 Windows 下 git 无法在超过 260 字符的工作目录里运行，且 Node 20+ 的 `spawn` 在这种目录上会抛出不可捕获的错误，直接把 daemon 打挂。`runGit`、adapters 工具层 `git` / `runCommand` 与验收侧 `gitOutput` 现在先判断 `gitCwdTooLong` 再决定是否起子进程，超限时返回中文原因而不是崩溃；`WorktreeManager.create` 在建目录前校验目标路径，`inspectRepo` 新增 `path_too_long` 错误码（REST 仍按 400 返回可直接展示的原因）。
+2. 长路径支持：统一 git 参数补上 `-c core.longpaths=true`，仓库路径不长时超过 260 字符的深层文件可以正常 `add` / `commit`。
+3. 回归覆盖：新增「工作目录超 260 字符给中文错误且不崩溃」「worktree 根过长直接报错且不落盘」「深层文件超过 260 字符仍可入库」三条测试。
+4. 边界：不改写 `\\?\` 形式路径，不引入新依赖；超过 260 字符的仓库仍需用户移动位置；进程清理仍待后续。

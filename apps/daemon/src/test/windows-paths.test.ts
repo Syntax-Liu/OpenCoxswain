@@ -6,7 +6,7 @@ import path from 'node:path';
 import { collectArtifacts } from '@opencoxswain/adapters';
 import type { Project, Task } from '@opencoxswain/shared';
 import { parseDiffPatch } from '../diff-review.js';
-import { runGit } from '../git.js';
+import { gitCwdTooLong, inspectRepo, RepoInspectError, runGit } from '../git.js';
 import { WorktreeManager } from '../worktree.js';
 
 /** Windows 专项：仓库、worktree、产物目录都带中文与空格，文件名同样带中文与空格。 */
@@ -73,6 +73,10 @@ function taskOf(id: string): Task {
 function expectRawName(value: string): void {
   assert.ok(!value.includes('"'), `路径不应被引号包裹：${value}`);
   assert.ok(!/\\[0-7]{3}/.test(value), `路径不应包含八进制转义：${value}`);
+}
+
+function exactLengthDir(base: string, length: number): string {
+  return path.join(base, 'q'.repeat(length - base.length - 1));
 }
 
 test('Windows 中文与空格路径：worktree 创建、检视、合并、清理全程不转义', async () => {
@@ -145,6 +149,74 @@ test('Windows 中文与空格路径：diff 产物与逐文件明细使用原始�
     assert.equal(parsed.files[0]?.status, 'added');
     assert.equal(parsed.files[0]?.additions, 2);
     expectRawName(parsed.files[0]?.path ?? '');
+  } finally {
+    await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('Windows 长路径：工作目录超过 260 字符时返回中文错误而不是让进程崩溃', async (t) => {
+  if (process.platform !== 'win32') return t.skip('仅 Windows 有 260 字符进程工作目录限制');
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'opencoxswain-long-'));
+  try {
+    const base = path.join(temp, 'l');
+    const allowed = exactLengthDir(base, 258);
+    const tooLong = exactLengthDir(base, 259);
+    assert.equal(gitCwdTooLong(allowed), false, '258 字符仍在限制内');
+    assert.equal(gitCwdTooLong(tooLong), true, '259 字符已超限');
+
+    const result = await runGit(tooLong, ['--version']);
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /路径过长/);
+    assert.match(result.stderr, /上限 260/);
+
+    await assert.rejects(
+      () => inspectRepo(tooLong),
+      (error: unknown) => {
+        assert.ok(error instanceof RepoInspectError);
+        assert.equal(error.code, 'path_too_long');
+        assert.match(error.message, /路径过长/);
+        return true;
+      },
+    );
+  } finally {
+    await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('Windows 长路径：worktree 根过长时直接报错且不落盘', async (t) => {
+  if (process.platform !== 'win32') return t.skip('仅 Windows 有 260 字符进程工作目录限制');
+  const fixture = await makeCnRepo();
+  try {
+    const home = exactLengthDir(path.join(fixture.temp, 'w'), 245);
+    const manager = new WorktreeManager(home);
+    await assert.rejects(
+      () => manager.create(projectOf(fixture.repo), taskOf('task-long')),
+      /worktree 路径过长/,
+    );
+    await assert.rejects(() => stat(path.join(home, 'proj')), '校验失败时不应创建目录');
+  } finally {
+    await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('Windows 长路径：仓库路径不长时超过 260 字符的文件仍可加入版本库', async () => {
+  const fixture = await makeCnRepo();
+  try {
+    const deep = path.join(
+      fixture.repo,
+      ...Array.from({ length: 9 }, (_, index) => `深层目录${index}${'z'.repeat(20)}`),
+    );
+    await mkdir(deep, { recursive: true });
+    const file = path.join(deep, '长路径 文件.txt');
+    assert.ok(file.length > 260, `文件路径应有足够长度：${file.length}`);
+
+    await writeFile(file, 'long\n', 'utf8');
+    const add = await runGit(fixture.repo, ['add', '-A']);
+    assert.equal(add.code, 0, add.stderr);
+    const names = await runGit(fixture.repo, ['diff', '--cached', '--name-only']);
+    assert.match(names.stdout, /长路径 文件\.txt/, '长路径文件应进入暂存区');
+    const commit = await runGit(fixture.repo, ['commit', '-m', '长路径 文件']);
+    assert.equal(commit.code, 0, commit.stderr);
   } finally {
     await rm(fixture.temp, { recursive: true, force: true }).catch(() => undefined);
   }

@@ -13,6 +13,7 @@ import type {
   EvidenceKind,
 } from '@opencoxswain/shared';
 import type { VerificationResult, VerifyInput } from '@opencoxswain/plugin-api';
+import { gitCwdTooLong, longPathMessage } from './git.js';
 
 export interface SystemVerificationOptions {
   /** 单条命令复核的超时（毫秒）。 */
@@ -582,8 +583,11 @@ async function collectNamesAndPatch(
 }
 
 function gitOutput(cwd: string, args: string[]): Promise<{ output: string; error?: string }> {
+  if (gitCwdTooLong(cwd)) {
+    return Promise.resolve({ output: '', error: longPathMessage(cwd) });
+  }
   return new Promise((resolve) => {
-    const child = spawn('git', ['-c', 'core.quotepath=false', ...args], {
+    const child = spawn('git', ['-c', 'core.quotepath=false', '-c', 'core.longpaths=true', ...args], {
       cwd,
       windowsHide: true,
     });

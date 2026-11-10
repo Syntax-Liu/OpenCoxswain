@@ -2,7 +2,7 @@ import { mkdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Project, Task } from '@opencoxswain/shared';
 import type { RepositoryDiff, RepositoryState } from '@opencoxswain/plugin-api';
-import { runGit } from './git.js';
+import { runGit, gitCwdTooLong, longPathMessage } from './git.js';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,6 +30,9 @@ export class WorktreeManager {
   ): Promise<{ path: string; branch: string }> {
     const target = path.join(this.root, project.id, task.id);
     const branch = `opencoxswain/${task.id}`;
+    if (gitCwdTooLong(target)) {
+      throw new Error(`任务 ${task.id} 的 worktree 路径过长，git 无法在其中运行。${longPathMessage(target)}`);
+    }
     await mkdir(path.dirname(target), { recursive: true });
 
     if (await exists(target)) {

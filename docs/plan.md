@@ -98,7 +98,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 实现 `OpenCodeRuntimeAdapter` 插件（已完成，v0.3.0）：`runtime.opencode` 与 Mock 同路径注册；JSONL 映射到 `RuntimeEvent`，每会话隔离 XDG 目录，进程树可终止。
 - 接入 LLM Planner（已完成，v0.3.0）：`planner.llm` 使用 OpenAI 兼容端点（默认 DeepSeek），BYO Key；无 Key、超时或解析失败自动回退静态拆分。v0.4.0 起 Key 优先从 DPAPI 仓库读取，环境变量仅作回退。
 - 跑通真实仓库的「修夜间模式」剧本；危险动作人审（delete/push/publish/pay/external_send）已完成，见 v0.4.0。
-- Windows 专项：中文/空格路径已完成（v0.23.1）：git 调用统一加 `-c core.quotepath=false`，worktree 创建 / 检视 / 合并 / 清理与 diff 产物、逐文件明细按原始文件名处理，回归测试覆盖中文加空格的仓库、worktree 根、产物目录与文件名；长路径与进程清理仍待后续。
+- Windows 专项：中文/空格路径已完成（v0.23.1）：git 调用统一加 `-c core.quotepath=false`，worktree 创建 / 检视 / 合并 / 清理与 diff 产物、逐文件明细按原始文件名处理，回归测试覆盖中文加空格的仓库、worktree 根、产物目录与文件名。长路径已覆盖（v0.23.2）：实测 git 无法在超过 260 字符的工作目录里运行，且 Node 的 `spawn` 在这种目录下会抛出不可捕获的错误直接把 daemon 打挂；现在 `runGit` / adapters 工具层 / 验收侧 git 在 spawn 前就拦下并返回中文原因，`WorktreeManager.create` 在建目录前校验目标路径，`inspectRepo` 新增 `path_too_long`；同时打开 `core.longpaths`，仓库路径不长时超过 260 字符的深层文件可正常入库。进程清理仍待后续。
 - Tauri 2 桌面壳（已完成，v0.13.0）：桌面壳作为 daemon 的入口，启动时先拉起本地 daemon（`OPENCOXSWAIN_PORT` 固定端口），端口就绪后再创建窗口；退出时结束子进程。安装包由 `scripts/package-daemon.mjs` 把 daemon 与工作区包摊平进 `src-tauri/staging`；v0.22.0 起同时带上 Node.js 运行时，安装后不再要求系统预装 Node（开发与构建仍需 Node >= 22）。
 
 **交付物**：插件化 Daemon 与工作台；真实 OpenCode 员工；真实 diff 与测试报告；预算硬停；Tauri 安装包（v0.13.0 已产出 NSIS）。

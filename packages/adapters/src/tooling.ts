@@ -19,12 +19,25 @@ export function truncate(text: string, length = 800): string {
   return text.length > length ? `${text.slice(0, length)}…` : text;
 }
 
+/** Windows 进程工作目录上限 260 字符；超过后 spawn 会失败，且 Node 抛出不可捕获的 ENOTCONN。 */
+const WINDOWS_MAX_CWD = 258;
+
+function longCwdError(cwd: string): string | null {
+  if (process.platform !== 'win32') return null;
+  const resolved = path.resolve(cwd);
+  return resolved.length > WINDOWS_MAX_CWD
+    ? `工作目录路径过长（${resolved.length} 个字符，Windows 上限 260）：${resolved}。请把仓库或工作区移到更短的路径后重试。`
+    : null;
+}
+
 export function runCommand(
   command: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
 ): Promise<CommandResult> {
+  const tooLong = longCwdError(cwd);
+  if (tooLong) return Promise.resolve({ code: -1, stdout: '', stderr: tooLong });
   return new Promise((resolve) => {
     const child = spawn(command, { cwd, env, shell: true, windowsHide: true });
     let stdout = '';
@@ -47,14 +60,16 @@ export function runCommand(
   });
 }
 
-/** 中文路径默认会被 git 转义成八进制，统一关掉，让路径与补丁头原样保留。 */
-const QUOTEPATH_OFF = ['-c', 'core.quotepath=false'];
+/** 中文路径默认会被 git 转义成八进制；长路径默认报 Filename too long，两项都交给 git 自己处理。 */
+const GIT_CONFIG = ['-c', 'core.quotepath=false', '-c', 'core.longpaths=true'];
 
 export function git(cwd: string, args: string[]): Promise<CommandResult> {
+  const tooLong = longCwdError(cwd);
+  if (tooLong) return Promise.resolve({ code: 1, stdout: '', stderr: tooLong });
   return new Promise((resolve) => {
     execFile(
       'git',
-      [...QUOTEPATH_OFF, ...args],
+      [...GIT_CONFIG, ...args],
       { cwd, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout, stderr) => {
         const code =
