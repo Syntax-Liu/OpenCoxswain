@@ -8,6 +8,9 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** 合并会生成提交，必须自带身份；否则没配全局 git 身份的用户永远合不进来。 */
+const IDENTITY = ['-c', 'user.name=OpenCoxswain', '-c', 'user.email=coxswain@localhost'];
+
 async function exists(target: string): Promise<boolean> {
   return (await stat(target).catch(() => null)) !== null;
 }
@@ -54,7 +57,7 @@ export class WorktreeManager {
     }
 
     for (const ref of bases.slice(1)) {
-      const merge = await runGit(target, ['merge', '--no-ff', '--no-edit', ref]);
+      const merge = await runGit(target, [...IDENTITY, 'merge', '--no-ff', '--no-edit', ref]);
       if (merge.code !== 0) {
         await runGit(target, ['merge', '--abort']);
         await this.remove(project.path, target);
@@ -128,7 +131,7 @@ export class WorktreeManager {
     const merged: string[] = [];
     try {
       for (const ref of refs) {
-        const result = await runGit(project.path, ['merge', '--no-ff', '--no-edit', ref]);
+        const result = await runGit(project.path, [...IDENTITY, 'merge', '--no-ff', '--no-edit', ref]);
         if (result.code !== 0) {
           throw new MergeConflictError(ref, (result.stderr || result.stdout).trim().slice(0, 500));
         }
