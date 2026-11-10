@@ -171,6 +171,15 @@ export class LlmPlanner implements PlannerService {
   }
 
   async plan(project: Project, request: CreatePlanRequest): Promise<PlanResult> {
+    const outside = outsideWriteTargets(request.goal, project.path);
+    if (outside.length > 0) {
+      throw new Error(
+        `目标路径 ${outside.join('、')} 不在当前项目目录 ${project.path} 内。` +
+          '员工只在项目自己的隔离工作区里改文件、提交并验收，不能写到项目外；' +
+          '请改成项目内的相对路径（例如 test.txt），或新建一个根目录指向该路径的项目。',
+      );
+    }
+
     const hasDrafts = (request.subtasks?.length ?? 0) > 0;
     if (hasDrafts) {
       return this.options.engine.plan(project, request);
@@ -309,6 +318,24 @@ export class LlmPlanner implements PlannerService {
       .filter((line): line is string => line !== null)
       .join('\n');
   }
+}
+
+/** 目标里出现的绝对路径，且落在项目目录之外并带写入意图时，提前拒绝并说明原因。 */
+const WRITE_INTENT = /创建|新建|写入|写入到|写|生成|保存|修改|删除|移除|追加|覆盖|放到|放|存到|添加|编辑|建个|建一个/;
+
+function normalizePathText(value: string): string {
+  return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function outsideWriteTargets(goal: string, projectPath: string): string[] {
+  if (!WRITE_INTENT.test(goal)) return [];
+  const mentioned = goal.match(/[a-zA-Z]:[\\/][^\s"'“”‘’，。；、）)、\u4e00-\u9fff]*/g) ?? [];
+  const root = normalizePathText(projectPath);
+  const outside = mentioned.filter((candidate) => {
+    const normalized = normalizePathText(candidate);
+    return normalized !== root && !normalized.startsWith(`${root}/`);
+  });
+  return [...new Set(outside)];
 }
 
 /** 把网络异常、超时与 HTTP 错误整理成一句可直接展示的原因。 */

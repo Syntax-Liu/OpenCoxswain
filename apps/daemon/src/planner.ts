@@ -211,7 +211,9 @@ export class Planner {
     requestedProfile?: DeliverableProfile,
   ): TaskContract {
     const readOnly = this.isReadOnly(draft.role);
-    const writeScope = draft.writeScope ?? (readOnly ? [] : ['**']);
+    const writeScope = (draft.writeScope ?? (readOnly ? [] : ['**'])).map((scope) =>
+      relativeScope(project.path, scope),
+    );
     const acceptanceDefaults = this.acceptanceDefaults(draft.role);
     return {
       task_id: id,
@@ -288,4 +290,18 @@ export class Planner {
     }
     return result;
   }
+}
+
+/** 写域里的绝对路径换成项目相对路径：worktree 内的相对路径才能通过授权校验。 */
+function relativeScope(root: string, scope: string): string {
+  const base = root.replaceAll('\\', '/').replace(/\/+$/, '');
+  const target = scope.replaceAll('\\', '/');
+  const baseLower = base.toLowerCase();
+  const targetLower = target.toLowerCase();
+  if (!baseLower) return scope;
+  if (targetLower === baseLower) return '**';
+  if (targetLower.startsWith(`${baseLower}/`)) {
+    return target.slice(base.length + 1).replace(/^\/+/, '');
+  }
+  return scope;
 }
