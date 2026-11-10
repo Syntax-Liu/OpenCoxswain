@@ -67,6 +67,7 @@ const SERVICE_RULES: Record<
     provider: ['secrets:provide', 'fs:data'],
   },
   http: { required: ['http:route'], provider: ['net:listen', 'http:route'] },
+  remote: { required: ['remote:use'], provider: ['remote:provide'] },
 };
 
 class PluginContextImpl implements PluginContext {

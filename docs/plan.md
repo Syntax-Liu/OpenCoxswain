@@ -144,6 +144,7 @@ PRD 里程碑为 M0–M4。实际开发拆成可独立验收的 P0–P4，顺序
 - 门禁质量（已完成，v0.23.0）：`GET /api/gate-quality?projectId=` 只读聚合验收事件，按「任务 + 验收项取最后一次判定」分别给出系统自动判定、系统通过 / 拦下、待人工与人工收口数量及通过率；无样本返回 `null`，不改验收记录，也不编造事件里无法证实的误报率。
 - IM 入口（已完成飞书部分，v0.26.0）：`channels` 服务负责配置落盘（`<home>/channels.json`）、事件路由与静默窗口去重，`channel.feishu` 插件负责出站签名（`timestamp + sign`）与入站回调（`X-Lark-Signature` 校验、`encrypt` 解密、challenge 应答）；设置页可配 Webhook、签名密钥、通知类别与启停，凭据不回显；群内支持「待办 / 状态 / 批准 / 退回」只读与拍板指令，退回必须带理由，不开放建单。Telegram 通道留待后续。
 - 自动更新（已完成，v0.27.0）：桌面壳接入 Tauri Updater，新增 `app_version` / `update_check` / `update_install` 三个命令与设置页「版本与更新」区块，可显示当前版本、检查新版本、查看发布说明并一键安装后重启；更新源地址与公钥放本机 `updater.json`（也可用 `OPENCOXSWAIN_UPDATER_ENDPOINT` / `OPENCOXSWAIN_UPDATER_PUBKEY` 覆盖），未配置时不发网络请求。`pnpm desktop:release` 通过 `tauri.release.json` 打开 `createUpdaterArtifacts`，为安装包产出 `.sig` 签名，普通 `desktop:build` 不受影响。
+- 远程执行节点（骨架已完成，v0.28.0）：`runtime.remote` 适配器 + `remote` 协调器。任务分支用 `git bundle` 打到 daemon 的 `<home>/remote/`，节点注册时领取接入令牌、每 10 秒心跳领任务，完成后提交并回传代码包；适配器把结果分支 `fetch + reset --hard` 回任务 worktree，再由本地调度器重跑验收，节点自报验收一律丢弃（`acceptance: []`）。默认关闭，`POST /api/remote/enable` 开启并签发令牌；30 秒无心跳判离线，任务回队列且最多换 3 个节点；认领/执行超时分别由 `OPENCOXSWAIN_REMOTE_CLAIM_MS`（默认 45s）与 `OPENCOXSWAIN_REMOTE_JOB_MS`（默认 30min）控制，超时可回退 `OPENCOXSWAIN_REMOTE_FALLBACK` 指定的本地运行时。节点侧 CLI 为 `apps/daemon/src/remote-agent.ts`，仅出站连接。
 - 云端执行体、团队共享记忆（可选）、远程插件市场（条件触发：问卷 H14「装现成」≥40% 且 capability diff 通过评审）。
 
 **交付物**：手机上发一句话，任务在本地/云端执行，待决策项推回 IM。

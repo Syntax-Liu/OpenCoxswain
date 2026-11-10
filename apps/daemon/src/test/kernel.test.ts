@@ -46,6 +46,9 @@ function configFor(homeDir: string): OpenCoxswainConfig {
     commandTimeoutMs: 120000,
     supervisionIntervalMs: 60000,
     leaseTtlMs: 30000,
+    remoteClaimTimeoutMs: 45000,
+    remoteJobTimeoutMs: 1800000,
+    remoteFallbackRuntime: '',
   };
 }
 

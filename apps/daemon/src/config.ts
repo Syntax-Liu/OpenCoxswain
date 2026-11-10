@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OpenCoxswainConfig } from '@opencoxswain/plugin-api';
 
-export const APP_VERSION = '0.27.0';
+export const APP_VERSION = '0.28.0';
 
 export type DaemonConfig = OpenCoxswainConfig;
 
@@ -21,7 +21,7 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
 
   return {
     version: APP_VERSION,
-    host: overrides.host ?? '127.0.0.1',
+    host: overrides.host ?? process.env.OPENCOXSWAIN_HOST ?? '127.0.0.1',
     port: Number.isFinite(port) ? port : 47821,
     homeDir,
     dbPath: overrides.dbPath ?? path.join(homeDir, 'opencoxswain.db'),
@@ -45,5 +45,13 @@ export function loadConfig(overrides: Partial<DaemonConfig> = {}): DaemonConfig 
       Number(process.env.OPENCOXSWAIN_SUPERVISION_MS ?? 30_000),
     leaseTtlMs:
       overrides.leaseTtlMs ?? Number(process.env.OPENCOXSWAIN_LEASE_MS ?? 30_000),
+    remoteClaimTimeoutMs:
+      overrides.remoteClaimTimeoutMs ??
+      Number(process.env.OPENCOXSWAIN_REMOTE_CLAIM_MS ?? 45_000),
+    remoteJobTimeoutMs:
+      overrides.remoteJobTimeoutMs ??
+      Number(process.env.OPENCOXSWAIN_REMOTE_JOB_MS ?? 30 * 60_000),
+    remoteFallbackRuntime:
+      (overrides.remoteFallbackRuntime ?? process.env.OPENCOXSWAIN_REMOTE_FALLBACK ?? '').trim(),
   };
 }

@@ -56,7 +56,7 @@ docs/
   super-agent-adoption.md
 ```
 
-## 当前能力（v0.27.0）
+## 当前能力（v0.28.0）
 
 已实现：
 
@@ -120,22 +120,27 @@ docs/
 - 自带运行时：打包时把构建机的 Node.js 可执行文件与许可证复制到 `staging/runtime`，桌面壳优先用它启动 daemon（可用 `OPENCOXSWAIN_NODE_BIN` 覆盖），找不到或启动失败才回退系统 `node`，并在日志里写明用了哪一个。安装包因此不再要求目标机器预装 Node.js。
 - IM 通道（飞书）：`channels` 服务负责配置落盘（`<home>/channels.json`）、事件路由与去重，`channel.feishu` 插件负责签名发送与入站回调。设置页可保存 Webhook、签名密钥、通知类别与启停状态，凭据保存后不回显明文；入站地址与 token 可直接复制。审批请求、待验收、预算超限、执行失败、遗留进程回收按类别推送，同一事件 60 秒内只推一条。群内发「待办 / 状态 / 批准 / 退回」即可查询与拍板，退回必须带理由；不开放建单，入站支持 `X-Lark-Signature` 校验与 `encrypt` 字段解密。
 - 自动更新：桌面壳内置 Tauri Updater，设置页「版本与更新」显示当前版本、检查新版本、查看发布说明并一键安装，安装完成后自动重启。更新源地址与公钥放在本机 `updater.json`，不写进仓库；未配置时不发任何网络请求，只在界面上提示怎么配。
+- 远程执行体：`remote` 运行时把任务分支打包（`git bundle`）交给远程节点，节点改完提交后回传代码包，适配器把分支拉回本地 worktree，再由调度器在本地重跑验收——节点自报的「已完成 / 已通过」一律不采信。协调器（`remote` 服务）默认关闭，开启后签发接入令牌，节点主动连入注册、每 10 秒心跳领任务，30 秒无心跳即判离线并把任务退回队列（同一任务最多换 3 个节点）。等待认领与执行超时可分别配置，超时后可按 `OPENCOXSWAIN_REMOTE_FALLBACK` 回退本地运行时。节点用 `node dist/remote-agent.js --daemon <url> --token <令牌> --name <名称>` 启动，只需能出站访问 daemon，无需在本地开端口。
 
 未实现（按计划在后续阶段接入）：
 
-- 远程执行体、Telegram 通道、云端执行、团队共享记忆、远程插件市场（条件触发）。
+- Telegram 通道、云端执行、团队共享记忆、远程插件市场（条件触发）。
 
 ## 运行时与 Planner 配置
 
 | 环境变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `OPENCOXSWAIN_DEFAULT_RUNTIME` | `mock` | 任务默认可执行体：`mock` / `opencode` |
+| `OPENCOXSWAIN_DEFAULT_RUNTIME` | `mock` | 任务默认可执行体：`mock` / `opencode` / `remote` |
 | `OPENCOXSWAIN_OPENCODE_BIN` | 自动发现 | OpenCode CLI 路径；默认找桌面版 `opencode-cli.exe` |
 | `OPENCOXSWAIN_DEFAULT_MODEL` | 空 | 覆盖角色默认模型，如 `provider/model` |
 | `OPENCOXSWAIN_LLM_API_KEY` / `DEEPSEEK_API_KEY` | 空 | Planner 的 API Key；DPAPI 仓库未命中时回退到这两个变量 |
 | `OPENCOXSWAIN_LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
 | `OPENCOXSWAIN_LLM_MODEL` | `deepseek-chat` | Planner 模型 |
 | `OPENCOXSWAIN_NODE_BIN` | 空 | 桌面壳启动 daemon 用的 Node；安装包默认用自带运行时，开发态可指向自己的 node.exe |
+| `OPENCOXSWAIN_HOST` | `127.0.0.1` | daemon 监听地址；远程节点接入时设 `0.0.0.0` 或内网地址 |
+| `OPENCOXSWAIN_REMOTE_CLAIM_MS` | `45000` | 等待远程节点认领的超时 |
+| `OPENCOXSWAIN_REMOTE_JOB_MS` | `1800000` | 远程任务执行超时 |
+| `OPENCOXSWAIN_REMOTE_FALLBACK` | 空 | 远程不可用/超时后回退的本地运行时（如 `mock`、`opencode`） |
 
 OpenCode 桌面版 CLI 的实测结论、坑与替代路线见 [docs/spike-opencode.md](docs/spike-opencode.md)。
 

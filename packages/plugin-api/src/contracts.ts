@@ -116,6 +116,8 @@ export const PERMISSIONS = [
   'router:provide',
   'channel:use',
   'channel:provide',
+  'remote:use',
+  'remote:provide',
   'ui:panel',
 ] as const;
 
@@ -145,6 +147,12 @@ export interface OpenCoxswainConfig {
   supervisionIntervalMs: number;
   /** 运行租约有效期（毫秒）；超时视为孤儿。 */
   leaseTtlMs: number;
+  /** 远程执行：任务入队后等待节点认领的最长时间（毫秒）。 */
+  remoteClaimTimeoutMs: number;
+  /** 远程执行：单个远程任务的最长执行时间（毫秒）。 */
+  remoteJobTimeoutMs: number;
+  /** 远程执行：无节点可用时回退的本地运行时；空字符串表示不回退。 */
+  remoteFallbackRuntime: string;
 }
 
 export interface StorageService {
@@ -610,6 +618,127 @@ export interface ChannelsService {
   start(): () => void;
 }
 
+export type RemoteNodeStatus = 'idle' | 'busy' | 'offline';
+
+/** 远程执行节点：由节点主动连入，daemon 不主动外连。 */
+export interface RemoteNodeView {
+  id: string;
+  name: string;
+  status: RemoteNodeStatus;
+  capabilities: string[];
+  registeredAt: number;
+  lastSeenAt: number;
+  currentJobId: string | null;
+}
+
+export type RemoteJobStatus =
+  | 'queued'
+  | 'assigned'
+  | 'succeeded'
+  | 'failed'
+  | 'expired'
+  | 'cancelled';
+
+/**
+ * 远程任务：只承载「一个分支 + 一段提示词 + 运行环境」，
+ * 节点上的代码变更必须打包回传，由本地复核后才会被采信。
+ */
+export interface RemoteJobView {
+  id: string;
+  taskId: string;
+  status: RemoteJobStatus;
+  nodeId: string | null;
+  branch: string;
+  runtime: string;
+  model: string;
+  /** 发给节点的任务提示词；节点只执行，不参与验收判定。 */
+  prompt: string;
+  timeoutMs: number;
+  attempts: number;
+  createdAt: number;
+  assignedAt: number | null;
+  finishedAt: number | null;
+  summary: string | null;
+  error: string | null;
+  exitCode: number | null;
+  log: string;
+  cost: CostLedger | null;
+}
+
+export interface RemoteStatus {
+  enabled: boolean;
+  /** 节点注册用的接入令牌；仅在开启后可见。 */
+  enrollmentToken: string;
+  heartbeatMs: number;
+  nodes: RemoteNodeView[];
+  jobs: RemoteJobView[];
+}
+
+export interface RemoteRegistration {
+  nodeId: string;
+  token: string;
+  heartbeatMs: number;
+}
+
+export interface RemoteHeartbeat {
+  ok: boolean;
+  job: RemoteJobView | null;
+}
+
+export interface RemoteJobInput {
+  taskId: string;
+  branch: string;
+  bundlePath: string;
+  runtime: string;
+  model: string;
+  prompt: string;
+  timeoutMs: number;
+}
+
+export interface RemoteJobResult {
+  ok: boolean;
+  summary: string;
+  error?: string | null;
+  exitCode: number;
+  log: string;
+  cost?: CostLedger | null;
+}
+
+/**
+ * 远程执行协调器：节点注册、心跳领任务、代码包收发与结果回收。
+ * 默认关闭；开启后仍需显式把任务运行时设为 remote 才会派发。
+ */
+export interface RemoteService {
+  status(): RemoteStatus;
+  isEnabled(): boolean;
+  enable(): RemoteStatus;
+  disable(): RemoteStatus;
+  /** 用接入令牌换节点令牌；未开启或令牌不对时抛错。 */
+  register(input: {
+    name: string;
+    token: string;
+    capabilities?: string[];
+  }): RemoteRegistration;
+  heartbeat(
+    nodeId: string,
+    token: string,
+    input?: { status?: 'idle' | 'busy' },
+  ): RemoteHeartbeat;
+  /** 仅校验节点凭证，不改变租约；用于取代码包与回传结果。 */
+  verifyNode(nodeId: string, token: string): boolean;
+  removeNode(id: string): boolean;
+  createJob(input: RemoteJobInput): RemoteJobView;
+  getJob(id: string): RemoteJobView | null;
+  /** 节点回传代码包；只有任务持有者可以上传。 */
+  storeResultBundle(jobId: string, nodeId: string, data: Buffer): RemoteJobView;
+  complete(jobId: string, nodeId: string, result: RemoteJobResult): RemoteJobView;
+  cancelJob(id: string): boolean;
+  bundlePath(jobId: string): string | null;
+  resultBundlePath(jobId: string): string | null;
+  /** 过期租约回收与节点离线判定；插件定时调用，测试可直接驱动。 */
+  sweep(at?: number): void;
+}
+
 export interface ServiceMap {
   config: OpenCoxswainConfig;
   events: EventService;
@@ -629,6 +758,7 @@ export interface ServiceMap {
   channels: ChannelsService;
   secrets: SecretsService;
   http: HttpService;
+  remote: RemoteService;
 }
 
 /** 服务键清单是唯一事实来源：外部清单校验与内核服务表共用这一份。 */
@@ -651,6 +781,7 @@ export const SERVICE_KEYS = [
   'channels',
   'secrets',
   'http',
+  'remote',
 ] as const satisfies readonly (keyof ServiceMap)[];
 
 export type ServiceKey = (typeof SERVICE_KEYS)[number];

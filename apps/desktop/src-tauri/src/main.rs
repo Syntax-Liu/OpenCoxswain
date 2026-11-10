@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_updater::UpdaterExt;
 
 const PORT: u16 = 47821;
 
@@ -153,9 +154,139 @@ fn wait_for_daemon() {
     }
 }
 
+/// 更新源配置。发布地址与公钥因部署环境而异，且私钥绝不能进仓库，
+/// 所以放在用户数据目录，而不是写死进 tauri.conf.json。
+#[derive(serde::Deserialize, Default)]
+struct UpdaterConfig {
+    endpoint: Option<String>,
+    pubkey: Option<String>,
+}
+
+fn updater_config_path() -> PathBuf {
+    let base = std::env::var("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    base.join("OpenCoxswain").join("updater.json")
+}
+
+fn updater_config() -> UpdaterConfig {
+    let mut config = UpdaterConfig::default();
+    match fs::read_to_string(updater_config_path()) {
+        Ok(text) => match serde_json::from_str::<UpdaterConfig>(&text) {
+            Ok(parsed) => config = parsed,
+            Err(error) => append_log(&format!("updater.json 解析失败：{error}")),
+        },
+        Err(_) => {}
+    }
+    if let Ok(value) = std::env::var("OPENCOXSWAIN_UPDATER_ENDPOINT") {
+        config.endpoint = Some(value);
+    }
+    if let Ok(value) = std::env::var("OPENCOXSWAIN_UPDATER_PUBKEY") {
+        config.pubkey = Some(value);
+    }
+    UpdaterConfig {
+        endpoint: config.endpoint.map(|value| value.trim().to_string()),
+        pubkey: config.pubkey.map(|value| value.trim().to_string()),
+    }
+}
+
+fn build_updater(
+    app: &tauri::AppHandle,
+) -> Result<Option<tauri_plugin_updater::Updater>, String> {
+    let config = updater_config();
+    let endpoint = config.endpoint.unwrap_or_default();
+    let pubkey = config.pubkey.unwrap_or_default();
+    if endpoint.is_empty() || pubkey.is_empty() {
+        return Ok(None);
+    }
+    let url: url::Url = endpoint
+        .parse()
+        .map_err(|error| format!("更新地址无效：{error}"))?;
+    let updater = app
+        .updater_builder()
+        .pubkey(pubkey)
+        .endpoints(vec![url])
+        .map_err(|error| format!("更新源不可用：{error}"))?
+        .build()
+        .map_err(|error| format!("初始化更新器失败：{error}"))?;
+    Ok(Some(updater))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateStatus {
+    configured: bool,
+    current_version: String,
+    latest_version: Option<String>,
+    notes: Option<String>,
+    date: Option<String>,
+    error: Option<String>,
+}
+
+#[tauri::command]
+fn app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
+async fn update_check(app: tauri::AppHandle) -> UpdateStatus {
+    let mut status = UpdateStatus {
+        configured: false,
+        current_version: app_version(app.clone()),
+        latest_version: None,
+        notes: None,
+        date: None,
+        error: None,
+    };
+    let updater = match build_updater(&app) {
+        Ok(Some(updater)) => updater,
+        Ok(None) => return status,
+        Err(error) => {
+            status.error = Some(error);
+            return status;
+        }
+    };
+    status.configured = true;
+    match updater.check().await {
+        Ok(Some(update)) => {
+            status.latest_version = Some(update.version.clone());
+            status.notes = update.body.clone();
+            status.date = update.date.map(|value| value.to_string());
+        }
+        Ok(None) => {}
+        Err(error) => status.error = Some(format!("检查更新失败：{error}")),
+    }
+    status
+}
+
+#[tauri::command]
+async fn update_install(app: tauri::AppHandle) -> Result<String, String> {
+    let updater = build_updater(&app)?.ok_or_else(|| "未配置更新源".to_string())?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|error| format!("检查更新失败：{error}"))?
+        .ok_or_else(|| "已经是最新版本".to_string())?;
+    let version = update.version.clone();
+    update
+        .download_and_install(|_chunk, _total| {}, || {})
+        .await
+        .map_err(|error| format!("下载或安装失败：{error}"))?;
+    append_log(&format!("已安装 {version}，准备重启"));
+    app.restart();
+    #[allow(unreachable_code)]
+    Ok(version)
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Daemon(Mutex::new(None)))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            app_version,
+            update_check,
+            update_install
+        ])
         .setup(|app| {
             let child = spawn_daemon(app);
             if let Some(child) = child {
