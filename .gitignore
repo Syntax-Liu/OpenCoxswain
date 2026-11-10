@@ -1,6 +1,9 @@
 node_modules/
 dist/
 *.tsbuildinfo
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/staging/
+.trae-html-share-packages/
 .env
 .env.*
 !.env.example
