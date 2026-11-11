@@ -125,25 +125,7 @@ export async function runExecutorOnce(
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       drainInputs: () => deps.drainInputs(executor.id),
       // 轨迹落库：每一步工具调用都记下来，供"打开原会话"查看。
-      onEvent: (event) => {
-        if (event.type === 'tool_call') {
-          void store.appendMessage(executor.sessionId, {
-            id: newId('msg'),
-            role: 'user',
-            content: `\u0060${event.name}\u0060 ${truncateArgs(event.args)}`,
-            source: 'tool',
-            at: Date.now(),
-          });
-        } else if (event.type === 'tool_result') {
-          void store.appendMessage(executor.sessionId, {
-            id: newId('msg'),
-            role: 'assistant',
-            content: event.ok ? event.preview : `（失败）${event.preview}`,
-            source: 'tool-result',
-            at: Date.now(),
-          });
-        }
-      },
+      onEvent: traceHandler(store, executor.sessionId),
       // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
       onProgressMetrics: (partial) => deps.onProgressMetrics(executor.id, partial),
       onMetrics: (metrics) => {
@@ -166,4 +148,127 @@ export function stillRunnable(store: Store, executorId: string): ExecutorRow | n
   const current = store.getExecutor(executorId);
   if (!current || isExecutorTerminal(current.status)) return null;
   return current;
+}
+
+/**
+ * 把工具轨迹写进 D 的会话。
+ *
+ * 首轮和续聊共用——之前两处各写了一份一模一样的代码，
+ * 改一处容易漏另一处。
+ */
+export function traceHandler(
+  store: Store,
+  sessionId: string,
+): (event: { type: string; name?: string; args?: unknown; ok?: boolean; preview?: string }) => void {
+  return (event) => {
+    if (event.type === 'tool_call') {
+      void store.appendMessage(sessionId, {
+        id: newId('msg'),
+        role: 'user',
+        content: `\u0060${event.name}\u0060 ${truncateArgs((event.args ?? {}) as Record<string, unknown>)}`,
+        source: 'tool',
+        at: Date.now(),
+      });
+    } else if (event.type === 'tool_result') {
+      void store.appendMessage(sessionId, {
+        id: newId('msg'),
+        role: 'assistant',
+        content: event.ok ? (event.preview ?? '') : `（失败）${event.preview ?? ''}`,
+        source: 'tool-result',
+        at: Date.now(),
+      });
+    }
+  };
+}
+
+/**
+ * 续聊：带着原有上下文继续跑同一个 D。
+ *
+ * 和首轮的区别只有三处：
+ * - 不重建会话（会话已存在）
+ * - 传入 `priorMessages` 作为上下文
+ * - `goal` 是这一次的追问，不是最初的派活目标
+ *
+ * 其余（审批、台账、扩展、轨迹记录）完全一致——**这正是要抽出来的理由**：
+ * 之前复制了一份，结果续聊漏了台账，两处行为悄悄不一致了。
+ */
+export interface ResumeRequest {
+  readonly executor: ExecutorRow;
+  readonly project: ProjectRow;
+  /** 用户这一轮说的话。 */
+  readonly text: string;
+  readonly priorMessages: ReadonlyArray<{ role: 'user' | 'assistant'; content: string }>;
+  readonly controller: AbortController;
+}
+
+export async function resumeExecutorOnce(
+  deps: ExecutorRunnerDeps,
+  request: ResumeRequest,
+): Promise<RunResult> {
+  const { store } = deps;
+  const { executor, project } = request;
+
+  await store.putExecutor({
+    ...executor,
+    status: 'running',
+    endedAt: null,
+    blockedReason: null,
+  });
+
+  try {
+    const outcome = await runExecutor({
+      llm: deps.llm,
+      rootPath: project.displayPath,
+      projectName: project.name,
+      goal: request.text,
+      writeScope: executor.writeScope,
+      ...(executor.access === 'readonly' ? { readonlyTask: true } : {}),
+      signal: request.controller.signal,
+      maxSteps: deps.maxSteps,
+      // 续聊同样受审批约束：不能借续聊绕过危险动作检查。
+      approve: (tool, args) => deps.approve(tool, args),
+      // 续聊同样受扩展约束：不能借续聊绕过本机策略。
+      ...(deps.extensions ? { extensions: deps.extensions } : {}),
+      // 续聊同样记账：不能借续聊留下无记录的副作用。
+      ledger: new SideEffectLedger({
+        store,
+        projectId: project.id,
+        executorId: executor.id,
+      }),
+      ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
+      priorMessages: request.priorMessages as never,
+      onEvent: traceHandler(store, executor.sessionId),
+      onProgressMetrics: (partial) => deps.onProgressMetrics(executor.id, partial),
+      onMetrics: (metrics) => {
+        const current = store.getExecutor(executor.id);
+        if (current) void store.putExecutor({ ...current, metrics });
+      },
+    });
+
+    return { outcome, error: undefined };
+  } catch (error) {
+    return {
+      outcome: undefined,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/** 从会话历史里取上下文（排除最后一条，它作为本轮的 goal）。 */
+export function priorMessagesFrom(
+  store: Store,
+  sessionId: string,
+): Array<{ role: 'user' | 'assistant'; content: string }> {
+  return store
+    .messages(sessionId)
+    .slice(0, -1)
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      // 工具轨迹是给界面看的，回灌模型时加上标记，避免被当成用户发言。
+      content:
+        m.source === 'tool' || m.source === 'tool-result'
+          ? `（执行记录）${m.content}`
+          : m.content,
+    }));
 }

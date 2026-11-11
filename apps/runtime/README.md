@@ -62,7 +62,7 @@ src/
     sqlite.ts           SQLite 实现（node:sqlite）
   global/
     assistant.ts        B 的路由与转交
-  test/                 244 条测试
+  test/                 245 条测试
 ```
 
 ## 关键机制
@@ -230,13 +230,13 @@ pnpm --filter @opencoxswain/runtime build
 pnpm --filter @opencoxswain/runtime test
 ```
 
-**244 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
+**245 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
 
 | 文件 | 条数 | 覆盖 |
 | --- | --- | --- |
 | `server.test.ts` | 18 | HTTP 接口、SSE 首帧、断线重放、gap、CORS、超大 body |
 | `memory.test.ts` | 17 | 写入门槛、分词排序、Markdown 往返、跨会话生效 |
-| `ledger.test.ts` | 17 | **执行前落 pending**、被拒绝记 rejected、读操作不记账 |
+| `ledger.test.ts` | 18 | **执行前落 pending**、被拒绝记 rejected、读操作不记账 |
 | `extensions.test.ts` | 13 | **扩展真能拦住工具**、多个 hook 累加、不能绕过写域 |
 | `boundary.test.ts` | 4 | **架构防线**：零第三方依赖、不依赖 DSH、接口层不碰实现 |
 | `im.test.ts` | 17 | **IM 走同一条 userSays**、自动绑定、审批复用同一记录、offset 回归 |

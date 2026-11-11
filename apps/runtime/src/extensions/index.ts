@@ -62,8 +62,8 @@ export interface ExtensionApi {
 }
 
 export interface LoadedExtensions {
-  readonly beforeTool: ReadonlyArray<NonNullable<ExtensionHook['beforeTool']>>;
-  readonly afterTool: ReadonlyArray<NonNullable<ExtensionHook['afterTool']>>;
+  readonly beforeTool: ExtensionHook['beforeTool'];
+  readonly afterTool: ExtensionHook['afterTool'];
   /** 加载过程中的问题，展示给用户（不抛异常）。 */
   readonly problems: readonly string[];
   readonly names: readonly string[];
@@ -94,8 +94,8 @@ export function extensionsDir(): string {
  * 用户可能只是写错了一个分号，不该因此打不开软件。
  */
 export async function loadExtensions(dir = extensionsDir()): Promise<LoadedExtensions> {
-  const beforeTool: Array<NonNullable<ExtensionHook['beforeTool']>> = [];
-  const afterTool: Array<NonNullable<ExtensionHook['afterTool']>> = [];
+  const beforeTool: Array<ExtensionHook['beforeTool'][number]> = [];
+  const afterTool: Array<ExtensionHook['afterTool'][number]> = [];
   const problems: string[] = [];
   const names: string[] = [];
 

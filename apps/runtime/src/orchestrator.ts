@@ -18,8 +18,8 @@
 import { EventEmitter } from 'node:events';
 
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
-import { classifyBlock, runExecutor, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
-import { runExecutorOnce } from './executor/runner.js';
+import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
+import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
 import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
@@ -29,7 +29,6 @@ import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
 import { requestApproval, expireStaleApprovals } from './security/approval.js';
-import { SideEffectLedger } from './security/ledger.js';
 import { verify } from './acceptance/verify.js';
 import { parseCriteria } from './acceptance/criteria.js';
 import type { AcceptancePolicy, AcceptanceResult, Criterion, CriterionResult } from './acceptance/criteria.js';
@@ -198,6 +197,48 @@ export class Orchestrator extends EventEmitter {
     } as RuntimeEvent);
 
     return result;
+  }
+
+  /**
+   * 构造运行器依赖。
+   *
+   * 首轮与续聊共用同一套装配——**这样"续聊要不要记账/走审批"就不会有人再漏**。
+   * 之前两处各写一份，续聊就漏了副作用台账。
+   */
+  private runnerDeps(input: {
+    projectId: string;
+    executorId: string;
+    /** 用量止损判定；续聊不参与止损时传 undefined。 */
+    tokenGuard?: ProjectRow['tokenGuard'];
+    onAbort?: () => void;
+  }): ExecutorRunnerDeps {
+    return {
+      store: this.store,
+      llm: this.llm,
+      maxSteps: this.maxStepsPerExecutor,
+      ...(this.commandTimeoutMs !== undefined
+        ? { commandTimeoutMs: this.commandTimeoutMs }
+        : {}),
+      ...(this.extensions ? { extensions: this.extensions } : {}),
+      approve: (tool, args) =>
+        this.approveFor(input.projectId, input.executorId, tool, args),
+      drainInputs: (executorId) => {
+        const queue = this.executorInputs.get(executorId) ?? [];
+        this.executorInputs.delete(executorId);
+        return queue;
+      },
+      // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
+      onProgressMetrics: (_executorId, partial) => {
+        const guard = input.tokenGuard;
+        if (!guard) return;
+        const today = this.store.costSince(input.projectId, startOfToday());
+        const evaluation = evaluateRunning(guard, partial, today);
+        if (evaluation.status === 'exceeded') {
+          this.tokenGuardTripped = evaluation.breached ?? '超出用量上限';
+          input.onAbort?.();
+        }
+      },
+    };
   }
 
   /**
@@ -789,32 +830,12 @@ export class Orchestrator extends EventEmitter {
 
     // 运行本身交给 runner（它只管跑，不管派活与汇报）。
     const { outcome, error } = await runExecutorOnce(
-      {
-        store,
-        llm: this.llm,
-        maxSteps: this.maxStepsPerExecutor,
-        ...(this.commandTimeoutMs !== undefined
-          ? { commandTimeoutMs: this.commandTimeoutMs }
-          : {}),
-        approve: (tool, args) => this.approveFor(project.id, ready.id, tool, args),
-        ...(this.extensions ? { extensions: this.extensions } : {}),
-        drainInputs: (executorId) => {
-          const queue = this.executorInputs.get(executorId) ?? [];
-          this.executorInputs.delete(executorId);
-          return queue;
-        },
-        // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
-        onProgressMetrics: (_executorId, partial) => {
-          const guard = project.tokenGuard;
-          if (!guard) return;
-          const today = store.costSince(project.id, startOfToday());
-          const evaluation = evaluateRunning(guard, partial, today);
-          if (evaluation.status === 'exceeded') {
-            this.tokenGuardTripped = evaluation.breached ?? '超出用量上限';
-            abort.abort();
-          }
-        },
-      },
+      this.runnerDeps({
+        projectId: project.id,
+        executorId: ready.id,
+        ...(project.tokenGuard ? { tokenGuard: project.tokenGuard } : {}),
+        onAbort: () => abort.abort(),
+      }),
       project,
       ready,
       abort,
@@ -1024,67 +1045,29 @@ export class Orchestrator extends EventEmitter {
     });
 
     // 取历史（不含本轮刚追加的这句，它会作为 goal 传入）。
-    const prior = this.store
-      .messages(row.sessionId)
-      .slice(0, -1)
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        // 工具轨迹是给界面看的，回灌模型时加上标记，避免被当成用户发言。
-        content: m.source === 'tool' || m.source === 'tool-result' ? `（执行记录）${m.content}` : m.content,
-      }));
+    const prior = priorMessagesFrom(this.store, row.sessionId);
 
     await this.store.putExecutor({ ...row, status: 'running', endedAt: null, blockedReason: null });
     const abort = new AbortController();
     this.executorAborts.set(row.id, abort);
 
-    let outcome;
-    try {
-      outcome = await runExecutor({
-        llm: this.llm,
-        rootPath: project.displayPath,
-        projectName: project.name,
-        goal: text,
-        writeScope: row.writeScope,
-        ...(row.access === 'readonly' ? { readonlyTask: true } : {}),
-        signal: abort.signal,
-        maxSteps: this.maxStepsPerExecutor,
-        // 续聊同样受审批约束：不能借续聊绕过危险动作检查。
-        approve: (tool, args) => this.approveFor(project.id, row.id, tool, args),
-        // 续聊同样受扩展约束：不能借续聊绕过本机策略。
-        ...(this.extensions ? { extensions: this.extensions } : {}),
-        ledger: new SideEffectLedger({ store: this.store, projectId: project.id, executorId: row.id }),
-        ...(this.commandTimeoutMs !== undefined
-          ? { commandTimeoutMs: this.commandTimeoutMs }
-          : {}),
+    const { outcome, error } = await resumeExecutorOnce(
+      this.runnerDeps({ projectId: project.id, executorId: row.id }),
+      {
+        executor: row,
+        project,
+        text,
         priorMessages: prior,
-        onEvent: (event) => {
-          if (event.type === 'tool_call') {
-            void this.store.appendMessage(row.sessionId, {
-              id: newId('msg'),
-              role: 'user',
-              content: `\u0060${event.name}\u0060 ${truncateArgs(event.args)}`,
-              source: 'tool',
-              at: Date.now(),
-            });
-          } else if (event.type === 'tool_result') {
-            void this.store.appendMessage(row.sessionId, {
-              id: newId('msg'),
-              role: 'assistant',
-              content: event.ok ? event.preview : `（失败）${event.preview}`,
-              source: 'tool-result',
-              at: Date.now(),
-            });
-          }
-        },
-      });
-    } catch (error) {
-      this.executorAborts.delete(row.id);
-      await this.finishExecutor(row.id, 'failed', `续聊失败：${errorText(error)}`);
-      return { ok: false, message: `续聊失败：${errorText(error)}` };
-    }
+        controller: abort,
+      },
+    );
 
     this.executorAborts.delete(row.id);
+
+    if (!outcome) {
+      await this.finishExecutor(row.id, 'failed', `续聊失败：${error ?? '未知错误'}`);
+      return { ok: false, message: `续聊失败：${error ?? '未知错误'}` };
+    }
 
     const ok = outcome.ok;
     await this.finishExecutor(

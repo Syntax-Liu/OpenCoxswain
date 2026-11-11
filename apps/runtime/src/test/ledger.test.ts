@@ -238,8 +238,47 @@ describe('端到端：D 干了什么都有记录', () => {
     await runtime.dispose();
   });
 
-  it('读操作不进台账（避免噪音淹没关键记录）', async () => {
+  it('**续聊也记台账**（回归：拆分前续聊漏了记账）', async () => {
     const root = await projectDir();
+    const store = new MemoryStore();
+
+    // 首轮只读（不产生台账），续聊才写文件——
+    // 这样"续聊后台账仍然是 0"就说明漏记了。
+    const llm = new MockLlmClient((request) => {
+      if (!isExecutorTurn(request)) return { text: 'ok' };
+      const last = [...request.messages].reverse().find((m) => m.role === 'user');
+      const text = typeof last?.content === 'string' ? last.content : '';
+      if (text.includes('再写')) {
+        return { tool: 'write_file', args: { path: 'zzz.txt', content: 'X' } };
+      }
+      return { text: '结论：看了一眼，没改东西。' };
+    });
+
+    const runtime = new Orchestrator({ store, llm });
+    const { project } = await runtime.openProject({ rootPath: root });
+    const spawn = await runtime.spawn(project.id, {
+      label: '先只读',
+      goal: '看一眼目录',
+      writeScope: ['zzz.txt'],
+    });
+
+    await waitFor(() => {
+      const e = store.getExecutor(spawn.executor.id);
+      return e?.status === 'done' || e?.status === 'failed';
+    }, 10000);
+    assert.equal(store.listSideEffects({ executorId: spawn.executor.id }).length, 0, '首轮不该有台账');
+
+    await runtime.userSaysToExecutor(spawn.executor.id, '再写一个 zzz.txt');
+
+    const effects = store.listSideEffects({ executorId: spawn.executor.id });
+    assert.equal(effects.length, 1, '续聊写入必须被记进台账');
+    assert.equal(effects[0]?.kind, 'fs.write');
+    assert.match(effects[0]?.target ?? '', /zzz\.txt/);
+
+    await runtime.dispose();
+  });
+
+  it('读操作不进台账（避免噪音淹没关键记录）', async () => {    const root = await projectDir();
     const store = new MemoryStore();
     let step = 0;
     const llm = new MockLlmClient((request) => {
