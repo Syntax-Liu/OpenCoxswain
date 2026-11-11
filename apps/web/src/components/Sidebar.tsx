@@ -1,4 +1,7 @@
+import { useState } from 'react';
+
 import type { ExecutorDto, ProjectDto } from '../api.js';
+import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
 
@@ -34,6 +37,11 @@ export interface SidebarProps {
  * 每个项目是一个"文件夹"，文件夹本身是 C；文件夹下的每条记录是一个 D。
  */
 export function Sidebar(props: SidebarProps): JSX.Element {
+  const [query, setQuery] = useState('');
+  const [onlyRunning, setOnlyRunning] = useState(false);
+
+  const filtering = isFiltering(query, onlyRunning);
+
   return (
     <aside className="sidebar">
       <nav className="nav-main">
@@ -55,12 +63,37 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         <span>工作区</span>
       </div>
 
+      <div className="sidebar-filter">
+        <input
+          value={query}
+          placeholder="搜索执行者…"
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="搜索执行者"
+        />
+        <button
+          type="button"
+          className={`chip${onlyRunning ? ' active' : ''}`}
+          onClick={() => setOnlyRunning((v) => !v)}
+          title="只看还在跑的执行者"
+        >
+          在跑
+        </button>
+      </div>
+
       <nav className="workspace-tree">
         {props.projects.length === 0 && (
           <p className="muted small empty-hint">还没有项目，先「添加项目」。</p>
         )}
+        {filtering && <p className="muted small empty-hint">筛选中。清空搜索框可看全部。</p>}
         {props.projects.map((project) => {
-          const executors = props.executors.filter((e) => e.projectId === project.id);
+          const all = props.executors.filter((e) => e.projectId === project.id);
+          const executors = all.filter((e) => matchExecutor(e, query, onlyRunning));
+
+          // 筛选时没命中的项目整个隐藏；未筛选时保持原样（文件夹本身是有意义的入口）。
+          if (filtering && executors.length === 0 && !matchesProject(project, query, onlyRunning)) {
+            return null;
+          }
+
           const isCurrentProject = props.currentProjectId === project.id;
           const circleActive = props.view.kind === 'assistant' && isCurrentProject;
           return (
@@ -74,6 +107,9 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                 <span className="folder-icon">◇</span>
                 <span className="folder-name">{project.name}</span>
                 {project.running ? <span className="badge running">{project.running}</span> : null}
+                {filtering && (
+                  <span className="thread-status">{executors.length}/{all.length}</span>
+                )}
               </button>
 
               {/* 文件夹下的每条 = 一个执行者 D 的对话 */}
@@ -127,3 +163,4 @@ function dotClass(status: ExecutorDto['status']): string {
   if (status === 'failed') return 'bad';
   return 'idle';
 }
+

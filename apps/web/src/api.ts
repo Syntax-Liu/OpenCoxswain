@@ -347,6 +347,26 @@ export class ApiClient {
     });
   }
 
+  /** 已生效的记忆（全局 + 项目）。 */
+  memoryList(projectId: string): Promise<{
+    global: Array<{ id: string; kind: string; text: string; source: string }>;
+    project: Array<{ id: string; kind: string; text: string; source: string }>;
+  }> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/memory-list`);
+  }
+
+  /** 删掉一条已生效的记忆。 */
+  forgetMemory(
+    projectId: string,
+    scope: 'global' | 'project',
+    entryId: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    return this.request(
+      `/api/projects/${encodeURIComponent(projectId)}/memory/${scope}/${encodeURIComponent(entryId)}/forget`,
+      { method: 'POST' },
+    );
+  }
+
   /** 待审批的危险动作。 */
   approvals(projectId?: string): Promise<{ approvals: ApprovalDto[] }> {    const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
     return this.request(`/api/approvals${query}`);

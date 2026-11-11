@@ -71,6 +71,10 @@ export function App(): JSX.Element {
   const [effects, setEffects] = useState<SideEffectDto[]>([]);
   /** 记忆候选。 */
   const [memories, setMemories] = useState<MemoryCandidateDto[]>([]);
+  const [activeMemories, setActiveMemories] = useState<{
+    global: Array<{ id: string; kind: string; text: string; source: string }>;
+    project: Array<{ id: string; kind: string; text: string; source: string }>;
+  }>({ global: [], project: [] });
   const [extracting, setExtracting] = useState(false);
 
   const streamRef = useRef<EventStream | null>(null);
@@ -252,10 +256,28 @@ export function App(): JSX.Element {
         if (!cancelled) setMemories(r.candidates);
       })
       .catch(() => {});
+    // 已生效的记忆也要拉一次：用户得能看见"它到底记住了什么"。
+    void api
+      .memoryList(activeProjectId)
+      .then((r) => {
+        if (!cancelled) setActiveMemories(r);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [api, activeProjectId]);
+
+  const refreshActiveMemories = useCallback(
+    async (projectId: string) => {
+      try {
+        setActiveMemories(await api.memoryList(projectId));
+      } catch {
+        // 记忆读不到不影响主流程
+      }
+    },
+    [api],
+  );
 
   const handleExtract = useCallback(async () => {
     if (!activeProjectId) return;
@@ -280,11 +302,13 @@ export function App(): JSX.Element {
       try {
         await api.acceptMemory(id);
         setMemories((list) => list.map((c) => (c.id === id ? { ...c, status: 'accepted' } : c)));
+        // 采纳后立刻刷新"已生效"，用户能马上看到那条记忆进去了。
+        if (activeProjectId) await refreshActiveMemories(activeProjectId);
       } catch (err) {
         setError(err instanceof Error ? err.message : '采纳失败');
       }
     },
-    [api, setError],
+    [api, setError, activeProjectId, refreshActiveMemories],
   );
 
   const handleDismissMemory = useCallback(
@@ -297,6 +321,23 @@ export function App(): JSX.Element {
       }
     },
     [api, setError],
+  );
+
+  const handleForgetMemory = useCallback(
+
+    async (scope: 'global' | 'project', entryId: string) => {
+      if (!activeProjectId) return;
+      try {
+        await api.forgetMemory(activeProjectId, scope, entryId);
+        setActiveMemories((prev) => ({
+          ...prev,
+          [scope]: prev[scope].filter((e) => e.id !== entryId),
+        }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '删除失败');
+      }
+    },
+    [api, activeProjectId, setError],
   );
 
   const handleOpenProject = useCallback(
@@ -431,10 +472,12 @@ export function App(): JSX.Element {
             memoryReview={
               <MemoryReview
                 candidates={memories}
+                active={activeMemories}
                 busy={extracting}
                 onExtract={() => void handleExtract()}
                 onAccept={(id) => void handleAcceptMemory(id)}
                 onDismiss={(id) => void handleDismissMemory(id)}
+                onForget={(scope, id) => void handleForgetMemory(scope, id)}
               />
             }
             onSend={(text) => void handleSendToAssistant(text)}

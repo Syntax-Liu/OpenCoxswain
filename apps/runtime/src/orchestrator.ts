@@ -1282,6 +1282,46 @@ export class Orchestrator extends EventEmitter {
     return this.store.listCandidates({ projectId });
   }
 
+  /**
+   * 已生效的记忆（全局 + 项目）。
+   *
+   * 用户需要能看见"它到底记住了什么"，否则不敢放心让它自己记。
+   */
+  async listMemories(projectId: string): Promise<{
+    global: Array<{ id: string; kind: string; text: string; source: string }>;
+    project: Array<{ id: string; kind: string; text: string; source: string }>;
+  }> {
+    if (!this.memory) return { global: [], project: [] };
+    const projectRow = this.store.getProject(projectId);
+    if (!projectRow) throw new Error(`项目 ${projectId} 不存在`);
+
+    const strip = (entries: Awaited<ReturnType<MarkdownMemoryStore['list']>>) =>
+      entries.map((e) => ({ id: e.id, kind: e.kind, text: e.text, source: e.source }));
+
+    return {
+      global: strip(await this.memory.list({ kind: 'global' })),
+      project: strip(await this.memory.list({ kind: 'project', projectKey: projectRow.rootPath })),
+    };
+  }
+
+  /** 删掉一条已生效的记忆。用户可以反悔。 */
+  async forgetMemory(
+    projectId: string,
+    scope: 'global' | 'project',
+    entryId: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!this.memory) return { ok: false, message: '未启用记忆功能' };
+    const projectRow = this.store.getProject(projectId);
+    if (!projectRow) return { ok: false, message: '项目不存在' };
+
+    const target: MemoryScope =
+      scope === 'global' ? { kind: 'global' } : { kind: 'project', projectKey: projectRow.rootPath };
+    const removed = await this.memory.remove(target, entryId);
+    return removed
+      ? { ok: true, message: '已删除' }
+      : { ok: false, message: `找不到记忆 ${entryId}` };
+  }
+
   /** 可见状态，供 UI 与测试读取。 */
   stats(): { running: number; queued: number; limit: number } {
     return this.gate.stats();

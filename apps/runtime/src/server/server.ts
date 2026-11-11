@@ -159,6 +159,20 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
     }
 
+    // ---- 删除一条已生效的记忆 ----
+    // 路径形如 /api/projects/:id/memory/:scope/:entryId/forget
+    const forgetMatch = /^\/api\/projects\/([^/]+)\/memory\/(global|project)\/([^/]+)\/forget$/.exec(
+      url.pathname,
+    );
+    if (method === 'POST' && forgetMatch) {
+      const result = await orchestrator.forgetMemory(
+        decodeURIComponent(forgetMatch[1]!),
+        forgetMatch[2] as 'global' | 'project',
+        decodeURIComponent(forgetMatch[3]!),
+      );
+      return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
+    }
+
     // ---- 危险动作审批 ----
     if (method === 'GET' && url.pathname === '/api/approvals') {
       const projectId = url.searchParams.get('projectId') ?? undefined;
@@ -276,8 +290,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
 
       // 记忆候选：GET 查看，POST 触发一次提炼
-      if (action === 'memories') {
-        if (method === 'GET') {
+      if (action === 'memories') {        if (method === 'GET') {
           return json(res, 200, {
             candidates: store.listCandidates({ projectId }),
             pending: store.listCandidates({ projectId, status: ['pending'] }).length,
@@ -290,6 +303,11 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
             candidates: store.listCandidates({ projectId, status: ['pending'] }),
           });
         }
+      }
+
+      // 已生效的记忆（全局 + 项目），可查看与删除
+      if (action === 'memory-list') {
+        return json(res, 200, await orchestrator.listMemories(projectId));
       }
 
       // 设置用量止损上限（不是计费）

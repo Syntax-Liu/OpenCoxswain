@@ -1183,3 +1183,123 @@ button.small {
   font-size: 11.5px;
   padding: 3px 10px;
 }
+
+/* ---------- B4 ½çÃæÏ¸½Ú ---------- */
+
+.sidebar-filter {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 8px;
+  align-items: center;
+}
+
+.sidebar-filter input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.sidebar-filter input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+
+.chip {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.chip.active {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.bubble-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.message:hover .bubble-footer,
+.message:focus-within .bubble-footer {
+  opacity: 1;
+}
+
+.msg-actions {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.msg-actions .link {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.jump-bottom {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+}
+
+.jump-bottom:hover {
+  border-color: var(--accent-dim);
+}
+
+.conversation {
+  position: relative;
+}
+
+.memory-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 5px;
+}
+
+.memory-tabs button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 3px 2px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.memory-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.memory-group {
+  margin-bottom: 9px;
+}
+
+.memory-group > p {
+  margin: 0 0 5px;
+}

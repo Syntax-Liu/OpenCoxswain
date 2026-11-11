@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import type { MessageDto, ProjectDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
+import { MessageActions } from './MessageActions.js';
+import { useAutoScroll } from './useAutoScroll.js';
 
 export interface ConversationProps {
   readonly project: ProjectDto;
@@ -23,16 +25,12 @@ export interface ConversationProps {
  */
 export function Conversation(props: ConversationProps): JSX.Element {
   const [draft, setDraft] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const visible = props.messages.filter(
     (m) => (m.role === 'user' || m.role === 'assistant') && !m.internal,
   );
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [visible.length, props.thinking]);
+  const scroll = useAutoScroll(visible.length);
 
   const submit = (): void => {
     const text = draft.trim();
@@ -54,7 +52,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
       {props.memoryReview}
 
-      <div className="messages" ref={scrollRef}>
+      <div className="messages" ref={scroll.ref}>
         {visible.length === 0 && (
           <div className="hint-card">
             <p>直接说要做什么，我可以同时派多个执行者：</p>
@@ -73,7 +71,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           return (
             <div key={message.id}>
               {showTime && <div className="time-divider">{formatTime(message.at)}</div>}
-              <Message message={message} />
+              <Message message={message} onResend={props.onSend} />
             </div>
           );
         })}
@@ -91,6 +89,13 @@ export function Conversation(props: ConversationProps): JSX.Element {
           </div>
         )}
       </div>
+
+      {!scroll.atBottom && (
+        <button type="button" className="jump-bottom" onClick={scroll.scrollToBottom}>
+          {scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
+          <span aria-hidden> ↓</span>
+        </button>
+      )}
 
       <div className="composer">
         <textarea
@@ -118,12 +123,26 @@ export function Conversation(props: ConversationProps): JSX.Element {
   );
 }
 
-function Message({ message }: { message: MessageDto }): JSX.Element {
+function Message({
+  message,
+  onResend,
+}: {
+  message: MessageDto;
+  onResend?: (text: string) => void;
+}): JSX.Element {
   const isUser = message.role === 'user';
   return (
     <div className={`message ${isUser ? 'user' : 'assistant'}`}>
       {!isUser && <span className="avatar">C</span>}
-      <div className="bubble">{renderMarkdown(message.content)}</div>
+      <div className="bubble">
+        {renderMarkdown(message.content)}
+        <div className="bubble-footer">
+          <MessageActions
+            content={message.content}
+            {...(isUser && onResend ? { onResend: () => onResend(message.content) } : {})}
+          />
+        </div>
+      </div>
     </div>
   );
 }
