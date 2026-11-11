@@ -210,6 +210,23 @@ export interface ExecutorToolHostOptions {
    * 执行后结算 —— 出事时能回答"它到底改了什么"。
    */
   readonly ledger?: SideEffectLedger;
+  /**
+   * 用户扩展（geek 自定义口）。见 `extensions/index.ts`。
+   *
+   * 只提供"否决"与"观察"，不提供改参数、跳过审批、绕过验收——
+   * 那些会破坏产品的信任基础。
+   */
+  readonly extensions?: {
+    readonly beforeTool: ReadonlyArray<
+      (input: {
+        tool: string;
+        args: Record<string, unknown>;
+      }) => { veto: true; reason: string } | void
+    >;
+    readonly afterTool: ReadonlyArray<
+      (input: { tool: string; args: Record<string, unknown>; ok: boolean }) => void
+    >;
+  };
   readonly commandTimeoutMs?: number;
   readonly maxOutputChars?: number;
 }
@@ -272,8 +289,31 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             )
             .catch(() => {});
         }
+        // 通知扩展：仅用于观察，出错被吞掉。
+        for (const hook of options.extensions?.afterTool ?? []) {
+          try {
+            hook({ tool: name, args, ok: result.ok });
+          } catch {
+            /* 扩展错误不影响主流程 */
+          }
+        }
         return result;
       };
+
+      // 用户扩展可以否决（在审批之前：扩展是本机策略，优先级更高）。
+      for (const hook of options.extensions?.beforeTool ?? []) {
+        try {
+          const veto = hook({ tool: name, args });
+          if (veto && veto.veto) {
+            return await settle(
+              { ok: false, content: `被本机扩展拦截（未执行）：${veto.reason}` },
+              'rejected',
+            );
+          }
+        } catch {
+          /* 扩展自己出错不卡住执行 */
+        }
+      }
 
       try {
         const result = await runTool();

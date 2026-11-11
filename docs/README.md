@@ -7,7 +7,9 @@
 | **下一步做什么** | [`roadmap.md`](roadmap.md) ← **最新** |
 | **架构是怎么定的** | [`architecture.md`](architecture.md)：能力边界、为什么现在不做插件框架 |
 | **怎么发版** | [`release.md`](release.md)：自动更新、签名密钥、SmartScreen |
-| **竞品格局与差异化定位** | [`market-scan.md`](market-scan.md) |
+| **想自己定制** | [`extensions.md`](extensions.md)：丢个 JS 文件就能改行为 |
+| **竞品格局与差异化定位** | [`competitor-verdict.md`](competitor-verdict.md) ← **权威**（判定谁是真竞品）<br>[`market-scan.md`](market-scan.md)（原始扫描记录） |
+| **开源共建该怎么走** | [`open-source-plan.md`](open-source-plan.md)（不盈利前提下的可参与性规划） |
 | 当前能做什么、怎么跑 | [`../README.md`](../README.md) |
 | 为什么这样设计（四角色） | [`self-developed-plan.md`](self-developed-plan.md) |
 | 具体实现细节 | [`../apps/runtime/README.md`](../apps/runtime/README.md)、[`../apps/web/README.md`](../apps/web/README.md) |
@@ -27,7 +29,7 @@ A 用户 ──┬─→ B 全局助理   跨项目路由，只转交原话，�
 
 | 路径 | 角色 | 状态 |
 | --- | --- | --- |
-| **`apps/runtime`** | **自研运行时（产品本体）** | ✅ C 常驻 + D 并行（区分只读/读写）+ 先完成先报 + 写域互斥 + 连发不打断 + D 可续聊 + SQLite 持久化与重启恢复 + HTTP/SSE + 本地 Markdown 记忆层 + **运行指标与用量止损** + **危险动作审批**。**231 条测试** |
+| **`apps/runtime`** | **自研运行时（产品本体）** | ✅ C 常驻 + D 并行（区分只读/读写）+ 先完成先报 + 写域互斥 + 连发不打断 + D 可续聊 + SQLite 持久化与重启恢复 + HTTP/SSE + 本地 Markdown 记忆层 + **运行指标与用量止损** + **危险动作审批**。**244 条测试** |
 | **`apps/web`** | **工作台界面** | ✅ 左侧导航（文件夹 = C，条目 = D）+ 单页主区；D 轨迹查看与续聊、B 路由界面、Markdown 渲染、**运行指标展示**。**38 条测试** |
 | **`apps/shell`** | **桌面壳** | ✅ Tauri 2：拉起运行时、加载其界面、退出按进程树清理、日志落盘。安装包 23.6 MB，自带 Node |
 | `packages/dsh-bao` | dsh 插件 | 🔒 **已冻结**为设计参考，不再演进 |
@@ -63,6 +65,7 @@ pnpm --filter @opencoxswain/web dev     # http://127.0.0.1:5180
 | [`roadmap.md`](roadmap.md) | **后续发展方向**：已完成的、待做的、优先级与验收标准 | ✅ 最新 |
 | [`architecture.md`](architecture.md) | **架构决策**：能力边界、四道防线、何时才上插件框架 | ✅ 最新 |
 | [`release.md`](release.md) | **发布与自动更新**：签名密钥保管、发版流程、SmartScreen | ✅ 最新 |
+| [`extensions.md`](extensions.md) | **扩展口**：geek 自定义点、能做什么不能做什么 | ✅ 最新 |
 | [`self-developed-plan.md`](self-developed-plan.md) | 四角色定义、三条流程、连发机制、分阶段规划 | ⚠️ 设计原则有效，实现细节已按自研调整（见文内状态标注） |
 | [`verify/p0-findings.md`](verify/p0-findings.md) | 四个关键假设的实测结论 | ⚠️ 基于 dsh 类型定义；**行为事实仍成立**，但 dsh 已不再作为依赖 |
 | [`trae-bao-reference.md`](trae-bao-reference.md) | TRAE 宝官方文档调研摘录（产品参照） | ✅ 仍有效 |

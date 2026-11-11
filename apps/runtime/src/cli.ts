@@ -22,6 +22,7 @@ import { MarkdownMemoryStore } from './memory/store.js';
 import { ImSettingsStore } from './im/settings.js';
 import { ImBridge } from './im/bridge.js';
 import { TelegramClient } from './im/telegram.js';
+import { loadExtensions } from './extensions/index.js';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -141,11 +142,23 @@ async function main(): Promise<void> {
     path.join(os.homedir(), '.opencoxswain', 'memory');
   const memory = new MarkdownMemoryStore({ rootDir: memoryRoot });
 
+  // 加载用户扩展（geek 自定义口）。目录不存在是常态，出错不影响启动。
+  const extensions = await loadExtensions();
+  if (extensions.names.length > 0) {
+    console.log(`已加载 ${extensions.names.length} 个扩展：${extensions.names.join(', ')}`);
+  }
+  for (const problem of extensions.problems) {
+    console.warn(`扩展加载失败（已跳过）：${problem}`);
+  }
+
   const runtime = new Orchestrator({
     store,
     llm,
     maxConcurrentExecutors: args.maxConcurrent,
     memory,
+    ...(extensions.beforeTool.length + extensions.afterTool.length > 0
+      ? { extensions: { beforeTool: extensions.beforeTool, afterTool: extensions.afterTool } }
+      : {}),
   });
 
   // 重启恢复：上次被中断的执行者如实标记为失败，不静默重跑。

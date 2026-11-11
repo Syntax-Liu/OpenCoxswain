@@ -18,7 +18,8 @@
 import { EventEmitter } from 'node:events';
 
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
-import { classifyBlock, runExecutor, executorSystemPrompt, type BlockKind } from './executor/executor.js';
+import { classifyBlock, runExecutor, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
+import { runExecutorOnce } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
 import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
@@ -61,6 +62,12 @@ export interface OrchestratorOptions {
   readonly memory?: MarkdownMemoryStore;
   /** 危险动作审批的超时（毫秒）。默认 10 分钟，到点自动拒绝。 */
   readonly approvalTimeoutMs?: number;
+  /**
+   * 用户扩展（geek 自定义口）。
+   *
+   * 只用于否决与观察工具调用，**不能**改参数、跳过审批、绕过验收。
+   */
+  readonly extensions?: ExecutorToolHostOptions['extensions'];
 }
 
 /** 运行时对外事件。上层据此推送 UI / IM / 日志。 */
@@ -143,6 +150,7 @@ export class Orchestrator extends EventEmitter {
   private tokenGuardTripped: string | null = null;
   /** 审批超时（毫秒）。到点自动拒绝，不让执行者无限挂起。 */
   private readonly approvalTimeoutMs: number | undefined;
+  private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
   constructor(options: OrchestratorOptions) {
@@ -156,6 +164,7 @@ export class Orchestrator extends EventEmitter {
     this.readMemory = options.readMemory;
     this.memory = options.memory;
     this.approvalTimeoutMs = options.approvalTimeoutMs;
+    this.extensions = options.extensions;
   }
 
   /**
@@ -778,76 +787,46 @@ export class Orchestrator extends EventEmitter {
     // 每次派活都重置止损标记，避免上一次的状态污染本次。
     this.tokenGuardTripped = null;
 
-    let outcome;
-    try {
-      outcome = await runExecutor({
+    // 运行本身交给 runner（它只管跑，不管派活与汇报）。
+    const { outcome, error } = await runExecutorOnce(
+      {
+        store,
         llm: this.llm,
-        // 用原始大小写路径作为工作目录（归一化路径仅用于判重）。
-        // 在大小写敏感的上下文里用 displayPath 更安全，也更好读日志。
-        rootPath: project.displayPath,
-        projectName: project.name,
-        goal: ready.goal,
-        writeScope: ready.writeScope,
-        ...(ready.access === 'readonly' ? { readonlyTask: true } : {}),
-        signal: abort.signal,
         maxSteps: this.maxStepsPerExecutor,
-        // 危险动作审批：不可逆的动作执行前必须有人拍板。
-        approve: (tool, args) => this.approveFor(project.id, ready.id, tool, args),
-        // 副作用台账：执行前落 pending，执行后结算。
-        ledger: new SideEffectLedger({ store, projectId: project.id, executorId: ready.id }),
         ...(this.commandTimeoutMs !== undefined
           ? { commandTimeoutMs: this.commandTimeoutMs }
           : {}),
-        drainInputs: () => {
-          const queue = this.executorInputs.get(ready.id) ?? [];
-          this.executorInputs.delete(ready.id);
+        approve: (tool, args) => this.approveFor(project.id, ready.id, tool, args),
+        ...(this.extensions ? { extensions: this.extensions } : {}),
+        drainInputs: (executorId) => {
+          const queue = this.executorInputs.get(executorId) ?? [];
+          this.executorInputs.delete(executorId);
           return queue;
         },
-        // 轨迹落库：每一步工具调用都记下来，供"打开原会话"查看。
-        onEvent: (event) => {
-          if (event.type === 'tool_call') {
-            void store.appendMessage(ready.sessionId, {
-              id: newId('msg'),
-              role: 'user',
-              content: `\u0060${event.name}\u0060 ${truncateArgs(event.args)}`,
-              source: 'tool',
-              at: Date.now(),
-            });
-          } else if (event.type === 'tool_result') {
-            void store.appendMessage(ready.sessionId, {
-              id: newId('msg'),
-              role: 'assistant',
-              content: event.ok ? event.preview : `（失败）${event.preview}`,
-              source: 'tool-result',
-              at: Date.now(),
-            });
-          }
-        },
         // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
-        onProgressMetrics: (partial) => {
+        onProgressMetrics: (_executorId, partial) => {
           const guard = project.tokenGuard;
           if (!guard) return;
-          const today = store.costSince(project.id, startOfToday()) ;
+          const today = store.costSince(project.id, startOfToday());
           const evaluation = evaluateRunning(guard, partial, today);
           if (evaluation.status === 'exceeded') {
             this.tokenGuardTripped = evaluation.breached ?? '超出用量上限';
             abort.abort();
           }
         },
-        onMetrics: (metrics) => {
-          void store.putExecutor({
-            ...(store.getExecutor(ready.id) ?? ready),
-            metrics,
-          });
-        },
-      });
-    } catch (error) {
-      outcome = undefined;
-      await this.finishExecutor(ready.id, 'failed', `执行者异常：${errorText(error)}`);
+      },
+      project,
+      ready,
+      abort,
+    );
+
+    if (!outcome) {
+      await this.finishExecutor(ready.id, 'failed', `执行者异常：${error ?? '未知错误'}`);
       this.gate.release(ready.id);
       this.executorAborts.delete(ready.id);
       return;
     }
+
 
     const final = store.getExecutor(ready.id);
     if (final && !isExecutorTerminal(final.status)) {
@@ -1072,6 +1051,8 @@ export class Orchestrator extends EventEmitter {
         maxSteps: this.maxStepsPerExecutor,
         // 续聊同样受审批约束：不能借续聊绕过危险动作检查。
         approve: (tool, args) => this.approveFor(project.id, row.id, tool, args),
+        // 续聊同样受扩展约束：不能借续聊绕过本机策略。
+        ...(this.extensions ? { extensions: this.extensions } : {}),
         ledger: new SideEffectLedger({ store: this.store, projectId: project.id, executorId: row.id }),
         ...(this.commandTimeoutMs !== undefined
           ? { commandTimeoutMs: this.commandTimeoutMs }
