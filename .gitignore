@@ -26,3 +26,7 @@ status-report-*.html
 # 验证期临时目录
 .verify-*/
 .cargo-target/
+
+# 临时提交信息文件（避免误提交）
+.commit-msg.txt
+.git-commit-msg.txt
