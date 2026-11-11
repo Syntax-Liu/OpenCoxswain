@@ -41,6 +41,23 @@ node apps/runtime/dist/cli.js --project D:/work/my-app --serve --static apps/web
 pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsis/
 ```
 
+## 安装时 Windows 会拦一下（正常现象）
+
+安装包**没有购买代码签名证书**，所以首次运行 Windows 会显示：
+
+> Windows 已保护你的电脑 —— Microsoft Defender SmartScreen 阻止了无法识别的应用启动
+
+这是「**未知发布者**」，不是检测到病毒。点：
+
+```
+更多信息  →  仍要运行
+```
+
+如果你不放心，可以自己从源码构建（`pnpm app:build`），产物与你下载的一致。
+
+> 自动更新包的**签名**是有的——那个签名保证"更新是你装的这个应用发出的"，
+> 与 Windows 是否信任发布者是两件事。详见 [docs/release.md](docs/release.md)。
+
 ## 目录
 
 | 路径 | 说明 |
@@ -96,10 +113,17 @@ pnpm app:check   # Rust 壳编译检查
 | `OPENCOXSWAIN_DB` | `~/.opencoxswain/runtime.db` | SQLite 库 |
 | `OPENCOXSWAIN_MEMORY` | `~/.opencoxswain/memory` | 记忆目录 |
 | `OPENCOXSWAIN_NODE_BIN` | 空 | 桌面壳启动运行时用的 node |
+| `OPENCOXSWAIN_IM_FILE` | `~/.opencoxswain/im.json` | 手机通道（Telegram）配置 |
+| `OPENCOXSWAIN_TELEGRAM_TOKEN` | 空 | 手机通道 bot token（优先于配置文件） |
+| `TAURI_SIGNING_PRIVATE_KEY` | 空 | **只用于发版构建**：自动更新签名私钥。见 [docs/release.md](docs/release.md) |
 
 ## 后续方向
 
 见 [docs/roadmap.md](docs/roadmap.md)。
+
+## 发布
+
+见 [docs/release.md](docs/release.md)（密钥保管、发版流程、SmartScreen 说明）。
 
 ## 许可证
 

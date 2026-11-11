@@ -40,6 +40,7 @@ import { approveAction, rejectAction } from '../security/approval.js';
 import type { ImSettingsStore } from '../im/settings.js';
 import type { ImBridge } from '../im/bridge.js';
 import { TelegramClient } from '../im/telegram.js';
+import { readUpdateCheck } from '../update/check.js';
 import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
@@ -180,6 +181,17 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         decodeURIComponent(forgetMatch[3]!),
       );
       return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
+    }
+
+    // ---- 更新状态 ----
+    // 壳负责真正去查（它有 Tauri 的更新插件），结果落在文件里，这里读出来给界面。
+    if (method === 'GET' && url.pathname === '/api/update') {
+      const check = await readUpdateCheck();
+      return json(res, 200, {
+        // 没查过时是 null：界面显示"未检查"，不是错误。
+        check,
+        currentVersion: process.env.OPENCOXSWAIN_VERSION ?? null,
+      });
     }
 
     // ---- IM 通道（Telegram）----

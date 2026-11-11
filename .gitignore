@@ -30,3 +30,8 @@ status-report-*.html
 # 临时提交信息文件（避免误提交）
 .commit-msg.txt
 .git-commit-msg.txt
+
+# 更新签名私钥：绝不入库（丢了所有老版本都无法自动更新，泄漏则任何人都能发假更新）
+*.key
+*.pem
+updater.key*

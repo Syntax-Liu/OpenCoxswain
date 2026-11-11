@@ -1,6 +1,6 @@
 {
   "name": "opencoxswain",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "OpenCoxswain · 舵手 — 本地优先的四层 AI 助理（A 用户 / B 全局助理 / C 项目助理 / D 执行者）",
   "license": "Apache-2.0",
@@ -23,6 +23,7 @@
     "app:dev": "pnpm --filter @opencoxswain/shell dev",
     "app:build": "pnpm build && pnpm app:stage && pnpm --filter @opencoxswain/shell build",
     "app:check": "cargo check --manifest-path apps/shell/src-tauri/Cargo.toml",
+    "release:manifest": "node scripts/make-latest-json.mjs",
     "desktop": "pnpm --filter @opencoxswain/desktop desktop:dev",
     "desktop:build": "pnpm --filter @opencoxswain/desktop desktop:build",
     "desktop:release": "pnpm --filter @opencoxswain/desktop desktop:release",

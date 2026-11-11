@@ -223,9 +223,120 @@ fn wait_for_runtime() {
     append_log("运行时 30 秒内未就绪：窗口已显示，界面会提示重试");
 }
 
+/// 当前版本号（界面用来和远端比较，也用于展示）。
+#[tauri::command]
+fn current_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// 更新检查结果写到这个文件，运行时读出来给界面用。
+///
+/// 为什么要绕这一圈：界面是通过 `http://127.0.0.1:PORT` 加载的，
+/// **不是 Tauri 本地协议**，所以它拿不到 IPC、调不到 command。
+/// 与其为了自动更新去改整个窗口加载方式（风险大），
+/// 不如让壳把结果落成一个文件，运行时通过已有的 HTTP 接口透出去。
+fn update_file(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    use tauri::Manager;
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("update-check.json"))
+}
+
+/// 检查更新。**离线或出错时返回 None，不打扰用户**。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateInfo {
+    version: String,
+    notes: String,
+    current_version: String,
+}
+
+#[tauri::command]
+async fn check_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    let code = check_update_inner(&app).await;
+    // 结果同时落盘：界面拿不到 IPC，只能通过运行时读文件。
+    if let (Some(path), Ok(info)) = (update_file(&app), &code) {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let body = match info {
+            Some(update) => serde_json::json!({
+                "available": true,
+                "version": update.version,
+                "notes": update.notes,
+                "currentVersion": update.current_version,
+                "checkedAt": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0),
+            }),
+            None => serde_json::json!({
+                "available": false,
+                "currentVersion": env!("CARGO_PKG_VERSION"),
+                "checkedAt": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0),
+            }),
+        };
+        let _ = std::fs::write(path, body.to_string());
+    }
+    code
+}
+
+async fn check_update_inner(app: &tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = app.updater().map_err(|error| error.to_string())?;
+    // 断网/接口异常时安静返回 None：更新检查失败不该影响正常使用。
+    let found = match updater.check().await {
+        Ok(found) => found,
+        Err(_) => return Ok(None),
+    };
+
+    Ok(found.map(|update| UpdateInfo {
+        version: update.version.clone(),
+        notes: update.body.clone().unwrap_or_default(),
+        current_version: update.current_version.clone(),
+    }))
+}
+/// 下载并安装更新，成功后重启。
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = app.updater().map_err(|error| error.to_string())?;
+    let found = updater
+        .check()
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "没有可用更新".to_string())?;
+
+    // 下载 + 安装。签名由插件用配置里的 pubkey 校验，对不上会直接失败。
+    found
+        .download_and_install(|_chunk, _total| {}, || {})
+        .await
+        .map_err(|error| format!("下载或校验失败：{error}"))?;
+
+    app.restart();
+}
+
 fn main() {
+    // 崩溃也要留下痕迹：桌面应用没有终端，否则用户只看到窗口消失。
     install_panic_hook();
+
     let app = match tauri::Builder::default()
+        // 自动更新：检查与下载由插件完成，安装后由 process 插件重启。
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        // 更新相关的三个命令由界面通过运行时转发调用（界面跑在 http 端口上，
+        // 拿不到 Tauri IPC，所以必须由壳暴露成 HTTP 能触达的命令）。
+        .invoke_handler(tauri::generate_handler![
+            check_update,
+            install_update,
+            current_version
+        ])
         .manage(Runtime(Mutex::new(None)))
         .setup(|app| {
             let child = spawn_runtime(app);

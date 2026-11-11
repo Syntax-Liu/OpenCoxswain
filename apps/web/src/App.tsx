@@ -44,6 +44,7 @@ import { ExecutorChat } from './components/ExecutorChat.js';
 import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { MemoryReview } from './components/MemoryReview.js';
+import { UpdateBanner } from './components/UpdateBanner.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 
@@ -455,6 +456,7 @@ export function App(): JSX.Element {
       />
 
       <main className="main">
+        <UpdateBanner api={api} />
         <ApprovalPanel
           approvals={approvals}
           onApprove={(id, reason) => void handleApprove(id, reason)}

@@ -158,6 +158,20 @@ if ($cargoExit -ne 0) {
 Write-Ok '可执行体编译完成'
 
 Write-Step '生成 NSIS 安装包'
+# 自动更新需要签名：没有私钥也能构建，只是不产出 .sig / latest.json。
+$signingKey = $env:TAURI_SIGNING_PRIVATE_KEY
+if (-not $signingKey) {
+  $defaultKey = Join-Path $env:USERPROFILE '.opencoxswain\updater.key'
+  if (Test-Path $defaultKey) {
+    $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content $defaultKey -Raw).Trim()
+    Write-Ok "使用本地更新签名私钥：$defaultKey"
+  }
+  else {
+    Write-Host '  ! 没找到更新签名私钥，本次不会产出可自动更新的安装包。' -ForegroundColor Yellow
+    Write-Host '    生成：pnpm --filter @opencoxswain/shell exec tauri signer generate -w <路径>' -ForegroundColor Gray
+  }
+}
+
 pnpm --filter @opencoxswain/shell exec tauri build --no-bundle 2>&1 | Out-Null
 $bundleExit = $LASTEXITCODE
 if ($bundleExit -ne 0) {
@@ -166,6 +180,13 @@ if ($bundleExit -ne 0) {
   $bundleExit = $LASTEXITCODE
 }
 if ($bundleExit -ne 0) { Fail '安装包生成失败。' '看上面的输出；可能是 NSIS 下载失败（需要网络）。' }
+
+# 有签名时顺手生成更新清单，发布到 GitHub Releases 需要它。
+$sigFiles = Get-ChildItem 'apps/shell/src-tauri/target/release/bundle/nsis' -Filter *.sig -ErrorAction SilentlyContinue
+if ($sigFiles) {
+  node scripts/make-latest-json.mjs | Out-Null
+  if ($LASTEXITCODE -eq 0) { Write-Ok '已生成 latest.json（自动更新清单）' }
+}
 
 # ---------------------------------------------------------------------------
 # 6. 找产物

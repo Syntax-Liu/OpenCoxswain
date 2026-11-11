@@ -203,6 +203,14 @@ export interface ImStatusDto {
   } | null;
 }
 
+export interface UpdateCheckDto {
+  readonly available: boolean;
+  readonly version?: string;
+  readonly notes?: string;
+  readonly currentVersion: string;
+  readonly checkedAt: number;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -359,9 +367,13 @@ export class ApiClient {
     });
   }
 
+  /** 更新状态。没查过时 check 为 null（不是错误）。 */
+  update(): Promise<{ check: UpdateCheckDto | null; currentVersion: string | null }> {
+    return this.request('/api/update');
+  }
+
   /** IM 通道配置与状态。**不会回传 token 本身**。 */
-  im(): Promise<ImStatusDto> {
-    return this.request('/api/im');
+  im(): Promise<ImStatusDto> {    return this.request('/api/im');
   }
 
   saveIm(botToken: string, projectId: string | null): Promise<{ ok: boolean; message?: string }> {

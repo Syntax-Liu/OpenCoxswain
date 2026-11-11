@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OpenCoxswain",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "identifier": "com.opencoxswain.desktop",
   "build": {
     "beforeDevCommand": "pnpm --filter @opencoxswain/runtime build && pnpm --filter @opencoxswain/web dev",
@@ -29,10 +29,19 @@
     "resources": [
       "staging"
     ],
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "installMode": "currentUser"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRGRTQ1RTI4NDVDMTVGQTYKUldTbVg4RkZLRjdrVC91R0JYYlZqalNvTS9lSTFaSE5qNU5JbTgwazZQbVVtbEJCckl3aHpDcUUK",
+      "endpoints": [
+        "https://github.com/Syntax-Liu/OpenCoxswain/releases/latest/download/latest.json"
+      ]
     }
   }
 }

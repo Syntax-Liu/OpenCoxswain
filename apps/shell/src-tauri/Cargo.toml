@@ -1,6 +1,6 @@
 [package]
 name = "opencoxswain"
-version = "0.6.0"
+version = "0.7.0"
 description = "OpenCoxswain 舵手"
 authors = ["OpenCoxswain"]
 edition = "2021"
@@ -11,6 +11,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# capabilities 里的 JSON 由 generate_context! 内联展开，需要 serde_json 在手边。
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+# 自动更新：检查、下载、安装由插件负责，我们只写界面层的调用。
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 [profile.release]
 codegen-units = 1
