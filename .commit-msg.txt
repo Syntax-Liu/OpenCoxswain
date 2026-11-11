@@ -1,0 +1,33 @@
+feat: 验收策略与版本号管理（v0.2.1）
+
+## A3 验收策略
+
+D 说完成不算完成，由系统独立复核。
+
+三类验收标准：
+- command：系统在项目目录里独立重跑，看退出码
+- diff：系统统计工作区相对基线的改动
+- human：需要人看
+
+三档策略：auto / unverified_only（默认）/ always_human。
+
+关键决策：
+- 复核失败直接判 failed，不允许人工覆盖
+- 复核命令同样过危险动作闸门，防止用验收命令绕过 A2
+- 没声明验收标准时 acceptance 为 null，不伪装成通过
+- 验收标准解析失败就拒绝派活，不静默忽略
+
+数据迁移：executor 表新增 criteria / policy / acceptance，schema v4 → v5。
+
+## 版本号管理
+
+- 新增 scripts/version.mjs：以根 package.json 为唯一来源，同步到 6 处
+- 版本 0.1.0 → 0.2.1
+- build 与出包脚本都会先自动同步，安装包版本不会再与 package.json 不一致
+- 版本规则写入 BUILD.md
+
+## 测试
+
+194 条（运行时 166 + 界面 28）。
+新增 acceptance.test.ts 17 条，核心断言：
+D 声称完成但工作区没有任何改动 → 系统复核判失败。

@@ -41,8 +41,23 @@ export interface ExecutorDto {
   readonly blockedReason: string | null;
   /** 运行指标（不做计费，只反映真实用量）。 */
   readonly metrics?: RunMetricsDto;
+  /** 系统复核结果。未声明验收标准时为 null。 */
+  readonly acceptance?: AcceptanceDto | null;
   readonly createdAt: number;
   readonly endedAt: number | null;
+}
+
+export interface CriterionResultDto {
+  readonly criterion: { readonly id: string; readonly desc: string; readonly type: string };
+  readonly verdict: 'passed' | 'failed' | 'unverified';
+  readonly note: string;
+  readonly output?: string;
+}
+
+export interface AcceptanceDto {
+  readonly verdict: 'passed' | 'failed' | 'unverified';
+  readonly results: readonly CriterionResultDto[];
+  readonly needsHuman: boolean;
 }
 
 export interface RunMetricsDto {

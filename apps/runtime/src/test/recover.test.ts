@@ -114,6 +114,9 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
       summary: null,
       blockedReason: null,
       metrics: EMPTY_METRICS,
+      criteria: [],
+      policy: 'unverified_only',
+      acceptance: null,
       createdAt: Date.now(),
       endedAt: null,
     });

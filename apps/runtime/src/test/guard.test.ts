@@ -206,6 +206,9 @@ describe('用量止损真的能停下来', () => {
       summary: 'ok',
       blockedReason: null,
       metrics: { ...EMPTY_METRICS, tokensIn: 200, tokensOut: 50 },
+      criteria: [],
+      policy: 'unverified_only',
+      acceptance: null,
       createdAt: Date.now(),
       endedAt: Date.now(),
     });

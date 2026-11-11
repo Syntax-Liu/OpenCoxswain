@@ -1,5 +1,29 @@
 # 出包说明
 
+## 版本号
+
+**唯一来源是根 `package.json` 的 `version`**，其余 5 处由脚本同步：
+
+```
+package.json                          ← 唯一来源，改这里
+apps/runtime/package.json             ┐
+apps/web/package.json                 │
+apps/shell/package.json               ├ 由 scripts/version.mjs 同步
+apps/shell/src-tauri/tauri.conf.json  │
+apps/shell/src-tauri/Cargo.toml       ┘
+```
+
+```bash
+node scripts/version.mjs show          # 看当前版本
+node scripts/version.mjs bump patch    # 0.2.0 → 0.2.1（修缺陷）
+node scripts/version.mjs bump minor    # 0.2.0 → 0.3.0（加功能）
+node scripts/version.mjs bump major    # 0.2.0 → 1.0.0（不兼容变更）
+```
+
+或者用 pnpm 脚本：`pnpm version:patch` / `version:minor` / `version:major` / `version:sync`。
+
+`pnpm build` 与 `build-app.cmd` 都会先自动执行 `sync`，所以**安装包版本不会与 package.json 不一致**。
+
 ## 一键出包
 
 **双击仓库根目录的 `build-app.cmd`** 即可。

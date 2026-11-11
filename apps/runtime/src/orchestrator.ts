@@ -27,6 +27,9 @@ import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
 import { requestApproval, expireStaleApprovals } from './security/approval.js';
+import { verify } from './acceptance/verify.js';
+import { parseCriteria } from './acceptance/criteria.js';
+import type { AcceptancePolicy, AcceptanceResult, Criterion, CriterionResult } from './acceptance/criteria.js';
 import type { Inbox } from './inbox/inbox.js';
 import type { LlmClient, ToolDefinition } from './llm/types.js';
 import {
@@ -65,13 +68,28 @@ export type RuntimeEvent =
   | { readonly type: 'executor_queued'; readonly projectId: string; readonly executor: ExecutorRow; readonly reason: string }
   | { readonly type: 'executor_settled'; readonly projectId: string; readonly executor: ExecutorRow; readonly ok: boolean }
   | { readonly type: 'report'; readonly projectId: string; readonly report: ReportRow }
-  | { readonly type: 'turn_judged'; readonly projectId: string; readonly turnId: string; readonly judged: TurnJudgment; readonly reason: string };
+  | { readonly type: 'turn_judged'; readonly projectId: string; readonly turnId: string; readonly judged: TurnJudgment; readonly reason: string }
+  | {
+      readonly type: 'acceptance';
+      readonly projectId: string;
+      readonly executorId: string;
+      readonly verdict: 'passed' | 'failed' | 'unverified';
+      readonly results: readonly CriterionResult[];
+    };
 
 export interface SpawnInput {
   readonly label: string;
   readonly goal: string;
   readonly writeScope?: readonly string[] | string;
   readonly judged?: TurnJudgment;
+  /**
+   * 验收标准。C 派活时声明"怎么算做完了"。
+   *
+   * 不声明也能派，但那样就只能靠人看结论——**没有任何自动复核**。
+   */
+  readonly criteria?: readonly Criterion[];
+  /** 验收策略，默认 unverified_only。 */
+  readonly policy?: AcceptancePolicy;
 }
 
 export interface SpawnResult {
@@ -124,6 +142,39 @@ export class Orchestrator extends EventEmitter {
     this.readMemory = options.readMemory;
     this.memory = options.memory;
     this.approvalTimeoutMs = options.approvalTimeoutMs;
+  }
+
+  /**
+   * 系统独立复核。
+   *
+   * 没有声明验收标准时返回 null——**不伪装成通过**。
+   * 界面据此显示"未声明验收标准，需人工判断"。
+   */
+  private async runAcceptance(
+    project: ProjectRow,
+    executor: ExecutorRow,
+    _approve: () => Promise<{ approved: boolean; reason: string }>,
+  ): Promise<AcceptanceResult | null> {
+    if (executor.criteria.length === 0) return null;
+
+    const result = await verify({
+      rootPath: project.displayPath,
+      criteria: executor.criteria,
+      policy: executor.policy,
+      // 复核命令同样过审批闸门，防止用验收命令绕过 A2。
+      approve: (tool, args) => this.approveFor(project.id, executor.id, tool, args),
+      ...(this.commandTimeoutMs !== undefined ? { defaultTimeoutMs: this.commandTimeoutMs } : {}),
+    });
+
+    this.emit('runtime', {
+      type: 'acceptance',
+      projectId: project.id,
+      executorId: executor.id,
+      verdict: result.verdict,
+      results: [...result.results],
+    } as RuntimeEvent);
+
+    return result;
   }
 
   /**
@@ -370,12 +421,28 @@ export class Orchestrator extends EventEmitter {
         try {
           switch (name) {
             case 'spawn_executor': {
+              // 验收标准先解析：格式不对就在派活前拒绝，而不是等 D 跑完才发现没法验收。
+              let criteria: Criterion[] = [];
+              if (args.criteria !== undefined) {
+                try {
+                  criteria = parseCriteria(args.criteria);
+                } catch (error) {
+                  return {
+                    ok: false,
+                    content: `验收标准不合法，未派活：${errorText(error)}`,
+                  };
+                }
+              }
               const result = await this.spawn(project.id, {
                 label: String(args.label ?? ''),
                 goal: String(args.goal ?? ''),
                 writeScope: (args.writeScope as string[] | undefined) ?? [],
                 ...(typeof args.judged === 'string'
                   ? { judged: args.judged as TurnJudgment }
+                  : {}),
+                ...(criteria.length > 0 ? { criteria } : {}),
+                ...(typeof args.policy === 'string'
+                  ? { policy: args.policy as AcceptancePolicy }
                   : {}),
               });
               return {
@@ -571,6 +638,9 @@ export class Orchestrator extends EventEmitter {
       summary: null,
       blockedReason: null,
       metrics: EMPTY_METRICS,
+      criteria: input.criteria ?? [],
+      policy: input.policy ?? 'unverified_only',
+      acceptance: null,
       createdAt: now,
       endedAt: null,
     };
@@ -762,7 +832,29 @@ export class Orchestrator extends EventEmitter {
           .join(' ')}`,
       );
       if (outcome.ok) {
-        await this.finishExecutor(ready.id, 'done', null, outcome.finalText);
+        // **独立复核**：D 说完成不算，先由系统自己验一遍。
+        const acceptance = await this.runAcceptance(project, ready, () =>
+          this.approveFor(project.id, ready.id, 'run_command', { command: 'acceptance-check' }),
+        );
+        const checked = store.getExecutor(ready.id);
+        if (checked) {
+          await store.putExecutor({ ...checked, acceptance });
+        }
+
+        if (acceptance?.verdict === 'failed') {
+          // 复核失败 → 判失败，**不允许人工覆盖**。
+          await this.finishExecutor(
+            ready.id,
+            'failed',
+            `[卡点分类：需用户决定] 系统复核未通过：${acceptance.results
+              .filter((r) => r.verdict === 'failed')
+              .map((r) => `${r.criterion.desc}（${r.note}）`)
+              .join('；')}`,
+            outcome.finalText,
+          );
+        } else {
+          await this.finishExecutor(ready.id, 'done', null, outcome.finalText);
+        }
       } else if (this.tokenGuardTripped) {
         // 止损中止：原因要写清楚是"我们主动停的"，不是执行者自己失败。
         const reason = this.tokenGuardTripped;

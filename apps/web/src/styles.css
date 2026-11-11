@@ -999,3 +999,47 @@ button.ghost.danger {
   border-color: #5a3030;
   color: var(--danger);
 }
+
+/* ---------- 验收结果 ---------- */
+
+.acceptance {
+  margin-top: 8px;
+  border-top: 1px dashed var(--border);
+  padding-top: 7px;
+}
+
+.acceptance-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.acceptance.passed .acceptance-verdict { color: var(--ok); }
+.acceptance.failed .acceptance-verdict { color: var(--danger); }
+.acceptance.unverified .acceptance-verdict { color: var(--warn); }
+
+.acceptance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.acceptance-list li {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+}
+
+.acc-icon { flex: none; width: 12px; }
+.acceptance-list li.passed .acc-icon { color: var(--ok); }
+.acceptance-list li.failed .acc-icon { color: var(--danger); }
+.acceptance-list li.unverified .acc-icon { color: var(--warn); }
+
+.acc-desc { color: var(--text); }
+.acc-note { color: var(--text-muted); font-size: 11.5px; }

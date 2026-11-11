@@ -62,7 +62,7 @@ src/
     sqlite.ts           SQLite 实现（node:sqlite）
   global/
     assistant.ts        B 的路由与转交
-  test/                 149 条测试
+  test/                 166 条测试
 ```
 
 ## 关键机制
@@ -230,12 +230,13 @@ pnpm --filter @opencoxswain/runtime build
 pnpm --filter @opencoxswain/runtime test
 ```
 
-**149 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
+**166 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
 
 | 文件 | 条数 | 覆盖 |
 | --- | --- | --- |
 | `server.test.ts` | 18 | HTTP 接口、SSE 首帧、断线重放、gap、CORS、超大 body |
 | `memory.test.ts` | 17 | 写入门槛、分词排序、Markdown 往返、跨会话生效 |
+| `acceptance.test.ts` | 17 | **D 声称完成但没改动 → 判失败**、复核命令过闸门、失败不可覆盖 |
 | `guard.test.ts` | 16 | **用量止损真的能停下来**、指标格式化、未报告≠0 |
 | `runtime.test.ts` | 15 | 主推流程端到端、并行、排队、先完成先报、连发 |
 | `parallel.test.ts` | 15 | **只读任务真正并行**、写任务仍互斥、只读命令拦截 |
@@ -258,7 +259,7 @@ HTTP 层测试**真的起端口并用 `fetch` 打过去**；记忆测试**真的
 | --- | --- |
 | `packages/adapters/builtin.ts` 的 tool-calling 循环 | 提炼成 `session/loop.ts`，去掉任务契约/worktree 耦合 |
 | `packages/dsh-bao` 的 gate/judge/inbox/reporter | 纯逻辑移植，行为由两侧测试共同钉死 |
-| `packages/core`、`packages/memory` | 记忆的写入门槛与检索已移植；预算/授权/验收**尚未接入** |
+| `packages/core`、`packages/memory` | 记忆写入门槛/检索、用量止损、危险动作分类、验收策略已移植；**副作用台账尚未接入** |
 
 `packages/dsh-bao` 已**冻结**为设计参考，不再演进。
 
@@ -266,9 +267,7 @@ HTTP 层测试**真的起端口并用 `fetch` 打过去**；记忆测试**真的
 
 | 项 | 说明 |
 | --- | --- |
-| 验收策略 | legacy `packages/core/acceptance.ts` 的三档策略未接入（**下一步**） |
-| 验收策略 | legacy `packages/core/acceptance.ts` 的三档策略未接入 |
-| 副作用台账 | legacy `packages/core/side-effect.ts` 未接入 |
+| 副作用台账 | legacy `packages/core/side-effect.ts` 未接入（**下一步**） |
 | 记忆自动提炼 | 当前由 C 主动调 `remember`，尚无「日志 → 规则」的离线提炼 |
 | 任务模板 / 定时任务 | 设计已明确（legacy 有），未移植 |
 | IM 通道 | 飞书 / Telegram 未接入 |

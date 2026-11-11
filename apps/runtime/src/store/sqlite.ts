@@ -44,7 +44,7 @@ import {
 import { INTERNAL_SOURCE_PREFIX } from './store.js';
 import type { CostLedger } from '../cost/budget.js';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS executor (
   cached_tokens INTEGER,
   duration_ms INTEGER NOT NULL DEFAULT 0,
   context_tokens INTEGER,
+  criteria TEXT,
+  policy TEXT,
+  acceptance TEXT,
   created_at INTEGER NOT NULL,
   ended_at INTEGER
 );
@@ -203,6 +206,9 @@ export class SqliteStore implements Store {
           ['executor', 'duration_ms', `ALTER TABLE executor ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0;`],
           ['executor', 'context_tokens', `ALTER TABLE executor ADD COLUMN context_tokens INTEGER;`],
           ['project', 'token_guard', `ALTER TABLE project ADD COLUMN token_guard TEXT;`],
+          ['executor', 'criteria', `ALTER TABLE executor ADD COLUMN criteria TEXT;`],
+          ['executor', 'policy', `ALTER TABLE executor ADD COLUMN policy TEXT;`],
+          ['executor', 'acceptance', `ALTER TABLE executor ADD COLUMN acceptance TEXT;`],
         ] as const) {
           if (!this.hasColumn(table, column)) this.db.exec(ddl);
         }
@@ -369,8 +375,8 @@ export class SqliteStore implements Store {
     this.db
       .prepare(
         `INSERT INTO executor (id, project_id, session_id, label, goal, access, write_scope, status, summary, blocked_reason,
-           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, context_tokens, created_at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, context_tokens, criteria, policy, acceptance, created_at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            status = excluded.status,
            summary = excluded.summary,
@@ -382,6 +388,7 @@ export class SqliteStore implements Store {
            cached_tokens = excluded.cached_tokens,
            duration_ms = excluded.duration_ms,
            context_tokens = excluded.context_tokens,
+           acceptance = excluded.acceptance,
            ended_at = excluded.ended_at`,
       )
       .run(
@@ -402,6 +409,9 @@ export class SqliteStore implements Store {
         row.metrics.cachedTokens,
         row.metrics.durationMs,
         row.metrics.contextTokens,
+        JSON.stringify(row.criteria),
+        row.policy,
+        row.acceptance ? JSON.stringify(row.acceptance) : null,
         row.createdAt,
         row.endedAt,
       );
@@ -654,9 +664,25 @@ function toExecutor(raw: Row): ExecutorRow {
       contextTokens:
         raw.context_tokens === null || raw.context_tokens === undefined ? null : Number(raw.context_tokens),
     },
+    criteria: parseJsonField(raw.criteria, []),
+    policy:
+      raw.policy === 'auto' || raw.policy === 'always_human'
+        ? raw.policy
+        : 'unverified_only',
+    acceptance: parseJsonField(raw.acceptance, null),
     createdAt: Number(raw.created_at),
     endedAt: raw.ended_at === null ? null : Number(raw.ended_at),
   };
+}
+
+/** 宽松解析 JSON 列：坏了就当默认值，不让整行读不出来。 */
+function parseJsonField<T>(value: unknown, fallback: T): T {
+  if (value === null || value === undefined || value === '') return fallback;
+  try {
+    return JSON.parse(String(value)) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 function toTurn(raw: Row): TurnRow {

@@ -17,6 +17,7 @@
  */
 import type { AgentMessage, ChatMessage } from '../llm/types.js';
 import type { CostLedger, TokenGuard } from '../cost/budget.js';
+import type { AcceptancePolicy, AcceptanceResult, Criterion } from '../acceptance/criteria.js';
 import { EMPTY_METRICS, type RunMetrics } from '../cost/metrics.js';
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,12 @@ export interface ExecutorRow {
   readonly blockedReason: string | null;
   /** 运行指标（不做计费，只反映真实用量）。 */
   readonly metrics: RunMetrics;
+  /** 验收标准（C 派活时声明）。可能为空——空表示只由人看结论。 */
+  readonly criteria: readonly Criterion[];
+  /** 验收策略。默认 unverified_only。 */
+  readonly policy: AcceptancePolicy;
+  /** 系统复核结果。**未复核时为 null**，不要伪装成通过。 */
+  readonly acceptance: AcceptanceResult | null;
   readonly createdAt: number;
   readonly endedAt: number | null;
 }

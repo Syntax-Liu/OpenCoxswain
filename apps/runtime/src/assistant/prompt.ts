@@ -123,6 +123,37 @@ export function assistantTools(): ToolDefinition[] {
             description:
               '你对"这条需求与在跑任务关系"的判定：new=全新 / parallel=可并行 / conflict=冲突。',
           },
+          criteria: {
+            type: 'array',
+            description:
+              '**验收标准**：怎么算这个执行者做完了。强烈建议至少写一条。' +
+              '没有标准的话，系统无法复核，只能靠人看结论。',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['id', 'desc', 'type'],
+              properties: {
+                id: { type: 'string', description: '短标识，如 build / tests' },
+                desc: { type: 'string', description: '人话描述，如「TypeScript 编译通过」' },
+                type: {
+                  type: 'string',
+                  enum: ['command', 'diff', 'human'],
+                  description:
+                    'command=由系统重跑一条命令看退出码 / diff=由系统统计改动 / human=需要人看',
+                },
+                check: {
+                  type: 'string',
+                  description: 'type=command 时必填：要重跑的命令，如 pnpm -w typecheck',
+                },
+              },
+            },
+          },
+          policy: {
+            type: 'string',
+            enum: ['auto', 'unverified_only', 'always_human'],
+            description:
+              '验收策略。默认 unverified_only（能自动判的自动判，剩下的留给人）。',
+          },
         },
       },
     },

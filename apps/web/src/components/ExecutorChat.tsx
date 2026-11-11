@@ -67,6 +67,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           {props.executor.blockedReason && (
             <div className="blocked md-body">{renderMarkdown(props.executor.blockedReason)}</div>
           )}
+          <AcceptanceBlock executor={props.executor} />
         </section>
 
         {props.loading && <p className="muted small">正在读取执行记录…</p>}
@@ -110,6 +111,40 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 验收结果。
+ *
+ * 显示"系统自己验了什么、结果如何"。
+ * 没声明标准时明确写"未声明"，**不能显示成通过**。
+ */
+function AcceptanceBlock({ executor }: { executor: ExecutorDto }): JSX.Element | null {
+  const a = executor.acceptance;
+  if (!a) return null;
+
+  const label =
+    a.verdict === 'passed' ? '系统复核通过' : a.verdict === 'failed' ? '系统复核未通过' : '待人工确认';
+
+  return (
+    <div className={`acceptance ${a.verdict}`}>
+      <div className="acceptance-head">
+        <span className="acceptance-verdict">{label}</span>
+        {a.verdict === 'failed' && <span className="muted small">失败不可人工覆盖</span>}
+      </div>
+      <ul className="acceptance-list">
+        {a.results.map((r) => (
+          <li key={r.criterion.id} className={r.verdict}>
+            <span className="acc-icon">
+              {r.verdict === 'passed' ? '✓' : r.verdict === 'failed' ? '✗' : '?'}
+            </span>
+            <span className="acc-desc">{r.criterion.desc}</span>
+            <span className="acc-note">{r.note}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

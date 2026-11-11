@@ -107,6 +107,9 @@ for (const [label, factory] of await storeFactories()) {
         summary: null,
         blockedReason: null,
         metrics: { ...EMPTY_METRICS, turns: 3, steps: 2, tokensIn: 1200, tokensOut: 300 },
+        criteria: [],
+        policy: 'unverified_only',
+        acceptance: null,
         createdAt: 5,
         endedAt: null,
       });
@@ -146,6 +149,9 @@ for (const [label, factory] of await storeFactories()) {
         summary: null,
         blockedReason: null,
         metrics: EMPTY_METRICS,
+        criteria: [],
+        policy: 'unverified_only',
+        acceptance: null,
         createdAt: 6,
         endedAt: null,
       });
@@ -259,6 +265,9 @@ describe('SQLite：关掉软件后完整恢复（D5）', () => {
       summary: '完成',
       blockedReason: null,
       metrics: { ...EMPTY_METRICS, turns: 5, steps: 4, tokensIn: 2000, tokensOut: 800, cachedTokens: 1500 },
+      criteria: [],
+      policy: 'unverified_only',
+      acceptance: null,
       createdAt: 3,
       endedAt: 4,
     });
