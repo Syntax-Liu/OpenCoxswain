@@ -1,9 +1,7 @@
 node_modules/
 dist/
+dist-test/
 *.tsbuildinfo
-apps/desktop/src-tauri/target/
-apps/desktop/src-tauri/staging/
-.trae-html-share-packages/
 .env
 .env.*
 !.env.example
@@ -11,5 +9,20 @@ apps/desktop/src-tauri/staging/
 .opencoxswain/
 .DS_Store
 Thumbs.db
+
+# Tauri 构建产物与打包资源
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/staging/
+apps/shell/src-tauri/target/
+apps/shell/src-tauri/staging/
+# Tauri 自动生成的权限 schema（构建时重建，不入库）
+apps/shell/src-tauri/gen/
+
+# 本地草稿与临时分享目录
+.trae-html-share-packages/
 docs/questionnaire-*.md
 status-report-*.html
+
+# 验证期临时目录
+.verify-*/
+.cargo-target/

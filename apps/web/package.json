@@ -1,0 +1,26 @@
+{
+  "name": "@opencoxswain/web",
+  "version": "0.2.0",
+  "private": true,
+  "description": "OpenCoxswain 工作台：项目 → 对 C 说话 → 看 D 进展",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\""
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.10"
+  }
+}

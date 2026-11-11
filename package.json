@@ -1,24 +1,34 @@
 {
   "name": "opencoxswain",
-  "version": "0.36.2",
+  "version": "0.2.0",
   "private": true,
-  "description": "OpenCoxswain · 舵手 — local-first AI agent manager for Windows",
+  "description": "OpenCoxswain · 舵手 — 本地优先的四层 AI 助理（A 用户 / B 全局助理 / C 项目助理 / D 执行者）",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm build && pnpm -r test",
-    "dev": "node scripts/dev.mjs",
-    "e2e": "pnpm build && node scripts/e2e.mjs",
-    "e2e:opencode": "pnpm build && node scripts/e2e-opencode.mjs",
-    "package:daemon": "node scripts/package-daemon.mjs",
+    "version:show": "node scripts/version.mjs show",
+    "version:sync": "node scripts/version.mjs sync",
+    "version:patch": "node scripts/version.mjs bump patch",
+    "version:minor": "node scripts/version.mjs bump minor",
+    "version:major": "node scripts/version.mjs bump major",
+
+    "build": "node scripts/version.mjs sync && pnpm --filter @opencoxswain/runtime build && pnpm --filter @opencoxswain/web build",
+    "test": "pnpm --filter @opencoxswain/runtime test && pnpm --filter @opencoxswain/web test",
+    "typecheck": "pnpm -r --no-bail typecheck",
+    "runtime": "node apps/runtime/dist/cli.js",
+    "web": "pnpm --filter @opencoxswain/web dev",
+    "app:stage": "node scripts/stage-shell.mjs",
+    "app:dev": "pnpm --filter @opencoxswain/shell dev",
+    "app:build": "pnpm build && pnpm app:stage && pnpm --filter @opencoxswain/shell build",
+    "app:check": "cargo check --manifest-path apps/shell/src-tauri/Cargo.toml",
     "desktop": "pnpm --filter @opencoxswain/desktop desktop:dev",
     "desktop:build": "pnpm --filter @opencoxswain/desktop desktop:build",
-    "desktop:release": "pnpm --filter @opencoxswain/desktop desktop:release"
+    "desktop:release": "pnpm --filter @opencoxswain/desktop desktop:release",
+    "package:daemon": "node scripts/package-daemon.mjs",
+    "dev:legacy": "node scripts/dev.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

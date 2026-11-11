@@ -1,0 +1,28 @@
+# dsh-bao 的 profile 补丁（四层结构）。
+#
+# 安装方式见 README「接线」一节。这里做两件事：
+#   1. 挂载插件本体；
+#   2. 激活三个 preset（内容在 presets/bao.presets.yml）。
+#
+# 注意：本文件**不**替你决定存储后端与模型配置——那是部署方的选择。
+# 缺依赖时插件会打印可读原因，而不是静默不工作。
+
+- id: bao
+  name: '@opencoxswain/dsh-bao'
+  config:
+    # 子代理后端。只有 spawn 支持 agentPreset。
+    provider: spawn
+    # C：项目助理（常驻根 Agent）
+    assistantPreset: project-assistant
+    # D：执行者（一次性子代理）
+    executorPreset: task-executor
+    # C 同时可跑多少个 D。方案 §7.2 D2 定为 5，可调。
+    # ⚠ 不能超过 dsh 的 maxActiveSubagents（默认 8），超了第 N+1 个会硬失败。
+    #   插件加载时会检查并打印告警。
+    maxConcurrentExecutors: 5
+    # 单条汇报正文上限，超出截断并标注。
+    maxReportChars: 8000
+    # 汇报去抖窗口（毫秒）。D4：谁先完成先报谁，但同一批同时完成的合并成一条。
+    reportDebounceMs: 800
+    # 一个执行者失败后最多自动换法重试几次（P4 主动推进）。0 表示不自动重试。
+    maxAutoRetries: 1

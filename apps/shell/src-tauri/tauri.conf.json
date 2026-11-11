@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OpenCoxswain",
+  "version": "0.2.0",
+  "identifier": "com.opencoxswain.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @opencoxswain/runtime build && pnpm --filter @opencoxswain/web dev",
+    "beforeBuildCommand": "pnpm --filter @opencoxswain/runtime build && pnpm --filter @opencoxswain/web build && node ../../scripts/stage-shell.mjs",
+    "devUrl": "http://127.0.0.1:47900/",
+    "frontendDist": "http://127.0.0.1:47900/"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "../../desktop/src-tauri/icons/32x32.png",
+      "../../desktop/src-tauri/icons/128x128.png",
+      "../../desktop/src-tauri/icons/128x128@2x.png",
+      "../../desktop/src-tauri/icons/icon.ico"
+    ],
+    "resources": [
+      "staging"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
