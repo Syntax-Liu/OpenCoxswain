@@ -164,6 +164,21 @@ export interface ApprovalDto {
   readonly expiresAt: number;
 }
 
+export interface SideEffectDto {
+  readonly id: string;
+  readonly projectId: string;
+  readonly executorId: string;
+  readonly kind: 'fs.write' | 'fs.delete' | 'proc.exec' | 'net.send';
+  readonly target: string;
+  readonly state: 'pending' | 'succeeded' | 'failed' | 'rejected';
+  readonly reversible: boolean;
+  readonly tool: string;
+  readonly args: string;
+  readonly note: string | null;
+  readonly createdAt: number;
+  readonly settledAt: number | null;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -289,9 +304,13 @@ export class ApiClient {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/usage`);
   }
 
+  /** 某个执行者的副作用台账：它到底改了什么。 */
+  executorEffects(executorId: string): Promise<{ effects: SideEffectDto[] }> {
+    return this.request(`/api/executors/${encodeURIComponent(executorId)}/effects`);
+  }
+
   /** 待审批的危险动作。 */
-  approvals(projectId?: string): Promise<{ approvals: ApprovalDto[] }> {
-    const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+  approvals(projectId?: string): Promise<{ approvals: ApprovalDto[] }> {    const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
     return this.request(`/api/approvals${query}`);
   }
 

@@ -22,6 +22,7 @@ import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/lo
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
+import type { SideEffectLedger } from '../security/ledger.js';
 
 const execAsync = promisify(exec);
 
@@ -204,6 +205,11 @@ export interface ExecutorToolHostOptions {
     tool: string,
     args: Record<string, unknown>,
   ) => Promise<{ approved: boolean; reason: string }>;
+  /**
+   * 副作用台账。提供后，每次写文件 / 执行命令 / 外发都会在**执行前**落 pending，
+   * 执行后结算 —— 出事时能回答"它到底改了什么"。
+   */
+  readonly ledger?: SideEffectLedger;
   readonly commandTimeoutMs?: number;
   readonly maxOutputChars?: number;
 }
@@ -238,7 +244,42 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
   return {
     definitions: () => executorTools(),
     async execute({ name, args }) {
+      // ---- 记账：执行前落 pending ----
+      // 读类工具没有副作用，begin 会返回 row=null，后续结算自动跳过。
+      let pending: Awaited<ReturnType<SideEffectLedger['begin']>> | null = null;
+      if (options.ledger) {
+        try {
+          pending = await options.ledger.begin(name, args);
+          if (pending.skipped) {
+            return { ok: true, content: '（这个动作之前已经成功执行过，本次跳过）' };
+          }
+        } catch {
+          // 台账写不进去不能阻断工具执行，但要知道发生了。
+          pending = null;
+        }
+      }
+
+      const settle = async (
+        result: { ok: boolean; content: string },
+        state?: 'rejected',
+      ): Promise<{ ok: boolean; content: string }> => {
+        if (pending && options.ledger) {
+          await options.ledger
+            .settle(
+              pending.row,
+              state ?? (result.ok ? 'succeeded' : 'failed'),
+              state ? result.content : result.ok ? undefined : result.content,
+            )
+            .catch(() => {});
+        }
+        return result;
+      };
+
       try {
+        const result = await runTool();
+        return await settle(result);
+
+        async function runTool(): Promise<{ ok: boolean; content: string }> {
         switch (name) {
           case 'read_file': {
             const target = resolveInside(rootPath, String(args.path ?? ''));
@@ -295,14 +336,13 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
               if (action) {
                 const decision = await options.approve(name, args);
                 if (!decision.approved) {
-                  return {
-                    ok: false,
-                    content:
-                      `危险动作未获批准，**没有执行**：${action.evidence}\n` +
+                  // 台账里明确记"被拒绝、未执行"——这是审计最关键的一条。
+                  throw new RejectedAction(
+                    `危险动作未获批准，**没有执行**：${action.evidence}\n` +
                       `原因：${decision.reason}\n` +
                       `（这是一次${action.category}类动作：${action.why}）\n` +
                       '请换一种不需要这个动作的做法，或在收尾文本里说明需要用户自己执行。',
-                  };
+                  );
                 }
               }
             }
@@ -326,11 +366,25 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
           default:
             return { ok: false, content: `未知工具：${name}` };
         }
+        }
       } catch (error) {
-        return { ok: false, content: errorText(error) };
+        // 被审批拒绝的动作在台账里记 rejected，而不是 failed——
+        // "没执行"和"执行了但失败"是两件完全不同的事。
+        if (error instanceof RejectedAction) {
+          return await settle({ ok: false, content: error.message }, 'rejected');
+        }
+        return await settle({ ok: false, content: errorText(error) });
       }
     },
   };
+}
+
+/** 危险动作被审批拒绝。用独立类型区分"没执行"与"执行失败"。 */
+class RejectedAction extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RejectedAction';
+  }
 }
 
 /**
@@ -436,6 +490,8 @@ export interface RunExecutorOptions {
     tool: string,
     args: Record<string, unknown>,
   ) => Promise<{ approved: boolean; reason: string }>;
+  /** 副作用台账。提供后每次副作用都执行前落 pending、执行后结算。 */
+  readonly ledger?: SideEffectLedger;
   /** 运行结束时的指标回调（轮次/步数/token/耗时），用于落库。 */
   readonly onMetrics?: (metrics: RunMetrics) => void;
   /**
@@ -493,6 +549,7 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
     writeScope: options.writeScope,
     ...(options.readonlyTask ? { readonlyTask: true } : {}),
     ...(options.approve ? { approve: options.approve } : {}),
+    ...(options.ledger ? { ledger: options.ledger } : {}),
     ...(options.commandTimeoutMs !== undefined
       ? { commandTimeoutMs: options.commandTimeoutMs }
       : {}),

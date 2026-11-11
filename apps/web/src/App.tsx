@@ -21,7 +21,15 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ApiClient, EventStream, type ApprovalDto, type ExecutorDto, type ProjectDto, type SettingsStatus } from './api.js';
+import {
+  ApiClient,
+  EventStream,
+  type ApprovalDto,
+  type ExecutorDto,
+  type ProjectDto,
+  type SettingsStatus,
+  type SideEffectDto,
+} from './api.js';
 import {
   applyEvent,
   applySnapshot,
@@ -57,6 +65,8 @@ export function App(): JSX.Element {
 
   /** 待审批的危险动作。轮询获取——审批是人工操作，不需要 SSE 高频推送。 */
   const [approvals, setApprovals] = useState<ApprovalDto[]>([]);
+  /** 当前查看的执行者的副作用台账。 */
+  const [effects, setEffects] = useState<SideEffectDto[]>([]);
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -106,9 +116,12 @@ export function App(): JSX.Element {
       setState((s) => ({ ...s, currentProjectId: projectId }));
       setView({ kind: 'executor', projectId, executorId });
       setTranscript({ executorId, messages: [], loading: true });
+      setEffects([]);
       try {
         const detail = await api.executorMessages(executorId);
         setTranscript({ executorId, messages: detail.messages, loading: false });
+        const ledger = await api.executorEffects(executorId);
+        setEffects(ledger.effects);
       } catch (error) {
         setTranscript({ executorId, messages: [], loading: false });
         setError(error instanceof Error ? error.message : '读取执行记录失败');
@@ -361,6 +374,7 @@ export function App(): JSX.Element {
           <ExecutorChat
             executor={currentExecutor}
             messages={transcript.executorId === view.executorId ? transcript.messages : []}
+            effects={effects}
             loading={transcript.loading}
             onSend={(text) => void handleSendToExecutor(text)}
             onCancel={() => void api.cancelExecutor(view.executorId).catch(() => {})}

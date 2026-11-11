@@ -27,6 +27,7 @@ import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
 import { requestApproval, expireStaleApprovals } from './security/approval.js';
+import { SideEffectLedger } from './security/ledger.js';
 import { verify } from './acceptance/verify.js';
 import { parseCriteria } from './acceptance/criteria.js';
 import type { AcceptancePolicy, AcceptanceResult, Criterion, CriterionResult } from './acceptance/criteria.js';
@@ -769,6 +770,8 @@ export class Orchestrator extends EventEmitter {
         maxSteps: this.maxStepsPerExecutor,
         // 危险动作审批：不可逆的动作执行前必须有人拍板。
         approve: (tool, args) => this.approveFor(project.id, ready.id, tool, args),
+        // 副作用台账：执行前落 pending，执行后结算。
+        ledger: new SideEffectLedger({ store, projectId: project.id, executorId: ready.id }),
         ...(this.commandTimeoutMs !== undefined
           ? { commandTimeoutMs: this.commandTimeoutMs }
           : {}),
@@ -1046,6 +1049,7 @@ export class Orchestrator extends EventEmitter {
         maxSteps: this.maxStepsPerExecutor,
         // 续聊同样受审批约束：不能借续聊绕过危险动作检查。
         approve: (tool, args) => this.approveFor(project.id, row.id, tool, args),
+        ledger: new SideEffectLedger({ store: this.store, projectId: project.id, executorId: row.id }),
         ...(this.commandTimeoutMs !== undefined
           ? { commandTimeoutMs: this.commandTimeoutMs }
           : {}),

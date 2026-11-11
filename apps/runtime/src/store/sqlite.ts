@@ -31,6 +31,7 @@ import {
   isExecutorTerminal,
   type ApprovalRow,
   type ApprovalStatus,
+  type SideEffectRow,
   type ExecutorRow,
   type ExecutorStatus,
   type ProjectRow,
@@ -43,8 +44,9 @@ import {
 } from './store.js';
 import { INTERNAL_SOURCE_PREFIX } from './store.js';
 import type { CostLedger } from '../cost/budget.js';
+import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -152,6 +154,24 @@ CREATE TABLE IF NOT EXISTS approval (
 );
 CREATE INDEX IF NOT EXISTS approval_project ON approval(project_id, created_at);
 CREATE INDEX IF NOT EXISTS approval_executor ON approval(executor_id, status);
+
+CREATE TABLE IF NOT EXISTS side_effect (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  executor_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  target TEXT NOT NULL,
+  state TEXT NOT NULL,
+  reversible INTEGER NOT NULL DEFAULT 0,
+  idempotency_key TEXT NOT NULL,
+  tool TEXT NOT NULL,
+  args TEXT NOT NULL,
+  note TEXT,
+  created_at INTEGER NOT NULL,
+  settled_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS side_effect_executor ON side_effect(executor_id, created_at);
+CREATE INDEX IF NOT EXISTS side_effect_key ON side_effect(executor_id, idempotency_key);
 `;
 
 type Row = Record<string, unknown>;
@@ -585,6 +605,75 @@ export class SqliteStore implements Store {
     return rows.map(toApproval);
   }
 
+  // -------------------------------------------------------------------------
+  // 副作用台账
+  // -------------------------------------------------------------------------
+
+  async putSideEffect(row: SideEffectRow): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO side_effect (id, project_id, executor_id, kind, target, state, reversible, idempotency_key, tool, args, note, created_at, settled_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           state = excluded.state,
+           note = excluded.note,
+           settled_at = excluded.settled_at`,
+      )
+      .run(
+        row.id,
+        row.projectId,
+        row.executorId,
+        row.kind,
+        row.target,
+        row.state,
+        row.reversible ? 1 : 0,
+        row.idempotencyKey,
+        row.tool,
+        row.args,
+        row.note,
+        row.createdAt,
+        row.settledAt,
+      );
+  }
+
+  getSideEffect(id: string): SideEffectRow | undefined {
+    const raw = this.db.prepare('SELECT * FROM side_effect WHERE id = ?').get(id) as Row | undefined;
+    return raw ? toSideEffect(raw) : undefined;
+  }
+
+  findSideEffectByKey(executorId: string, key: string): SideEffectRow | undefined {
+    const raw = this.db
+      .prepare('SELECT * FROM side_effect WHERE executor_id = ? AND idempotency_key = ? LIMIT 1')
+      .get(executorId, key) as Row | undefined;
+    return raw ? toSideEffect(raw) : undefined;
+  }
+
+  listSideEffects(
+    filter: {
+      projectId?: string;
+      executorId?: string;
+      state?: readonly SideEffectState[];
+    } = {},
+  ): SideEffectRow[] {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (filter.projectId) {
+      where.push('project_id = ?');
+      params.push(filter.projectId);
+    }
+    if (filter.executorId) {
+      where.push('executor_id = ?');
+      params.push(filter.executorId);
+    }
+    if (filter.state && filter.state.length > 0) {
+      where.push(`state IN (${filter.state.map(() => '?').join(',')})`);
+      params.push(...filter.state);
+    }
+    const sql = `SELECT * FROM side_effect${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at ASC`;
+    const rows = this.db.prepare(sql).all(...params) as Row[];
+    return rows.map(toSideEffect);
+  }
+
   async close(): Promise<void> {
     try {
       this.db.close();
@@ -695,6 +784,24 @@ function toTurn(raw: Row): TurnRow {
     text: String(raw.text),
     judged: raw.judged === null ? null : (String(raw.judged) as TurnJudgment),
     at: Number(raw.at),
+  };
+}
+
+function toSideEffect(raw: Row): SideEffectRow {
+  return {
+    id: String(raw.id),
+    projectId: String(raw.project_id),
+    executorId: String(raw.executor_id),
+    kind: String(raw.kind) as SideEffectKind,
+    target: String(raw.target),
+    state: String(raw.state) as SideEffectState,
+    reversible: Number(raw.reversible) === 1,
+    idempotencyKey: String(raw.idempotency_key),
+    tool: String(raw.tool),
+    args: String(raw.args),
+    note: raw.note === null ? null : String(raw.note),
+    createdAt: Number(raw.created_at),
+    settledAt: raw.settled_at === null ? null : Number(raw.settled_at),
   };
 }
 

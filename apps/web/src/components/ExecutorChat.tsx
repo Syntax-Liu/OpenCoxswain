@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { ExecutorDto, MessageDto } from '../api.js';
+import type { ExecutorDto, MessageDto, SideEffectDto } from '../api.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { cacheHitRate, formatDuration, formatPercent, formatRate, formatTokens, summarize } from '../metrics.js';
 import { renderMarkdown } from './Markdown.js';
@@ -8,6 +8,7 @@ import { renderMarkdown } from './Markdown.js';
 export interface ExecutorChatProps {
   readonly executor: ExecutorDto;
   readonly messages: readonly MessageDto[];
+  readonly effects: readonly SideEffectDto[];
   readonly loading: boolean;
   readonly onSend: (text: string) => void;
   readonly onCancel: () => void;
@@ -68,6 +69,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
             <div className="blocked md-body">{renderMarkdown(props.executor.blockedReason)}</div>
           )}
           <AcceptanceBlock executor={props.executor} />
+          <EffectsBlock effects={props.effects} />
         </section>
 
         {props.loading && <p className="muted small">正在读取执行记录…</p>}
@@ -111,6 +113,50 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 副作用清单："它到底改了什么"。
+ *
+ * 只列**有副作用**的动作（读写文件、执行命令、对外发送），
+ * 读文件之类的纯查询不进台账——否则清单会被噪音淹没。
+ */
+function EffectsBlock({ effects }: { effects: readonly SideEffectDto[] }): JSX.Element | null {
+  if (effects.length === 0) return null;
+
+  const label: Record<SideEffectDto['kind'], string> = {
+    'fs.write': '写文件',
+    'fs.delete': '删文件',
+    'proc.exec': '执行命令',
+    'net.send': '对外发送',
+  };
+
+  const stateLabel: Record<SideEffectDto['state'], string> = {
+    pending: '进行中',
+    succeeded: '已执行',
+    failed: '失败',
+    rejected: '被拒绝（未执行）',
+  };
+
+  return (
+    <div className="effects">
+      <p className="muted small">改动了什么（{effects.length} 项）</p>
+      <ul className="effects-list">
+        {effects.map((e) => (
+          <li key={e.id} className={e.state}>
+            <span className="eff-kind">{label[e.kind]}</span>
+            <code className="eff-target" title={e.target}>
+              {e.target}
+            </code>
+            <span className="eff-state">
+              {stateLabel[e.state]}
+              {!e.reversible && <span className="eff-irrev">不可撤销</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -317,6 +317,13 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         const result = await orchestrator.cancel(executorId);
         return result.ok ? json(res, 200, result) : fail(res, 400, result.content);
       }
+
+      // "它到底改了什么"：这个执行者的完整副作用台账。
+      if (method === 'GET' && action === 'effects') {
+        return json(res, 200, {
+          effects: store.listSideEffects({ executorId }),
+        });
+      }
     }
 
     // ---- B 的路由 ----

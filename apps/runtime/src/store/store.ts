@@ -18,6 +18,7 @@
 import type { AgentMessage, ChatMessage } from '../llm/types.js';
 import type { CostLedger, TokenGuard } from '../cost/budget.js';
 import type { AcceptancePolicy, AcceptanceResult, Criterion } from '../acceptance/criteria.js';
+import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 import { EMPTY_METRICS, type RunMetrics } from '../cost/metrics.js';
 
 // ---------------------------------------------------------------------------
@@ -151,6 +152,31 @@ export interface ApprovalRow {
 }
 
 // ---------------------------------------------------------------------------
+// 副作用台账：出事时回答"它到底改了什么"
+// ---------------------------------------------------------------------------
+
+export interface SideEffectRow {
+  readonly id: string;
+  readonly projectId: string;
+  readonly executorId: string;
+  readonly kind: SideEffectKind;
+  /** 影响对象：文件路径 / 命令 / URL。 */
+  readonly target: string;
+  readonly state: SideEffectState;
+  /** 是否可能被补偿（文件类可，命令与外发不可）。 */
+  readonly reversible: boolean;
+  /** 幂等键 sha256(executorId + tool + 归一化参数)。 */
+  readonly idempotencyKey: string;
+  readonly tool: string;
+  /** 参数（截断存储，够审计即可）。 */
+  readonly args: string;
+  /** 失败原因或拒绝原因。 */
+  readonly note: string | null;
+  readonly createdAt: number;
+  readonly settledAt: number | null;
+}
+
+// ---------------------------------------------------------------------------
 // 接口
 // ---------------------------------------------------------------------------
 
@@ -201,6 +227,17 @@ export interface Store {
     status?: readonly ApprovalStatus[];
   }): ApprovalRow[];
 
+  // 副作用台账
+  putSideEffect(row: SideEffectRow): Promise<void>;
+  getSideEffect(id: string): SideEffectRow | undefined;
+  /** 按幂等键查，用于去重。 */
+  findSideEffectByKey(executorId: string, key: string): SideEffectRow | undefined;
+  listSideEffects(filter?: {
+    projectId?: string;
+    executorId?: string;
+    state?: readonly SideEffectState[];
+  }): SideEffectRow[];
+
   /** 关停时落盘（内存实现里是空操作）。 */
   close(): Promise<void>;
 }
@@ -217,6 +254,7 @@ export class MemoryStore implements Store {
   private readonly turns = new Map<string, TurnRow>();
   private readonly reports = new Map<string, ReportRow>();
   private readonly approvals = new Map<string, ApprovalRow>();
+  private readonly sideEffects = new Map<string, SideEffectRow>();
 
   async putProject(row: ProjectRow): Promise<void> {
     this.projects.set(row.id, row);
@@ -343,6 +381,36 @@ export class MemoryStore implements Store {
       .filter((a) => (filter.projectId ? a.projectId === filter.projectId : true))
       .filter((a) => (filter.executorId ? a.executorId === filter.executorId : true))
       .filter((a) => (filter.status ? filter.status.includes(a.status) : true))
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  // -------------------------------------------------------------------------
+  // 副作用台账
+  // -------------------------------------------------------------------------
+
+  async putSideEffect(row: SideEffectRow): Promise<void> {
+    this.sideEffects.set(row.id, row);
+  }
+  getSideEffect(id: string): SideEffectRow | undefined {
+    return this.sideEffects.get(id);
+  }
+  findSideEffectByKey(executorId: string, key: string): SideEffectRow | undefined {
+    for (const row of this.sideEffects.values()) {
+      if (row.executorId === executorId && row.idempotencyKey === key) return row;
+    }
+    return undefined;
+  }
+  listSideEffects(
+    filter: {
+      projectId?: string;
+      executorId?: string;
+      state?: readonly SideEffectState[];
+    } = {},
+  ): SideEffectRow[] {
+    return [...this.sideEffects.values()]
+      .filter((r) => (filter.projectId ? r.projectId === filter.projectId : true))
+      .filter((r) => (filter.executorId ? r.executorId === filter.executorId : true))
+      .filter((r) => (filter.state ? filter.state.includes(r.state) : true))
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 
