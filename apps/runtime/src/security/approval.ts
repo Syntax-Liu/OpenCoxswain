@@ -33,6 +33,8 @@ export interface ApprovalGateOptions {
   readonly timeoutMs?: number;
   /** 轮询间隔。审批是人工操作，不需要高频。 */
   readonly pollMs?: number;
+  /** 审批记录建好后回调一次，供 IM 推送等外部通道使用。 */
+  readonly onCreated?: (approvalId: string) => void;
   readonly log?: (level: 'info' | 'warn', message: string) => void;
 }
 
@@ -68,6 +70,7 @@ export async function requestApproval(
     expiresAt: now + timeoutMs,
   };
   await store.putApproval(row);
+  options.onCreated?.(row.id);
   options.log?.('info', `危险动作待审批：${action.category} / ${action.evidence.slice(0, 60)}`);
 
   const pollMs = options.pollMs ?? 500;

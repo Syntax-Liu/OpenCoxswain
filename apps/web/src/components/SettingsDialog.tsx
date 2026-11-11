@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
-import type { ApiClient, SettingsStatus } from '../api.js';
+import type { ApiClient, ProjectDto, SettingsStatus } from '../api.js';
+import { ImSettings } from './ImSettings.js';
 
 export interface SettingsDialogProps {
   readonly api: ApiClient;
   readonly status: SettingsStatus;
+  /** 可绑定的项目列表（给 IM 通道选）。 */
+  readonly projects?: readonly ProjectDto[];
   readonly onClose: () => void;
   readonly onSaved: (status: SettingsStatus) => void;
 }
@@ -118,6 +121,8 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
             {busy ? '保存中…' : '保存'}
           </button>
         </div>
+
+        <ImSettings api={props.api} projects={props.projects ?? []} />
       </div>
     </div>
   );

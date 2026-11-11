@@ -19,6 +19,9 @@ import { Orchestrator, startServer, type RuntimeEvent } from './index.js';
 import { LlmProvider, LlmSettingsStore } from './llm/settings.js';
 import { SqliteStore } from './store/sqlite.js';
 import { MarkdownMemoryStore } from './memory/store.js';
+import { ImSettingsStore } from './im/settings.js';
+import { ImBridge } from './im/bridge.js';
+import { TelegramClient } from './im/telegram.js';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -193,6 +196,28 @@ async function main(): Promise<void> {
       })()
     : undefined;
 
+  // IM 通道：配置了 token 才构造，没配就完全不占资源。
+  const imSettings = new ImSettingsStore({
+    file:
+      process.env.OPENCOXSWAIN_IM_FILE ?? path.join(os.homedir(), '.opencoxswain', 'im.json'),
+  });
+  const imConfig = await imSettings.resolve();
+  // 桥接内部通过闭包读最新配置，绑定 chat 后能立刻生效。
+  let currentImConfig = imConfig;
+  const im = imConfig.botToken
+    ? new ImBridge({
+        client: new TelegramClient(imConfig.botToken),
+        orchestrator: runtime,
+        store,
+        config: () => currentImConfig,
+        saveConfig: async (next) => {
+          currentImConfig = next;
+          await imSettings.save(next);
+        },
+        log: (level, message) => console.log(`[${level}] ${message}`),
+      })
+    : null;
+
   // 可选的 HTTP/SSE 服务：桌面壳与 IM 通道都接在这里。
   const server = args.serve
     ? await startServer({
@@ -200,6 +225,8 @@ async function main(): Promise<void> {
         store,
         port: args.port,
         ...(args.staticDir ? { staticDir: args.staticDir } : {}),
+        imSettings,
+        im,
         llmSettings: {
           status: () => settingsStore.status(),
           save: (settings) => settingsStore.save(settings),
@@ -216,6 +243,25 @@ async function main(): Promise<void> {
     }
     console.log(`  GET  ${server.url}/api/health`);
     console.log(`  GET  ${server.url}/api/events   (SSE)`);
+  }
+
+  // IM 通道跑起来：有这个通道，D 的结论和待审批能推到手机。
+  if (im) {
+    im.start();
+    console.log(
+      imConfig.chatIds.length > 0
+        ? `IM 通道已启动（${imConfig.chatIds.length} 个已绑定对话）`
+        : 'IM 通道已启动，等待第一条消息完成绑定',
+    );
+
+    // 危险动作与汇报同步推手机（通过统一的事件流，不侵入业务层）。
+    runtime.on('runtime', (event) => {
+      if (event.type === 'approval_requested') {
+        void im.notifyApproval(event.approvalId, event.category, event.evidence);
+      } else if (event.type === 'report') {
+        void im.notifyReport(event.report.body, event.report.needsUser);
+      }
+    });
   }
 
   if (args.say) {

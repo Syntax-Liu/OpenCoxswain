@@ -511,6 +511,7 @@ export function App(): JSX.Element {
         <SettingsDialog
           api={api}
           status={settings}
+          projects={state.projects}
           onClose={() => setShowSettings(false)}
           onSaved={setSettings}
         />

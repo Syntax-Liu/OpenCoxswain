@@ -191,6 +191,18 @@ export interface MemoryCandidateDto {
   readonly decidedAt: number | null;
 }
 
+export interface ImStatusDto {
+  readonly enabled: boolean;
+  readonly hasToken: boolean;
+  readonly chatIds: readonly string[];
+  readonly projectId: string | null;
+  readonly status: {
+    readonly running: boolean;
+    readonly lastError: string | null;
+    readonly boundChats: number;
+  } | null;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -347,9 +359,25 @@ export class ApiClient {
     });
   }
 
+  /** IM 通道配置与状态。**不会回传 token 本身**。 */
+  im(): Promise<ImStatusDto> {
+    return this.request('/api/im');
+  }
+
+  saveIm(botToken: string, projectId: string | null): Promise<{ ok: boolean; message?: string }> {
+    return this.request('/api/im', { method: 'POST', body: { botToken, projectId } });
+  }
+
+  clearIm(): Promise<{ ok: boolean }> {
+    return this.request('/api/im', { method: 'DELETE' });
+  }
+
+  startIm(): Promise<{ ok: boolean }> {
+    return this.request('/api/im/start', { method: 'POST' });
+  }
+
   /** 已生效的记忆（全局 + 项目）。 */
-  memoryList(projectId: string): Promise<{
-    global: Array<{ id: string; kind: string; text: string; source: string }>;
+  memoryList(projectId: string): Promise<{    global: Array<{ id: string; kind: string; text: string; source: string }>;
     project: Array<{ id: string; kind: string; text: string; source: string }>;
   }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/memory-list`);

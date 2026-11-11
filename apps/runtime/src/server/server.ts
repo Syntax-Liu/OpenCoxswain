@@ -37,6 +37,9 @@ import type { Orchestrator, RuntimeEvent } from '../orchestrator.js';
 import { findProject, handoff, projectBrief } from '../global/assistant.js';
 import { isInternalSource, type Store } from '../store/store.js';
 import { approveAction, rejectAction } from '../security/approval.js';
+import type { ImSettingsStore } from '../im/settings.js';
+import type { ImBridge } from '../im/bridge.js';
+import { TelegramClient } from '../im/telegram.js';
 import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
@@ -47,6 +50,10 @@ export interface ServerOptions {
   readonly host?: string;
   readonly port?: number;
   readonly log?: (level: 'info' | 'warn' | 'error', message: string) => void;
+  /** IM 通道配置。提供后暴露 `/api/im`。 */
+  readonly imSettings?: ImSettingsStore;
+  /** 已构造好的 IM 桥接（未配置 token 时为 null）。 */
+  readonly im?: ImBridge | null;
   /**
    * 静态资源目录（工作台构建产物）。
    *
@@ -82,6 +89,8 @@ const CORS = {
 
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
   const { orchestrator, store } = options;
+  const im = options.im ?? null;
+  const imSettings = options.imSettings ?? null;
   const bus = new EventBus();
   const log = options.log ?? (() => {});
   const openStreams = new Set<() => void>();
@@ -171,6 +180,64 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         decodeURIComponent(forgetMatch[3]!),
       );
       return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
+    }
+
+    // ---- IM 通道（Telegram）----
+    if (url.pathname === '/api/im') {
+      if (!imSettings) return fail(res, 404, 'IM 通道未启用');
+
+      if (method === 'GET') {
+        const config = await imSettings.resolve();
+        return json(res, 200, {
+          enabled: config.botToken !== '',
+          // **绝不回传 token 本身**，只告诉界面有没有配。
+          hasToken: config.botToken !== '',
+          chatIds: config.chatIds,
+          projectId: config.projectId,
+          status: im?.status() ?? null,
+        });
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        const token = str(body.botToken);
+        const projectId = str(body.projectId);
+
+        if (token) {
+          // 先验证 token，避免存进去一个错的、之后一头雾水。
+          try {
+            await new TelegramClient(token).getMe();
+          } catch (error) {
+            return fail(
+              res,
+              400,
+              `token 无效：${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+
+        await imSettings.save({
+          botToken: (token ?? '').trim(),
+          chatIds: (await imSettings.read()).chatIds,
+          projectId: (projectId ?? '').trim() || null,
+        });
+        return json(res, 200, { ok: true });
+      }
+      if (method === 'DELETE') {
+        await imSettings.clear();
+        await im?.stop();
+        return json(res, 200, { ok: true });
+      }
+    }
+
+    // ---- 启动/停止通道 ----
+    if (method === 'POST' && url.pathname === '/api/im/start') {
+      if (!im) return fail(res, 400, 'IM 通道未启用');
+      im.start();
+      return json(res, 200, { ok: true, status: im.status() });
+    }
+    if (method === 'POST' && url.pathname === '/api/im/stop') {
+      await im?.stop();
+      return json(res, 200, { ok: true });
     }
 
     // ---- 危险动作审批 ----

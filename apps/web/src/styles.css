@@ -1303,3 +1303,31 @@ button.small {
 .memory-group > p {
   margin: 0 0 5px;
 }
+
+/* ---------- IM Í¨µÀÉèÖÃ ---------- */
+
+.im-settings {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.im-settings h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.im-settings > p {
+  margin: 0 0 8px;
+}
+
+.im-settings select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}

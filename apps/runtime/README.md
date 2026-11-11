@@ -62,7 +62,7 @@ src/
     sqlite.ts           SQLite 实现（node:sqlite）
   global/
     assistant.ts        B 的路由与转交
-  test/                 199 条测试
+  test/                 216 条测试
 ```
 
 ## 关键机制
@@ -230,13 +230,14 @@ pnpm --filter @opencoxswain/runtime build
 pnpm --filter @opencoxswain/runtime test
 ```
 
-**199 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
+**216 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
 
 | 文件 | 条数 | 覆盖 |
 | --- | --- | --- |
 | `server.test.ts` | 18 | HTTP 接口、SSE 首帧、断线重放、gap、CORS、超大 body |
 | `memory.test.ts` | 17 | 写入门槛、分词排序、Markdown 往返、跨会话生效 |
 | `ledger.test.ts` | 17 | **执行前落 pending**、被拒绝记 rejected、读操作不记账 |
+| `im.test.ts` | 17 | **IM 走同一条 userSays**、自动绑定、审批复用同一记录、offset 回归 |
 | `extract.test.ts` | 16 | **临时指令进不了候选**、候选不自动生效、拒绝过的不再提 |
 | `acceptance.test.ts` | 17 | **D 声称完成但没改动 → 判失败**、复核命令过闸门、失败不可覆盖 |
 | `guard.test.ts` | 16 | **用量止损真的能停下来**、指标格式化、未报告≠0 |
@@ -270,7 +271,6 @@ HTTP 层测试**真的起端口并用 `fetch` 打过去**；记忆测试**真的
 | 项 | 说明 |
 | --- | --- |
 | 任务模板 / 定时任务 | 设计已明确（legacy 有），未移植 |
-| IM 通道 | 飞书 / Telegram 未接入 |
 | 自动更新 | 桌面壳尚未实现 |
 
 后续发展方向见 [`docs/roadmap.md`](../../docs/roadmap.md)。

@@ -70,6 +70,13 @@ export type RuntimeEvent =
   | { readonly type: 'executor_queued'; readonly projectId: string; readonly executor: ExecutorRow; readonly reason: string }
   | { readonly type: 'executor_settled'; readonly projectId: string; readonly executor: ExecutorRow; readonly ok: boolean }
   | { readonly type: 'report'; readonly projectId: string; readonly report: ReportRow }
+  | {
+      readonly type: 'approval_requested';
+      readonly projectId: string;
+      readonly approvalId: string;
+      readonly category: string;
+      readonly evidence: string;
+    }
   | { readonly type: 'turn_judged'; readonly projectId: string; readonly turnId: string; readonly judged: TurnJudgment; readonly reason: string }
   | {
       readonly type: 'acceptance';
@@ -207,6 +214,16 @@ export class Orchestrator extends EventEmitter {
         projectId,
         executorId,
         ...(this.approvalTimeoutMs !== undefined ? { timeoutMs: this.approvalTimeoutMs } : {}),
+        onCreated: (approvalId) => {
+          // 通知 IM 通道：手机上也能批准/拒绝。
+          this.emit('runtime', {
+            type: 'approval_requested',
+            projectId,
+            approvalId,
+            category: action.category,
+            evidence: action.evidence,
+          } as RuntimeEvent);
+        },
         log: (level, message) => this.emit('runtime', {
           type: 'assistant_text',
           projectId,
