@@ -7,6 +7,8 @@ export interface ConversationProps {
   readonly project: ProjectDto;
   readonly messages: readonly MessageDto[];
   readonly thinking: boolean;
+  /** 记忆候选审阅区（可折叠），放在顶部。 */
+  readonly memoryReview?: React.ReactNode;
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
 }
@@ -49,6 +51,8 @@ export function Conversation(props: ConversationProps): JSX.Element {
           </p>
         </div>
       </header>
+
+      {props.memoryReview}
 
       <div className="messages" ref={scrollRef}>
         {visible.length === 0 && (

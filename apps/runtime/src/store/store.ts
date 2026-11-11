@@ -19,6 +19,7 @@ import type { AgentMessage, ChatMessage } from '../llm/types.js';
 import type { CostLedger, TokenGuard } from '../cost/budget.js';
 import type { AcceptancePolicy, AcceptanceResult, Criterion } from '../acceptance/criteria.js';
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
+import type { MemoryKind } from '../memory/gate.js';
 import { EMPTY_METRICS, type RunMetrics } from '../cost/metrics.js';
 
 // ---------------------------------------------------------------------------
@@ -177,6 +178,26 @@ export interface SideEffectRow {
 }
 
 // ---------------------------------------------------------------------------
+// 记忆候选：提炼出来的记忆不能直接生效，必须先让人过一眼
+// ---------------------------------------------------------------------------
+
+export type CandidateStatus = 'pending' | 'accepted' | 'dismissed';
+
+export interface MemoryCandidateRow {
+  readonly id: string;
+  readonly projectId: string;
+  readonly kind: MemoryKind;
+  readonly scope: 'global' | 'project';
+  /** 记忆正文。 */
+  readonly text: string;
+  /** 从哪段对话提炼出来的，必须可追溯。 */
+  readonly source: string;
+  readonly status: CandidateStatus;
+  readonly createdAt: number;
+  readonly decidedAt: number | null;
+}
+
+// ---------------------------------------------------------------------------
 // 接口
 // ---------------------------------------------------------------------------
 
@@ -238,6 +259,14 @@ export interface Store {
     state?: readonly SideEffectState[];
   }): SideEffectRow[];
 
+  // 记忆候选
+  putCandidate(row: MemoryCandidateRow): Promise<void>;
+  getCandidate(id: string): MemoryCandidateRow | undefined;
+  listCandidates(filter?: {
+    projectId?: string;
+    status?: readonly CandidateStatus[];
+  }): MemoryCandidateRow[];
+
   /** 关停时落盘（内存实现里是空操作）。 */
   close(): Promise<void>;
 }
@@ -255,6 +284,7 @@ export class MemoryStore implements Store {
   private readonly reports = new Map<string, ReportRow>();
   private readonly approvals = new Map<string, ApprovalRow>();
   private readonly sideEffects = new Map<string, SideEffectRow>();
+  private readonly candidates = new Map<string, MemoryCandidateRow>();
 
   async putProject(row: ProjectRow): Promise<void> {
     this.projects.set(row.id, row);
@@ -414,8 +444,26 @@ export class MemoryStore implements Store {
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  async close(): Promise<void> {
-    // 内存实现无副作用；SQLite 后端在这里关闭连接。
+  // -------------------------------------------------------------------------
+  // 记忆候选
+  // -------------------------------------------------------------------------
+
+  async putCandidate(row: MemoryCandidateRow): Promise<void> {
+    this.candidates.set(row.id, row);
+  }
+  getCandidate(id: string): MemoryCandidateRow | undefined {
+    return this.candidates.get(id);
+  }
+  listCandidates(
+    filter: { projectId?: string; status?: readonly CandidateStatus[] } = {},
+  ): MemoryCandidateRow[] {
+    return [...this.candidates.values()]
+      .filter((c) => (filter.projectId ? c.projectId === filter.projectId : true))
+      .filter((c) => (filter.status ? filter.status.includes(c.status) : true))
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  async close(): Promise<void> {    // 内存实现无副作用；SQLite 后端在这里关闭连接。
   }
 }
 

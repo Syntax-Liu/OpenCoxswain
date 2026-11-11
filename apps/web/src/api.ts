@@ -179,6 +179,18 @@ export interface SideEffectDto {
   readonly settledAt: number | null;
 }
 
+export interface MemoryCandidateDto {
+  readonly id: string;
+  readonly projectId: string;
+  readonly kind: 'profile' | 'project' | 'decision' | 'lesson';
+  readonly scope: 'global' | 'project';
+  readonly text: string;
+  readonly source: string;
+  readonly status: 'pending' | 'accepted' | 'dismissed';
+  readonly createdAt: number;
+  readonly decidedAt: number | null;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -307,6 +319,32 @@ export class ApiClient {
   /** 某个执行者的副作用台账：它到底改了什么。 */
   executorEffects(executorId: string): Promise<{ effects: SideEffectDto[] }> {
     return this.request(`/api/executors/${encodeURIComponent(executorId)}/effects`);
+  }
+
+  /** 记忆候选列表。 */
+  memories(projectId: string): Promise<{ candidates: MemoryCandidateDto[]; pending: number }> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/memories`);
+  }
+
+  /** 触发一次记忆提炼。提炼出的是候选，不直接生效。 */
+  extractMemories(
+    projectId: string,
+  ): Promise<{ created: number; rejected: number; candidates: MemoryCandidateDto[] }> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/memories`, {
+      method: 'POST',
+    });
+  }
+
+  acceptMemory(candidateId: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/memories/${encodeURIComponent(candidateId)}/accept`, {
+      method: 'POST',
+    });
+  }
+
+  dismissMemory(candidateId: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/memories/${encodeURIComponent(candidateId)}/dismiss`, {
+      method: 'POST',
+    });
   }
 
   /** 待审批的危险动作。 */

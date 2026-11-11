@@ -147,7 +147,19 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return stream(res, Number.isFinite(after) ? after : 0);
     }
 
-    // ---- 审批 ----
+    // ---- 记忆候选：采纳 / 忽略 ----
+    const memMatch = /^\/api\/memories\/([^/]+)\/(accept|dismiss)$/.exec(url.pathname);
+    if (method === 'POST' && memMatch) {
+      const candidateId = decodeURIComponent(memMatch[1]!);
+      const act = memMatch[2];
+      const result =
+        act === 'accept'
+          ? await orchestrator.acceptMemoryCandidate(candidateId)
+          : await orchestrator.dismissMemoryCandidate(candidateId);
+      return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
+    }
+
+    // ---- 危险动作审批 ----
     if (method === 'GET' && url.pathname === '/api/approvals') {
       const projectId = url.searchParams.get('projectId') ?? undefined;
       return json(res, 200, {
@@ -263,9 +275,25 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         });
       }
 
+      // 记忆候选：GET 查看，POST 触发一次提炼
+      if (action === 'memories') {
+        if (method === 'GET') {
+          return json(res, 200, {
+            candidates: store.listCandidates({ projectId }),
+            pending: store.listCandidates({ projectId, status: ['pending'] }).length,
+          });
+        }
+        if (method === 'POST') {
+          const result = await orchestrator.extractMemoryCandidates(projectId);
+          return json(res, 200, {
+            ...result,
+            candidates: store.listCandidates({ projectId, status: ['pending'] }),
+          });
+        }
+      }
+
       // 设置用量止损上限（不是计费）
-      if (method === 'POST' && action === 'guard') {
-        const body = await readJson(req);
+      if (method === 'POST' && action === 'guard') {        const body = await readJson(req);
         let guard;
         try {
           guard = parseTokenGuard(body);

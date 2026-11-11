@@ -29,6 +29,7 @@ import {
   type ProjectDto,
   type SettingsStatus,
   type SideEffectDto,
+  type MemoryCandidateDto,
 } from './api.js';
 import {
   applyEvent,
@@ -42,6 +43,7 @@ import { Conversation } from './components/Conversation.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
 import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
+import { MemoryReview } from './components/MemoryReview.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 
@@ -67,6 +69,9 @@ export function App(): JSX.Element {
   const [approvals, setApprovals] = useState<ApprovalDto[]>([]);
   /** 当前查看的执行者的副作用台账。 */
   const [effects, setEffects] = useState<SideEffectDto[]>([]);
+  /** 记忆候选。 */
+  const [memories, setMemories] = useState<MemoryCandidateDto[]>([]);
+  const [extracting, setExtracting] = useState(false);
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -236,6 +241,64 @@ export function App(): JSX.Element {
     [api, setError],
   );
 
+  // 记忆候选：进入项目时拉一次
+  const activeProjectId = view && view.kind !== 'global' ? view.projectId : state.currentProjectId;
+  useEffect(() => {
+    if (!activeProjectId) return;
+    let cancelled = false;
+    void api
+      .memories(activeProjectId)
+      .then((r) => {
+        if (!cancelled) setMemories(r.candidates);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [api, activeProjectId]);
+
+  const handleExtract = useCallback(async () => {
+    if (!activeProjectId) return;
+    setExtracting(true);
+    try {
+      const result = await api.extractMemories(activeProjectId);
+      setMemories(result.candidates);
+      if (result.created === 0) {
+        setError('这次没有提炼出值得记住的内容。');
+      } else {
+        setError(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '提炼失败');
+    } finally {
+      setExtracting(false);
+    }
+  }, [api, activeProjectId, setError]);
+
+  const handleAcceptMemory = useCallback(
+    async (id: string) => {
+      try {
+        await api.acceptMemory(id);
+        setMemories((list) => list.map((c) => (c.id === id ? { ...c, status: 'accepted' } : c)));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '采纳失败');
+      }
+    },
+    [api, setError],
+  );
+
+  const handleDismissMemory = useCallback(
+    async (id: string) => {
+      try {
+        await api.dismissMemory(id);
+        setMemories((list) => list.map((c) => (c.id === id ? { ...c, status: 'dismissed' } : c)));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '忽略失败');
+      }
+    },
+    [api, setError],
+  );
+
   const handleOpenProject = useCallback(
     async (rootPath: string, name?: string) => {
       setShowOpen(false);
@@ -365,6 +428,15 @@ export function App(): JSX.Element {
             project={currentProject as ProjectDto}
             messages={state.messages}
             thinking={state.thinking}
+            memoryReview={
+              <MemoryReview
+                candidates={memories}
+                busy={extracting}
+                onExtract={() => void handleExtract()}
+                onAccept={(id) => void handleAcceptMemory(id)}
+                onDismiss={(id) => void handleDismissMemory(id)}
+              />
+            }
             onSend={(text) => void handleSendToAssistant(text)}
             onStop={() => void handleStop()}
           />

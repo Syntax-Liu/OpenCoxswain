@@ -22,7 +22,8 @@ import { classifyBlock, runExecutor, executorSystemPrompt, type BlockKind } from
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
 import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
-import type { MarkdownMemoryStore } from './memory/store.js';
+import type { MarkdownMemoryStore, MemoryScope } from './memory/store.js';
+import { extractCandidates } from './memory/extract.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -76,6 +77,11 @@ export type RuntimeEvent =
       readonly executorId: string;
       readonly verdict: 'passed' | 'failed' | 'unverified';
       readonly results: readonly CriterionResult[];
+    }
+  | {
+      readonly type: 'memory_candidates';
+      readonly projectId: string;
+      readonly created: number;
     };
 
 export interface SpawnInput {
@@ -1165,6 +1171,115 @@ export class Orchestrator extends EventEmitter {
     await this.store.putReport(report);
     this.emit('runtime', { type: 'report', projectId: input.projectId, report } as RuntimeEvent);
     return report;
+  }
+
+  /**
+   * 提炼候选记忆。
+   *
+   * **候选不生效**：它们只是躺在候选表里等你过一眼。
+   * 这是自动记忆的安全阀——LLM 判断"值得记"不等于真的值得记。
+   */
+  async extractMemoryCandidates(projectId: string): Promise<{
+    created: number;
+    rejected: number;
+  }> {
+    if (!this.memory) return { created: 0, rejected: 0 };
+    const project = this.store.getProject(projectId);
+    if (!project) throw new Error(`项目 ${projectId} 不存在`);
+
+    // 用最近一段对话当素材。
+    const transcript = this.store.messages(project.assistantSessionId).slice(-40);
+
+    const scope: MemoryScope = { kind: 'project', projectKey: project.rootPath };
+    const existing = [
+      ...(await this.memory.list(scope)).map((e) => e.text),
+      ...(await this.memory.list({ kind: 'global' })).map((e) => e.text),
+    ];
+    // 用户已经拒绝过的，不再提。
+    const dismissed = this.store
+      .listCandidates({ projectId, status: ['dismissed'] })
+      .map((c) => c.text);
+
+    const controller = new AbortController();
+    const result = await extractCandidates({
+      llm: this.llm,
+      transcript,
+      existing,
+      dismissed,
+      signal: controller.signal,
+    });
+
+    for (const candidate of result.candidates) {
+      await this.store.putCandidate({
+        id: newId('memc'),
+        projectId,
+        kind: candidate.kind,
+        scope: candidate.scope,
+        text: candidate.text,
+        source: `自动提炼 · ${new Date().toISOString().slice(0, 10)}`,
+        status: 'pending',
+        createdAt: Date.now(),
+        decidedAt: null,
+      });
+    }
+
+    this.emit('runtime', {
+      type: 'memory_candidates',
+      projectId,
+      created: result.candidates.length,
+    } as RuntimeEvent);
+
+    return { created: result.candidates.length, rejected: result.rejected.length };
+  }
+
+  /** 采纳一条候选：真正写进记忆文件。 */
+  async acceptMemoryCandidate(
+    candidateId: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!this.memory) return { ok: false, message: '未启用记忆功能' };
+    const row = this.store.getCandidate(candidateId);
+    if (!row) return { ok: false, message: `候选 ${candidateId} 不存在` };
+    if (row.status !== 'pending') {
+      return { ok: false, message: `该候选已是 ${row.status}` };
+    }
+
+    const project = this.store.getProject(row.projectId);
+    if (!project) return { ok: false, message: '项目不存在' };
+
+    const scope: MemoryScope =
+      row.scope === 'global'
+        ? { kind: 'global' }
+        : { kind: 'project', projectKey: project.rootPath };
+
+    const written = await this.memory.write(scope, {
+      kind: row.kind,
+      text: row.text,
+      source: row.source,
+    });
+    if (!written.ok) {
+      return { ok: false, message: written.reason ?? '写入失败' };
+    }
+
+    await this.store.putCandidate({
+      ...row,
+      status: 'accepted',
+      decidedAt: Date.now(),
+    });
+    return { ok: true, message: '已写入记忆' };
+  }
+
+  /** 忽略一条候选。被忽略的内容以后不再自动提出。 */
+  async dismissMemoryCandidate(id: string): Promise<{ ok: boolean; message: string }> {
+    const row = this.store.getCandidate(id);
+    if (!row) return { ok: false, message: `候选 ${id} 不存在` };
+    if (row.status !== 'pending') return { ok: false, message: `该候选已是 ${row.status}` };
+    await this.store.putCandidate({ ...row, status: 'dismissed', decidedAt: Date.now() });
+    return { ok: true, message: '已忽略，之后不会再提出同样的内容' };
+  }
+
+  /** 读某个项目的待审候选。 */
+  listMemoryCandidates(projectId: string): ReturnType<Store['listCandidates']> {
+    return this.store.listCandidates({ projectId });
   }
 
   /** 可见状态，供 UI 与测试读取。 */

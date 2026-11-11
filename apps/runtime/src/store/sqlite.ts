@@ -31,6 +31,8 @@ import {
   isExecutorTerminal,
   type ApprovalRow,
   type ApprovalStatus,
+  type CandidateStatus,
+  type MemoryCandidateRow,
   type SideEffectRow,
   type ExecutorRow,
   type ExecutorStatus,
@@ -46,7 +48,7 @@ import { INTERNAL_SOURCE_PREFIX } from './store.js';
 import type { CostLedger } from '../cost/budget.js';
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -172,6 +174,19 @@ CREATE TABLE IF NOT EXISTS side_effect (
 );
 CREATE INDEX IF NOT EXISTS side_effect_executor ON side_effect(executor_id, created_at);
 CREATE INDEX IF NOT EXISTS side_effect_key ON side_effect(executor_id, idempotency_key);
+
+CREATE TABLE IF NOT EXISTS memory_candidate (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  text TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  decided_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS memory_candidate_project ON memory_candidate(project_id, status);
 `;
 
 type Row = Record<string, unknown>;
@@ -674,6 +689,57 @@ export class SqliteStore implements Store {
     return rows.map(toSideEffect);
   }
 
+  // -------------------------------------------------------------------------
+  // 记忆候选
+  // -------------------------------------------------------------------------
+
+  async putCandidate(row: MemoryCandidateRow): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO memory_candidate (id, project_id, kind, scope, text, source, status, created_at, decided_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           status = excluded.status,
+           decided_at = excluded.decided_at`,
+      )
+      .run(
+        row.id,
+        row.projectId,
+        row.kind,
+        row.scope,
+        row.text,
+        row.source,
+        row.status,
+        row.createdAt,
+        row.decidedAt,
+      );
+  }
+
+  getCandidate(id: string): MemoryCandidateRow | undefined {
+    const raw = this.db
+      .prepare('SELECT * FROM memory_candidate WHERE id = ?')
+      .get(id) as Row | undefined;
+    return raw ? toCandidate(raw) : undefined;
+  }
+
+  listCandidates(
+    filter: { projectId?: string; status?: readonly CandidateStatus[] } = {},
+  ): MemoryCandidateRow[] {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (filter.projectId) {
+      where.push('project_id = ?');
+      params.push(filter.projectId);
+    }
+    if (filter.status && filter.status.length > 0) {
+      where.push(`status IN (${filter.status.map(() => '?').join(',')})`);
+      params.push(...filter.status);
+    }
+    const sql = `SELECT * FROM memory_candidate${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at ASC`;
+    const rows = this.db.prepare(sql).all(...params) as Row[];
+    return rows.map(toCandidate);
+  }
+
   async close(): Promise<void> {
     try {
       this.db.close();
@@ -784,6 +850,20 @@ function toTurn(raw: Row): TurnRow {
     text: String(raw.text),
     judged: raw.judged === null ? null : (String(raw.judged) as TurnJudgment),
     at: Number(raw.at),
+  };
+}
+
+function toCandidate(raw: Row): MemoryCandidateRow {
+  return {
+    id: String(raw.id),
+    projectId: String(raw.project_id),
+    kind: String(raw.kind) as MemoryCandidateRow['kind'],
+    scope: String(raw.scope) === 'global' ? 'global' : 'project',
+    text: String(raw.text),
+    source: String(raw.source),
+    status: String(raw.status) as CandidateStatus,
+    createdAt: Number(raw.created_at),
+    decidedAt: raw.decided_at === null ? null : Number(raw.decided_at),
   };
 }
 

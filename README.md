@@ -72,7 +72,7 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 ## 测试
 
 ```bash
-pnpm test        # 运行时 183 + 界面 28 = 211 条
+pnpm test        # 运行时 199 + 界面 28 = 227 条
 pnpm typecheck
 pnpm app:check   # Rust 壳编译检查
 ```
