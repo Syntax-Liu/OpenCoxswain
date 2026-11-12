@@ -21,6 +21,7 @@ import { promisify } from 'node:util';
 import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/loop.js';
 import { applyEdit } from './edit.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
+import type { McpTool } from '../mcp/client.js';
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
@@ -124,8 +125,8 @@ export function executorSystemPrompt(input: {
 }
 
 /** Agent 的工具集：直接操作文件系统 / 执行命令，全部限制在项目目录内。 */
-export function executorTools(): ToolDefinition[] {
-  return [
+export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } = {}): ToolDefinition[] {
+  const baseTools: ToolDefinition[] = [
     {
       name: 'read_file',
       description: '读取项目内的一个文本文件。',
@@ -228,7 +229,16 @@ export function executorTools(): ToolDefinition[] {
         },
       },
     },
-  ].filter((t) => t.name !== 'search_files' || true) as ToolDefinition[];
+  ];
+
+  // MCP 工具：schema 直接复用，不做转换——避免我们的理解偏差导致参数校验不一致。
+  const mcpTools: ToolDefinition[] = (input.mcpTools ?? []).map((tool) => ({
+    name: tool.name,
+    description: `${tool.description || '（无描述）'}（来自 MCP 服务器 ${tool.server}）`,
+    parameters: tool.inputSchema,
+  }));
+
+  return [...baseTools, ...mcpTools];
 }
 
 export interface ExecutorToolHostOptions {
@@ -241,6 +251,12 @@ export interface ExecutorToolHostOptions {
    * 这里在工具层直接拒绝，才是真保证。
    */
   readonly readonlyTask?: boolean;
+  /** MCP 工具（名字已带服务器前缀）。调用时转发给对应服务器。 */
+  readonly mcpTools?: readonly McpTool[];
+  /** MCP 调用入口；提供后 mcpTools 里的工具才能真正执行。 */
+  readonly mcp?: {
+    call(name: string, args: Record<string, unknown>): Promise<{ ok: boolean; content: string }>;
+  };
   /**
    * 危险动作审批闸门。
    *
@@ -307,7 +323,7 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
   const maxOutput = options.maxOutputChars ?? 4000;
 
   return {
-    definitions: () => executorTools(),
+    definitions: () => executorTools({ mcpTools: options.mcpTools ?? [] }),
     async execute({ name, args }) {
       // ---- 记账：执行前落 pending ----
       // 读类工具没有副作用，begin 会返回 row=null，后续结算自动跳过。
@@ -368,6 +384,13 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
         return await settle(result);
 
         async function runTool(): Promise<{ ok: boolean; content: string }> {
+        // MCP 工具：名字形如 `<server>__<tool>`，转发给对应服务器。
+        // 放在 switch 之前判断，这样新增 MCP 工具不用改 switch。
+        const mcpTool = (options.mcpTools ?? []).find((t) => t.name === name);
+        if (mcpTool && options.mcp) {
+          return options.mcp.call(name, args);
+        }
+
         switch (name) {
           case 'read_file': {
             const target = resolveInside(rootPath, String(args.path ?? ''));
@@ -606,6 +629,12 @@ export interface RunExecutorOptions {
   readonly writeScope: readonly string[];
   /** 可用技能（名称 + 描述）。正文由模型调 use_skill 加载。 */
   readonly skills?: readonly SkillSummary[];
+  /** MCP 工具（名字带服务器前缀）。 */
+  readonly mcpTools?: readonly McpTool[];
+  /** MCP 调用入口。 */
+  readonly mcp?: {
+    call(name: string, args: Record<string, unknown>): Promise<{ ok: boolean; content: string }>;
+  };
   /** 只读任务：不写文件，工具层硬性拦截写入。 */
   readonly readonlyTask?: boolean;
   readonly signal: AbortSignal;
@@ -689,6 +718,9 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
   const toolHost = createExecutorToolHost({
     rootPath: options.rootPath,
     writeScope: options.writeScope,
+      ...(options.skills ? { skills: options.skills } : {}),
+      ...(options.mcpTools ? { mcpTools: options.mcpTools } : {}),
+      ...(options.mcp ? { mcp: options.mcp } : {}),
     ...(options.readonlyTask ? { readonlyTask: true } : {}),
     ...(options.approve ? { approve: options.approve } : {}),
     ...(options.ledger ? { ledger: options.ledger } : {}),

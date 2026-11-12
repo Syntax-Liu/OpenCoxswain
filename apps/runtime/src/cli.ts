@@ -177,6 +177,9 @@ async function main(): Promise<void> {
     schedules: new ScheduleStore(path.join(os.homedir(), '.opencoxswain', 'schedules.json')),
     closeSettings: new CloseSettingsStore(path.join(os.homedir(), '.opencoxswain', 'close.json')),
     permissions: new PermissionStore(path.join(os.homedir(), '.opencoxswain', 'permissions.json')),
+    // MCP 服务器配置：读 ~/.opencoxswain/mcp.json。
+    // **读不到文件就不启用**——MCP 是可选能力，不该因为缺配置报错。
+    mcpServers: await loadMcpServers(),
     models: new ModelStore({
       file: path.join(os.homedir(), '.opencoxswain', 'models.json'),
       cipher: secretServiceFromEnv(),
@@ -378,3 +381,17 @@ main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });
+
+/** 读 MCP 服务器配置。文件不存在或格式不对都返回空数组。 */
+async function loadMcpServers(): Promise<import('./mcp/client.js').McpServerConfig[]> {
+  const { readFile } = await import('node:fs/promises');
+  const { parseServerConfigs } = await import('./mcp/client.js');
+  try {
+    const raw = JSON.parse(
+      await readFile(path.join(os.homedir(), '.opencoxswain', 'mcp.json'), 'utf8'),
+    );
+    return parseServerConfigs(raw);
+  } catch {
+    return [];
+  }
+}

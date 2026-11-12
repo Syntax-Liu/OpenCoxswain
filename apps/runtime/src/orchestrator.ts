@@ -57,6 +57,7 @@ import type { PermissionLevel } from './settings/permission.js';
 import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
 import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
+import { McpManager, type McpServerConfig } from './mcp/client.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -103,6 +104,8 @@ export interface OrchestratorOptions {
   readonly models?: ModelStoreLike;
   /** 用户级技能目录；不提供时用 ~/.opencoxswain/skills。 */
   readonly userSkillsDir?: string;
+  /** MCP 服务器配置；不提供就不启用 MCP。 */
+  readonly mcpServers?: readonly McpServerConfig[];
   /**
    * 用户扩展（geek 自定义口）。
    *
@@ -197,6 +200,8 @@ export class Orchestrator extends EventEmitter {
   private readonly modelStore: ModelStoreLike;
   /** 用户级技能目录（~/.opencoxswain/skills）。 */
   private readonly userSkillsDir: string;
+  /** MCP 连接管理；没配置服务器时为 null。 */
+  private mcp: McpManager | null = null;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -217,6 +222,14 @@ export class Orchestrator extends EventEmitter {
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
     this.modelStore = options.models ?? new MemoryModelStore();
     this.userSkillsDir = options.userSkillsDir ?? path.join(os.homedir(), '.opencoxswain', 'skills');
+    // MCP：**启动失败不影响主流程**。服务器起不来只是少几个工具，
+    // 不能让整个程序报错。所以启动是 fire-and-forget，失败静默。
+    if (options.mcpServers && options.mcpServers.length > 0) {
+      this.mcp = new McpManager(options.mcpServers);
+      void this.mcp.start().catch(() => {
+        /* 一个都连不上就算了 */
+      });
+    }
     this.extensions = options.extensions;
   }
 
@@ -277,6 +290,10 @@ export class Orchestrator extends EventEmitter {
         : {}),
       ...(this.extensions ? { extensions: this.extensions } : {}),
       ...(input.skills ? { skills: input.skills } : {}),
+      // MCP：工具列表按当前连接取，连接还没建立时为空数组（不影响其它工具）。
+      ...(this.mcp && this.mcp.listTools().length > 0
+        ? { mcpTools: this.mcp.listTools(), mcp: this.mcp }
+        : {}),
       approve: (tool, args) =>
         this.approveFor(input.projectId, input.executorId, tool, args),
       drainInputs: (executorId) => {
@@ -965,8 +982,7 @@ export class Orchestrator extends EventEmitter {
         skills,
         ...(project.tokenGuard ? { tokenGuard: project.tokenGuard } : {}),
         onAbort: () => abort.abort(),
-      }),
-      project,
+      }),      project,
       ready,
       abort,
     );

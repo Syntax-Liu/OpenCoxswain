@@ -5,6 +5,7 @@
 | 想知道什么 | 看哪份 |
 | --- | --- |
 | **下一步做什么** | [`roadmap.md`](roadmap.md) ← **最新** |
+| **怎么接自己的工具** | [mcp.md](mcp.md) ← MCP 接入 |
 | **怎么写技能** | [skills.md](skills.md) ← 按需加载的工作知识 |
 | **我们差在哪** | [competitor-gap.md](competitor-gap.md) ← **竞品调研：7 个子系统的差距** |
 | **界面往哪走** | [design-direction.md](design-direction.md) ← **视觉方向方案（待确认）** |

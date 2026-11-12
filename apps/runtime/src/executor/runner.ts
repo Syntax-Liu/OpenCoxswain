@@ -11,6 +11,7 @@
 import type { LlmClient } from '../llm/types.js';
 import type { LoopEvent } from '../session/loop.js';
 import type { SkillSummary } from '../skills/index.js';
+import type { McpTool } from '../mcp/client.js';
 import {
   isExecutorTerminal,
   newId,
@@ -46,6 +47,12 @@ export interface ExecutorRunnerDeps {
    * 这是省上下文的关键：一个 2000 字的技能平时只占约 20 token。
    */
   readonly skills?: readonly SkillSummary[];
+  /** MCP 工具（名字带服务器前缀）。 */
+  readonly mcpTools?: readonly McpTool[];
+  /** MCP 调用入口。 */
+  readonly mcp?: {
+    call(name: string, args: Record<string, unknown>): Promise<{ ok: boolean; content: string }>;
+  };
   /** 危险动作审批。 */
   readonly approve: (
     tool: string,
@@ -94,6 +101,8 @@ export async function runExecutorOnce(
       writeScope: executor.writeScope,
       ...(executor.access === 'readonly' ? { readonlyTask: true } : {}),
       skills: deps.skills ?? [],
+      ...(deps.mcpTools ? { mcpTools: deps.mcpTools } : {}),
+      ...(deps.mcp ? { mcp: deps.mcp } : {}),
     }),
     status: 'running',
     resumable: true,
@@ -126,6 +135,8 @@ export async function runExecutorOnce(
       approve: (tool, args) => deps.approve(tool, args),
       // 技能：模型调 use_skill 时据此加载正文。
       skills: deps.skills ?? [],
+      ...(deps.mcpTools ? { mcpTools: deps.mcpTools } : {}),
+      ...(deps.mcp ? { mcp: deps.mcp } : {}),
       // 用户扩展（geek 自定义口）：可用于否决与观察。
       ...(deps.extensions ? { extensions: deps.extensions } : {}),
       // 副作用台账：执行前落 pending，执行后结算。
