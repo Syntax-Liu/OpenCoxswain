@@ -10,6 +10,9 @@ import { AttachmentStrip } from './AttachmentStrip.js';
 import { attachmentsToText, imageParts, useAttachments } from './attachments.js';
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
+import { describeContext, formatTokens, progressBar } from './contextUsage.js';
+import { Onboarding } from './Onboarding.js';
+import { shouldShowOnboarding } from './starterGuide.js';
 import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
 import { MentionPicker, applyMention, detectMention, type MentionState } from './MentionPicker.js';
 import type { ApiClient } from '../api.js';
@@ -78,6 +81,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
   useEffect(() => {
     setDraft(loadDraft(draftKey));
   }, [draftKey]);
+  // 首次引导：只在没看过时显示，点过就再也不出现
+  const [showOnboarding, setShowOnboarding] = useState(shouldShowOnboarding);
+
   // @ 引用：输入框里打 @ 时弹出文件选择
   const [mention, setMention] = useState<MentionState>({ active: false, query: '', start: -1 });
 
@@ -125,6 +131,26 @@ export function Conversation(props: ConversationProps): JSX.Element {
     clearDraft(draftKey);
     attachments.clear();
   };
+
+  /**
+   * 上下文用量预警。
+   *
+   * 用量按消息字符估算——**不追求精确**，只需要「是不是快满了」这个判断。
+   * 压缩次数从轨迹里的压缩记录数出来（source === 'compaction'）。
+   */
+  const contextUsage = useMemo(() => {
+    let chars = 0;
+    for (const message of props.messages) {
+      chars += message.content.length;
+    }
+    // 粗略换算：中文约 1 字/token，英文约 4 字符/token。取中间值 2.5 字符/token
+    const used = Math.round(chars / 2.5);
+
+    const compactionCount = (props.traceMessages ?? []).filter(
+      (m) => m.source === 'compaction',
+    ).length;
+    return describeContext(used, { compactionCount });
+  }, [props.messages, props.traceMessages]);
 
   return (
     <div className="conversation">
@@ -367,6 +393,29 @@ export function Conversation(props: ConversationProps): JSX.Element {
         </>
       )}
 
+      {/* 首次引导：**不依赖对话是否为空**——已经有历史的用户更需要
+          知道"还能怎么用"，而之前那版只在空对话显示，老用户永远看不到。 */}
+      {showOnboarding && (
+        <Onboarding
+          onPick={(prompt) => {
+            setShowOnboarding(false);
+            props.onSend(prompt);
+          }}
+          onDismiss={() => setShowOnboarding(false)}
+        />
+      )}
+
+      {/* 上下文预警：只在 near / compacted 时出现。
+          ok 档不显示——每次都提示"上下文正常"比不提示更烦人。 */}
+      {contextUsage.message && (
+        <div className={`context-banner level-${contextUsage.level}`}>
+          <span className="context-banner-icon" aria-hidden>
+            {contextUsage.level === 'compacted' ? 'ⓘ' : '⚠'}
+          </span>
+          <span>{contextUsage.message}</span>
+        </div>
+      )}
+
       {/* 底部状态栏照 DSH：一行汇总当前项目的运行指标 */}
       <footer className="status-bar">
         <span className="status-item">
@@ -384,6 +433,16 @@ export function Conversation(props: ConversationProps): JSX.Element {
         <span className="status-item">
           <span className="status-icon" aria-hidden>⚡</span>
           缓存命中 {props.stats?.cacheHit ?? '—'}
+        </span>
+        {/* 上下文用量：接近上限或压缩过时变色并给出说明 */}
+        <span
+          className={`status-item context-usage level-${contextUsage.level}`}
+          title={contextUsage.message ?? `上下文约 ${formatTokens(contextUsage.used)} / ${formatTokens(contextUsage.limit)}`}
+        >
+          <span className="status-icon" aria-hidden>
+            {progressBar(contextUsage.ratio)}
+          </span>
+          {Math.round(contextUsage.ratio * 100)}%
         </span>
       </footer>
     </div>
