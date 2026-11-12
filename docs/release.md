@@ -50,7 +50,7 @@ pnpm --filter @opencoxswain/shell exec tauri signer generate -w %USERPROFILE%\.o
 ## 三、发布流程
 
 ```bash
-node scripts/version.mjs bump minor     # 0.7.0 → 0.8.0
+node scripts/version.mjs bump minor     # 0.9.1 → 0.10.0
 pnpm test                               # 必须全绿
 build-app.cmd                           # 出包（会自动带上签名与 latest.json）
 ```
@@ -63,7 +63,7 @@ OpenCoxswain_<版本>_x64-setup.exe.sig   签名
 latest.json                             更新清单
 ```
 
-然后到 GitHub 建一个 **tag 形如 `v0.8.0`** 的 Release，把上面三个文件**一起**上传。
+然后到 GitHub 建一个 **tag 形如 `v0.10.0`** 的 Release，把上面三个文件**一起**上传。
 
 > ⚠️ `latest.json` 里的下载地址是 `releases/download/v<版本>/...`，
 > 所以 **tag 名必须是 `v<版本>`**，否则更新下载会 404。
@@ -75,6 +75,47 @@ https://github.com/Syntax-Liu/OpenCoxswain/releases/latest/download/latest.json
 ```
 
 `latest` 会自动指向最新的那个 Release。
+
+### 发布前先本地验证一次
+
+不用真的发 Release 就能验证整条链路：
+
+```bash
+# 终端 1：起本地更新服务器（行为与 GitHub Releases 一致）
+pnpm release:serve --port 47800
+
+# 终端 2：验证下载 + 验签 + 篡改检测
+pnpm release:verify
+```
+
+期望输出 14 项全过，包括：
+
+- 正版安装包**通过 Ed25519 验签**
+- 篡改安装包 / 篡改签名 / 换公钥 → **全部被拒绝**
+
+### 验签的两个坑（花了很久才对，别再踩）
+
+**坑 1：签名在 blob 的偏移 10，不是 0。**
+
+```
+签名 blob（74 字节）：
+  [0..2)   "ED" 或 "Ed"   算法标识
+  [2..10)  keyId
+  [10..74) 64 字节签名      ← 这里
+```
+
+**坑 2：`ED`（大写）是预哈希模式。**
+
+Tauri 用 `ED`，意思是对 **BLAKE2b-512 后的哈希**做 Ed25519，不是直接对文件内容。
+用 `Ed` 的方式去验会一直失败，而且报错看起来像"签名与文件不匹配"，
+很容易误判成密钥问题——我第一次就误判了，还差点去查私钥。
+
+```js
+const payload = algorithm === 'ED'
+  ? createHash('blake2b512').update(content).digest()  // 预哈希
+  : content;
+```
+
 
 ## 四、关于 SmartScreen（重要，别让用户以为中了病毒）
 
