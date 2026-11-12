@@ -700,8 +700,13 @@ export function App(): JSX.Element {
             : `${sidebarWidth}px minmax(0, 1fr)`,
         }}
       >
-      {/* 折叠时整块隐藏，不只是收窄——收窄到几十像素反而更难看 */}
-      <div style={{ display: sidebarCollapsed ? 'none' : undefined }}>
+      {/* 折叠时整块隐藏，不只是收窄——收窄到几十像素反而更难看。
+          注意：这个包裹层必须是 grid 项目的一部分且**撑满高度**，
+          否则侧栏会被内容撑开，"已连接/设置"就贴不到底部去了。 */}
+      <div
+        className="sidebar-slot"
+        style={{ display: sidebarCollapsed ? 'none' : undefined }}
+      >
       <Sidebar
         projects={state.projects}
         executors={state.executors}
