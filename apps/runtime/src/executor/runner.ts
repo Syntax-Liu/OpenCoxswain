@@ -9,6 +9,7 @@
  * - 不决定"怎么告诉用户"（那是汇报的事）
  */
 import type { LlmClient } from '../llm/types.js';
+import type { LoopEvent } from '../session/loop.js';
 import {
   isExecutorTerminal,
   newId,
@@ -159,8 +160,27 @@ export function stillRunnable(store: Store, executorId: string): ExecutorRow | n
 export function traceHandler(
   store: Store,
   sessionId: string,
-): (event: { type: string; name?: string; args?: unknown; ok?: boolean; preview?: string }) => void {
+): (event: LoopEvent) => void {
   return (event) => {
+    // **上下文压缩**：记一条轨迹，让用户知道历史被压缩过。
+    // 不记的话，用户只会觉得"模型怎么忘了前面说过什么"。
+    if (event.type === 'compacted') {
+      const summary =
+        event.droppedMessages > 0
+          ? `上下文已压缩：折叠 ${event.droppedMessages} 条历史` +
+            (event.prunedToolResults > 0 ? `、剪枝 ${event.prunedToolResults} 条工具输出` : '') +
+            `（约 ${event.tokensBefore} → ${event.tokensAfter} token）`
+          : `上下文已压缩：剪枝 ${event.prunedToolResults} 条超长工具输出` +
+            `（约 ${event.tokensBefore} → ${event.tokensAfter} token）`;
+      void store.appendMessage(sessionId, {
+        id: newId('msg'),
+        role: 'assistant',
+        content: summary,
+        source: 'compaction',
+        at: Date.now(),
+      });
+      return;
+    }
     if (event.type === 'tool_call') {
       void store.appendMessage(sessionId, {
         id: newId('msg'),

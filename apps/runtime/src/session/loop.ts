@@ -20,6 +20,7 @@ import type {
   LlmToolCall,
   ToolDefinition,
 } from '../llm/types.js';
+import { compactMessages, type CompactOptions } from './compact.js';
 
 /** 工具执行宿主：由角色层提供，循环只负责调度。 */
 export interface ToolHost {
@@ -46,6 +47,14 @@ export type LoopEvent =
       readonly cachedTokens?: number;
     }
   | { readonly type: 'error'; readonly message: string; readonly retryable: boolean }
+  | {
+      /** 上下文被压缩过（工具结果剪枝 / 历史折叠）。 */
+      readonly type: 'compacted';
+      readonly prunedToolResults: number;
+      readonly droppedMessages: number;
+      readonly tokensBefore: number;
+      readonly tokensAfter: number;
+    }
   | { readonly type: 'done'; readonly finalText: string; readonly steps: number };
 
 export interface RunLoopOptions {
@@ -55,6 +64,8 @@ export interface RunLoopOptions {
   readonly messages: ChatMessage[];
   /** 单轮最多几次模型往返，防止死循环。 */
   readonly maxSteps: number;
+  /** 上下文压缩参数；不提供时用默认值。 */
+  readonly compact?: CompactOptions;
   /** 中止信号：用户点停止、或 shutdown。 */
   readonly signal: AbortSignal;
   /**
@@ -79,6 +90,7 @@ const DEFAULT_MAX_TOOL_OUTPUT = 4000;
 export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEvent, void, void> {
   const { llm, toolHost, messages, maxSteps, signal } = options;
   const maxToolOutput = options.maxToolOutputChars ?? DEFAULT_MAX_TOOL_OUTPUT;
+  const compactOptions = options.compact ?? {};
   let lastText = '';
   let step = 0;
 
@@ -90,6 +102,27 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
     for (const text of inputs) {
       messages.push({ role: 'user', content: text });
       yield { type: 'steering', text };
+    }
+
+    // **上下文压缩**：每次调用模型前检查历史是否接近上限。
+    //
+    // 不压缩的话，跑几十步就会超模型上下文窗口然后整轮失败——
+    // 用户看到的是"跑到一半突然报错"。
+    //
+    // 顺序是"先剪枝（便宜、无损语义）再折叠"，见 compact.ts 的说明。
+    if (messages.length > 0) {
+      const compacted = compactMessages(messages, compactOptions);
+      if (compacted.changed) {
+        messages.length = 0;
+        messages.push(...compacted.messages);
+        yield {
+          type: 'compacted',
+          prunedToolResults: compacted.prunedToolResults,
+          droppedMessages: compacted.droppedMessages,
+          tokensBefore: compacted.tokensBefore,
+          tokensAfter: compacted.tokensAfter,
+        };
+      }
     }
 
     let response;

@@ -19,6 +19,7 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/loop.js';
+import { applyEdit } from './edit.js';
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
@@ -127,6 +128,30 @@ export function executorTools(): ToolDefinition[] {
         additionalProperties: false,
         required: ['path'],
         properties: { path: { type: 'string', description: '相对项目根的路径' } },
+      },
+    },
+    {
+      name: 'edit_file',
+      description:
+        '把文件里的一段文本替换成另一段（精确编辑，**优先用它而不是 write_file**）。\n' +
+        'old_text 必须与文件内容逐字一致（含缩进）；new_text 是替换后的内容。\n' +
+        '若 old_text 出现多次会报错——多带几行上下文定位，或用 replace_all 全部替换。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['path', 'old_text', 'new_text'],
+        properties: {
+          path: { type: 'string', description: '相对项目根的路径' },
+          old_text: {
+            type: 'string',
+            description: '要被替换的原文（逐字复制，带足够上下文确保唯一）',
+          },
+          new_text: { type: 'string', description: '替换后的内容；删掉这段就传空字符串' },
+          replace_all: {
+            type: 'boolean',
+            description: 'old_text 出现多次时是否全部替换（默认 false）',
+          },
+        },
       },
     },
     {
@@ -325,6 +350,35 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             const target = resolveInside(rootPath, String(args.path ?? ''));
             const content = await readFile(target, 'utf8');
             return { ok: true, content: content.slice(0, maxOutput) };
+          }
+          case 'edit_file': {
+            if (options.readonlyTask) {
+              return {
+                ok: false,
+                content:
+                  '这是只读任务，禁止改文件。如果你认为必须修改才能完成，' +
+                  '请在收尾文本里说明需要改成写任务，不要绕过限制。',
+              };
+            }
+            const relative = String(args.path ?? '');
+            assertInScope(options.writeScope, relative);
+            const target = resolveInside(rootPath, relative);
+
+            let original: string;
+            try {
+              original = await readFile(target, 'utf8');
+            } catch {
+              return { ok: false, content: `文件不存在：${relative}。要新建请用 write_file。` };
+            }
+
+            const oldText = String(args.old_text ?? '');
+            const newText = String(args.new_text ?? '');
+
+            const applied = applyEdit(original, oldText, newText, args.replace_all === true);
+            if (!applied.ok) return { ok: false, content: applied.error };
+
+            await writeFile(target, applied.content, 'utf8');
+            return { ok: true, content: `已修改 ${relative}${applied.summary}` };
           }
           case 'write_file': {
             if (options.readonlyTask) {
