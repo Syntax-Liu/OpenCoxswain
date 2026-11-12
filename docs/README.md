@@ -5,6 +5,7 @@
 | 想知道什么 | 看哪份 |
 | --- | --- |
 | **下一步做什么** | [`roadmap.md`](roadmap.md) ← **最新** |
+| **命令能做什么** | [sandbox.md](sandbox.md) ← 命令沙箱（非进程隔离） |
 | **怎么找代码** | [code-navigation.md](code-navigation.md) ← 符号查找（非完整 LSP） |
 | **怎么接自己的工具** | [mcp.md](mcp.md) ← MCP 接入 |
 | **怎么写技能** | [skills.md](skills.md) ← 按需加载的工作知识 |

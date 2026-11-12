@@ -23,6 +23,7 @@ import { applyEdit } from './edit.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { McpTool } from '../mcp/client.js';
 import { findSymbol, listSymbols, renderSymbolResult } from '../codeintel/symbols.js';
+import { checkCommand } from './sandbox.js';
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
@@ -286,6 +287,10 @@ export interface ExecutorToolHostOptions {
    * 这里在工具层直接拒绝，才是真保证。
    */
   readonly readonlyTask?: boolean;
+  /**
+   * 沙箱放行的项目外目录。默认一条都没有——写操作只能落在项目内。
+   */
+  readonly allowOutside?: readonly string[];
   /** MCP 工具（名字已带服务器前缀）。调用时转发给对应服务器。 */
   readonly mcpTools?: readonly McpTool[];
   /** MCP 调用入口；提供后 mcpTools 里的工具才能真正执行。 */
@@ -552,6 +557,22 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
                     '只读任务只能查询与读取；需要修改请说明后改派写任务。',
                 };
               }
+            }
+
+            // **沙箱**：把写操作限制在项目目录内。
+            //
+            // 位置在审批**之前**：越界的写操作根本不该执行，
+            // 不值得惊动用户去点一次"批准"。
+            //
+            // 注意它是**收紧**而不是放松——默认启用，不需要用户授权。
+            const verdict = checkCommand(rootPath, command, {
+              ...(options.allowOutside ? { allowOutside: options.allowOutside } : {}),
+            });
+            if (!verdict.allowed) {
+              return {
+                ok: false,
+                content: `${verdict.reason}\n\n命中的路径：${verdict.evidence ?? '（未列出）'}`,
+              };
             }
 
             // 危险动作：**执行前**必须有人拍板。不可逆的动作没有后悔机会。
