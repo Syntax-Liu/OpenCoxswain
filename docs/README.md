@@ -12,6 +12,7 @@
 | **我们差在哪** | [competitor-gap.md](competitor-gap.md) ← **竞品调研：7 个子系统的差距** |
 | **快捷键** | [shortcuts.md](shortcuts.md) ← Ctrl+K 命令面板等 |
 | **怎么发文件** | [ttachments.md](attachments.md) ← 拖入 / 粘贴 / 图片降级 |
+| **做完了吗** | [status-2026-11-12.md](status-2026-11-12.md) ← **收尾状态与待验证项** |
 | **接下来做什么** | [usability-plan.md](usability-plan.md) ← **易用性方案（下一步）** |
 | **界面往哪走** | [design-direction.md](design-direction.md) ← **视觉方向方案（待确认）** |
 | **改界面之前** | [ui-spec.md](ui-spec.md) ← **界面规范，唯一标准** |
