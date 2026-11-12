@@ -3107,3 +3107,363 @@ body.is-resizing {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ---------- 修正：输入框聚焦时的蓝框 ---------- */
+
+/* 聚焦时整圈描边很丑（尤其是 1px 落在 2px 边框上会出现双线）。
+   现在：只改边框颜色，不加 outline；内层再加一点微弱的背景提亮。 */
+.composer-box:focus-within {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+  outline: none;
+}
+
+.composer-box textarea:focus,
+.composer-box textarea:focus-visible {
+  outline: none;
+  border: none;
+}
+
+/* 去掉浏览器给 textarea 的默认焦点环 */
+.composer-box textarea {
+  outline: none;
+}
+
+/* ============================================================
+   设置页（独立页面，照 TRAE / DSH）
+   ============================================================ */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: var(--bg);
+}
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+.settings-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 38px;
+  flex: none;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+.back-btn {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+}
+
+.back-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-strong);
+}
+
+.settings-title {
+  font-size: var(--fs-md);
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+
+.settings-nav {
+  border-right: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  padding: 10px 0;
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-muted);
+  text-align: left;
+  font-size: var(--fs-md);
+}
+
+.settings-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-nav-item.active {
+  background: var(--bg-active);
+  color: var(--text-strong);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.settings-nav-icon {
+  width: 14px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.settings-content {
+  overflow-y: auto;
+  padding: 20px 28px 40px;
+}
+
+.settings-block {
+  max-width: 760px;
+}
+
+.settings-block h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0 0 6px;
+}
+
+.settings-subhead {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 20px 0 8px;
+}
+
+.settings-group {
+  margin-top: 4px;
+}
+
+.settings-readonly {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  margin: 10px 0;
+}
+
+.settings-readonly-key {
+  color: var(--text-dim);
+}
+
+.settings-readonly-value {
+  color: var(--text);
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.saved-hint {
+  font-size: var(--fs-sm);
+  color: var(--ok);
+}
+
+/* ---- 权限档位 ---- */
+
+.perm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 12px 0;
+}
+
+.perm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  background: var(--bg-elevated);
+}
+
+.perm-row:hover {
+  border-color: var(--border-strong);
+}
+
+.perm-row.active {
+  border-color: var(--accent);
+  background: rgba(0, 120, 212, 0.08);
+}
+
+.perm-row input {
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.perm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perm-label {
+  font-size: var(--fs-md);
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+.perm-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ---- 模型列表 ---- */
+
+.model-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 16px;
+  margin: 14px 0;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--border);
+  padding-right: 12px;
+  min-height: 120px;
+}
+
+.model-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+}
+
+.model-item:hover {
+  background: var(--bg-hover);
+}
+
+.model-item.active {
+  background: var(--bg-active);
+  color: var(--text-strong);
+}
+
+.model-item-name {
+  font-size: var(--fs-sm);
+}
+
+.model-item-id {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.model-add {
+  margin-top: 6px;
+  align-self: flex-start;
+}
+
+.model-empty {
+  padding: 8px 4px;
+}
+
+.model-detail {
+  min-width: 0;
+}
+
+.model-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.model-detail-head h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--text-strong);
+}
+
+.danger-link {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  background: none;
+  border: none;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+
+.check-row input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ---- 角色绑定 ---- */
+
+.role-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.role-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 220px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.role-name {
+  font-size: var(--fs-md);
+  color: var(--text-strong);
+}
+
+.role-row select {
+  width: 100%;
+}

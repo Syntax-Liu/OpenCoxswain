@@ -143,6 +143,8 @@ export interface OutboundEvent {
 
 export interface SettingsStatus {
   readonly configured: boolean;
+  /** 密钥存储形态：密文还是明文。 */
+  readonly storage?: 'encrypted' | 'plaintext';
   readonly source: 'env' | 'file' | 'none';
   readonly baseUrl: string;
   readonly model: string;
@@ -230,6 +232,39 @@ export interface AppliedTemplateDto {
   readonly readonly: boolean;
   /** 永远是 true：模板只预填，不自动派活。 */
   readonly requiresConfirmation: true;
+}
+
+export interface ModelParamsDto {
+  readonly reasoningEffort?: 'low' | 'medium' | 'high';
+  readonly contextLength?: number;
+  readonly supportsImages?: boolean;
+  readonly maxToolRounds?: number;
+  readonly temperature?: number;
+  readonly topP?: number;
+}
+
+export interface ModelConfigDto {
+  readonly id: string;
+  readonly name: string;
+  readonly baseUrl: string;
+  readonly apiKey: string;
+  readonly model: string;
+  readonly params: ModelParamsDto;
+}
+
+export interface ModelSettingsDto {
+  readonly models: readonly ModelConfigDto[];
+  readonly roles: {
+    readonly supervisor: string | null;
+    readonly assistant: string | null;
+    readonly agent: string | null;
+  };
+}
+
+export interface PermissionLevelDto {
+  readonly id: string;
+  readonly label: string;
+  readonly hint: string;
 }
 
 export class ApiError extends Error {
@@ -412,6 +447,30 @@ export class ApiClient {
   /** 删除一条会话（Agent）。正在跑的会被服务端拒绝。 */
   deleteExecutor(executorId: string): Promise<{ ok: boolean }> {
     return this.request(`/api/executors/${encodeURIComponent(executorId)}`, { method: 'DELETE' });
+  }
+
+  /** 多模型配置。 */
+  models(): Promise<{ settings: ModelSettingsDto; storage: string }> {
+    return this.request('/api/models');
+  }
+
+  saveModels(settings: {
+    models: readonly ModelConfigDto[];
+    roles: ModelSettingsDto['roles'];
+  }): Promise<{ ok: boolean; storage: string }> {
+    return this.request('/api/models', { method: 'POST', body: settings });
+  }
+
+  /** 权限档位。 */
+  permissions(): Promise<{
+    settings: { level: string };
+    levels: readonly PermissionLevelDto[];
+  }> {
+    return this.request('/api/permissions');
+  }
+
+  setPermissionLevel(level: string): Promise<{ ok: boolean }> {
+    return this.request('/api/permissions', { method: 'POST', body: { level } });
   }
 
   /** 关闭行为设置。 */

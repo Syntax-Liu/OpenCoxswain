@@ -50,9 +50,8 @@ import type { MessageDto } from './api.js';
 import { readSavedSidebarWidth, saveSidebarWidth } from './sidebarWidth.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
-import { ContextMenu } from './components/ContextMenu.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
-import { SettingsDialog } from './components/SettingsDialog.js';
+import { SettingsPage } from './components/SettingsPage.js';
 
 type View =
   | { readonly kind: 'assistant'; readonly projectId: string }
@@ -656,13 +655,17 @@ export function App(): JSX.Element {
       )}
 
       {showSettings && settings && (
-        <SettingsDialog
-          api={api}
-          status={settings}
-          projects={state.projects}
-          onClose={() => setShowSettings(false)}
-          onSaved={setSettings}
-        />
+        // 设置是**独立页面**（照 TRAE / DSH），不是弹窗：
+        // 设置项已经多到一个弹窗塞不下，弹窗里滚动很难用，而且挡住主界面。
+        <div className="settings-overlay">
+          <SettingsPage
+            api={api}
+            status={settings}
+            projects={state.projects}
+            onClose={() => setShowSettings(false)}
+            onSaved={setSettings}
+          />
+        </div>
       )}
 
       {state.error && (
@@ -674,8 +677,6 @@ export function App(): JSX.Element {
         </div>
       )}
       </div>
-      {/* 自定义右键菜单：替换浏览器默认菜单 */}
-      <ContextMenu />
     </div>
   );
 }

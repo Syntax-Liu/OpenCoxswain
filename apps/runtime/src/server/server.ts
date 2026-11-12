@@ -43,6 +43,7 @@ import { TelegramClient } from '../im/telegram.js';
 import { readUpdateCheck } from '../update/check.js';
 import { isAllowedOrigin, isAuthorized } from './token.js';
 import type { ScheduleSpec } from '../schedules/schedules.js';
+import { validateSettings, type ModelConfig, type ModelSettings } from '../llm/models.js';
 import {
   LEVEL_HINT,
   LEVEL_LABEL,
@@ -312,6 +313,30 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     if (method === 'POST' && url.pathname === '/api/im/stop') {
       await im?.stop();
       return reply(200, { ok: true });
+    }
+
+    // ---- 多模型配置 ----
+    if (url.pathname === '/api/models') {
+      if (method === 'GET') {
+        return reply(200, {
+          settings: await orchestrator.modelSettings(),
+          storage: orchestrator.modelStorageMode(),
+        });
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        const settings = {
+          models: Array.isArray(body.models) ? (body.models as ModelConfig[]) : [],
+          roles: (body.roles ?? { supervisor: null, assistant: null, agent: null }) as ModelSettings['roles'],
+        };
+        // 配置错误要明确告诉用户，不能静默保存
+        const errors = validateSettings(settings);
+        if (errors.length > 0) {
+          return deny(400, errors.join('；'));
+        }
+        await orchestrator.saveModelSettings(settings);
+        return reply(200, { ok: true, storage: orchestrator.modelStorageMode() });
+      }
     }
 
     // ---- 权限档位 ----

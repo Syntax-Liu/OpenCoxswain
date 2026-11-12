@@ -25,6 +25,8 @@ import { TelegramClient } from './im/telegram.js';
 import { loadExtensions } from './extensions/index.js';
 import { ScheduleStore } from './schedules/store.js';
 import { CloseSettingsStore } from './settings/close.js';
+import { PermissionStore } from './settings/permission.js';
+import { ModelStore } from './llm/modelStore.js';
 import { TokenStore } from './server/token.js';
 import { secretServiceFromEnv } from './llm/secret.js';
 import path from 'node:path';
@@ -174,6 +176,11 @@ async function main(): Promise<void> {
     // 定时配置落成 JSON：量小，用户还能直接看和改。
     schedules: new ScheduleStore(path.join(os.homedir(), '.opencoxswain', 'schedules.json')),
     closeSettings: new CloseSettingsStore(path.join(os.homedir(), '.opencoxswain', 'close.json')),
+    permissions: new PermissionStore(path.join(os.homedir(), '.opencoxswain', 'permissions.json')),
+    models: new ModelStore({
+      file: path.join(os.homedir(), '.opencoxswain', 'models.json'),
+      cipher: secretServiceFromEnv(),
+    }),
     ...(extensions.beforeTool.length + extensions.afterTool.length > 0
       ? { extensions: { beforeTool: extensions.beforeTool, afterTool: extensions.afterTool } }
       : {}),

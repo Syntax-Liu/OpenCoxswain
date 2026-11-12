@@ -52,6 +52,8 @@ import {
   type PermissionStoreLike,
 } from './settings/permission.js';
 import type { PermissionLevel } from './settings/permission.js';
+import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
+import type { ModelSettings } from './llm/models.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -94,6 +96,8 @@ export interface OrchestratorOptions {
   readonly closeSettings?: CloseSettingsStoreLike;
   /** 权限档位；不提供时默认「手动审批」。 */
   readonly permissions?: PermissionStoreLike;
+  /** 多模型配置；不提供时用内存实现。 */
+  readonly models?: ModelStoreLike;
   /**
    * 用户扩展（geek 自定义口）。
    *
@@ -185,6 +189,7 @@ export class Orchestrator extends EventEmitter {
   private readonly scheduleStore: ScheduleStorage;
   private readonly closeStore: CloseSettingsStoreLike;
   private readonly permissionStore: PermissionStoreLike;
+  private readonly modelStore: ModelStoreLike;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -203,6 +208,7 @@ export class Orchestrator extends EventEmitter {
     this.scheduleStore = options.schedules ?? new MemoryScheduleStore();
     this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
+    this.modelStore = options.models ?? new MemoryModelStore();
     this.extensions = options.extensions;
   }
 
@@ -1449,6 +1455,21 @@ export class Orchestrator extends EventEmitter {
       }
     }
     return count;
+  }
+
+  /** 多模型配置。 */
+  async modelSettings(): Promise<ModelSettings> {
+    return this.modelStore.load();
+  }
+
+  /** 保存多模型配置（校验在调用方做）。 */
+  async saveModelSettings(settings: ModelSettings): Promise<void> {
+    await this.modelStore.save(settings);
+  }
+
+  /** 密钥存储形态，界面要如实显示。 */
+  modelStorageMode(): 'encrypted' | 'plaintext' {
+    return this.modelStore.storageMode();
   }
 
   /** 当前权限档位。 */

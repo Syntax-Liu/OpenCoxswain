@@ -35,7 +35,7 @@ export const LEVEL_LABEL: Record<PermissionLevel, string> = {
 export const LEVEL_HINT: Record<PermissionLevel, string> = {
   readonly: '只读文件、执行查询。任何写入与危险动作都不会发生。',
   manual: '可以改文件。删除、推送、发布、付款、外发这些动作每次都要你点头。',
-  auto: '可以改文件，危险动作自动放行，但**全部记进副作用台账**。',
+  auto: '可以改文件，危险动作自动放行，但全部记进副作用台账。',
   full: '一切放行。仍然记录台账，写域互斥与用量止损照旧生效。',
 };
 
