@@ -240,7 +240,7 @@ describe('SQLite：关掉软件后完整恢复（D5）', () => {
       projectId: 'prj_1',
       parentSessionId: null,
       label: 'C',
-      systemPrompt: '你是项目经理',
+      systemPrompt: '你是Assistant',
       status: 'idle',
       resumable: true,
       createdAt: 1,
@@ -292,7 +292,7 @@ describe('SQLite：关掉软件后完整恢复（D5）', () => {
 
     const session = second.getSession('c1');
     assert.ok(session, 'C 的会话必须还在');
-    assert.equal(session.systemPrompt, '你是项目经理');
+    assert.equal(session.systemPrompt, '你是Assistant');
 
     const history = second.chatHistory('c1');
     assert.equal(history.length, 2, 'system + 一条用户消息');

@@ -24,7 +24,7 @@ export interface InboxItem {
   readonly text: string;
   readonly target: InboxTarget;
   readonly at: number;
-  /** 来源：webapp / im / 总经理转交。 */
+  /** 来源：webapp / im / Supervisor转交。 */
   readonly source: string;
   /**
    * 是否是系统内部通知（如执行者结算）。

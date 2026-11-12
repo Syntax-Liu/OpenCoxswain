@@ -38,7 +38,7 @@ function makeSpyLlm(seen: string[][]) {
     if (isSettlementNotice(request)) return { text: '收到结算，已汇报。' };
     if (
       typeof system?.content === 'string' &&
-      system.content.startsWith('你是这个项目的「项目经理」')
+      system.content.startsWith('你是这个项目的「Assistant」')
     ) {
       seen.push(
         request.messages

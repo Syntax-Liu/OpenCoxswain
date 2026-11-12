@@ -234,7 +234,7 @@ describe('Markdown 记忆存储', () => {
 // 接入 C：跨重启保留
 // ---------------------------------------------------------------------------
 
-describe('记忆接进项目经理', () => {
+describe('记忆接进Assistant', () => {
   it('C 用 remember 写入，下一轮就看到它（跨会话生效）', async () => {
     const root = await makeRoot();
     const memRoot = await makeRoot();
@@ -246,7 +246,7 @@ describe('记忆接进项目经理', () => {
       const system = request.messages.find((m) => m.role === 'system');
       const sys = typeof system?.content === 'string' ? system.content : '';
       if (!isAssistantTurn(request)) return { text: 'ok' };
-      if (sys.startsWith('你是这个项目的「项目经理」')) {
+      if (sys.startsWith('你是这个项目的「Assistant」')) {
         seen.push(sys);
         turn += 1;
         if (turn === 2) {
@@ -287,7 +287,7 @@ describe('记忆接进项目经理', () => {
 
     const llm = new MockLlmClient((request) => {
       const sys = String(request.messages.find((m) => m.role === 'system')?.content ?? '');
-      if (!isAssistantTurn(request) || !sys.startsWith('你是这个项目的「项目经理」')) {
+      if (!isAssistantTurn(request) || !sys.startsWith('你是这个项目的「Assistant」')) {
         return { text: 'ok' };
       }
       const toolMsgs = request.messages.filter((m) => m.role === 'tool');

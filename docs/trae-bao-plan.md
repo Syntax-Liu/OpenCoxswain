@@ -33,8 +33,8 @@
 
 | 层 | 职责 | 关键交互 |
 | --- | --- | --- |
-| **总经理** | 跨项目记住历史任务、对话、产物；接收用户一句话，决定派给谁；汇总所有项目的进度、成果、待决策项 | 一个常驻入口；可以问到"上周那个 macOS 长截图工具做到哪了" |
-| **项目经理** | 每个项目一个独立会话；拆解任务、执行、自己再调度子任务并行；向总经理汇报 | 用户通常不直接进项目会话，只看汇总 |
+| **Supervisor** | 跨项目记住历史任务、对话、产物；接收用户一句话，决定派给谁；汇总所有项目的进度、成果、待决策项 | 一个常驻入口；可以问到"上周那个 macOS 长截图工具做到哪了" |
+| **Assistant** | 每个项目一个独立会话；拆解任务、执行、自己再调度子任务并行；向Supervisor汇报 | 用户通常不直接进项目会话，只看汇总 |
 
 这两层的本质是：**一个编排者 + N 个有独立工作目录的执行者**，编排者对执行者只有"派活 / 收报告"两种动作，不共享上下文。
 
@@ -62,7 +62,7 @@
 | # | 能力点 | dsh 现状 | 结论 |
 | --- | --- | --- | --- |
 | 1 | 全局 / 项目双层会话 | 会话带 `SessionHeader.cwd`，可按目录归属；宿主有可选的 `ctx.workspaceRegistry` | ✅ 可行 |
-| 2 | 派活给一个"项目经理" | `ctx.subagents.startActivation({ provider, label, request, signal, delivery })`，`request` 内支持 `cwd` / `agentPreset` / `prompt`，结构化输出按每次 activation 单独挂载 | ✅ 可行（并发配额见 2.3） |
+| 2 | 派活给一个"Assistant" | `ctx.subagents.startActivation({ provider, label, request, signal, delivery })`，`request` 内支持 `cwd` / `agentPreset` / `prompt`，结构化输出按每次 activation 单独挂载 | ✅ 可行（并发配额见 2.3） |
 | 3 | 多项目并行 | `maxActiveSubagents` 默认 8 / 每棵树；`maxDepth` 默认 1；超出**直接拒绝、不排队**（上游明确设计） | ✅ 可行，但**必须自建队列** |
 | 4 | 跨项目记忆 | 无 memory / embedding / RAG 包；有 `ctx.storageDomain`（schema 校验的 KV 域，读同步、写落盘后 resolve）与 `ctx.sessionQuery`（SQLite FTS 词法检索） | ⚠️ 可行，需自研一层 |
 | 5 | 记忆注入模型上下文 | `ctx.systemPrompt.section({ name, order, text \| render })`；外部 section 可用任意有限 order，scope 内可覆盖全局 | ✅ 可行 |
@@ -82,7 +82,7 @@
 // 工具注册
 ctx.tools.register(defineTool({
   name: 'dispatch_task',
-  description: '把一件工作派给某个项目的项目经理',
+  description: '把一件工作派给某个项目的Assistant',
   parameters: { /* JSON Schema */ },
   output: { schema: { /* JSON Schema */ }, render: (value) => String(value) },
   async execute(args, exec) { /* ... */ },
@@ -151,7 +151,7 @@ ctx.layout.selectPanel(PANEL_ID);
 
 - `maxActiveSubagents` 默认 **8 / 每棵树**，超限**直接拒绝**，错误码 `ACTIVATION_LIMIT_REACHED`。上游 README 明确写"admission does not queue"：等待后代的父代理不能去等自己被占用的槽位。所以**排队必须由我们做**。
 - 对应 TRAE 宝"最多 5 个项目不串台"，我们设闸门 **5**，第 6 个进队列。
-- `maxDepth` 默认 1：项目经理**不能再派子助理**。所以"项目内再拆并行子任务"必须由项目经理自己用 dsh 的普通并行工具做，而不是再套一层 `startActivation`。这一点必须在 preset 的系统提示里写死，否则模型会尝试嵌套并失败。
+- `maxDepth` 默认 1：Assistant**不能再派子助理**。所以"项目内再拆并行子任务"必须由Assistant自己用 dsh 的普通并行工具做，而不是再套一层 `startActivation`。这一点必须在 preset 的系统提示里写死，否则模型会尝试嵌套并失败。
 - `agentPreset` 只有 `spawn` 支持，`fork` 与外部执行体会直接拒绝该选项。
 - 槽位是**进程本地**的，不约束历史会话累计量；重启后计数从零开始。
 
@@ -177,7 +177,7 @@ ctx.layout.selectPanel(PANEL_ID);
 └───────────────┬──────────────────────┘
                 │ 一句话
 ┌───────────────▼──────────────────────┐
-│  总经理（global session）           │
+│  Supervisor（global session）           │
 │  cwd = ~/.dsh/bao（稳定目录）         │
 │  工具：dispatch_task / list_tasks /   │
 │        report_back / remember / recall│
@@ -185,7 +185,7 @@ ctx.layout.selectPanel(PANEL_ID);
 └───┬───────────────┬──────────────────┘
     │ 派活（队列 5 并发）                │
 ┌───▼───────┐  ┌────▼──────┐  ┌────▼──────┐
-│ 项目经理 A │  │ 项目经理 B │  │ 项目经理 C │
+│ Assistant A │  │ Assistant B │  │ Assistant C │
 │ cwd=A      │  │ cwd=B      │  │ cwd=C      │
 │ preset=    │  │ preset=    │  │ preset=    │
 │ project-   │  │ project-   │  │ project-   │
@@ -303,9 +303,9 @@ interface TaskRow {
   goal: string;
   status: 'queued' | 'running' | 'blocked' | 'done' | 'failed' | 'cancelled';
   priority: number;
-  sessionId: string | null;   // 项目经理子会话 id（childId）
-  brief: string;              // 下发给项目经理的完整任务简报
-  summary: string | null;     // 项目经理回报的结论
+  sessionId: string | null;   // Assistant子会话 id（childId）
+  brief: string;              // 下发给Assistant的完整任务简报
+  summary: string | null;     // Assistant回报的结论
   blockedReason: string | null;
   createdAt: string;
   updatedAt: string;
@@ -380,7 +380,7 @@ interface AuditRow {
 用户: "把登录页的重构推进一下，顺便看看昨天那个导出功能卡在哪了"
   │
   ▼
-总经理（session G）
+Supervisor（session G）
   ├─ recall("登录页 重构") → 命中项目 A 的 rules.md + 上次任务 tsk_01
   ├─ recall("导出")       → 命中项目 B 的 journal，发现 blocked
   ├─ dispatch_task({projectPath: A, title:"登录页重构", goal:"..."}) → tsk_11 (queued)
@@ -391,15 +391,15 @@ startActivation({ provider:'spawn', parent:G, cwd:A, agentPreset:'project-driver
 startActivation({ provider:'spawn', parent:G, cwd:B, agentPreset:'project-driver', prompt:brief })
   │
   ▼
-总经理立刻回复用户："已派 2 个项目：A 做登录页重构，B 查导出卡点。有结论我汇总给你。"
+Supervisor立刻回复用户："已派 2 个项目：A 做登录页重构，B 查导出卡点。有结论我汇总给你。"
 ```
 
 关键：`dispatch_task` **不阻塞**，立即返回 `taskId`。阻塞就等于放弃并行。
 
-### 6.2 项目经理执行
+### 6.2 Assistant执行
 
 ```
-项目经理（session A，cwd=A，preset=project-driver）
+Assistant（session A，cwd=A，preset=project-driver）
   ├─ 系统提示注入：A 的 rules.md + 该项目最近 3 条报告
   ├─ 读代码 / 改代码 / 跑测试（dsh 自带工具）
   ├─ 中途 report_back({kind:'progress'|'blocked', body}) → 落表，必要时回投 G
@@ -428,7 +428,7 @@ G 收到通知 → 汇总："A 登录页重构完成，改了 6 个文件，测�
 | **会丢信息的一处** | 子代理结束前最后一个动作恰好是 `send_message` 给父会话时，收尾文本**被省略**，换成 `It sent you a message just before finishing, so its closing message is omitted.`；要拿回被省略的收尾文本只能再给子代理发消息 |
 | 成本 | 每次结算一条通知；父会话忙时不产生额外请求 |
 
-因此**不需要**回退方案里的 `session.prompt` 主动注入。但汇总链路必须防"收尾文本被省略"：项目经理 preset 要求**先输出结论、再发消息**，不要拿 `send_message` 当收尾动作。报告正文以插件侧 `ReportRow` 为准（`result` 里的完整输出与结构化值），不依赖父会话收到的通知文本。
+因此**不需要**回退方案里的 `session.prompt` 主动注入。但汇总链路必须防"收尾文本被省略"：Assistant preset 要求**先输出结论、再发消息**，不要拿 `send_message` 当收尾动作。报告正文以插件侧 `ReportRow` 为准（`result` 里的完整输出与结构化值），不依赖父会话收到的通知文本。
 
 ### 6.4 离开电脑：IM 问进度
 
@@ -653,7 +653,7 @@ ctx.tools.guard((call) => {
 M0 明确**不做**：记忆、看板、定时、IM。它们各自的 ⚠️ 未实测项不要提前耦合进来。
 
 验收：
-- 说"给 A 项目和 B 项目各派一件事"，两个项目经理同时起，互不串台。
+- 说"给 A 项目和 B 项目各派一件事"，两个Assistant同时起，互不串台。
 - 关掉 dsh 重启后 `list_tasks` 仍能看到这两个任务，且自动续跑。
 - 第 6 个任务进队列，`list_tasks` 显示 `queued`，前一个结束后自动开始。
 - 子代理结束后，`report` 表有该任务的 `done` 记录与结论摘要。
@@ -689,7 +689,7 @@ M0 明确**不做**：记忆、看板、定时、IM。它们各自的 ⚠️ 未
 
 交付：一键安装脚本（写 profile、装 bundle、建 `~/.dsh/bao` 目录）、首次启动引导（选模型、选权限档位、绑 IM）。
 
-验收：干净机器上跑一条命令，`dsh web` 打开即有"推进看板"面板和可用的总经理。
+验收：干净机器上跑一条命令，`dsh web` 打开即有"推进看板"面板和可用的Supervisor。
 
 ---
 

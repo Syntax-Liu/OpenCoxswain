@@ -123,7 +123,7 @@ export function toClaim(input: {
   return input;
 }
 
-/** 把冲突写成人话（给用户/项目经理看）。 */
+/** 把冲突写成人话（给用户/Assistant看）。 */
 export function describeConflict(conflict: CrossProjectConflict): string {
   return (
     `与另一个项目的执行者「${conflict.withLabel}」写同一个位置：\n` +

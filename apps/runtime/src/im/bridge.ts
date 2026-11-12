@@ -127,7 +127,7 @@ export class ImBridge {
         await this.options.saveConfig({ ...config, chatIds: [message.chatId] });
         await this.options.client.sendMessage(
           message.chatId,
-          '已绑定这个对话。现在可以直接说要做什么，我会派给项目经理。',
+          '已绑定这个对话。现在可以直接说要做什么，我会派给Assistant。',
         );
         return null;
       }

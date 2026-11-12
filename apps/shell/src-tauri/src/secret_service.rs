@@ -143,6 +143,14 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
         raw.extend_from_slice(&chunk[..read]);
     }
 
+    // 窗口控制**不需要请求体**：动作在 URL 里，前端发空 body 是正常的。
+    // 必须在 JSON 解析之前处理——否则空 body 会被当成"非法 JSON"拒掉，
+    // 表现就是标题栏那三个按钮全部点了没反应。
+    if path.starts_with("/window/") {
+        let action = path.trim_start_matches("/window/");
+        return handle_window_action(&mut stream, action);
+    }
+
     // 按字节截取 body（Content-Length 是字节数，不是字符数）。
     // Content-Length 缺失时退回"读到哪算哪"。
     let available = raw.len().saturating_sub(body_start);
@@ -156,11 +164,6 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
     };
 
     match path {
-        // 自绘标题栏的窗口控制
-        p if p.starts_with("/window/") => {
-            let action = p.trim_start_matches("/window/");
-            return handle_window_action(&mut stream, action);
-        }
         "/encrypt" => {
             let plain = payload.get("plain").and_then(|v| v.as_str()).unwrap_or_default();
             match crate::dpapi::encrypt(plain) {

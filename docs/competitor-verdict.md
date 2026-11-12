@@ -47,9 +47,9 @@ Multica 源码分析原文可直接佐证（[Multica 指南](https://agentpedia.
 
 证据（[官方文档](https://docs.trae.cn/ide_personal-assistant)）：
 
-- 两个角色：总经理 + 项目经理，与我们 B/C 同构；
+- 两个角色：Supervisor + Assistant，与我们 B/C 同构；
 - 交互入口一致：点项目栏进入"项目专属·TRAE 宝"，即 C；
-- 项目经理职责原文："围绕一个具体的项目工作……拆解复杂需求，调度子任务并行推进，完成联调与汇总"；
+- Assistant职责原文："围绕一个具体的项目工作……拆解复杂需求，调度子任务并行推进，完成联调与汇总"；
 - 有自己的 Agent 运行时（字节自家模型）。
 
 **差异**：闭源、绑字节系模型、无本地白盒记忆、**审批只有一个"完全访问"总开关**（关掉全部沙箱与检查），没有分级审批。
@@ -138,7 +138,7 @@ Cursor 3 的 Agents Window 是"一个人在多个仓库上并跑 agent"；`/best
 | Multica | issue | 没有人，人自己看板 |
 | Vibe Kanban | workspace | 人 |
 | Paperclip | task + owner | 有 owner，但是**单据级**，跨任务协调靠 org chart |
-| TRAE 宝 | 任务 | 项目经理 |
+| TRAE 宝 | 任务 | Assistant |
 | **我们** | **项目（C 常驻）** | **C 负责到底，包括主动推进卡点** |
 
 "谁在事情卡住时主动想办法"这个职责，在 Paperclip 那里是 org chart 里的上级 agent；在 Multica/Vibe Kanban 那里是**人**；在我们这里**是 C**。

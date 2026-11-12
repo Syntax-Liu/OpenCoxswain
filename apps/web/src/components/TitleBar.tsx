@@ -32,12 +32,19 @@ async function windowAction(action: WindowAction): Promise<void> {
   const token = controlToken();
   if (!token) return;
   try {
-    await fetch(`${CONTROL_URL}/window/${action}`, {
+    const res = await fetch(`${CONTROL_URL}/window/${action}`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}` },
+      // 带上空 JSON：某些服务端实现会要求 body 合法，
+      // 发空 body 曾经导致这类接口直接 400。
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: '{}',
     });
-  } catch {
-    // 窗口控制失败不影响使用：用户可以点任务栏。
+    if (!res.ok) {
+      // 不弹错误打扰用户，但留个痕迹便于排查。
+      console.warn(`窗口操作 ${action} 失败：HTTP ${res.status}`);
+    }
+  } catch (error) {
+    console.warn(`窗口操作 ${action} 失败：`, error);
   }
 }
 

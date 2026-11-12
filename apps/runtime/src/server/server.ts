@@ -454,7 +454,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
       if (method === 'POST' && action === 'stop') {
         const assistant = orchestrator.getAssistant(projectId);
-        if (!assistant) return deny(404, '该项目的项目经理当前未加载');
+        if (!assistant) return deny(404, '该项目的Assistant当前未加载');
         assistant.stop();
         return reply(200, { stopped: true });
       }

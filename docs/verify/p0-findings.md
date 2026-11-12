@@ -59,7 +59,7 @@
 
 **补充验证（方案 §12 要求）**：`get()` 在**插件重启后**能否取回未恢复的 C？
 —— 不能，且这是**预期行为**：`agent/disposed` 在 Agent 离开注册表时发出（`runtime-types.d.ts:267`），进程重启后注册表为空。
-因此 §7.3 的"项目经理当前未加载"分支**真实存在，必须保留**；恢复 C 的责任在"打开项目"流程（用 `ctx.agents.resume({ resumeSessionId })`）。
+因此 §7.3 的"Assistant当前未加载"分支**真实存在，必须保留**；恢复 C 的责任在"打开项目"流程（用 `ctx.agents.resume({ resumeSessionId })`）。
 这与方案 §7.3 第 4 点一致，无需修改。
 
 ---
@@ -144,7 +144,7 @@
 
 1. **C 必须用 `create` 而非 `startActivation`** —— 这是原 `orchestrator/runner.ts` 的根本偏差。
 2. **D 的完成通知不需要插件注入**，但 D 的 preset 必须禁止"用发消息结尾"。
-3. **重启后 C 不在注册表**是常态，"项目经理当前未加载"分支要如实回报。
+3. **重启后 C 不在注册表**是常态，"Assistant当前未加载"分支要如实回报。
 4. **连发默认 `followup`**，冲突判定由 C 自己做（写进 `project-assistant` preset），插件用 `TurnRow.judged` 留痕。
 
 ## 仍未验证的部分（诚实声明）

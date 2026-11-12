@@ -1,5 +1,5 @@
 /**
- * 总经理 B：只做路由，不执行。
+ * Supervisor B：只做路由，不执行。
  *
  * 用户设想：
  * > "用户在主推流程外，可直接与 B 对话，B 会引导用户和哪一个 C 对接，
@@ -7,7 +7,7 @@
  * >  且不知道该向哪一个 C 发送任务时比较有效。"
  *
  * TRAE 宝的定位一致：
- * > "总经理：理解你的长期积累。它跨项目读取历史任务、对话和产物，
+ * > "Supervisor：理解你的长期积累。它跨项目读取历史任务、对话和产物，
  * >  梳理相关方案、约束与偏好，为新任务准备好起点。"
  *
  * 三条硬边界（任何实现都不许越）：
@@ -113,7 +113,7 @@ export function findProject(
   return {
     decision: 'unique',
     candidates: top3,
-    hint: `建议转交给「${top.name}」的项目经理。`,
+    hint: `建议转交给「${top.name}」的Assistant。`,
   };
 }
 
@@ -147,7 +147,7 @@ export async function handoff(
     return {
       ok: false,
       project: project.name,
-      reason: `「${project.name}」还没有项目经理，请先打开该项目一次`,
+      reason: `「${project.name}」还没有Assistant，请先打开该项目一次`,
     };
   }
 

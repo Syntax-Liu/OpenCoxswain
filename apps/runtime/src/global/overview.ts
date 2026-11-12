@@ -1,5 +1,5 @@
 /**
- * General Manager（总经理）的跨项目能力。
+ * General Manager（Supervisor）的跨项目能力。
  *
  * ## 为什么需要 B
  *

@@ -62,7 +62,7 @@ function makeAssistantLlm(_projectRoot: string) {
           text: '收到，我派一个执行者去创建文件。',
         };
       }
-      return { text: '你好，我是项目经理。' };
+      return { text: '你好，我是Assistant。' };
     }
     return { text: '（未预期的调用）' };
   });

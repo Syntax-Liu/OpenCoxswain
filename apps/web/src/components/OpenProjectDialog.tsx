@@ -21,7 +21,7 @@ export function OpenProjectDialog(props: OpenProjectDialogProps): JSX.Element {
       <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2>打开项目</h2>
         <p className="muted small">
-          填入项目根目录的绝对路径。每个项目的项目经理会记住自己的上下文。
+          填入项目根目录的绝对路径。每个项目的Assistant会记住自己的上下文。
         </p>
 
         <label className="field">

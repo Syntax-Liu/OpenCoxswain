@@ -7,12 +7,13 @@
 ## 四层结构
 
 ```
-A 用户 ──┬─→ B 总经理       跨项目统筹：全局视图、跨项目冲突、优先级裁决、跨项目记忆
-         ├─→ C 项目经理     一项目一常驻会话，项目的主人（主推入口）
-         └─→ D Agent        一事一 D，直接改代码，可被追问
+A User ──┬─→ B Supervisor    跨项目统筹：全局视图、跨项目冲突、优先级裁决、跨项目记忆
+         ├─→ C Assistant     一项目一常驻会话，项目的主人（主推入口）
+         └─→ D Agent         一事一 D，直接改代码，可被追问
 ```
 
-> 命名以 [docs/glossary.md](docs/glossary.md) 为准（User / General Manager / Project Manager / Agent）。
+> 命名以 [docs/glossary.md](docs/glossary.md) 为准：
+> **User / Supervisor / Assistant / Agent**（文案一律首字母大写）。
 > 早期用 A/B/C/D 作为口述代号，现已全部替换。
 
 ## 主推流程

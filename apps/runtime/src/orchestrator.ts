@@ -410,7 +410,7 @@ export class Orchestrator extends EventEmitter {
       this.emit('runtime', {
         type: 'assistant_text',
         projectId,
-        text: `项目经理执行出错：${errorText(error)}`,
+        text: `Assistant执行出错：${errorText(error)}`,
       });
     });
   }
@@ -493,7 +493,7 @@ export class Orchestrator extends EventEmitter {
         this.emit('runtime', {
           type: 'assistant_text',
           projectId: project.id,
-          text: `（项目经理出错：${event.message}）`,
+          text: `（Assistant出错：${event.message}）`,
         } as RuntimeEvent);
       }
     }
@@ -616,7 +616,7 @@ export class Orchestrator extends EventEmitter {
               const result = await this.memory.write(scope, {
                 kind,
                 text,
-                source: `项目 ${project.name} · 项目经理会话 ${assistant.sessionId}`,
+                source: `项目 ${project.name} · Assistant会话 ${assistant.sessionId}`,
               });
               if (!result.ok) {
                 // 拒绝原因要如实回给模型，让它知道为什么没记住。

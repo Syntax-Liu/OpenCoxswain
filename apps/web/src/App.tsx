@@ -5,7 +5,7 @@
  *
  * ```
  * ┌────────────┬────────────────────────────┐
- * │ B 总经理  │                            │
+ * │ B Supervisor  │                            │
  * │ 添加项目    │      主区                  │
  * │ ─────────  │  · 进项目 → 与 C 对话       │
  * │ 工作区      │  · 点某条 → 看 / 续聊 D     │
@@ -15,7 +15,7 @@
  * ```
  *
  * 关键映射（用户的原话）：
- * - **点文件夹 = 进入 C**（项目经理，项目的主人）
+ * - **点文件夹 = 进入 C**（Assistant，项目的主人）
  * - **点对话 = 某个 D**（执行者，可看完整轨迹并继续追问）
  * - **B 单独入口**，只在多项目迷路时用
  */
@@ -429,7 +429,7 @@ export function App(): JSX.Element {
   const titleCrumb = currentExecutor
     ? `${currentProject?.name ?? ''} / ${currentExecutor.label}`
     : view?.kind === 'global'
-      ? '总经理'
+      ? 'Supervisor'
       : (currentProject?.name ?? '未打开项目');
 
   const needsSetup = settings !== null && !settings.configured;
