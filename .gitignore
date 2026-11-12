@@ -35,3 +35,22 @@ status-report-*.html
 *.key
 *.pem
 updater.key*
+
+# 本地密钥，禁止入库（真实 API Key 常被随手落盘成这些名字）
+apikey.txt
+apikey*.txt
+*apikey*.json
+*secret*.json
+*credential*.json
+
+# pnpm 本地 store 与缓存目录
+.pnpm-store/
+.pnpm-cache/
+
+# 本地数据库文件（node:sqlite 运行时生成，含 WAL/SHM 附属文件）
+*.db
+*.db-shm
+*.db-wal
+
+# Rust/Tauri 构建产物兜底（各 app 目录已单独覆盖）
+target/

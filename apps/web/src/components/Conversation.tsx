@@ -90,7 +90,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
         {props.thinking && (
           <div className="message assistant">
-            <span className="avatar">C</span>
+            <span className="msg-role">C · 项目助理</span>
             <div className="bubble">
               <span className="typing">
                 <i />
@@ -146,7 +146,8 @@ function Message({
   const isUser = message.role === 'user';
   return (
     <div className={`message ${isUser ? 'user' : 'assistant'}`}>
-      {!isUser && <span className="avatar">C</span>}
+      {/* 角色标签取代头像：桌面软件不用圆形头像，用一行小字 */}
+      <span className="msg-role">{isUser ? '你' : 'C · 项目助理'}</span>
       <div className="bubble">
         {renderMarkdown(message.content)}
         <div className="bubble-footer">

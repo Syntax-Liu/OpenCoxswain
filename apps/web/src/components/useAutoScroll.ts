@@ -64,7 +64,18 @@ export function useAutoScroll(dependency: number): AutoScroll {
     // atBottom 用 ref 读取，避免把它放进依赖导致每次滚动都重跑。
     if (atBottomRef.current) {
       const el = ref.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+        // 首屏时消息可能还在异步布局（字体、Markdown 表格等），
+        // 当场滚到底会落在中间。等两帧后再滚一次。
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (atBottomRef.current && ref.current) {
+              ref.current.scrollTop = ref.current.scrollHeight;
+            }
+          });
+        });
+      }
     } else {
       setUnread((n) => n + delta);
     }
