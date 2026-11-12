@@ -20,6 +20,14 @@ export interface SidebarProps {
   readonly onOpenGlobal: () => void;
   readonly onOpenProject: () => void;
   readonly onOpenSettings: () => void;
+  /**
+   * 宽度变化回调。
+   *
+   * 为什么要把宽度上报给父组件：外层的 `.app-shell` 是 grid，
+   * 网格列宽写死在 CSS 里。侧栏自己改 width 时网格列不跟，
+   * 拖动看起来毫无反应。所以由父组件把列宽也一起改。
+   */
+  readonly onWidthChange?: (width: number) => void;
 }
 
 /** 侧栏宽度范围。DSH 也允许拖动，但有上下限——太窄看不清，太宽挤掉主区。 */
@@ -62,36 +70,37 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
   // 拖拽调整宽度。
   //
-  // **记录起点差值**，不能用 clientX 直接当宽度：
-  // 侧栏左边不一定贴着屏幕左缘（有标题栏、窗口偏移），
-  // 早期直接用 clientX 会导致"一拖就跳到鼠标位置"。
+  // 两个坑（都是真踩过的）：
+  // 1. 外层 `.app-shell` 是 grid，列宽写死 244px，光改侧栏宽度网格列不跟，
+  //    看上去"拖了没反应"。CSS 里已改成 auto。
+  // 2. 监听必须挂在 document 上，挂 window 时鼠标快速移出窗口会丢事件。
   const onMouseDown = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
+    event.stopPropagation();
     dragging.current = true;
     const startX = event.clientX;
     const startWidth = widthRef.current;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+    document.body.classList.add('is-resizing');
 
     const onMove = (e: MouseEvent): void => {
       const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (e.clientX - startX)));
       widthRef.current = next;
       setWidth(next);
+      props.onWidthChange?.(next);
     };
     const onUp = (): void => {
       dragging.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      document.body.classList.remove('is-resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
       try {
         window.localStorage.setItem(WIDTH_KEY, String(widthRef.current));
       } catch {
         /* 存不了就算了 */
       }
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   }, []);
 
 

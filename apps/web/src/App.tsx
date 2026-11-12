@@ -83,6 +83,8 @@ export function App(): JSX.Element {
   const [extracting, setExtracting] = useState(false);
   /** 模板填入的草稿；带时间戳，保证重复点同一个模板也会生效。 */
   const [draftSeed, setDraftSeed] = useState<{ text: string; at: number } | null>(null);
+  /** 侧栏宽度；由 Sidebar 拖动时上报，用于同步网格列宽。 */
+  const [sidebarWidth, setSidebarWidth] = useState(244);
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -489,7 +491,12 @@ export function App(): JSX.Element {
     <div className="app-root">
       {/* 自绘标题栏：替代系统标题栏，去掉顶部那条割裂的框 */}
       <TitleBar crumb={titleCrumb} />
-      <div className="app-shell">
+      <div
+        className="app-shell"
+        // 网格列宽必须由这里控制：侧栏内部改 width 时，写死在 CSS 里的
+        // 列宽不会跟着变，拖动就会"毫无反应"。
+        style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)` }}
+      >
       <Sidebar
         projects={state.projects}
         executors={state.executors}
@@ -502,6 +509,7 @@ export function App(): JSX.Element {
         onOpenGlobal={() => setView({ kind: 'global' })}
         onOpenProject={() => setShowOpen(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onWidthChange={setSidebarWidth}
       />
 
       <main className="main">

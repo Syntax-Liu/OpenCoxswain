@@ -2577,3 +2577,133 @@ button.small {
   color: var(--text-dim);
   margin-left: 4px;
 }
+
+/* ---------- 修正：侧栏拖拽（这次是真的根因）---------- */
+
+/* 之前的 bug：
+   侧栏是内联 width 没错，但外层 .app-shell 是
+   `grid-template-columns: 244px minmax(0,1fr)` —— 网格列宽被写死 244px。
+   侧栏自己变宽了，可网格列没变，所以看上去拖动毫无反应。
+   改成 auto：列宽跟着侧栏走。 */
+.app-shell {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.sidebar {
+  flex: 0 0 auto;
+}
+
+/* 拖拽把手：贴右边但别被裁掉 */
+.sidebar-resizer {
+  right: 0;
+  width: 5px;
+}
+
+/* 拖动时整页禁止选中，避免把文字刷成蓝色 */
+body.is-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+
+/* ---------- 修正：窗口按钮要贴死右上角 ---------- */
+
+/* 上一版加了 12px 右边距，方向反了——用户要的是紧贴角落。
+   现在：标题栏右侧不留内边距，按钮铺到最边缘。 */
+.title-bar {
+  padding-right: 0;
+}
+
+.title-bar-actions {
+  margin-right: 0;
+  align-self: stretch;
+}
+
+.win-btn {
+  width: 46px;
+  min-width: 46px;
+  height: 30px;
+}
+
+/* 最右边那个（关闭）也要能贴住窗口右边缘 */
+.win-close {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* ---------- 修正：工作区那两个图标不要白块 ---------- */
+
+/* 违和感的真正来源：按钮有浅色背景块 + 图标是纯白描边，
+   在整片黑界面里像两块贴纸。DSH 里它们是极淡的灰，
+   只有 hover 才显形。 */
+.icon-btn {
+  background: transparent;
+  color: var(--text-dim);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.icon-btn.active {
+  background: rgba(0, 120, 212, 0.18);
+  color: var(--accent);
+}
+
+/* 搜索框同理：不要白底，hover 才展开 */
+.workspace-search {
+  background: transparent;
+  color: var(--text);
+}
+
+.workspace-head:hover .workspace-search,
+.workspace-search:focus {
+  background: var(--bg-input);
+}
+
+/* 工作区标题行本身也不要底色 */
+.workspace-head {
+  background: transparent;
+}
+
+/* ---------- 修正：消息气泡对齐 + 去掉"你"标签 ---------- */
+
+/* "歪"的原因：给用户消息留了一条 2px 的 border-left 竖线（早期 VS Code 式设计），
+   它把气泡整体往右推了 2px，看起来就是歪的，而且和右侧气泡并存很怪。 */
+.message.user .bubble,
+.message.assistant .bubble {
+  border-left: none;
+  padding-left: 16px;
+}
+
+/* 用户消息右对齐、气泡按内容宽度收窄 */
+.message.user {
+  align-items: flex-end;
+}
+
+.message.user .bubble {
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  padding: 10px 16px;
+  max-width: 78%;
+}
+
+/* Assistant 的消息靠左、铺满可用宽度（不是气泡） */
+.message.assistant {
+  align-items: flex-start;
+}
+
+.message.assistant .bubble {
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+  max-width: 100%;
+}
+
+/* 去掉用户消息上方的"你"标签：自己说的话不需要标注说话人 */
+.message.user .msg-role {
+  display: none;
+}
