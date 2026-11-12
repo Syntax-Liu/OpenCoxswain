@@ -653,6 +653,21 @@ fn main() {
                 // 注意 Windows 上 decorations(false) 会同时去掉最小化/关闭按钮，
                 // 所以还要自己画——见 web 侧的 TitleBar 组件。
                 .decorations(false)
+                // **禁掉 WebView2 的原生右键菜单**。
+                //
+                // 它会弹出"返回 / 刷新 / 另存为 / 打印 / 更多工具" ——
+                // 那是浏览器内核自带的东西，不是我们的界面组件，
+                // 所以在界面层删不掉，必须在壳层注入脚本拦。
+                //
+                // 注意只拦 contextmenu 事件、不阻止默认行为之外的任何东西：
+                // 输入框里的剪切/粘贴菜单是我们自己在界面里画的。
+                .initialization_script(
+                    r#"
+                    (function () {
+                      document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);
+                    })();
+                    "#,
+                )
                 .build()
                 .map_err(|error| {
                     append_log(&format!("窗口创建失败：{error}"));
