@@ -377,6 +377,61 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     app.restart();
 }
 
+/// 构建托盘图标与菜单。
+///
+/// 这里同时接管窗口的关闭行为：**点关闭只隐藏窗口**，
+/// 因为执行者可能还在跑——直接把进程杀掉会让用户丢掉正在进行的任务。
+fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let show = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出（会停止正在跑的执行者）", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    let mut builder = TrayIconBuilder::with_id("main-tray")
+        .tooltip("OpenCoxswain 舵手")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_main_window(app),
+            "quit" => {
+                // 真正退出：先关窗口触发 RunEvent::Exit，那里的逻辑会结束运行时。
+                append_log("用户从托盘选择退出");
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            // 左键单击图标 → 唤回窗口（Windows 上的常见习惯）。
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        });
+
+    // 用应用图标；取不到就退化成无图标托盘（不影响功能）。
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+
+    builder.build(app)?;
+    Ok(())
+}
+
+/// 把主窗口显示出来并聚焦。
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 fn main() {
     // 崩溃也要留下痕迹：桌面应用没有终端，否则用户只看到窗口消失。
     install_panic_hook();
@@ -444,6 +499,11 @@ fn main() {
                     error
                 })?;
 
+            // ---- 托盘 ----
+            // **关窗口不等于退出**：执行者可能还在跑，直接退出会把它们全部杀掉。
+            // 所以点关闭只隐藏窗口，真正退出走托盘菜单。
+            build_tray(app)?;
+
             std::thread::spawn(wait_for_runtime);
             Ok(())
         })
@@ -456,8 +516,24 @@ fn main() {
         }
     };
 
-    app.run(|app, event| {
-        if let tauri::RunEvent::Exit = event {
+    app.run(|app, event| match event {
+        // 点窗口关闭：**隐藏而不是退出**。
+        // 执行者可能正在跑，关掉进程会让用户丢掉任务。
+        // 真正退出走托盘菜单里的"退出"。
+        tauri::RunEvent::WindowEvent {
+            label,
+            event: tauri::WindowEvent::CloseRequested { api, .. },
+            ..
+        } => {
+            if label == "main" {
+                api.prevent_close();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+                append_log("窗口已隐藏到托盘（执行者继续运行；从托盘菜单可退出）");
+            }
+        }
+        tauri::RunEvent::Exit => {
             if let Ok(mut slot) = app.state::<Runtime>().0.lock() {
                 if let Some(mut child) = slot.take() {
                     // Windows 上 child.kill() 只结束运行时本身，
@@ -479,5 +555,6 @@ fn main() {
                 }
             }
         }
+        _ => {}
     });
 }

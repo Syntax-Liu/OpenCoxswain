@@ -1,6 +1,6 @@
 [package]
 name = "opencoxswain"
-version = "0.12.0"
+version = "0.13.0"
 description = "OpenCoxswain 舵手"
 authors = ["OpenCoxswain"]
 edition = "2021"
@@ -10,7 +10,8 @@ rust-version = "1.77"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# 托盘：关窗口不等于退出，让执行者继续跑。
+tauri = { version = "2", features = ["tray-icon"] }
 # 加密服务的共享令牌必须用系统 CSPRNG，不能自己拼熵。
 getrandom = "0.2"
 # capabilities 里的 JSON 由 generate_context! 内联展开，需要 serde_json 在手边。
