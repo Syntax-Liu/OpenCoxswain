@@ -11,6 +11,7 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens, progressBar } from './contextUsage.js';
+import { describeWait } from './waitStatus.js';
 import { Onboarding } from './Onboarding.js';
 import { shouldShowOnboarding } from './starterGuide.js';
 import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
@@ -152,6 +153,34 @@ export function Conversation(props: ConversationProps): JSX.Element {
     return describeContext(used, { compactionCount });
   }, [props.messages, props.traceMessages]);
 
+  /**
+   * 等待状态：从开始思考的那一刻计时。
+   *
+   * 每秒刷新一次——**这本身就是信息**：秒数在走，说明程序活着，
+   * 不是卡死了。
+   */
+  const [waitStartedAt, setWaitStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!props.thinking) {
+      setWaitStartedAt(null);
+      return;
+    }
+    // 开始思考：记下起点
+    setWaitStartedAt((prev) => prev ?? Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [props.thinking]);
+
+  const waitStatus = useMemo(() => {
+    const elapsed = waitStartedAt === null ? 0 : now - waitStartedAt;
+    const runningAgents = (props.executors ?? []).filter(
+      (e) => e.status === 'running' || e.status === 'starting',
+    ).length;
+    return describeWait(elapsed, { runningAgents });
+  }, [waitStartedAt, now, props.executors]);
+
   return (
     <div className="conversation">
       {/* 标题行照 DSH：标题 + 状态标签 + 右侧操作 */}
@@ -262,11 +291,16 @@ export function Conversation(props: ConversationProps): JSX.Element {
           <div className="message assistant">
             <span className="msg-role">Assistant</span>
             <div className="bubble">
-              <span className="typing">
-                <i />
-                <i />
-                <i />
-              </span>
+              {/* 说出**在等什么、等了多久**，而不是三个跳动的点。
+                  用户能看到"现在是真的在干活"还是"可能卡住了"。 */}
+              <div className={`waiting level-${waitStatus.level}`}>
+                <span className="waiting-dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span className="waiting-text">{waitStatus.text}</span>
+              </div>
             </div>
           </div>
         )}

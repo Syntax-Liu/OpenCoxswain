@@ -4119,3 +4119,65 @@ body.is-resizing {
   flex: 1;
   min-height: 0;
 }
+
+/* ============================================================
+   等待状态：说出在等什么、等了多久
+   ============================================================ */
+
+.waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.waiting-dots {
+  display: inline-flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.waiting-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  animation: waiting-pulse 1.4s ease-in-out infinite;
+}
+
+.waiting-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.waiting-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes waiting-pulse {
+  0%, 60%, 100% { opacity: 0.3; }
+  30% { opacity: 1; }
+}
+
+/* 正常：安静，不抢注意力 */
+.waiting-text {
+  color: var(--text-muted);
+}
+
+/* 偏慢：琥珀，提醒但不是警告 */
+.waiting.level-slow .waiting-text {
+  color: var(--warn);
+}
+
+.waiting.level-slow .waiting-dots i {
+  background: var(--warn);
+}
+
+/* 很慢：给出可执行的动作，颜色更突出 */
+.waiting.level-stalled .waiting-text {
+  color: var(--accent);
+}
+
+.waiting.level-stalled .waiting-dots i {
+  background: var(--accent);
+  animation-duration: 2s;
+}
