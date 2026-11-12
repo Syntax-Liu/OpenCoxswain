@@ -95,6 +95,22 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
     let method = parts.next().unwrap_or_default();
     let path = parts.next().unwrap_or_default();
 
+    // 浏览器的 CORS 预检：带 authorization 头的请求会先发 OPTIONS。
+    // 不处理它，真正的那次请求根本不会发出来——
+    // 表现同样是"点了没反应"，而且用 curl 测完全正常（curl 不发预检）。
+    if method == "OPTIONS" {
+        let response = "HTTP/1.1 204 No Content\r\n\
+             Access-Control-Allow-Origin: *\r\n\
+             Access-Control-Allow-Methods: POST, OPTIONS\r\n\
+             Access-Control-Allow-Headers: authorization, content-type\r\n\
+             Access-Control-Max-Age: 600\r\n\
+             Content-Length: 0\r\n\
+             Connection: close\r\n\r\n";
+        stream.write_all(response.as_bytes())?;
+        stream.flush()?;
+        return Ok(());
+    }
+
     let mut authorized = false;
     let mut content_length = 0usize;
     let mut received_token = String::new();
@@ -231,7 +247,19 @@ fn respond(stream: &mut TcpStream, status: u16, body: &str) -> std::io::Result<(
         _ => "Internal Server Error",
     };
     let response = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        // **必须带 CORS 头**：界面在 127.0.0.1:47900，这个服务在 47901，
+        // 对浏览器来说属于跨源。没有 Access-Control-Allow-Origin 的话，
+        // 浏览器会把响应整个丢掉，前端只看到 "Failed to fetch"——
+        // 表现就是标题栏按钮点了完全没反应（而用 curl/Node 测却是 200）。
+        //
+        // 跨源放行不等于免鉴权：令牌校验仍然在前面执行。
+        "HTTP/1.1 {status} {reason}\r\n\
+         Content-Type: application/json\r\n\
+         Content-Length: {}\r\n\
+         Access-Control-Allow-Origin: *\r\n\
+         Access-Control-Allow-Methods: POST, OPTIONS\r\n\
+         Access-Control-Allow-Headers: authorization, content-type\r\n\
+         Connection: close\r\n\r\n{body}",
         body.len()
     );
     stream.write_all(response.as_bytes())?;

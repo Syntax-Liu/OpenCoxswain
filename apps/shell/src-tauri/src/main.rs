@@ -69,6 +69,11 @@ pub fn window_action(action: &str) {
             let _ = window.hide();
             append_log("窗口已隐藏到托盘（执行者继续运行）");
         }
+        // 自绘标题栏的拖拽：让窗口跟着鼠标走。
+        // 界面跑在 http 页面上拿不到 Tauri IPC，所以走这个接口。
+        "start_drag" => {
+            let _ = window.start_dragging();
+        }
         _ => {}
     }
 }

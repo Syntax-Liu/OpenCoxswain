@@ -1829,7 +1829,7 @@ button.small {
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
   user-select: none;
-  -webkit-app-region: drag;
+  /* -webkit-app-region 是 Electron 的，Tauri 不认，且会吞掉按钮点击 */
 }
 
 .title-bar-brand {
@@ -1855,7 +1855,7 @@ button.small {
   align-items: stretch;
   height: 100%;
   flex: none;
-  -webkit-app-region: no-drag;
+  /* -webkit-app-region 是 Electron 的，Tauri 不认，且会吞掉按钮点击 */
 }
 
 .win-btn {
