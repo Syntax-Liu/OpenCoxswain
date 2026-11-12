@@ -35,6 +35,44 @@ struct SecretService {
     token: String,
 }
 
+/// 窗口控制的全局入口。
+///
+/// 为什么用全局变量：窗口控制请求从 HTTP 线程进来，
+/// 需要 AppHandle 才能操作窗口，而 AppHandle 在 setup 里才拿到。
+/// 存一份克隆即可，Tauri 的 AppHandle 本身就是 Send + Sync 的。
+static APP_HANDLE: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
+
+/// 执行窗口操作（从 HTTP 线程调用）。
+pub fn window_action(action: &str) {
+    let Some(app) = APP_HANDLE.get() else {
+        append_log(&format!("窗口操作 {action} 失败：应用句柄尚未就绪"));
+        return;
+    };
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    match action {
+        "minimize" => {
+            let _ = window.minimize();
+        }
+        "toggle_maximize" => {
+            // 已最大化就还原，否则最大化。
+            let maximized = window.is_maximized().unwrap_or(false);
+            if maximized {
+                let _ = window.unmaximize();
+            } else {
+                let _ = window.maximize();
+            }
+        }
+        "close" => {
+            // 复用托盘那套：关闭 = 隐藏，不是退出。
+            let _ = window.hide();
+            append_log("窗口已隐藏到托盘（执行者继续运行）");
+        }
+        _ => {}
+    }
+}
+
 /// 生成一个随机令牌。
 ///
 /// 用 `getrandom`（已在依赖树里，走系统 CSPRNG）。
@@ -470,6 +508,8 @@ fn main() {
                 token: random_token(),
             };
             secret_service::set_token(secret.token.clone());
+            // 窗口控制要用 AppHandle，存一份全局的。
+            let _ = APP_HANDLE.set(app.handle().clone());
             secret_service::serve(SECRET_PORT);
             append_log(&format!("密钥加密服务已启动（端口 {SECRET_PORT}）"));
 
@@ -493,6 +533,11 @@ fn main() {
                 .title("OpenCoxswain 舵手")
                 .inner_size(1320.0, 880.0)
                 .min_inner_size(1024.0, 720.0)
+                // 去掉系统标题栏与菜单栏：它们会在顶部留一条与界面割裂的框，
+                // DSH / VS Code 这类软件都是自绘标题栏，窗口是一个整体。
+                // 注意 Windows 上 decorations(false) 会同时去掉最小化/关闭按钮，
+                // 所以还要自己画——见 web 侧的 TitleBar 组件。
+                .decorations(false)
                 .build()
                 .map_err(|error| {
                     append_log(&format!("窗口创建失败：{error}"));

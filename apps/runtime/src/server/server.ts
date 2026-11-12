@@ -837,7 +837,12 @@ export function injectToken(html: string, token: string): string {
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
 
-  const script = `<script>window.__OCX_TOKEN__=${safe};</script>`;
+  // 窗口控制令牌：桌面壳注入到运行时的环境变量，界面用它调窗口控制接口。
+  // 普通浏览器里没有这个变量，前端据此判断"不是桌面环境"。
+  const controlRaw = process.env.OPENCOXSWAIN_SECRET_TOKEN ?? '';
+  const control = controlRaw ? JSON.stringify(controlRaw).replace(/</g, '\\u003c') : 'null';
+
+  const script = `<script>window.__OCX_TOKEN__=${safe};window.__OCX_SECRET_TOKEN__=${control};</script>`;
   const head = /<head[^>]*>/i.exec(html);
   if (head) {
     const at = head.index + head[0].length;

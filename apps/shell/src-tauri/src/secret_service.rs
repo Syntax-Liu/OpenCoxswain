@@ -156,6 +156,11 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
     };
 
     match path {
+        // 自绘标题栏的窗口控制
+        p if p.starts_with("/window/") => {
+            let action = p.trim_start_matches("/window/");
+            return handle_window_action(&mut stream, action);
+        }
         "/encrypt" => {
             let plain = payload.get("plain").and_then(|v| v.as_str()).unwrap_or_default();
             match crate::dpapi::encrypt(plain) {
@@ -183,6 +188,28 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
             }
         }
         _ => respond(&mut stream, 404, r#"{"error":"未知接口"}"#),
+    }
+}
+
+/// 处理窗口控制请求（自绘标题栏用）。
+///
+/// 单独一个路径前缀，和密钥接口共用端口与令牌：
+/// 界面能拿到的令牌本来就只给自己用，再加一个窗口控制不会扩大攻击面。
+pub fn handle_window_action(stream: &mut TcpStream, action: &str) -> std::io::Result<()> {
+    match action {
+        "minimize" => {
+            crate::window_action("minimize");
+            respond(stream, 200, r#"{"ok":true}"#)
+        }
+        "toggle_maximize" => {
+            crate::window_action("toggle_maximize");
+            respond(stream, 200, r#"{"ok":true}"#)
+        }
+        "close" => {
+            crate::window_action("close");
+            respond(stream, 200, r#"{"ok":true}"#)
+        }
+        _ => respond(stream, 404, r#"{"error":"未知窗口操作"}"#),
     }
 }
 

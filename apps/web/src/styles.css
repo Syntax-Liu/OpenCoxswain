@@ -1808,3 +1808,180 @@ button.small {
   font-size: var(--fs-xs);
   color: var(--text-dim);
 }
+
+/* ---------- 自绘标题栏 + 右键菜单（桌面软件质感） ---------- */
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* 标题栏：VS Code 的标题栏质感，高度紧凑，可拖拽 */
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  flex: none;
+  padding: 0 8px 0 12px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.title-bar-brand {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: 0.2px;
+  flex: none;
+}
+
+.title-bar-crumb {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-bar-actions {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+
+.win-btn {
+  width: 42px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text);
+  padding: 0;
+}
+
+.win-btn:hover {
+  background: var(--bg-hover);
+}
+
+.win-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+/* 主区不再占满高度：标题栏占了 30px */
+.app-shell {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 右键菜单：VS Code 的菜单质感 */
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 160px;
+  padding: 4px 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.ctx-menu button {
+  text-align: left;
+  padding: 4px 14px;
+  border-radius: 0;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: transparent;
+  border: none;
+}
+
+.ctx-menu button:hover {
+  background: #04395e;
+  color: #fff;
+}
+
+.ctx-sep {
+  height: 1px;
+  background: var(--border-strong);
+  margin: 4px 0;
+}
+
+/* ---------- 侧栏细节：像 VS Code 的资源管理器 ---------- */
+
+/* 状态点改成细小的方块，颜色收敛（VS Code 里状态是文字，不是彩点） */
+.thread-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+  opacity: 0.9;
+}
+
+.thread-dot.ok {
+  background: #4ec9b0;
+}
+
+.thread-dot.busy {
+  background: #dcdcaa;
+}
+
+.thread-dot.bad {
+  background: #f14c4c;
+}
+
+.thread-dot.idle {
+  background: #6e6e6e;
+}
+
+/* 文件夹图标：用 VS Code 那种简洁的箭头，不用菱形 */
+.folder-icon {
+  color: var(--text-dim);
+  font-size: 10px;
+  width: 10px;
+  text-align: center;
+}
+
+/* 缩进用竖线引导，像文件树 */
+.thread-list {
+  position: relative;
+  padding-left: 0;
+}
+
+.thread-list::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+.thread-item {
+  position: relative;
+  padding-left: 30px;
+}
+
+/* 项目行加一点左内边距，和线程形成层次 */
+.project-folder {
+  padding-left: 12px;
+}
+
+/* 侧栏顶部导航和"添加项目"更像命令面板里的条目 */
+.nav-item {
+  font-size: var(--fs-md);
+}

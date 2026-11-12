@@ -46,6 +46,8 @@ import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { MemoryReview } from './components/MemoryReview.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
+import { TitleBar } from './components/TitleBar.js';
+import { ContextMenu } from './components/ContextMenu.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 
@@ -423,6 +425,13 @@ export function App(): JSX.Element {
       ? (state.executors.find((e) => e.id === view.executorId) ?? null)
       : null;
 
+  // 标题栏的路径提示：像 VS Code 的标签页，告诉你在哪。
+  const titleCrumb = currentExecutor
+    ? `${currentProject?.name ?? ''} / ${currentExecutor.label}`
+    : view?.kind === 'global'
+      ? '全局助理'
+      : (currentProject?.name ?? '未打开项目');
+
   const needsSetup = settings !== null && !settings.configured;
   if (needsSetup) {
     return (
@@ -443,7 +452,10 @@ export function App(): JSX.Element {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-root">
+      {/* 自绘标题栏：替代系统标题栏，去掉顶部那条割裂的框 */}
+      <TitleBar crumb={titleCrumb} />
+      <div className="app-shell">
       <Sidebar
         projects={state.projects}
         executors={state.executors}
@@ -540,6 +552,9 @@ export function App(): JSX.Element {
           </button>
         </div>
       )}
+      </div>
+      {/* 自定义右键菜单：替换浏览器默认菜单 */}
+      <ContextMenu />
     </div>
   );
 }
