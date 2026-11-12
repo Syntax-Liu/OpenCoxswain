@@ -44,6 +44,14 @@ import {
   type CloseSettings,
   type CloseSettingsStoreLike,
 } from './settings/close.js';
+import {
+  LEVEL_LABEL,
+  MemoryPermissionStore,
+  allowsWrite,
+  needsApproval,
+  type PermissionStoreLike,
+} from './settings/permission.js';
+import type { PermissionLevel } from './settings/permission.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -84,6 +92,8 @@ export interface OrchestratorOptions {
   readonly schedules?: ScheduleStorage;
   /** 关闭行为设置；不提供时默认最小化到托盘。 */
   readonly closeSettings?: CloseSettingsStoreLike;
+  /** 权限档位；不提供时默认「手动审批」。 */
+  readonly permissions?: PermissionStoreLike;
   /**
    * 用户扩展（geek 自定义口）。
    *
@@ -174,6 +184,7 @@ export class Orchestrator extends EventEmitter {
   private readonly approvalTimeoutMs: number | undefined;
   private readonly scheduleStore: ScheduleStorage;
   private readonly closeStore: CloseSettingsStoreLike;
+  private readonly permissionStore: PermissionStoreLike;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -191,6 +202,7 @@ export class Orchestrator extends EventEmitter {
     // 没提供时用内存实现，保证方法可调用（只是不持久化）。
     this.scheduleStore = options.schedules ?? new MemoryScheduleStore();
     this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
+    this.permissionStore = options.permissions ?? new MemoryPermissionStore();
     this.extensions = options.extensions;
   }
 
@@ -286,6 +298,44 @@ export class Orchestrator extends EventEmitter {
       // 理论上不会走到这里（调用方只在命中时调），但保守起见放行。
       return { approved: true, reason: '非危险动作' };
     }
+
+    // **权限档位挡在前面**：自动审批 / 完全权限直接放行，不打扰用户。
+    // 放行的只是"要不要问"，副作用台账照记（那在 executor 层）。
+    const level = (await this.permissionStore.load()).level;
+    if (!needsApproval(level, action.category)) {
+      await this.store.putApproval({
+        id: newId('apv'),
+        projectId,
+        executorId,
+        category: action.category,
+        evidence: action.evidence,
+        why: action.why,
+        tool,
+        args: JSON.stringify(args),
+        // 状态用 approved，但理由写清是档位自动放行——
+        // 事后查台账时能分辨"人点过头"还是"权限放过去的"。
+        status: 'approved',
+        decidedReason: `权限档位「${LEVEL_LABEL[level]}」自动放行`,
+        createdAt: Date.now(),
+        decidedAt: Date.now(),
+        expiresAt: Date.now(),
+      });
+      this.emit('runtime', {
+        type: 'approval_requested',
+        projectId,
+        approval: {
+          id: '',
+          projectId,
+          executorId,
+          category: action.category,
+          evidence: action.evidence,
+          why: `${LEVEL_LABEL[level]}：已自动放行`,
+          status: 'approved',
+        },
+      });
+      return { approved: true, reason: `权限档位「${LEVEL_LABEL[level]}」自动放行` };
+    }
+
     const decision = await requestApproval(
       {
         store: this.store,
@@ -713,6 +763,13 @@ export class Orchestrator extends EventEmitter {
     // （早期版本把"只读"和"没声明写域"混为一谈，导致并行失效。）
     const claim = parseScopeClaim(input.writeScope);
 
+    // **权限档位可以收紧，不能放松**。
+    // 「仅可查看」档下即使模型要求写域，也强制降级成只读——
+    // 否则档位形同虚设，模型一句话就能绕过用户设置。
+    const permissionLevel = (await this.permissionStore.load()).level;
+    const effectiveAccess: 'readonly' | 'readwrite' =
+      claim.access === 'readonly' || !allowsWrite(permissionLevel) ? 'readonly' : claim.access;
+
     // **跨项目写冲突检查**：项目内的写域互斥（Gate）只看相对路径，
     // 两个互不相干的项目都有 src/ 但那不是冲突。真正危险的是
     // 两个项目在改同一个绝对路径 —— 后写的覆盖先写的，两边台账都记"成功"。
@@ -757,7 +814,7 @@ export class Orchestrator extends EventEmitter {
       sessionId: newId('d'),
       label: input.label.trim(),
       goal: input.goal.trim(),
-      access: claim.access,
+      access: effectiveAccess,
       writeScope: claim.scopes,
       status: 'starting',
       summary: null,
@@ -1359,6 +1416,26 @@ export class Orchestrator extends EventEmitter {
     return this.gate.stats();
   }
 
+  /**
+   * 删除一条会话（Agent）。
+   *
+   * 拒绝删除正在跑的：那会让执行到一半的写入停在半路，
+   * 而且用户会以为"删了就没事了"。要删就先停。
+   */
+  async deleteExecutor(executorId: string): Promise<void> {
+    const executor = this.store.getExecutor(executorId);
+    if (!executor) throw new Error(`Agent ${executorId} 不存在`);
+
+    if (executor.status === 'running' || executor.status === 'starting') {
+      throw new Error('这条会话正在运行，请先停止再删除');
+    }
+
+    // 清掉它的中断句柄与输入队列，避免之后还被引用
+    this.executorAborts.delete(executorId);
+    this.executorInputs.delete(executorId);
+    await this.store.deleteExecutor(executorId);
+  }
+
   // -------------------------------------------------------------------------
   // 关闭行为
   // -------------------------------------------------------------------------
@@ -1372,6 +1449,16 @@ export class Orchestrator extends EventEmitter {
       }
     }
     return count;
+  }
+
+  /** 当前权限档位。 */
+  async permissionSettings(): Promise<{ level: PermissionLevel }> {
+    return this.permissionStore.load();
+  }
+
+  /** 改权限档位（立即生效，下次危险动作按新档位判断）。 */
+  async setPermissionLevel(level: PermissionLevel): Promise<void> {
+    await this.permissionStore.save({ level });
   }
 
   async closeSettings(): Promise<CloseSettings> {

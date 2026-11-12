@@ -373,6 +373,27 @@ export function App(): JSX.Element {
     [api, refreshProjects, openAssistant, setError],
   );
 
+  /** 删除一条会话。正在跑的会被服务端拒绝，这里把原因显示出来。 */
+  const handleDeleteExecutor = useCallback(
+    async (projectId: string, executorId: string) => {
+      try {
+        await api.deleteExecutor(executorId);
+        // 如果正开着这条会话，退回到项目的 Assistant
+        if (view?.kind === 'executor' && view.executorId === executorId) {
+          setView({ kind: 'assistant', projectId });
+        }
+        // 从本地状态里移除，不等下一次快照
+        setState((s) => ({
+          ...s,
+          executors: s.executors.filter((e) => e.id !== executorId),
+        }));
+      } catch (error) {
+        setError(error instanceof Error ? error.message : '删除失败');
+      }
+    },
+    [api, view],
+  );
+
   const handleSendToAssistant = useCallback(
     async (text: string) => {
       if (view?.kind !== 'assistant') return;
@@ -560,6 +581,7 @@ export function App(): JSX.Element {
         onOpenGlobal={() => setView({ kind: 'global' })}
         onOpenProject={() => setShowOpen(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onDeleteExecutor={(projectId, executorId) => void handleDeleteExecutor(projectId, executorId)}
         onWidthChange={(w) => {
           setSidebarWidth(w);
           saveSidebarWidth(w);

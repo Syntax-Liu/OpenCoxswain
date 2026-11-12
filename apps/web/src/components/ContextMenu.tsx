@@ -29,6 +29,12 @@ export function ContextMenu(): JSX.Element | null {
       const tag = target?.tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
 
+      // **组件自己已处理过的右键不要再弹一次**。
+      // 会话列表有自己的菜单（打开/删除/复制 ID），
+      // 这里如果也弹，两层菜单会叠在一起。
+      const handled = (event as MouseEvent & { __ocxHandled?: boolean }).__ocxHandled === true;
+      if (handled) return;
+
       event.preventDefault();
 
       const selection = window.getSelection();

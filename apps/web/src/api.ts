@@ -409,6 +409,11 @@ export class ApiClient {
     });
   }
 
+  /** 删除一条会话（Agent）。正在跑的会被服务端拒绝。 */
+  deleteExecutor(executorId: string): Promise<{ ok: boolean }> {
+    return this.request(`/api/executors/${encodeURIComponent(executorId)}`, { method: 'DELETE' });
+  }
+
   /** 关闭行为设置。 */
   closeSettings(): Promise<{ settings: { closeAction: 'tray' | 'quit' }; running: number }> {
     return this.request('/api/close-settings');

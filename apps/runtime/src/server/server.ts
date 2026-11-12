@@ -43,6 +43,12 @@ import { TelegramClient } from '../im/telegram.js';
 import { readUpdateCheck } from '../update/check.js';
 import { isAllowedOrigin, isAuthorized } from './token.js';
 import type { ScheduleSpec } from '../schedules/schedules.js';
+import {
+  LEVEL_HINT,
+  LEVEL_LABEL,
+  PERMISSION_LEVELS,
+  parseLevel,
+} from '../settings/permission.js';
 import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
@@ -306,6 +312,27 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     if (method === 'POST' && url.pathname === '/api/im/stop') {
       await im?.stop();
       return reply(200, { ok: true });
+    }
+
+    // ---- 权限档位 ----
+    if (url.pathname === '/api/permissions') {
+      if (method === 'GET') {
+        const settings = await orchestrator.permissionSettings();
+        return reply(200, {
+          settings,
+          levels: PERMISSION_LEVELS.map((id) => ({
+            id,
+            label: LEVEL_LABEL[id],
+            hint: LEVEL_HINT[id],
+          })),
+        });
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        const level = parseLevel(body.level);
+        await orchestrator.setPermissionLevel(level);
+        return reply(200, { ok: true, settings: { level } });
+      }
     }
 
     // ---- 关闭行为设置 ----
@@ -572,6 +599,16 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       if (method === 'POST' && action === 'cancel') {
         const result = await orchestrator.cancel(executorId);
         return result.ok ? json(res, 200, result) : fail(res, 400, result.content);
+      }
+
+      // 删除会话（Agent 及其会话与消息）。正在跑的会被拒绝。
+      if (method === 'DELETE' && !action) {
+        try {
+          await orchestrator.deleteExecutor(executorId);
+          return json(res, 200, { ok: true });
+        } catch (error) {
+          return fail(res, 400, error instanceof Error ? error.message : String(error));
+        }
       }
 
       // "它到底改了什么"：这个 Agent的完整副作用台账。

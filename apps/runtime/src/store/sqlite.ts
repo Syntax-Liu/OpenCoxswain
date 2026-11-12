@@ -457,6 +457,31 @@ export class SqliteStore implements Store {
     return raw ? toExecutor(raw) : undefined;
   }
 
+  /**
+   * 删除 Agent 及其会话、消息。
+   *
+   * 三步放在一个事务里：任何一步失败都整体回滚，
+   * 避免出现"executor 没了但消息还留着"的孤儿数据。
+   */
+  async deleteExecutor(id: string): Promise<void> {
+    const row = this.db.prepare('SELECT session_id FROM executor WHERE id = ?').get(id) as
+      | { session_id: string }
+      | undefined;
+    if (!row) return;
+
+    const sessionId = row.session_id;
+    this.db.exec('BEGIN');
+    try {
+      this.db.prepare('DELETE FROM message WHERE session_id = ?').run(sessionId);
+      this.db.prepare('DELETE FROM executor WHERE id = ?').run(id);
+      this.db.prepare('DELETE FROM session WHERE id = ?').run(sessionId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
   listExecutors(
     filter: { projectId?: string; status?: readonly ExecutorStatus[] } = {},
   ): ExecutorRow[] {

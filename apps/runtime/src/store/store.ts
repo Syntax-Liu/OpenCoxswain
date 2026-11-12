@@ -222,6 +222,14 @@ export interface Store {
   putExecutor(row: ExecutorRow): Promise<void>;
   getExecutor(id: string): ExecutorRow | undefined;
   listExecutors(filter?: { projectId?: string; status?: readonly ExecutorStatus[] }): ExecutorRow[];
+
+  /**
+   * 删除一条 Agent 及其会话与消息。
+   *
+   * **调用方必须先确认它没有在跑**——这个方法是物理删除，不可撤销。
+   * 删除后它的会话锚点也没了，界面上的"打开原会话"会失效。
+   */
+  deleteExecutor(id: string): Promise<void>;
   /**
    * 某个项目从 `since` 起的累计成本（token 与折算美元）。
    *
@@ -347,6 +355,14 @@ export class MemoryStore implements Store {
   }
   getExecutor(id: string): ExecutorRow | undefined {
     return this.executors.get(id);
+  }
+  async deleteExecutor(id: string): Promise<void> {
+    const row = this.executors.get(id);
+    if (!row) return;
+    this.executors.delete(id);
+    // 会话与消息一并清掉，避免留下孤儿数据
+    this.histories.delete(row.sessionId);
+    this.sessions.delete(row.sessionId);
   }
   listExecutors(
     filter: { projectId?: string; status?: readonly ExecutorStatus[] } = {},

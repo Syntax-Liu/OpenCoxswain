@@ -25,6 +25,8 @@ export interface SidebarProps {
   readonly onOpenGlobal: () => void;
   readonly onOpenProject: () => void;
   readonly onOpenSettings: () => void;
+  /** 删除一条会话（Agent）。 */
+  readonly onDeleteExecutor?: (projectId: string, executorId: string) => void;
   /**
    * 宽度变化回调。
    *
@@ -60,6 +62,38 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   /** 搜索框是否展开。收起时只显示一个放大镜（照 DSH）。 */
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  /** 收起的项目 id。折叠状态是纯界面状态，不持久化。 */
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(new Set());
+
+  /** 右键菜单：哪条会话、哪个位置。 */
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    projectId: string;
+    executor: ExecutorDto;
+  } | null>(null);
+
+  const toggleCollapse = (projectId: string): void => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
+
+  // 点击别处关掉右键菜单
+  useEffect(() => {
+    if (!menu) return;
+    const close = (): void => setMenu(null);
+    document.addEventListener('click', close);
+    document.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('scroll', close, true);
+    };
+  }, [menu]);
 
   // 展开后自动聚焦，用户不用再点一下
   useEffect(() => {
@@ -221,7 +255,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         )}
 
         {props.projects.map((project) => {
-          const projectMatches = matchesProject(project, query, onlyRunning);          const items = props.executors.filter(
+          const projectMatches = matchesProject(project, query, onlyRunning);
+          const collapsed = collapsedIds.has(project.id);          const items = props.executors.filter(
             (e) => e.projectId === project.id && matchExecutor(e, query, onlyRunning),
           );
           if (filtering && !projectMatches && items.length === 0) return null;
@@ -232,38 +267,66 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
           return (
             <div className="project-group" key={project.id}>
-              <button
-                type="button"
-                className={`project-folder${active ? ' active' : ''}`}
-                onClick={() => props.onOpenAssistant(project.id)}
-                title={project.displayPath}
-              >
-                <span className="folder-icon" aria-hidden>▾</span>
-                <span className="folder-name">{project.name}</span>
-              </button>
+              {/* 文件夹行拆成两半：箭头负责折叠，名字负责进入。
+                  DSH / VS Code 都是这个惯例，整行一个按钮会让人误点。 */}
+              <div className={`project-folder${active ? ' active' : ''}`}>
+                <button
+                  type="button"
+                  className="folder-toggle"
+                  aria-label={collapsed ? '展开' : '收起'}
+                  aria-expanded={!collapsed}
+                  onClick={() => toggleCollapse(project.id)}
+                >
+                  <span className={`folder-icon${collapsed ? ' collapsed' : ''}`} aria-hidden>
+                    ▾
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="folder-name-btn"
+                  onClick={() => props.onOpenAssistant(project.id)}
+                  title={project.displayPath}
+                >
+                  <span className="folder-name">{project.name}</span>
+                </button>
+              </div>
 
-              <ul className="thread-list">
-                {items.map((executor) => {
-                  const selected =
-                    props.view.kind === 'executor' && props.view.executorId === executor.id;
-                  const running = isRunning(executor.status);
-                  return (
-                    <li key={executor.id}>
-                      <button
-                        type="button"
-                        className={`thread-item${selected ? ' active' : ''}`}
-                        onClick={() => props.onOpenExecutor(project.id, executor.id)}
-                        title={executor.label}
-                      >
-                        <span className="thread-title">{executor.label}</span>
-                        <span className={`thread-status${running ? ' busy' : ''}`}>
-                          {running ? summarize(executor.metrics) : EXECUTOR_STATUS_LABEL[executor.status]}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              {!collapsed && (
+                <ul className="thread-list">
+                  {items.map((executor) => {
+                    const selected =
+                      props.view.kind === 'executor' && props.view.executorId === executor.id;
+                    const running = isRunning(executor.status);
+                    return (
+                      <li key={executor.id}>
+                        <button
+                          type="button"
+                          className={`thread-item${selected ? ' active' : ''}`}
+                          onClick={() => props.onOpenExecutor(project.id, executor.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            // 标记已处理：全站的右键菜单看到这个标记就不再弹，
+                            // 否则两层菜单会叠加在一起。
+                            (e.nativeEvent as MouseEvent & { __ocxHandled?: boolean }).__ocxHandled = true;
+                            setMenu({
+                              x: e.clientX,
+                              y: e.clientY,
+                              projectId: project.id,
+                              executor,
+                            });
+                          }}
+                          title={executor.label}
+                        >
+                          <span className="thread-title">{executor.label}</span>
+                          <span className={`thread-status${running ? ' busy' : ''}`}>
+                            {running ? summarize(executor.metrics) : EXECUTOR_STATUS_LABEL[executor.status]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           );
         })}
@@ -280,6 +343,55 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
       {/* 拖拽把手：放在最右侧，2px 宽也够点中 */}
       <div className="sidebar-resizer" onMouseDown={onMouseDown} role="separator" aria-orientation="vertical" />
+
+      {/* 会话右键菜单（照 TRAE / VS Code 的组织方式） */}
+      {menu && (
+        <div
+          className="ctx-menu"
+          style={{
+            left: Math.min(menu.x, window.innerWidth - 200),
+            top: Math.min(menu.y, window.innerHeight - 200),
+          }}
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              props.onOpenExecutor(menu.projectId, menu.executor.id);
+              setMenu(null);
+            }}
+          >
+            打开会话
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void navigator.clipboard?.writeText(menu.executor.id);
+              setMenu(null);
+            }}
+          >
+            复制会话 ID
+          </button>
+          <div className="ctx-sep" />
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            disabled={isRunning(menu.executor.status)}
+            title={isRunning(menu.executor.status) ? '正在运行，先停止再删除' : '删除这条会话'}
+            onClick={() => {
+              const target = menu.executor;
+              setMenu(null);
+              props.onDeleteExecutor?.(menu.projectId, target.id);
+            }}
+          >
+            删除会话
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
