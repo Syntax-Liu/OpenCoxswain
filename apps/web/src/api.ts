@@ -221,8 +221,26 @@ export class ApiError extends Error {
   }
 }
 
+/** 本机访问令牌由运行时在首屏注入；没有就不带（服务端会拒绝）。 */
+export function readToken(): string {
+  const injected = (window as unknown as { __OCX_TOKEN__?: unknown }).__OCX_TOKEN__;
+  return typeof injected === 'string' ? injected : '';
+}
+
 export class ApiClient {
   constructor(private readonly baseUrl = '') {}
+
+  /**
+   * 本机访问令牌。
+   *
+   * 由运行时在首屏注入（`window.__OCX_TOKEN__`）。
+   * 没有令牌时所有 API 请求都会被拒——这是故意的：
+   * 之前任意网页都能跨源调这个 API。
+   */
+  private token(): string {
+    return readToken();
+  }
+
 
   private async request<T>(
     path: string,
@@ -230,7 +248,10 @@ export class ApiClient {
   ): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: init?.method ?? 'GET',
-      headers: init?.body === undefined ? {} : { 'Content-Type': 'application/json' },
+      headers: {
+        ...(init?.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        Authorization: `Bearer ${this.token()}`,
+      },
       ...(init?.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
     const text = await response.text();
@@ -508,7 +529,9 @@ export class EventStream {
       `${this.baseUrl}/api/events?after=${this.lastSeq}`,
       {
         signal: this.controller.signal,
-        headers: { Accept: 'text/event-stream' },
+        // SSE 也走同一个鉴权：否则事件流会被 401 拒掉，
+        // 表现为"界面能打开但一直没反应"，很难查。
+        headers: { Accept: 'text/event-stream', Authorization: `Bearer ${readToken()}` },
       },
     );
     if (!response.ok || !response.body) {

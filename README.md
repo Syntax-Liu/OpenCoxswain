@@ -89,7 +89,7 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 ## 测试
 
 ```bash
-pnpm test        # 运行时 246 + 界面 38 = 284 条
+pnpm test        # 运行时 275 + 界面 38 = 313 条
 pnpm typecheck
 pnpm app:check   # Rust 壳编译检查
 ```
@@ -102,8 +102,22 @@ pnpm app:check   # Rust 壳编译检查
 - 重启恢复：模拟两次进程启动，断言第二次的上下文里**确实有第一次的对话**
 - 静态资源：路径穿越防护、缓存策略回归
 
-## 环境变量
+## 安全
 
+| 机制 | 说明 |
+| --- | --- |
+| **只监听 127.0.0.1** | 外部网络访问不到 |
+| **本机访问令牌** | API 需要 `Authorization: Bearer <token>`；令牌在 `~/.opencoxswain/token`，首次启动自动生成 |
+| **CORS 白名单** | 只允许本地界面自己的来源。**别的网页调不动这个 API** |
+| **危险动作审批** | 删除 / 推送 / 发布 / 付款 / 对外发送，执行前必须你点 |
+| **用量止损** | token 超上限直接停 |
+| **副作用台账** | 改了什么、跑了什么，全部有记录 |
+
+> 为什么需要令牌：运行时虽然只监听本机，但**同机上的任何程序都能访问它**。
+> 早期版本的 CORS 是 `*` 且无鉴权，意味着你浏览器里打开的任何网页
+> 都能跨源读取本地 API 并派活执行命令。已修复。
+
+## 环境变量
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `OPENCOXSWAIN_LLM_API_KEY` | 空 | 模型密钥（也接受 `DEEPSEEK_API_KEY`）；也可在界面设置里填 |
@@ -114,6 +128,7 @@ pnpm app:check   # Rust 壳编译检查
 | `OPENCOXSWAIN_MEMORY` | `~/.opencoxswain/memory` | 记忆目录 |
 | `OPENCOXSWAIN_NODE_BIN` | 空 | 桌面壳启动运行时用的 node |
 | `OPENCOXSWAIN_PORT` | `47900` | 运行时 HTTP 端口（端口被占用时改这个） |
+| `OPENCOXSWAIN_TOKEN` | 自动生成 | 本机 API 访问令牌；一般不用手动设 |
 | `OPENCOXSWAIN_IM_FILE` | `~/.opencoxswain/im.json` | 手机通道（Telegram）配置 |
 | `OPENCOXSWAIN_TELEGRAM_TOKEN` | 空 | 手机通道 bot token（优先于配置文件） |
 | `TAURI_SIGNING_PRIVATE_KEY` | 空 | **只用于发版构建**：自动更新签名私钥。见 [docs/release.md](docs/release.md) |

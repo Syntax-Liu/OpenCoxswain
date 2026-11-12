@@ -41,6 +41,7 @@ import type { ImSettingsStore } from '../im/settings.js';
 import type { ImBridge } from '../im/bridge.js';
 import { TelegramClient } from '../im/telegram.js';
 import { readUpdateCheck } from '../update/check.js';
+import { isAllowedOrigin, isAuthorized } from './token.js';
 import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
@@ -64,6 +65,14 @@ export interface ServerOptions {
    */
   readonly staticDir?: string;
   /**
+   * 本机访问令牌。所有 `/api/*` 请求（健康检查除外）都必须带
+   * `Authorization: Bearer <token>`。
+   *
+   * **不传 = 不校验**，仅限测试与显式关闭。
+   * 生产启动由 `cli.ts` 生成并传入；`cli.ts` 里禁止省略。
+   */
+  readonly token?: string;
+  /**
    * 模型密钥配置。提供后暴露 `/api/settings`：
    * 界面靠它显示"是否已配置"，并在用户填写后**立即生效**（不需要重启）。
    */
@@ -82,11 +91,27 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type,Last-Event-ID',
-};
+const CORS_METHODS = 'GET,POST,DELETE,OPTIONS';
+const CORS_HEADERS = 'Content-Type,Last-Event-ID,Authorization';
+
+/**
+ * 按请求来源生成 CORS 头。
+ *
+ * **不再用 `*`**：之前任意网页都能跨源读这个 API，
+ * 而 API 能派活、能跑命令。现在只回显本地界面自己的来源。
+ */
+function corsHeaders(origin: string | undefined, selfPorts: readonly number[]): Record<string, string> {
+  const base: Record<string, string> = {
+    'Access-Control-Allow-Methods': CORS_METHODS,
+    'Access-Control-Allow-Headers': CORS_HEADERS,
+    Vary: 'Origin',
+  };
+  if (origin && isAllowedOrigin(origin, selfPorts)) {
+    base['Access-Control-Allow-Origin'] = origin;
+  }
+  // 不在白名单时不带 Allow-Origin：浏览器会拦下响应。
+  return base;
+}
 
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
   const { orchestrator, store } = options;
@@ -97,6 +122,15 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   const openStreams = new Set<() => void>();
   const staticDir = options.staticDir;
   const llmSettings = options.llmSettings;
+  /** 本机访问令牌：API 请求必须带它。 */
+  const token = options.token ?? '';
+  /**
+   * 实际监听端口（用于判断 Origin 是否是自己）。
+   *
+   * 监听成功后会被修正为真实端口：`port: 0` 时由系统分配，
+   * 沿用配置值会把我们自己的来源也拒掉。
+   */
+  let selfPort = options.port ?? 47900;
 
   // 把运行时事件转进总线。
   orchestrator.on('runtime', (event: RuntimeEvent) => bus.publish(event));
@@ -114,47 +148,68 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const method = req.method ?? 'GET';
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+    const cors = corsHeaders(origin, [selfPort]);
+    // 本请求的响应助手：自动带上 CORS 头，避免 45 处调用各写一遍还漏掉。
+    const reply = (status: number, body: unknown): void => json(res, status, body, cors);
+    const deny = (status: number, error: string): void => fail(res, status, error, cors);
 
     if (method === 'OPTIONS') {
-      res.writeHead(204, CORS);
+      // 预检：来源不在白名单时**不带 Allow-Origin**，浏览器会阻止真正的请求。
+      res.writeHead(204, cors);
       res.end();
       return;
+    }
+
+    const isApi = url.pathname.startsWith('/api/');
+    // 首屏与静态资源不需要令牌：否则界面本身都加载不了。
+    // 令牌通过首屏注入递给前端（见 serveIndex）。
+    //
+    // `token === ''` 表示**不校验**：只用于测试与显式关闭。
+    // 生产启动一定会传令牌（cli.ts 里 resolve 出来）。
+    if (isApi && token !== '' && url.pathname !== '/api/health') {
+      if (typeof req.headers.origin === 'string' && !isAllowedOrigin(origin, [selfPort])) {
+        return deny(403, '来源不被允许');
+      }
+      if (!isAuthorized(req.headers.authorization, token)) {
+        return deny(401, '缺少或错误的访问令牌');
+      }
     }
 
     // ---- 健康检查 ----
     // ---- 设置：模型密钥 ----
     if (url.pathname === '/api/settings') {
-      if (!llmSettings) return fail(res, 404, '本服务未启用设置接口');
+      if (!llmSettings) return deny(404, '本服务未启用设置接口');
       if (method === 'GET') {
-        return json(res, 200, await llmSettings.status());
+        return reply(200, await llmSettings.status());
       }
       if (method === 'POST') {
         const body = await readJson(req);
         const apiKey = str(body.apiKey);
-        if (!apiKey) return fail(res, 400, '缺少 apiKey');
+        if (!apiKey) return deny(400, '缺少 apiKey');
         await llmSettings.save({
           apiKey,
           baseUrl: str(body.baseUrl) ?? '',
           model: str(body.model) ?? '',
         });
         await llmSettings.refresh();
-        return json(res, 200, { ok: true, ...(await llmSettings.status()) });
+        return reply(200, { ok: true, ...(await llmSettings.status()) });
       }
       if (method === 'DELETE') {
         await llmSettings.clear();
         await llmSettings.refresh();
-        return json(res, 200, { ok: true, ...(await llmSettings.status()) });
+        return reply(200, { ok: true, ...(await llmSettings.status()) });
       }
     }
 
     if (method === 'GET' && url.pathname === '/api/health') {
-      return json(res, 200, { ok: true, stats: orchestrator.stats(), lastSeq: bus.lastSeq });
+      return reply(200, { ok: true, stats: orchestrator.stats(), lastSeq: bus.lastSeq });
     }
 
     // ---- SSE ----
     if (method === 'GET' && url.pathname === '/api/events') {
       const after = Number(url.searchParams.get('after') ?? req.headers['last-event-id'] ?? 0);
-      return stream(res, Number.isFinite(after) ? after : 0);
+      return stream(res, Number.isFinite(after) ? after : 0, cors);
     }
 
     // ---- 记忆候选：采纳 / 忽略 ----
@@ -187,7 +242,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     // 壳负责真正去查（它有 Tauri 的更新插件），结果落在文件里，这里读出来给界面。
     if (method === 'GET' && url.pathname === '/api/update') {
       const check = await readUpdateCheck();
-      return json(res, 200, {
+      return reply(200, {
         // 没查过时是 null：界面显示"未检查"，不是错误。
         check,
         currentVersion: process.env.OPENCOXSWAIN_VERSION ?? null,
@@ -196,11 +251,11 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
     // ---- IM 通道（Telegram）----
     if (url.pathname === '/api/im') {
-      if (!imSettings) return fail(res, 404, 'IM 通道未启用');
+      if (!imSettings) return deny(404, 'IM 通道未启用');
 
       if (method === 'GET') {
         const config = await imSettings.resolve();
-        return json(res, 200, {
+        return reply(200, {
           enabled: config.botToken !== '',
           // **绝不回传 token 本身**，只告诉界面有没有配。
           hasToken: config.botToken !== '',
@@ -232,30 +287,30 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           chatIds: (await imSettings.read()).chatIds,
           projectId: (projectId ?? '').trim() || null,
         });
-        return json(res, 200, { ok: true });
+        return reply(200, { ok: true });
       }
       if (method === 'DELETE') {
         await imSettings.clear();
         await im?.stop();
-        return json(res, 200, { ok: true });
+        return reply(200, { ok: true });
       }
     }
 
     // ---- 启动/停止通道 ----
     if (method === 'POST' && url.pathname === '/api/im/start') {
-      if (!im) return fail(res, 400, 'IM 通道未启用');
+      if (!im) return deny(400, 'IM 通道未启用');
       im.start();
-      return json(res, 200, { ok: true, status: im.status() });
+      return reply(200, { ok: true, status: im.status() });
     }
     if (method === 'POST' && url.pathname === '/api/im/stop') {
       await im?.stop();
-      return json(res, 200, { ok: true });
+      return reply(200, { ok: true });
     }
 
     // ---- 危险动作审批 ----
     if (method === 'GET' && url.pathname === '/api/approvals') {
       const projectId = url.searchParams.get('projectId') ?? undefined;
-      return json(res, 200, {
+      return reply(200, {
         approvals: store.listApprovals({
           ...(projectId ? { projectId } : {}),
         }),
@@ -277,7 +332,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
     // ---- 项目 ----
     if (method === 'GET' && url.pathname === '/api/projects') {
-      return json(res, 200, {
+      return reply(200, {
         projects: store.listProjects().map((p) => ({
           ...p,
           running: store
@@ -292,12 +347,12 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     if (method === 'POST' && url.pathname === '/api/projects') {
       const body = await readJson(req);
       const rootPath = str(body.rootPath);
-      if (!rootPath) return fail(res, 400, '缺少 rootPath（项目的绝对路径）');
+      if (!rootPath) return deny(400, '缺少 rootPath（项目的绝对路径）');
       const opened = await orchestrator.openProject({
         rootPath,
         ...(str(body.name) ? { name: str(body.name)! } : {}),
       });
-      return json(res, 200, { project: opened.project, lastSeq: bus.lastSeq });
+      return reply(200, { project: opened.project, lastSeq: bus.lastSeq });
     }
 
     const projectMatch = /^\/api\/projects\/([^/]+)(?:\/([a-z]+))?$/.exec(url.pathname);
@@ -305,10 +360,10 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       const projectId = decodeURIComponent(projectMatch[1]!);
       const action = projectMatch[2];
       const project = store.getProject(projectId);
-      if (!project) return fail(res, 404, `项目 ${projectId} 不存在`);
+      if (!project) return deny(404, `项目 ${projectId} 不存在`);
 
       if (method === 'GET' && !action) {
-        return json(res, 200, {
+        return reply(200, {
           project,
           executors: store.listExecutors({ projectId }),
           reports: store.listReports({ projectId }),
@@ -317,7 +372,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
 
       if (method === 'GET' && action === 'messages') {
-        return json(res, 200, {
+        return reply(200, {
           messages: store.messages(project.assistantSessionId).map((m) => ({
             id: m.id,
             role: m.role,
@@ -334,23 +389,23 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       if (method === 'POST' && action === 'say') {
         const body = await readJson(req);
         const text = str(body.text);
-        if (!text) return fail(res, 400, '缺少 text');
+        if (!text) return deny(400, '缺少 text');
         // 立刻返回：C 的回复通过 SSE 推送，不在这里等。
         await orchestrator.userSays(projectId, text, {
           source: str(body.source) ?? 'webapp',
         });
-        return json(res, 202, { accepted: true, lastSeq: bus.lastSeq });
+        return reply(202, { accepted: true, lastSeq: bus.lastSeq });
       }
 
       if (method === 'POST' && action === 'stop') {
         const assistant = orchestrator.getAssistant(projectId);
-        if (!assistant) return fail(res, 404, '该项目的项目助理当前未加载');
+        if (!assistant) return deny(404, '该项目的项目助理当前未加载');
         assistant.stop();
-        return json(res, 200, { stopped: true });
+        return reply(200, { stopped: true });
       }
 
       if (method === 'GET' && action === 'reports') {
-        return json(res, 200, { reports: store.listReports({ projectId }) });
+        return reply(200, { reports: store.listReports({ projectId }) });
       }
 
       // 用量统计（不做计费，只呈现真实 token 数字）
@@ -359,7 +414,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         const all = store.costSince(projectId, 0);
         const rows = store.listExecutors({ projectId });
         const totals = aggregate(rows.map((r) => r.metrics));
-        return json(res, 200, {
+        return reply(200, {
           guard: project.tokenGuard ?? null,
           today,
           all,
@@ -370,14 +425,14 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
       // 记忆候选：GET 查看，POST 触发一次提炼
       if (action === 'memories') {        if (method === 'GET') {
-          return json(res, 200, {
+          return reply(200, {
             candidates: store.listCandidates({ projectId }),
             pending: store.listCandidates({ projectId, status: ['pending'] }).length,
           });
         }
         if (method === 'POST') {
           const result = await orchestrator.extractMemoryCandidates(projectId);
-          return json(res, 200, {
+          return reply(200, {
             ...result,
             candidates: store.listCandidates({ projectId, status: ['pending'] }),
           });
@@ -386,7 +441,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
       // 已生效的记忆（全局 + 项目），可查看与删除
       if (action === 'memory-list') {
-        return json(res, 200, await orchestrator.listMemories(projectId));
+        return reply(200, await orchestrator.listMemories(projectId));
       }
 
       // 设置用量止损上限（不是计费）
@@ -395,14 +450,14 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         try {
           guard = parseTokenGuard(body);
         } catch (error) {
-          return fail(res, 400, error instanceof Error ? error.message : '用量上限格式不正确');
+          return deny(400, error instanceof Error ? error.message : '用量上限格式不正确');
         }
         await store.putProject({
           ...project,
           tokenGuard: guard,
           updatedAt: Date.now(),
         });
-        return json(res, 200, { ok: true, guard });
+        return reply(200, { ok: true, guard });
       }
     }
 
@@ -412,16 +467,16 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       const executorId = decodeURIComponent(execMatch[1]!);
       const action = execMatch[2];
       const executor = store.getExecutor(executorId);
-      if (!executor) return fail(res, 404, `执行者 ${executorId} 不存在`);
+      if (!executor) return deny(404, `执行者 ${executorId} 不存在`);
 
       if (method === 'GET' && !action) {
-        return json(res, 200, { executor, lastSeq: bus.lastSeq });
+        return reply(200, { executor, lastSeq: bus.lastSeq });
       }
 
       if (method === 'GET' && action === 'messages') {
         // "打开原会话"：D 的完整轨迹（含每次工具调用）。
         const transcript = orchestrator.executorTranscript(executorId);
-        return json(res, 200, {
+        return reply(200, {
           executor: executor,
           session: store.getSession(executor.sessionId) ?? null,
           messages: transcript.messages,
@@ -433,7 +488,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         // 用户直接对 D 说一句（带原上下文续跑）。
         const body = await readJson(req);
         const text = str(body.text);
-        if (!text) return fail(res, 400, '缺少 text');
+        if (!text) return deny(400, '缺少 text');
         const result = await orchestrator.userSaysToExecutor(executorId, text);
         return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
       }
@@ -445,7 +500,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
       // "它到底改了什么"：这个执行者的完整副作用台账。
       if (method === 'GET' && action === 'effects') {
-        return json(res, 200, {
+        return reply(200, {
           effects: store.listSideEffects({ executorId }),
         });
       }
@@ -455,25 +510,25 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     if (method === 'POST' && url.pathname === '/api/route') {
       const body = await readJson(req);
       const query = str(body.query);
-      if (!query) return fail(res, 400, '缺少 query');
+      if (!query) return deny(400, '缺少 query');
       const decision = findProject(store, query, {
         ...(str(body.currentProjectId)
           ? { currentProjectId: str(body.currentProjectId)! }
           : {}),
       });
-      return json(res, 200, decision);
+      return reply(200, decision);
     }
 
     if (method === 'GET' && url.pathname === '/api/route/brief') {
-      return json(res, 200, { projects: projectBrief(store) });
+      return reply(200, { projects: projectBrief(store) });
     }
 
     if (method === 'POST' && url.pathname === '/api/handoff') {
       const body = await readJson(req);
       const projectId = str(body.projectId);
       const userText = str(body.userText);
-      if (!projectId) return fail(res, 400, '缺少 projectId');
-      if (!userText) return fail(res, 400, '缺少 userText（用户原话）');
+      if (!projectId) return deny(400, '缺少 projectId');
+      if (!userText) return deny(400, '缺少 userText（用户原话）');
       const result = await handoff(orchestrator, store, { projectId, userText });
       return result.ok ? json(res, 200, result) : fail(res, 400, result.reason);
     }
@@ -484,7 +539,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       if (await serveStatic(req, res, url.pathname)) return;
     }
 
-    return fail(res, 404, `未知接口：${method} ${url.pathname}`);
+    return deny(404, `未知接口：${method} ${url.pathname}`);
   }
 
   function contentTypeOf(file: string): string {
@@ -561,6 +616,22 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return true;
     }
 
+    // 首屏注入访问令牌：界面必须能拿到它才能调 API。
+    // 这是令牌的唯一出口——**只注入到 index.html**，不进 JS 资源文件，
+    // 也不通过 API 回传。
+    if (target.endsWith('index.html')) {
+      const injected = injectToken(data.toString('utf8'), token);
+      const body = Buffer.from(injected, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': body.length,
+        // 首页绝不能缓存：里面的令牌可能随重启变化。
+        'Cache-Control': 'no-store',
+      });
+      res.end(body);
+      return true;
+    }
+
     res.writeHead(200, {
       'Content-Type': contentTypeOf(target),
       'Content-Length': data.length,
@@ -577,13 +648,13 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     return true;
   }
 
-  function stream(res: ServerResponse, after: number): void {
+  function stream(res: ServerResponse, after: number, cors: Record<string, string>): void {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
-      ...CORS,
+      ...cors,
     });
     // 立刻把响应头与一条注释冲刷出去。
     // 不这么做，客户端 fetch() 会一直等到第一个数据块或超时（实测约 15s），
@@ -654,6 +725,8 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
+  // 用真实端口判断 Origin：port: 0 时实际端口与配置值不同。
+  selfPort = actualPort;
   log('info', `HTTP/SSE 服务已启动：http://${host}:${actualPort}`);
 
   return {
@@ -674,18 +747,57 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 // 小工具
 // ---------------------------------------------------------------------------
 
-function json(res: ServerResponse, status: number, body: unknown): void {
+function json(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  cors: Record<string, string> = {},
+): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
-    ...CORS,
+    ...cors,
   });
   res.end(payload);
 }
 
-function fail(res: ServerResponse, status: number, error: string): void {
-  json(res, status, { error });
+function fail(
+  res: ServerResponse,
+  status: number,
+  error: string,
+  cors: Record<string, string> = {},
+): void {
+  json(res, status, { error }, cors);
+}
+
+/**
+ * 把访问令牌注入首屏。
+ *
+ * 前端从 `window.__OCX_TOKEN__` 读它，随每个 API 请求发出。
+ *
+ * 安全性说明：这个令牌只对**能加载这个页面的人**可见，
+ * 也就是本机上打开界面的人——这正是我们要保证的范围。
+ * 恶意网页因为跨源限制拿不到这个页面的内容。
+ */
+export function injectToken(html: string, token: string): string {
+  // 不能只靠 JSON.stringify：
+  // 1. 令牌里若含 `</script>` 会直接闭合脚本标签（XSS）；
+  // 2. U+2028 / U+2029 在旧 JS 引擎里是非法换行符。
+  // 当前令牌是 base64url 不会遇到，但注入函数不该假设这一点。
+  const safe = JSON.stringify(token)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+
+  const script = `<script>window.__OCX_TOKEN__=${safe};</script>`;
+  const head = /<head[^>]*>/i.exec(html);
+  if (head) {
+    const at = head.index + head[0].length;
+    return `${html.slice(0, at)}${script}${html.slice(at)}`;
+  }
+  return `${script}${html}`;
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {

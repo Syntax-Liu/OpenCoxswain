@@ -23,6 +23,7 @@ import { ImSettingsStore } from './im/settings.js';
 import { ImBridge } from './im/bridge.js';
 import { TelegramClient } from './im/telegram.js';
 import { loadExtensions } from './extensions/index.js';
+import { TokenStore } from './server/token.js';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -232,12 +233,22 @@ async function main(): Promise<void> {
       })
     : null;
 
+  // 本机访问令牌：首次启动生成，之后复用。
+  // 作用是把"同机任意程序/网页都能调 API"缩小到"知道令牌的程序"。
+  const tokenStore = new TokenStore({
+    file:
+      process.env.OPENCOXSWAIN_TOKEN_FILE ??
+      path.join(os.homedir(), '.opencoxswain', 'token'),
+  });
+  const apiToken = await tokenStore.resolve();
+
   // 可选的 HTTP/SSE 服务：桌面壳与 IM 通道都接在这里。
   const server = args.serve
     ? await startServer({
         orchestrator: runtime,
         store,
         port: args.port,
+        token: apiToken,
         ...(args.staticDir ? { staticDir: args.staticDir } : {}),
         imSettings,
         im,
