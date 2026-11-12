@@ -22,6 +22,11 @@ import type { SideEffectKind, SideEffectState } from '../security/side-effect.js
 import type { MemoryKind } from '../memory/gate.js';
 import { EMPTY_METRICS, type RunMetrics } from '../cost/metrics.js';
 import type { ContentPart } from '../llm/types.js';
+import {
+  searchMessages as searchMessageList,
+  type SearchHit,
+  type SearchableMessage,
+} from '../search/fulltext.js';
 
 // ---------------------------------------------------------------------------
 // 领域类型
@@ -219,6 +224,14 @@ export interface Store {
   /** 转成 LLM 需要的形态：system 前缀 + 历史。 */
   chatHistory(sessionId: string): ChatMessage[];
 
+  /**
+   * 全文搜索消息内容。
+   *
+   * 搜的是**消息正文**，不只是会话标题——用户的问题是
+   * "我上次让它改登录页是哪个会话"，那只能靠内容找到。
+   */
+  searchMessages(query: string, options?: { readonly limit?: number; readonly projectId?: string }): SearchHit[];
+
   // Agent
   putExecutor(row: ExecutorRow): Promise<void>;
   getExecutor(id: string): ExecutorRow | undefined;
@@ -360,6 +373,40 @@ export class MemoryStore implements Store {
       out.push({ role: m.role, content: m.content });
     }
     return out;
+  }
+
+  /**
+   * 内存后端的全文搜索。
+   *
+   * 直接遍历所有会话的历史——数据量小，这个实现简单且和 SQLite 行为一致
+   * 才是重点（两个后端必须可互换）。
+   */
+  searchMessages(
+    query: string,
+    options: { readonly limit?: number; readonly projectId?: string } = {},
+  ): SearchHit[] {
+    const flat: SearchableMessage[] = [];
+
+    for (const [sessionId, messages] of this.histories) {
+      const session = this.sessions.get(sessionId);
+      const projectId = session?.projectId ?? '';
+      if (!projectId) continue;
+
+      for (const message of messages) {
+        // 内部通知不进搜索结果：那是系统消息，不是用户或 Assistant 说的话
+        if (message.source.startsWith(INTERNAL_SOURCE_PREFIX)) continue;
+        flat.push({
+          id: message.id,
+          sessionId,
+          projectId,
+          role: message.role,
+          content: message.content,
+          at: message.at,
+        });
+      }
+    }
+
+    return searchMessageList(flat, query, options);
   }
 
   async putExecutor(row: ExecutorRow): Promise<void> {

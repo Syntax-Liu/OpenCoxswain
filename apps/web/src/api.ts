@@ -85,6 +85,18 @@ export interface UsageDto {
 }
 
 /** @ 引用用的文件条目。 */
+/** 全文搜索的一条结果。 */
+export interface SearchHitDto {
+  readonly messageId: string;
+  readonly sessionId: string;
+  readonly projectId: string;
+  readonly role: string;
+  readonly snippet: string;
+  readonly at: number;
+  readonly projectName: string;
+  readonly sessionLabel: string;
+}
+
 export interface FileEntryDto {
   readonly path: string;
   readonly name: string;
@@ -378,6 +390,13 @@ export class ApiClient {
 
   messages(projectId: string): Promise<{ messages: MessageDto[]; lastSeq: number }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/messages`);
+  }
+
+  /** 全文搜索消息内容。 */
+  search(query: string, projectId?: string): Promise<{ hits: SearchHitDto[] }> {
+    const params = new URLSearchParams({ q: query });
+    if (projectId) params.set('projectId', projectId);
+    return this.request(`/api/search?${params.toString()}`);
   }
 
   /** 列出项目文件（@ 引用用）。query 为空时返回前 40 个。 */

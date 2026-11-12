@@ -485,6 +485,36 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return reply(200, { project: opened.project, lastSeq: bus.lastSeq });
     }
 
+    // ---- 全文搜索 ---------------------------------------------------------
+    //
+    // 搜消息正文，不只是会话标题——用户的问题是"我上次让它改登录页
+    // 是哪个会话"，那只能靠内容找到。
+    if (method === 'GET' && url.pathname === '/api/search') {
+      const query = url.searchParams.get('q') ?? '';
+      const projectFilter = url.searchParams.get('projectId') ?? undefined;
+
+      const hits = store.searchMessages(query, {
+        limit: 50,
+        ...(projectFilter ? { projectId: projectFilter } : {}),
+      });
+
+      // 带上项目名和会话标签，界面上才好展示"这是哪次会话"
+      const enriched = hits.map((hit) => {
+        const owningProject = store.getProject(hit.projectId);
+        const owningExecutor = store
+          .listExecutors({ projectId: hit.projectId })
+          .find((e) => e.sessionId === hit.sessionId);
+        return {
+          ...hit,
+          projectName: owningProject?.name ?? '',
+          // Assistant 的会话没有 executor 对应，标签就写 Assistant
+          sessionLabel: owningExecutor?.label ?? 'Assistant',
+        };
+      });
+
+      return reply(200, { hits: enriched });
+    }
+
     const projectMatch = /^\/api\/projects\/([^/]+)(?:\/([a-z]+))?$/.exec(url.pathname);
     if (projectMatch) {
       const projectId = decodeURIComponent(projectMatch[1]!);

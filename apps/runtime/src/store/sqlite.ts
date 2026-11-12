@@ -48,6 +48,11 @@ import { INTERNAL_SOURCE_PREFIX } from './store.js';
 import type { CostLedger } from '../cost/budget.js';
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 import type { ContentPart } from '../llm/types.js';
+import {
+  searchMessages as searchMessageList,
+  type SearchHit,
+  type SearchableMessage,
+} from '../search/fulltext.js';
 
 const SCHEMA_VERSION = 8;
 
@@ -414,6 +419,60 @@ export class SqliteStore implements Store {
         ...(images ? { images } : {}),
       };
     });
+  }
+
+  /**
+   * SQLite 后端的全文搜索。
+   *
+   * ## 为什么 SQL 只做粗筛
+   *
+   * 用 LIKE 把"至少含第一个词"的行捞出来，再交给和内存后端**同一个**
+   * `searchMessageList` 做精筛（多词 AND、片段、排序）。
+   *
+   * 这样两个后端的行为**完全一致**——store.test.ts 用同一套断言跑两边。
+   * 如果各自写一套匹配逻辑，迟早会分叉。
+   *
+   * ## 为什么不用 FTS5
+   *
+   * 可用，但要建虚拟表 + 触发器同步，多一次迁移。当前数据量几百条消息，
+   * LIKE 是毫秒级——先用简单方案，等量级真上来了再换。
+   */
+  searchMessages(
+    query: string,
+    options: { readonly limit?: number; readonly projectId?: string } = {},
+  ): SearchHit[] {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return [];
+
+    // 用最长的词做粗筛，命中率最低 = 捞出来的行最少
+    const anchor = tokens.reduce((a, b) => (b.length > a.length ? b : a), tokens[0]!);
+
+    const rows = this.db
+      .prepare(
+        `SELECT m.id, m.session_id, m.role, m.content, m.at, s.project_id
+           FROM message m
+           JOIN session s ON s.id = m.session_id
+          WHERE m.content LIKE ?
+            AND m.source NOT LIKE '${INTERNAL_SOURCE_PREFIX}%'
+            ${options.projectId ? 'AND s.project_id = ?' : ''}
+          ORDER BY m.at DESC
+          LIMIT 500`,
+      )
+      .all(
+        `%${anchor}%`,
+        ...(options.projectId ? [options.projectId] : []),
+      ) as Row[];
+
+    const flat: SearchableMessage[] = rows.map((r) => ({
+      id: String(r.id),
+      sessionId: String(r.session_id),
+      projectId: String(r.project_id),
+      role: String(r.role),
+      content: String(r.content),
+      at: Number(r.at),
+    }));
+
+    return searchMessageList(flat, query, options);
   }
 
   chatHistory(sessionId: string): ChatMessage[] {

@@ -811,7 +811,24 @@ export function App(): JSX.Element {
       )}
 
       {showPalette && (
-        <CommandPalette items={paletteItems} onClose={() => setShowPalette(false)} />
+        <CommandPalette
+          items={paletteItems}
+          onClose={() => setShowPalette(false)}
+          onSearch={async (q) => {
+            // 全文搜索会话内容：找到后跳到那个会话
+            const { hits } = await api.search(q);
+            return hits.slice(0, 8).map((hit) => ({
+              id: `hit-${hit.messageId}`,
+              label: hit.snippet,
+              hint: `${hit.projectName} · ${hit.sessionLabel}`,
+              group: '会话内容',
+              run: () => {
+                // 跳到所在会话：Agent 会话直接打开，Assistant 会话打开对应项目
+                void openAssistant(hit.projectId);
+              },
+            }));
+          }}
+        />
       )}
 
       {state.error && (

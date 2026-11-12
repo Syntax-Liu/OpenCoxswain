@@ -30,6 +30,13 @@ export interface PaletteItem {
 export interface CommandPaletteProps {
   readonly items: readonly PaletteItem[];
   readonly onClose: () => void;
+  /**
+   * 异步搜索会话内容。
+   *
+   * 和 items（本地的项目/动作）不同，这是要去运行时查的，
+   * 所以单独一个回调，由面板自己管加载状态。
+   */
+  readonly onSearch?: (query: string) => Promise<readonly PaletteItem[]>;
 }
 
 export function CommandPalette(props: CommandPaletteProps): JSX.Element {
@@ -43,16 +50,55 @@ export function CommandPalette(props: CommandPaletteProps): JSX.Element {
     inputRef.current?.focus();
   }, []);
 
+  // 会话全文搜索：异步、防抖
+  const [sessionHits, setSessionHits] = useState<readonly PaletteItem[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!props.onSearch || q.length < 2) {
+      setSessionHits([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearching(true);
+
+    // 防抖：连续打字不要每个字符都发请求
+    const timer = setTimeout(() => {
+      props
+        .onSearch?.(q)
+        .then((hits) => {
+          if (!cancelled) setSessionHits(hits);
+        })
+        .catch(() => {
+          if (!cancelled) setSessionHits([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [props.onSearch, query]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return props.items;
-    return props.items.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) ||
-        (item.hint ?? '').toLowerCase().includes(q) ||
-        item.group.toLowerCase().includes(q),
-    );
-  }, [props.items, query]);
+    // 本地项（项目/动作）先过滤；会话搜索结果是运行时给的，不再过滤
+    const local = !q
+      ? props.items
+      : props.items.filter(
+          (item) =>
+            item.label.toLowerCase().includes(q) ||
+            (item.hint ?? '').toLowerCase().includes(q) ||
+            item.group.toLowerCase().includes(q),
+        );
+    return [...local, ...sessionHits];
+  }, [props.items, query, sessionHits]);
 
   // 过滤结果变化时把选中项拉回 0，避免越界
   useEffect(() => {
@@ -104,7 +150,9 @@ export function CommandPalette(props: CommandPaletteProps): JSX.Element {
         />
 
         <div className="palette-list" ref={listRef}>
-          {filtered.length === 0 && <div className="palette-empty">没有匹配的项</div>}
+          {filtered.length === 0 && (
+            <div className="palette-empty">{searching ? '搜索会话中…' : '没有匹配的项'}</div>
+          )}
 
           {filtered.map((item, index) => {
             // 分组标题：只在每一组的第一个之前显示
