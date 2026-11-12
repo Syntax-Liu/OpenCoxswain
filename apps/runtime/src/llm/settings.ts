@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import type { LlmClient } from '../llm/types.js';
 import { OpenAiCompatClient } from '../llm/types.js';
+import { CIPHER_PREFIX, isCipher, type SecretCipher } from './secret.js';
 
 export interface LlmSettings {
   readonly apiKey: string;
@@ -28,6 +29,13 @@ export const DEFAULT_MODEL = 'deepseek-chat';
 export interface LlmSettingsStoreOptions {
   /** 密钥文件路径。 */
   readonly file: string;
+  /**
+   * 密钥加密（桌面壳提供 DPAPI）。
+   *
+   * 提供后 `apiKey` 以密文落盘；不提供时退回明文，
+   * 由 `storageMode` 如实告知用户当前是什么状态。
+   */
+  readonly cipher?: SecretCipher | null;
 }
 
 export class LlmSettingsStore {
@@ -37,6 +45,11 @@ export class LlmSettingsStore {
     return this.options.file;
   }
 
+  /** 当前密钥是怎么存的：加密 / 明文 / 未配置（展示给用户）。 */
+  get storageMode(): 'encrypted' | 'plaintext' {
+    return this.options.cipher?.available ? 'encrypted' : 'plaintext';
+  }
+
   /** 读配置：环境变量优先，其次本地文件。 */
   async resolve(): Promise<LlmSettings | null> {
     const apiKey = process.env.OPENCOXSWAIN_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY;
@@ -44,6 +57,9 @@ export class LlmSettingsStore {
     const model = process.env.OPENCOXSWAIN_LLM_MODEL ?? DEFAULT_MODEL;
 
     if (apiKey?.trim()) {
+      // 即使这次用环境变量，也要读一次文件：`read()` 会把旧的明文密钥迁移成密文。
+      // 早期只在走文件分支时才读，结果用环境变量的用户永远留着明文。
+      void this.read().catch(() => {});
       return { apiKey: apiKey.trim(), baseUrl, model };
     }
 
@@ -63,8 +79,36 @@ export class LlmSettingsStore {
     try {
       const raw = JSON.parse(await readFile(this.options.file, 'utf8')) as Partial<LlmSettings>;
       if (typeof raw.apiKey !== 'string' || !raw.apiKey.trim()) return null;
+
+      const stored = raw.apiKey.trim();
+      // 兼容旧版本留下的明文：**读得出来就继续可用**，
+      // 用户不必因为升级而重新填密钥。
+      const encrypted = isCipher(stored);
+      const apiKey = encrypted ? await this.decryptOrFail(stored) : stored;
+      if (!apiKey) return null;
+
+      // 旧明文 + 现在有加密服务 → 顺手迁移成密文。
+      // 不迁移的话，明文会一直躺在磁盘上，等于没做加密。
+      if (!encrypted && this.options.cipher?.available) {
+        try {
+          await this.save({
+            apiKey,
+            baseUrl: typeof raw.baseUrl === 'string' ? raw.baseUrl : DEFAULT_BASE_URL,
+            model: typeof raw.model === 'string' ? raw.model : DEFAULT_MODEL,
+          });
+        } catch (error) {
+          // 迁移失败不影响读取：本次照常可用，下次再试。
+          // 但要留下痕迹，否则"以为加密了其实没有"最难查。
+          console.warn(
+            `密钥加密迁移失败（本次仍可用，按明文读取）：${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+
       return {
-        apiKey: raw.apiKey.trim(),
+        apiKey,
         baseUrl: typeof raw.baseUrl === 'string' && raw.baseUrl ? raw.baseUrl : DEFAULT_BASE_URL,
         model: typeof raw.model === 'string' && raw.model ? raw.model : DEFAULT_MODEL,
       };
@@ -76,12 +120,18 @@ export class LlmSettingsStore {
   async save(settings: LlmSettings): Promise<void> {
     const apiKey = settings.apiKey.trim();
     if (!apiKey) throw new Error('模型密钥不能为空');
+
+    // 有加密服务就以密文落盘；没有就如实存明文（不假装加密）。
+    const stored = this.options.cipher?.available
+      ? `${CIPHER_PREFIX}${await this.options.cipher.encrypt(apiKey)}`
+      : apiKey;
+
     await mkdir(path.dirname(this.options.file), { recursive: true });
     await writeFile(
       this.options.file,
       `${JSON.stringify(
         {
-          apiKey,
+          apiKey: stored,
           baseUrl: settings.baseUrl.trim() || DEFAULT_BASE_URL,
           model: settings.model.trim() || DEFAULT_MODEL,
         },
@@ -90,6 +140,17 @@ export class LlmSettingsStore {
       )}\n`,
       { encoding: 'utf8', mode: 0o600 },
     );
+  }
+
+  /** 解密失败当作"读不到"：宁可让用户重填，也不要抛异常卡住启动。 */
+  private async decryptOrFail(stored: string): Promise<string | null> {
+    const cipher = this.options.cipher;
+    if (!cipher?.available) return null;
+    try {
+      return await cipher.decrypt(stored.slice(CIPHER_PREFIX.length));
+    } catch {
+      return null;
+    }
   }
 
   async clear(): Promise<void> {
@@ -101,21 +162,42 @@ export class LlmSettingsStore {
    *
    * 界面靠这个决定"显示配置引导"还是"显示对话区"。
    */
-  async status(): Promise<{ configured: boolean; source: 'env' | 'file' | 'none'; baseUrl: string; model: string }> {
+  async status(): Promise<{
+    configured: boolean;
+    source: 'env' | 'file' | 'none';
+    baseUrl: string;
+    model: string;
+    /** 密钥在磁盘上是怎么存的：加密还是明文。 */
+    storage: 'encrypted' | 'plaintext';
+  }> {
+    const storage = this.storageMode;
     const envKey = process.env.OPENCOXSWAIN_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY;
     if (envKey?.trim()) {
       return {
         configured: true,
         source: 'env',
+        storage,
         baseUrl: process.env.OPENCOXSWAIN_LLM_BASE_URL ?? DEFAULT_BASE_URL,
         model: process.env.OPENCOXSWAIN_LLM_MODEL ?? DEFAULT_MODEL,
       };
     }
     const saved = await this.read();
     if (saved) {
-      return { configured: true, source: 'file', baseUrl: saved.baseUrl, model: saved.model };
+      return {
+        configured: true,
+        source: 'file',
+        storage,
+        baseUrl: saved.baseUrl,
+        model: saved.model,
+      };
     }
-    return { configured: false, source: 'none', baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
+    return {
+      configured: false,
+      source: 'none',
+      storage,
+      baseUrl: DEFAULT_BASE_URL,
+      model: DEFAULT_MODEL,
+    };
   }
 }
 

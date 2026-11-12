@@ -22,6 +22,33 @@
 //! - 先把窗口给用户，再在后台等运行时就绪（daemon 慢不该表现为"双击没反应"）；
 //! - 退出时按**进程树**强杀，否则运行时拉起的子进程会变成孤儿。
 
+mod dpapi;
+mod secret_service;
+
+/// 密钥加密服务的端口。
+///
+/// 与运行时端口（47900）分开，避免和 API 混在一起被别的前端调用。
+const SECRET_PORT: u16 = 47901;
+
+/// 加密服务的共享令牌。启动时随机生成，只传给自己拉起的运行时。
+struct SecretService {
+    token: String,
+}
+
+/// 生成一个随机令牌。
+///
+/// 用 `getrandom`（已在依赖树里，走系统 CSPRNG）。
+/// 不用"时间+进程号拼一拼"——那种东西看起来随机，实际可预测。
+fn random_token() -> String {
+    let mut bytes = [0u8; 32];
+    if getrandom::getrandom(&mut bytes).is_err() {
+        // 取不到系统随机数时**宁可失败也不退化成弱随机**：
+        // 这个令牌是加密服务的唯一凭据。
+        panic!("无法获取系统随机数，拒绝用弱随机生成密钥服务令牌");
+    }
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
@@ -150,7 +177,12 @@ fn node_binary(app: &tauri::App) -> String {
     "node".to_string()
 }
 
-fn runtime_command(node: &str, entry: &Path, static_dir: Option<&Path>) -> Command {
+fn runtime_command(
+    node: &str,
+    entry: &Path,
+    static_dir: Option<&Path>,
+    secret: Option<&SecretService>,
+) -> Command {
     let mut command = Command::new(node);
     command
         .arg(entry)
@@ -164,6 +196,13 @@ fn runtime_command(node: &str, entry: &Path, static_dir: Option<&Path>) -> Comma
         command.arg("--static").arg(dir);
     }
     command.env("OPENCOXSWAIN_PORT", PORT.to_string());
+
+    // 把加密服务地址与共享令牌交给运行时。
+    // 只有我们自己拉起的子进程能拿到这个令牌，同机其它程序拿不到。
+    if let Some(secret) = secret {
+        command.env("OPENCOXSWAIN_SECRET_URL", format!("http://127.0.0.1:{SECRET_PORT}"));
+        command.env("OPENCOXSWAIN_SECRET_TOKEN", &secret.token);
+    }
 
     match log_file() {
         Some(file) => {
@@ -185,7 +224,7 @@ fn runtime_command(node: &str, entry: &Path, static_dir: Option<&Path>) -> Comma
     command
 }
 
-fn spawn_runtime(app: &tauri::App) -> Option<Child> {
+fn spawn_runtime(app: &tauri::App, secret: Option<&SecretService>) -> Option<Child> {
     let entry = runtime_entry(app)?;
     let node = node_binary(app);
     let statics = static_dir(app);
@@ -196,7 +235,7 @@ fn spawn_runtime(app: &tauri::App) -> Option<Child> {
         statics
     ));
 
-    match runtime_command(&node, &entry, statics.as_deref()).spawn() {
+    match runtime_command(&node, &entry, statics.as_deref(), secret).spawn() {
         Ok(child) => Some(child),
         Err(error) => {
             if node == "node" {
@@ -204,7 +243,9 @@ fn spawn_runtime(app: &tauri::App) -> Option<Child> {
                 return None;
             }
             append_log(&format!("自带 Node 启动失败（{error}），回退系统 node"));
-            runtime_command("node", &entry, statics.as_deref()).spawn().ok()
+            runtime_command("node", &entry, statics.as_deref(), secret)
+                .spawn()
+                .ok()
         }
     }
 }
@@ -221,6 +262,20 @@ fn wait_for_runtime() {
         std::thread::sleep(Duration::from_millis(200));
     }
     append_log("运行时 30 秒内未就绪：窗口已显示，界面会提示重试");
+}
+
+/// 用 DPAPI 加密一段文本，返回 base64。
+///
+/// 只有窄接口：**只用来加密/解密密钥**，不提供通用加解密服务。
+#[tauri::command]
+fn encrypt_secret(plain: String) -> Result<String, String> {
+    dpapi::encrypt(&plain).map_err(|error| error.to_string())
+}
+
+/// 用 DPAPI 解密 base64 密文。
+#[tauri::command]
+fn decrypt_secret(cipher: String) -> Result<String, String> {
+    dpapi::decrypt(&cipher).map_err(|error| error.to_string())
 }
 
 /// 当前版本号（界面用来和远端比较，也用于展示）。
@@ -349,11 +404,21 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             check_update,
             install_update,
-            current_version
+            current_version,
+            encrypt_secret,
+            decrypt_secret
         ])
         .manage(Runtime(Mutex::new(None)))
         .setup(|app| {
-            let child = spawn_runtime(app);
+            // 密钥加密服务：先起它，再拉起运行时（运行时启动时要拿到共享令牌）。
+            let secret = SecretService {
+                token: random_token(),
+            };
+            secret_service::set_token(secret.token.clone());
+            secret_service::serve(SECRET_PORT);
+            append_log(&format!("密钥加密服务已启动（端口 {SECRET_PORT}）"));
+
+            let child = spawn_runtime(app, Some(&secret));
             if let Some(child) = child {
                 if let Ok(mut slot) = app.state::<Runtime>().0.lock() {
                     *slot = Some(child);

@@ -1,6 +1,6 @@
 [package]
 name = "opencoxswain"
-version = "0.11.0"
+version = "0.12.0"
 description = "OpenCoxswain 舵手"
 authors = ["OpenCoxswain"]
 edition = "2021"
@@ -11,6 +11,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# 加密服务的共享令牌必须用系统 CSPRNG，不能自己拼熵。
+getrandom = "0.2"
 # capabilities 里的 JSON 由 generate_context! 内联展开，需要 serde_json 在手边。
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
@@ -19,6 +21,11 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 # 单实例：双击两次图标不该起两个进程抢同一个端口和数据库。
 tauri-plugin-single-instance = "2"
+
+# 密钥加密：用 Windows DPAPI（CryptProtectData）。
+# 密钥由当前用户账户派生，**拷到别的机器或别的用户下都解不开**。
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
 
 [profile.release]
 codegen-units = 1

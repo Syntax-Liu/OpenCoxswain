@@ -89,7 +89,7 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 ## 测试
 
 ```bash
-pnpm test        # 运行时 275 + 界面 38 = 313 条
+pnpm test        # 运行时 285 + 界面 38 = 323 条
 pnpm typecheck
 pnpm app:check   # Rust 壳编译检查
 ```
@@ -108,6 +108,7 @@ pnpm app:check   # Rust 壳编译检查
 | --- | --- |
 | **只监听 127.0.0.1** | 外部网络访问不到 |
 | **本机访问令牌** | API 需要 `Authorization: Bearer <token>`；令牌在 `~/.opencoxswain/token`，首次启动自动生成 |
+| **密钥加密（DPAPI）** | 模型密钥以 Windows DPAPI 密文存储，由当前用户账户派生，**拷到别的机器或别的用户下都解不开** |
 | **CORS 白名单** | 只允许本地界面自己的来源。**别的网页调不动这个 API** |
 | **危险动作审批** | 删除 / 推送 / 发布 / 付款 / 对外发送，执行前必须你点 |
 | **用量止损** | token 超上限直接停 |

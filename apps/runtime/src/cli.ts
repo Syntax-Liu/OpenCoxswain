@@ -24,6 +24,7 @@ import { ImBridge } from './im/bridge.js';
 import { TelegramClient } from './im/telegram.js';
 import { loadExtensions } from './extensions/index.js';
 import { TokenStore } from './server/token.js';
+import { secretServiceFromEnv } from './llm/secret.js';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -111,10 +112,20 @@ async function main(): Promise<void> {
   // 密钥：环境变量优先，其次本地文件。**没有密钥也要起服务**，
   // 否则桌面应用双击后是一个空白窗口 —— 用户没有终端去设环境变量。
   // 界面通过 /api/settings 引导填写，保存后立刻生效。
+  // 密钥加密：桌面壳会注入 DPAPI 服务地址与令牌。
+  // 直接跑 CLI 时没有它，于是退回明文——由 storageMode 如实告诉用户。
+  const secretCipher = secretServiceFromEnv();
+  if (secretCipher) {
+    console.log('密钥将以 DPAPI 密文存储');
+  } else {
+    console.warn('提示：未检测到桌面壳的加密服务，密钥将以明文存储');
+  }
+
   const settingsStore = new LlmSettingsStore({
     file:
       process.env.OPENCOXSWAIN_LLM_FILE ??
       path.join(os.homedir(), '.opencoxswain', 'llm.json'),
+    cipher: secretCipher,
   });
   const llm = new LlmProvider(settingsStore);
   const ready = await llm.refresh();
