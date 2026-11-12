@@ -54,6 +54,7 @@ import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
 import type { ContentPart } from '../llm/types.js';
+import { listFiles, searchFiles, MAX_REFERENCE_BYTES } from '../codeintel/fileindex.js';
 
 export interface ServerOptions {
   readonly orchestrator: Orchestrator;
@@ -498,6 +499,46 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           reports: store.listReports({ projectId }),
           lastSeq: bus.lastSeq,
         });
+      }
+
+      // ---- 文件索引（@ 引用用）-------------------------------------------
+      if (method === 'GET' && action === 'files') {
+        const project = store.getProject(projectId);
+        if (!project) return deny(404, '项目不存在');
+
+        const query = url.searchParams.get('q') ?? '';
+        const { files, truncated } = await listFiles(project.rootPath);
+        // 空查询返回前 40 个，让用户先看到"有什么"再收窄
+        const matched = query ? searchFiles(files, query, 40) : files.slice(0, 40);
+
+        return reply(200, { files: matched, total: files.length, truncated });
+      }
+
+      // 读一个文件的内容（@ 引用选中后注入上下文）
+      if (method === 'GET' && action === 'file') {
+        const project = store.getProject(projectId);
+        if (!project) return deny(404, '项目不存在');
+
+        const relative = url.searchParams.get('path') ?? '';
+        if (!relative) return deny(400, '缺少 path');
+
+        // **路径越界必须拦住**：这个接口能读文件，
+        // 不校验的话就成了一个读任意文件的洞。
+        const root = path.resolve(project.rootPath);
+        const resolved = path.resolve(root, relative);
+        if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+          return deny(403, '路径越界');
+        }
+
+        try {
+          const raw = await readFile(resolved, 'utf8');
+          return reply(200, {
+            path: relative.replace(/\\/g, '/'),
+            content: raw.slice(0, MAX_REFERENCE_BYTES),
+          });
+        } catch {
+          return deny(404, '文件读不到');
+        }
       }
 
       if (method === 'GET' && action === 'messages') {

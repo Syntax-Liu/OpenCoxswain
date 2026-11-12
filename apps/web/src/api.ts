@@ -84,6 +84,13 @@ export interface UsageDto {
   readonly todayRuns: number;
 }
 
+/** @ 引用用的文件条目。 */
+export interface FileEntryDto {
+  readonly path: string;
+  readonly name: string;
+  readonly size: number;
+}
+
 export interface MessageDto {
   readonly id: string;
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
@@ -371,6 +378,22 @@ export class ApiClient {
 
   messages(projectId: string): Promise<{ messages: MessageDto[]; lastSeq: number }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/messages`);
+  }
+
+  /** 列出项目文件（@ 引用用）。query 为空时返回前 40 个。 */
+  listFiles(
+    projectId: string,
+    query: string,
+  ): Promise<{ files: FileEntryDto[]; total: number; truncated: boolean }> {
+    const q = query ? `?q=${encodeURIComponent(query)}` : '';
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/files${q}`);
+  }
+
+  /** 读一个文件的内容（@ 引用选中后注入上下文）。 */
+  readFile(projectId: string, filePath: string): Promise<{ path: string; content: string }> {
+    return this.request(
+      `/api/projects/${encodeURIComponent(projectId)}/file?path=${encodeURIComponent(filePath)}`,
+    );
   }
 
   /** 对 Assistant 说话。**立刻返回**，Assistant 的回复通过 SSE 到达。 */

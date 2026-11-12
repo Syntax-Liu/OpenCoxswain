@@ -735,6 +735,7 @@ export function App(): JSX.Element {
 
         {view?.kind === 'assistant' && currentProject && (
           <Conversation
+            api={api}
             project={currentProject as ProjectDto}
             // 草稿按视图分开：同一项目里对 Assistant 和对 Agent 说的话互不干扰
             draftKey={draftKey({ kind: 'assistant', projectId: currentProject.id })}

@@ -11,6 +11,8 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
+import { MentionPicker, applyMention, detectMention, type MentionState } from './MentionPicker.js';
+import type { ApiClient } from '../api.js';
 
 export interface ConversationProps {
   readonly project: ProjectDto;
@@ -46,6 +48,8 @@ export interface ConversationProps {
   readonly onStop: () => void;
   /** 草稿键：不同视图各自一份。 */
   readonly draftKey: string;
+  /** API 客户端（@ 引用要查文件列表）。 */
+  readonly api: ApiClient;
 }
 
 /**
@@ -74,6 +78,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
   useEffect(() => {
     setDraft(loadDraft(draftKey));
   }, [draftKey]);
+  // @ 引用：输入框里打 @ 时弹出文件选择
+  const [mention, setMention] = useState<MentionState>({ active: false, query: '', start: -1 });
+
   // 批次：同一轮派出的 Agent 归到一起（签名元素）
   const allBatches = useMemo(() => groupBatches(props.executors ?? []), [props.executors]);
   /** 当前标签页：对话 / 轨迹（照 DSH）。 */
@@ -268,13 +275,33 @@ export function Conversation(props: ConversationProps): JSX.Element {
       >
         {attachments.dragging && <div className="drop-hint">松手添加附件</div>}
 
+        {/* @ 引用：输入 @ 后弹出文件选择器 */}
+        {mention.active && (
+          <MentionPicker
+            api={props.api}
+            projectId={props.project.id}
+            query={mention.query}
+            onPick={(file) => {
+              // 把 @xxx 替换成 @完整路径，并关闭选择器
+              updateDraft(applyMention(draft, mention, file.path));
+              setMention({ active: false, query: '', start: -1 });
+            }}
+            onClose={() => setMention({ active: false, query: '', start: -1 })}
+          />
+        )}
+
         <div className="composer-box">
           <AttachmentStrip attachments={attachments.attachments} onRemove={attachments.remove} />
 
           <textarea
             value={draft}
             placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话（可拖入文件）"
-            onChange={(e) => updateDraft(e.target.value)}
+            onChange={(e) => {
+              updateDraft(e.target.value);
+              // 判断是否在输入 @ 引用
+              const caret = e.target.selectionStart ?? e.target.value.length;
+              setMention(detectMention(e.target.value, caret));
+            }}
             onPaste={(e) => {
               // 粘贴截图：直接从剪贴板取文件。这是最高频的附件入口。
               const files = Array.from(e.clipboardData.files);
