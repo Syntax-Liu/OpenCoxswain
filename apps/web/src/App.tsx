@@ -54,6 +54,7 @@ import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
 import { SettingsPage } from './components/SettingsPage.js';
+import { draftKey } from './drafts.js';
 
 type View =
   | { readonly kind: 'assistant'; readonly projectId: string }
@@ -735,6 +736,8 @@ export function App(): JSX.Element {
         {view?.kind === 'assistant' && currentProject && (
           <Conversation
             project={currentProject as ProjectDto}
+            // 草稿按视图分开：同一项目里对 Assistant 和对 Agent 说的话互不干扰
+            draftKey={draftKey({ kind: 'assistant', projectId: currentProject.id })}
             messages={state.messages}
             // 轨迹页要**全部**消息：Assistant 的对话 + 所有 Agent 的工具轨迹
             traceMessages={[...state.messages, ...agentTrace]}

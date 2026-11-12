@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ExecutorDto, MessageDto, ProjectDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
@@ -9,6 +9,8 @@ import { BatchBlock } from './BatchBlock.js';
 import { AttachmentStrip } from './AttachmentStrip.js';
 import { attachmentsToText, imageParts, useAttachments } from './attachments.js';
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
+import { editableText } from './messageCapabilities.js';
+import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
 
 export interface ConversationProps {
   readonly project: ProjectDto;
@@ -42,6 +44,8 @@ export interface ConversationProps {
    */
   readonly onSend: (text: string, images?: readonly { type: 'image'; dataUrl: string; name: string }[]) => void;
   readonly onStop: () => void;
+  /** 草稿键：不同视图各自一份。 */
+  readonly draftKey: string;
 }
 
 /**
@@ -53,7 +57,23 @@ export interface ConversationProps {
  * 输入框**从不被禁用**：C 还在回复时用户依然可以继续发（连发不打断）。
  */
 export function Conversation(props: ConversationProps): JSX.Element {
-  const [draft, setDraft] = useState('');
+  // 草稿：按视图分开存，切换项目再回来内容还在
+  const draftKey = props.draftKey;
+  const [draft, setDraft] = useState(() => loadDraft(draftKey));
+
+  /** 改草稿并落盘。空内容会自动删键（见 drafts.ts）。 */
+  const updateDraft = useCallback(
+    (text: string) => {
+      setDraft(text);
+      saveDraft(draftKey, text);
+    },
+    [draftKey],
+  );
+
+  // 切换视图时换一份草稿——不能把上一个项目的半句话带过来
+  useEffect(() => {
+    setDraft(loadDraft(draftKey));
+  }, [draftKey]);
   // 批次：同一轮派出的 Agent 归到一起（签名元素）
   const allBatches = useMemo(() => groupBatches(props.executors ?? []), [props.executors]);
   /** 当前标签页：对话 / 轨迹（照 DSH）。 */
@@ -93,7 +113,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
     props.onSend(fullText || '（见附件）', imageParts(attachments.attachments));
 
+    // 发出去就把草稿清掉，不然下次进来会看到已经发过的内容
     setDraft('');
+    clearDraft(draftKey);
     attachments.clear();
   };
 
@@ -163,7 +185,26 @@ export function Conversation(props: ConversationProps): JSX.Element {
           return (
             <div key={message.id}>
               {showTime && <div className="time-divider">{formatTime(message.at)}</div>}
-              <Message message={message} onResend={(text) => props.onSend(text)} />
+              <Message
+                message={message}
+                onResend={(text) => props.onSend(text)}
+                onRetry={() => {
+                  // 重试：找到这条回答对应的那条用户消息，原样再发一次。
+                  //
+                  // **不删除历史**——这个产品承诺"轨迹可回看"，
+                  // 静默删掉之前的回答就等于毁掉了"它当时怎么答的"这个证据。
+                  // 所以表现是追加一次新尝试。
+                  const idx = visible.indexOf(message);
+                  for (let i = idx - 1; i >= 0; i -= 1) {
+                    const prevMessage = visible[i];
+                    if (prevMessage?.role === 'user') {
+                      props.onSend(prevMessage.content);
+                      break;
+                    }
+                  }
+                }}
+                onEdit={(_id, text) => updateDraft(text)}
+              />
               {here.map((batch) => (
                 <BatchBlock
                   key={batch.id}
@@ -233,7 +274,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           <textarea
             value={draft}
             placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话（可拖入文件）"
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => updateDraft(e.target.value)}
             onPaste={(e) => {
               // 粘贴截图：直接从剪贴板取文件。这是最高频的附件入口。
               const files = Array.from(e.clipboardData.files);
@@ -325,9 +366,13 @@ export function Conversation(props: ConversationProps): JSX.Element {
 function Message({
   message,
   onResend,
+  onRetry,
+  onEdit,
 }: {
   message: MessageDto;
   onResend?: (text: string) => void;
+  onRetry?: (messageId: string) => void;
+  onEdit?: (messageId: string, text: string) => void;
 }): JSX.Element {
   const isUser = message.role === 'user';
   return (
@@ -353,6 +398,10 @@ function Message({
         <div className="bubble-footer">
           <MessageActions
             content={message.content}
+            role={message.role}
+            {...(message.source ? { source: message.source } : {})}
+            {...(onRetry && !isUser ? { onRetry: () => onRetry(message.id) } : {})}
+            {...(onEdit && isUser ? { onEdit: () => onEdit(message.id, editableText(message.content)) } : {})}
             {...(isUser && onResend ? { onResend: () => onResend(message.content) } : {})}
           />
         </div>

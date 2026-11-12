@@ -4,6 +4,7 @@ import type { ExecutorDto, MessageDto, SideEffectDto } from '../api.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { cacheHitRate, formatDuration, formatPercent, formatRate, formatTokens, summarize } from '../metrics.js';
 import { renderMarkdown } from './Markdown.js';
+import { clearDraft, draftKey as draftKeyFor, loadDraft, saveDraft } from '../drafts.js';
 
 export interface ExecutorChatProps {
   readonly executor: ExecutorDto;
@@ -25,7 +26,14 @@ export interface ExecutorChatProps {
  * - 用户可以在下面继续追问（**带原上下文**续跑）。
  */
 export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
-  const [draft, setDraft] = useState('');
+  // 草稿：每个 Agent 一份，切走再回来内容还在
+  const draftKey = draftKeyFor({ kind: 'executor', executorId: props.executor.id });
+  const [draft, setDraft] = useState(() => loadDraft(draftKey));
+
+  const updateDraft = (text: string): void => {
+    setDraft(text);
+    saveDraft(draftKey, text);
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const busy = props.executor.status === 'running' || props.executor.status === 'starting';
 
@@ -39,6 +47,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
     if (!text || busy) return;
     props.onSend(text);
     setDraft('');
+    clearDraft(draftKey);
   };
 
   return (
@@ -97,7 +106,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           value={draft}
           placeholder={busy ? 'Agent还在跑，等它结束再追问…' : '继续追问这个 Agent（它会带着原有上下文继续）'}
           disabled={busy}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => updateDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();

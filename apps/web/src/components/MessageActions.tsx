@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { actionsFor, type MessageRole } from './messageCapabilities.js';
+
 /**
  * 消息操作：复制、重发。
  *
@@ -41,32 +43,56 @@ export async function copyText(text: string): Promise<boolean> {
 
 export interface MessageActionsProps {
   readonly content: string;
-  /** 提供后显示"重发"。 */
+  /** 消息角色与来源，用于决定显示哪些操作。 */
+  readonly role?: MessageRole;
+  readonly source?: string;
+  /** 重试：让 Assistant 重新回答这个问题。 */
+  readonly onRetry?: () => void;
+  /** 编辑：改一下用户自己发的话再发。 */
+  readonly onEdit?: () => void;
+  /** 重发：原样再发一次。 */
   readonly onResend?: () => void;
 }
 
 export function MessageActions(props: MessageActionsProps): JSX.Element {
   const [copied, setCopied] = useState(false);
 
+  // 没传角色时按"只能复制"处理——保守，不会多出不合适的按钮
+  const available = props.role
+    ? actionsFor({ role: props.role, content: props.content, ...(props.source ? { source: props.source } : {}) })
+    : { canRetry: false, canEdit: false, canCopy: true, canResend: false };
+
   return (
     <span className="msg-actions">
-      <button
-        type="button"
-        className="link"
-        title="复制这条消息"
-        onClick={async () => {
-          const ok = await copyText(props.content);
-          if (ok) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }
-        }}
-      >
-        {copied ? '已复制' : '复制'}
-      </button>
-      {props.onResend && (
-        <button type="button" className="link" title="把这句重新发给助理" onClick={props.onResend}>
+      {available.canRetry && props.onRetry && (
+        <button type="button" className="link" title="让它重新回答一次" onClick={props.onRetry}>
+          重试
+        </button>
+      )}
+      {available.canEdit && props.onEdit && (
+        <button type="button" className="link" title="改一下再发" onClick={props.onEdit}>
+          编辑
+        </button>
+      )}
+      {available.canResend && props.onResend && (
+        <button type="button" className="link" title="原样再发一次" onClick={props.onResend}>
           重发
+        </button>
+      )}
+      {available.canCopy && (
+        <button
+          type="button"
+          className="link"
+          title="复制这条消息"
+          onClick={async () => {
+            const ok = await copyText(props.content);
+            if (ok) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }
+          }}
+        >
+          {copied ? '已复制' : '复制'}
         </button>
       )}
     </span>
