@@ -48,6 +48,8 @@ import { UpdateBanner } from './components/UpdateBanner.js';
 import { formatTokens } from './metrics.js';
 import type { MessageDto } from './api.js';
 import { readSavedSidebarWidth, saveSidebarWidth } from './sidebarWidth.js';
+import { CommandPalette, type PaletteItem } from './components/CommandPalette.js';
+import { resolveShortcut } from './shortcuts.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
@@ -64,6 +66,10 @@ export function App(): JSX.Element {
   const [view, setView] = useState<View | null>(null);
   const [showOpen, setShowOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  /** 侧栏折叠（Ctrl+B）。独立于宽度——折叠不是把宽度设成 0。 */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  /** 命令面板（Ctrl+K）。 */
+  const [showPalette, setShowPalette] = useState(false);
   const [settings, setSettings] = useState<SettingsStatus | null>(null);
   const [transcript, setTranscript] = useState<{
     executorId: string | null;
@@ -372,6 +378,123 @@ export function App(): JSX.Element {
     [api, refreshProjects, openAssistant, setError],
   );
 
+  /**
+   * 全局快捷键。
+   *
+   * 用 window 监听而不是在某个组件上：快捷键要在整个应用范围内生效，
+   * 包括焦点在输入框的时候（带修饰键的组合）。
+   *
+   * 具体键位与"不和输入框抢键"的规则见 shortcuts.ts。
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const action = resolveShortcut({
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+      });
+      if (!action) return;
+
+      switch (action.type) {
+        case 'palette':
+          e.preventDefault();
+          setShowPalette((v) => !v);
+          break;
+        case 'new-conversation':
+          e.preventDefault();
+          setShowPalette(false);
+          setShowSettings(false);
+          setView({ kind: 'global' });
+          break;
+        case 'open-settings':
+          e.preventDefault();
+          setShowPalette(false);
+          setShowSettings(true);
+          break;
+        case 'toggle-sidebar':
+          e.preventDefault();
+          setSidebarCollapsed((v) => !v);
+          break;
+        case 'switch-project': {
+          const target = state.projects[action.index];
+          if (target) {
+            e.preventDefault();
+            setShowPalette(false);
+            void openAssistant(target.id);
+          }
+          break;
+        }
+        case 'escape':
+          // 按层级关闭：先关命令面板，再关设置，最后才放弃。
+          // 一次 Esc 只关一层，避免"一按全关"。
+          if (showPalette) setShowPalette(false);
+          else if (showSettings) setShowSettings(false);
+          else if (showOpen) setShowOpen(false);
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.projects, openAssistant, showPalette, showSettings, showOpen]);
+
+  /** 命令面板里的条目：项目 + 常用动作。 */
+  const paletteItems = useMemo(() => {
+    const items: PaletteItem[] = [];
+
+    for (const project of state.projects) {
+      items.push({
+        id: `project-${project.id}`,
+        label: project.name,
+        hint: project.displayPath,
+        group: '项目',
+        run: () => void openAssistant(project.id),
+      });
+    }
+
+    items.push(
+      {
+        id: 'action-new',
+        label: '新对话',
+        hint: 'Ctrl+N',
+        group: '动作',
+        run: () => setView({ kind: 'global' }),
+      },
+      {
+        id: 'action-project',
+        label: '打开项目…',
+        group: '动作',
+        run: () => setShowOpen(true),
+      },
+      {
+        id: 'action-settings',
+        label: '打开设置',
+        hint: 'Ctrl+,',
+        group: '动作',
+        run: () => setShowSettings(true),
+      },
+      {
+        id: 'action-sidebar',
+        label: '折叠 / 展开侧栏',
+        hint: 'Ctrl+B',
+        group: '动作',
+        run: () => setSidebarCollapsed((v) => !v),
+      },
+      {
+        id: 'action-global',
+        label: '打开 Supervisor',
+        group: '动作',
+        run: () => setView({ kind: 'global' }),
+      },
+    );
+
+    return items;
+  }, [state.projects, openAssistant]);
+
   /** 删除一条会话。正在跑的会被服务端拒绝，这里把原因显示出来。 */
   const handleDeleteExecutor = useCallback(
     async (projectId: string, executorId: string) => {
@@ -570,8 +693,14 @@ export function App(): JSX.Element {
         className="app-shell"
         // 网格列宽必须由这里控制：侧栏内部改 width 时，写死在 CSS 里的
         // 列宽不会跟着变，拖动就会"毫无反应"。
-        style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)` }}
+        style={{
+          gridTemplateColumns: sidebarCollapsed
+            ? '0 minmax(0, 1fr)'
+            : `${sidebarWidth}px minmax(0, 1fr)`,
+        }}
       >
+      {/* 折叠时整块隐藏，不只是收窄——收窄到几十像素反而更难看 */}
+      <div style={{ display: sidebarCollapsed ? 'none' : undefined }}>
       <Sidebar
         projects={state.projects}
         executors={state.executors}
@@ -590,6 +719,7 @@ export function App(): JSX.Element {
           saveSidebarWidth(w);
         }}
       />
+      </div>
 
       <main className="main">
         <UpdateBanner api={api} />
@@ -674,6 +804,10 @@ export function App(): JSX.Element {
             onSaved={setSettings}
           />
         </div>
+      )}
+
+      {showPalette && (
+        <CommandPalette items={paletteItems} onClose={() => setShowPalette(false)} />
       )}
 
       {state.error && (

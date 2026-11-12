@@ -10,6 +10,7 @@
 | **怎么接自己的工具** | [mcp.md](mcp.md) ← MCP 接入 |
 | **怎么写技能** | [skills.md](skills.md) ← 按需加载的工作知识 |
 | **我们差在哪** | [competitor-gap.md](competitor-gap.md) ← **竞品调研：7 个子系统的差距** |
+| **快捷键** | [shortcuts.md](shortcuts.md) ← Ctrl+K 命令面板等 |
 | **怎么发文件** | [ttachments.md](attachments.md) ← 拖入 / 粘贴 / 图片降级 |
 | **接下来做什么** | [usability-plan.md](usability-plan.md) ← **易用性方案（下一步）** |
 | **界面往哪走** | [design-direction.md](design-direction.md) ← **视觉方向方案（待确认）** |

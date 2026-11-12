@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { ApiClient, ModelConfigDto, ProjectDto, SettingsStatus } from '../api.js';
 import { ImSettings } from './ImSettings.js';
 import { CloseBehaviorSettings } from './CloseBehaviorSettings.js';
+import { shortcutHelp } from '../shortcuts.js';
 import { PermissionSettingsPanel } from './PermissionSettingsPanel.js';
 import { ModelSettingsPanel } from './ModelSettingsPanel.js';
 
@@ -133,6 +134,19 @@ function GeneralSection(props: { api: ApiClient; status: SettingsStatus }): JSX.
     <section className="settings-block">
       <h2>通用</h2>
       <CloseBehaviorSettings api={props.api} />
+
+      <h3 className="settings-subhead">键盘快捷键</h3>
+      <p className="muted small">
+        在界面任意位置可用（输入框里也行）。Esc 按层级关闭：先关命令面板，再关设置。
+      </p>
+      <div className="shortcut-table">
+        {shortcutHelp(false).map((item) => (
+          <div key={item.keys} className="shortcut-row">
+            <kbd className="shortcut-keys">{item.keys}</kbd>
+            <span className="shortcut-action">{item.action}</span>
+          </div>
+        ))}
+      </div>
 
       <h3 className="settings-subhead">密钥存储</h3>
       <p className="muted small">
