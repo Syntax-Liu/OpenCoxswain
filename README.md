@@ -69,6 +69,7 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 | `packages/{shared,core,adapters,memory,plugin-api}` | legacy 内核与业务包，按需抽取复用 |
 | `packages/dsh-bao` | **已冻结**的 dsh 插件，仅作设计参考 |
 | `docs/` | 方案、决策与实测记录，入口见 [docs/README.md](docs/README.md) |
+| `docs/project-status.md` | **项目全景快照**：四层结构、功能清单、代码结构、数据模型、API、决策记录、踩坑史 |
 
 ## 关键机制
 

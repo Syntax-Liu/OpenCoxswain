@@ -5,6 +5,7 @@
 | 想知道什么 | 看哪份 |
 | --- | --- |
 | **下一步做什么** | [`roadmap.md`](roadmap.md) ← **最新** |
+| **完整了解项目** | [`project-status.md`](project-status.md) ← **全景快照：功能、结构、数据、API、决策、踩坑记录** |
 | **架构是怎么定的** | [`architecture.md`](architecture.md)：能力边界、为什么现在不做插件框架 |
 | **怎么发版** | [`release.md`](release.md)：自动更新、签名密钥、SmartScreen |
 | **想自己定制** | [`extensions.md`](extensions.md)：丢个 JS 文件就能改行为 |
@@ -63,6 +64,7 @@ pnpm --filter @opencoxswain/web dev     # http://127.0.0.1:5180
 | 文档 | 作用 | 时效性 |
 | --- | --- | --- |
 | [`roadmap.md`](roadmap.md) | **后续发展方向**：已完成的、待做的、优先级与验收标准 | ✅ 最新 |
+| [`project-status.md`](project-status.md) | **项目全景**：四层结构、功能清单、代码结构、数据模型、API、决策记录、踩坑史 | ✅ 最新 |
 | [`architecture.md`](architecture.md) | **架构决策**：能力边界、四道防线、何时才上插件框架 | ✅ 最新 |
 | [`release.md`](release.md) | **发布与自动更新**：签名密钥保管、发版流程、SmartScreen | ✅ 最新 |
 | [`extensions.md`](extensions.md) | **扩展口**：geek 自定义点、能做什么不能做什么 | ✅ 最新 |
