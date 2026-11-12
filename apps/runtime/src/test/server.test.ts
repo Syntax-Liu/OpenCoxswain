@@ -138,7 +138,7 @@ describe('HTTP 接口', () => {
     assert.equal(res.status, 400);
   });
 
-  it('"打开原会话"能读到执行者的完整记录', async () => {
+  it('"打开原会话"能读到Agent 的完整记录', async () => {
     const { store, orchestrator, server } = await makeRuntime();
     const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/c' });
     const projectId = opened.json.project.id;
@@ -152,7 +152,7 @@ describe('HTTP 接口', () => {
 
     const res = await get(`${server.url}/api/executors/${spawn.executor.id}/messages`);
     assert.equal(res.status, 200);
-    assert.ok(res.json.executor, '必须返回执行者');
+    assert.ok(res.json.executor, '必须返回Agent');
     assert.ok(res.json.session, '必须返回它的会话（原会话入口）');
   });
 

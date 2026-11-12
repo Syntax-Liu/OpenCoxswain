@@ -403,7 +403,7 @@ export class SqliteStore implements Store {
   }
 
   // -------------------------------------------------------------------------
-  // 执行者
+  // Agent
   // -------------------------------------------------------------------------
 
   async putExecutor(row: ExecutorRow): Promise<void> {

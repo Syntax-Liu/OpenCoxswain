@@ -1,5 +1,5 @@
 /**
- * 执行者运行器：把一个 Agent 从"已排到队"跑到"有了结论"。
+ * Agent运行器：把一个 Agent 从"已排到队"跑到"有了结论"。
  *
  * 从 `orchestrator.ts` 整块搬出来（原来那个方法 300 多行，
  * 和派活、排队、汇报混在一起，改任何一处都要读完整个文件）。
@@ -42,7 +42,7 @@ export interface ExecutorRunnerDeps {
     tool: string,
     args: Record<string, unknown>,
   ) => Promise<{ approved: boolean; reason: string }>;
-  /** 取并清空该执行者待注入的消息（连发不打断）。 */
+  /** 取并清空该Agent待注入的消息（连发不打断）。 */
   readonly drainInputs: (executorId: string) => readonly string[];
   /** 每轮用量回调（供止损判定）。 */
   readonly onProgressMetrics: (

@@ -88,7 +88,7 @@ export class AssistantSession {
   /**
    * 记录一条消息到历史。
    *
-   * `internal` 的消息（如执行者结算通知）会进 Assistant 的上下文，
+   * `internal` 的消息（如Agent结算通知）会进 Assistant 的上下文，
    * 但 source 记为 `internal:` 前缀，界面据此不把它当用户消息显示。
    */
   async recordUser(text: string, source: string, internal = false): Promise<void> {
@@ -178,14 +178,14 @@ export function judgeConflict(input: {
   | { readonly judged: 'conflict'; readonly reason: string; readonly withId: string } {
   const { active, claim } = input;
   if (active.length === 0) {
-    return { judged: 'new', reason: '当前没有在跑的执行者' };
+    return { judged: 'new', reason: '当前没有在跑的Agent' };
   }
 
   // 只读任务不写文件：既不会被别人覆盖，也不会覆盖别人。
   if (claim.access === 'readonly') {
     return {
       judged: 'parallel',
-      reason: `这是只读任务，与在跑的 ${active.length} 个执行者无写入冲突，可并行`,
+      reason: `这是只读任务，与在跑的 ${active.length} 个Agent无写入冲突，可并行`,
     };
   }
 
@@ -198,14 +198,14 @@ export function judgeConflict(input: {
           : `写域相交：${other.scopes.join(', ')}`;
       return {
         judged: 'conflict',
-        reason: `与执行者「${executor.label}」（${executor.id}）${why}`,
+        reason: `与Agent「${executor.label}」（${executor.id}）${why}`,
         withId: executor.id,
       };
     }
   }
   return {
     judged: 'parallel',
-    reason: `与在跑的 ${active.length} 个执行者写域均不相交，可并行`,
+    reason: `与在跑的 ${active.length} 个Agent写域均不相交，可并行`,
   };
 }
 

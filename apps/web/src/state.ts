@@ -170,7 +170,7 @@ export function appendUserMessage(messages: readonly MessageDto[], text: string)
   ];
 }
 
-/** 保留在跑的与最近的已结束执行者。 */
+/** 保留在跑的与最近的已结束Agent。 */
 export function visibleExecutors(executors: readonly ExecutorDto[], keepFinished = 8): ExecutorDto[] {
   const running = executors.filter((e) => e.status === 'starting' || e.status === 'running');
   const finished = executors

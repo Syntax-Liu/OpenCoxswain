@@ -88,7 +88,7 @@ function ApprovalItem({
       <div className="approval-actions">
         <input
           value={reason}
-          placeholder="理由（可选，会告诉执行者）"
+          placeholder="理由（可选，会告诉Agent）"
           onChange={(e) => setReason(e.target.value)}
         />
         <button type="button" className="ghost danger" onClick={() => onReject(reason)}>

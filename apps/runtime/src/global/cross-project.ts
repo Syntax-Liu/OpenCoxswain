@@ -108,7 +108,7 @@ export function findCrossProjectConflict(
 }
 
 /**
- * 从所有在跑的执行者里构造 AgentClaim 列表。
+ * 从所有在跑的Agent里构造 AgentClaim 列表。
  *
  * 由调用方（Orchestrator）提供数据，这个模块不依赖存储层，便于单测。
  */
@@ -126,7 +126,7 @@ export function toClaim(input: {
 /** 把冲突写成人话（给用户/Assistant看）。 */
 export function describeConflict(conflict: CrossProjectConflict): string {
   return (
-    `与另一个项目的执行者「${conflict.withLabel}」写同一个位置：\n` +
+    `与另一个项目的Agent「${conflict.withLabel}」写同一个位置：\n` +
     `  ${conflict.overlap}\n` +
     '两个项目同时改同一份文件会互相覆盖，而且事后两边都以为成功了。'
   );

@@ -73,7 +73,7 @@ describe('副作用分类', () => {
     assert.equal(a, b);
   });
 
-  it('幂等键：不同执行者不同', () => {
+  it('幂等键：不同Agent不同', () => {
     const a = sideEffectKey('e1', 'write_file', { path: 'a' });
     const b = sideEffectKey('e2', 'write_file', { path: 'a' });
     assert.notEqual(a, b);

@@ -16,7 +16,7 @@ const ex = (over: Partial<{ label: string; goal: string; status: any }> = {}) =>
   ...over,
 });
 
-describe('执行者筛选', () => {
+describe('Agent筛选', () => {
   it('空搜索返回全部', () => {
     assert.equal(matchExecutor(ex(), '', false), true);
   });

@@ -135,7 +135,7 @@ export interface SpawnResult {
 
 /** 重启恢复结果，供启动时日志与 UI 展示。 */
 export interface RecoveryReport {
-  /** 上次运行中被中断、已被如实标记为失败的执行者。 */
+  /** 上次运行中被中断、已被如实标记为失败的Agent。 */
   readonly interruptedExecutors: ExecutorRow[];
   /** 可从历史恢复的项目与它们的 Assistant 会话。 */
   readonly recoveredProjects: Array<{ projectId: string; name: string; assistantSessionId: string }>;
@@ -161,7 +161,7 @@ export class Orchestrator extends EventEmitter {
   private readonly executorAborts = new Map<string, AbortController>();
   /** 本次运行中止是否由用量止损触发（用于写准确的失败原因）。 */
   private tokenGuardTripped: string | null = null;
-  /** 审批超时（毫秒）。到点自动拒绝，不让执行者无限挂起。 */
+  /** 审批超时（毫秒）。到点自动拒绝，不让Agent无限挂起。 */
   private readonly approvalTimeoutMs: number | undefined;
   private readonly scheduleStore: ScheduleStorage;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
@@ -387,7 +387,7 @@ export class Orchestrator extends EventEmitter {
    * 如果 C 当前空闲，会在后台立刻开始一轮；如果正在跑，
    * 这条消息就排在 inbox 里等下一个边界（不打断）。
    *
-   * `internal=true` 表示这是**系统内部的投递**（如执行者结算通知），
+   * `internal=true` 表示这是**系统内部的投递**（如Agent结算通知），
    * 不是用户说的话：它会进入 Assistant 的上下文，但不应出现在对话流里。
    */
   async userSays(
@@ -445,7 +445,7 @@ export class Orchestrator extends EventEmitter {
     // 用一个"只消费一轮"的 drain：本轮开头已取走全部消息。
     const messages = assistant.history();
     // 记忆注入：拿这一轮**用户真正说的话**去检索。
-    // 内部通知（结算等）里含执行者的原始输出，用它检索会召回无关记忆。
+    // 内部通知（结算等）里含Agent 的原始输出，用它检索会召回无关记忆。
     const userInputs = inputs.filter((i) => !i.internal);
     if (this.memory && userInputs.length > 0) {
       try {
@@ -539,7 +539,7 @@ export class Orchestrator extends EventEmitter {
               return {
                 ok: true,
                 content: [
-                  `已派出执行者「${result.executor.label}」（${result.executor.id}），状态 ${result.executor.status}。`,
+                  `已派出Agent「${result.executor.label}」（${result.executor.id}），状态 ${result.executor.status}。`,
                   result.admitted ? '' : `（排队中：${result.queueReason}）`,
                   result.judgmentNote,
                   `当前运行 ${this.gate.stats().running}/${this.gate.stats().limit}，排队 ${this.gate.stats().queued}。`,
@@ -552,21 +552,21 @@ export class Orchestrator extends EventEmitter {
               const id = String(args.executorId ?? '');
               const row = this.store.getExecutor(id);
               if (!row || row.projectId !== project.id) {
-                return { ok: false, content: `执行者 ${id} 不属于本项目` };
+                return { ok: false, content: `Agent ${id} 不属于本项目` };
               }
               if (isExecutorTerminal(row.status)) {
-                return { ok: false, content: `执行者 ${id} 已结束（${row.status}），无法接收指令` };
+                return { ok: false, content: `Agent ${id} 已结束（${row.status}），无法接收指令` };
               }
               const queue = this.executorInputs.get(id) ?? [];
               queue.push(String(args.message ?? ''));
               this.executorInputs.set(id, queue);
-              return { ok: true, content: `已把指令转给执行者 ${id}（不打断它当前这轮）` };
+              return { ok: true, content: `已把指令转给Agent ${id}（不打断它当前这轮）` };
             }
             case 'list_executors': {
               const rows = this.store.listExecutors({ projectId: project.id });
               const statusFilter = Array.isArray(args.status) ? (args.status as string[]) : null;
               const filtered = statusFilter ? rows.filter((r) => statusFilter.includes(r.status)) : rows;
-              if (filtered.length === 0) return { ok: true, content: '本项目还没有执行者。' };
+              if (filtered.length === 0) return { ok: true, content: '本项目还没有Agent。' };
               return {
                 ok: true,
                 content: filtered
@@ -664,7 +664,7 @@ export class Orchestrator extends EventEmitter {
   // -------------------------------------------------------------------------
 
   /**
-   * 派一个执行者。**立刻返回**，Agent 在后台跑。
+   * 派一个 Agent。**立刻返回**，Agent 在后台跑。
    *
    * @returns admitted=false 表示在排队（写域相交或达并发上限）。
    */
@@ -882,7 +882,7 @@ export class Orchestrator extends EventEmitter {
     );
 
     if (!outcome) {
-      await this.finishExecutor(ready.id, 'failed', `执行者异常：${error ?? '未知错误'}`);
+      await this.finishExecutor(ready.id, 'failed', `Agent异常：${error ?? '未知错误'}`);
       this.gate.release(ready.id);
       this.executorAborts.delete(ready.id);
       return;
@@ -922,7 +922,7 @@ export class Orchestrator extends EventEmitter {
           await this.finishExecutor(ready.id, 'done', null, outcome.finalText);
         }
       } else if (this.tokenGuardTripped) {
-        // 止损中止：原因要写清楚是"我们主动停的"，不是执行者自己失败。
+        // 止损中止：原因要写清楚是"我们主动停的"，不是Agent自己失败。
         const reason = this.tokenGuardTripped;
         this.tokenGuardTripped = null;
         await this.finishExecutor(
@@ -936,7 +936,7 @@ export class Orchestrator extends EventEmitter {
           executorId: ready.id,
           kind: 'blocked',
           body:
-            `执行者「${ready.label}」已被用量上限中止：${reason}。\n` +
+            `Agent「${ready.label}」已被用量上限中止：${reason}。\n` +
             `已消耗：轮次 ${outcome.metrics.turns}、步数 ${outcome.metrics.steps}、` +
             `token ${outcome.metrics.tokensIn + outcome.metrics.tokensOut}。\n` +
             '这是止损线，不是计费。要继续请调高上限。',
@@ -945,7 +945,7 @@ export class Orchestrator extends EventEmitter {
       } else {
         const reason = outcome.events.find((e) => e.type === 'error');
         const detail =
-          reason && reason.type === 'error' ? reason.message : '执行者没有给出结论';
+          reason && reason.type === 'error' ? reason.message : 'Agent没有给出结论';
         await this.finishExecutor(
           ready.id,
           'failed',
@@ -994,8 +994,8 @@ export class Orchestrator extends EventEmitter {
   private async notifyAssistant(project: ProjectRow, executor: ExecutorRow): Promise<void> {
     const ok = executor.status === 'done';
     const body = ok
-      ? `执行者「${executor.label}」已完成。\n${executor.summary ?? '（没有留下结论）'}`
-      : `执行者「${executor.label}」未完成。\n${executor.blockedReason ?? '（无原因）'}\n${
+      ? `Agent「${executor.label}」已完成。\n${executor.summary ?? '（没有留下结论）'}`
+      : `Agent「${executor.label}」未完成。\n${executor.blockedReason ?? '（无原因）'}\n${
           executor.summary ?? ''
         }`;
 
@@ -1060,11 +1060,11 @@ export class Orchestrator extends EventEmitter {
     text: string,
   ): Promise<{ ok: boolean; message: string }> {
     const row = this.store.getExecutor(executorId);
-    if (!row) return { ok: false, message: `执行者 ${executorId} 不存在` };
+    if (!row) return { ok: false, message: `Agent ${executorId} 不存在` };
     if (row.status === 'starting' || row.status === 'running') {
       return {
         ok: false,
-        message: '这个执行者还在跑，请等它结束，或先取消它。',
+        message: '这个 Agent还在跑，请等它结束，或先取消它。',
       };
     }
     if (!text.trim()) return { ok: false, message: '内容不能为空' };
@@ -1073,7 +1073,7 @@ export class Orchestrator extends EventEmitter {
     if (!project) return { ok: false, message: `项目 ${row.projectId} 不存在` };
 
     const session = this.store.getSession(row.sessionId);
-    if (!session) return { ok: false, message: '找不到这个执行者的会话记录，无法续聊' };
+    if (!session) return { ok: false, message: '找不到这个 Agent的会话记录，无法续聊' };
 
     // 记录用户这一句（作为这一轮的指令）。
     await this.store.appendMessage(row.sessionId, {
@@ -1138,14 +1138,14 @@ export class Orchestrator extends EventEmitter {
       projectId: project.id,
       executorId: row.id,
       kind: ok ? 'progress' : 'failed',
-      body: `用户直接对执行者「${row.label}」追问：「${text}」\n${outcome.finalText}`,
+      body: `用户直接对Agent「${row.label}」追问：「${text}」\n${outcome.finalText}`,
       needsUser: !ok,
     });
 
     return { ok, message: outcome.finalText || '（没有结论）' };
   }
 
-  /** 读某个执行者的完整轨迹（"打开原会话"）。 */
+  /** 读某个 Agent的完整轨迹（"打开原会话"）。 */
   executorTranscript(executorId: string): {
     executor: ExecutorRow | undefined;
     messages: ReturnType<Store['messages']>;
@@ -1155,21 +1155,21 @@ export class Orchestrator extends EventEmitter {
     return { executor: row, messages: this.store.messages(row.sessionId) };
   }
 
-  /** 取消一个执行者。 */
+  /** 取消一个 Agent。 */
   async cancel(executorId: string, projectId?: string): Promise<{ ok: boolean; content: string }> {
     const row = this.store.getExecutor(executorId);
-    if (!row) return { ok: false, content: `执行者 ${executorId} 不存在` };
+    if (!row) return { ok: false, content: `Agent ${executorId} 不存在` };
     if (projectId && row.projectId !== projectId) {
-      return { ok: false, content: `执行者 ${executorId} 不属于本项目` };
+      return { ok: false, content: `Agent ${executorId} 不属于本项目` };
     }
     if (isExecutorTerminal(row.status)) {
-      return { ok: false, content: `执行者 ${executorId} 已是终态 ${row.status}，无需取消` };
+      return { ok: false, content: `Agent ${executorId} 已是终态 ${row.status}，无需取消` };
     }
 
     this.executorAborts.get(executorId)?.abort();
     await this.finishExecutor(executorId, 'cancelled', null);
     this.gate.release(executorId);
-    return { ok: true, content: `执行者 ${executorId} 已取消` };
+    return { ok: true, content: `Agent ${executorId} 已取消` };
   }
 
   private async recordReport(input: {
@@ -1428,7 +1428,7 @@ export class Orchestrator extends EventEmitter {
    * 重启恢复（D5：关掉软件后完整恢复）。
    *
    * 两件事：
-   * 1. 上次进程被中断时仍在跑的执行者 → 如实标记为失败。
+   * 1. 上次进程被中断时仍在跑的Agent → 如实标记为失败。
    *    子代理随进程一起死了，`running` 是上一世的记忆，不承认它继续有效。
    *    **不能**悄悄改回队列自动重跑：那会在用户不知情的情况下重复执行副作用。
    * 2. 项目与 Assistant 的会话历史本来就在库里，这里只是把句柄重新挂上，
@@ -1462,7 +1462,7 @@ export class Orchestrator extends EventEmitter {
     }
 
     // 重启后不可能还有人在等旧审批：全部置为过期。
-    // 否则界面会显示一堆"待审批"，但它们对应的执行者早就没了。
+    // 否则界面会显示一堆"待审批"，但它们对应的Agent早就没了。
     const staleApprovals = await expireStaleApprovals(this.store);
 
     return {
@@ -1490,7 +1490,7 @@ export class Orchestrator extends EventEmitter {
  * 1. 让 Assistant 在上下文里分辨"这是系统通知"而不是用户说的话；
  * 2. 界面与历史查询据此把它和真实用户消息区分开。
  */
-export const INTERNAL_NOTICE_PREFIX = '【执行者结算】';
+export const INTERNAL_NOTICE_PREFIX = '【Agent结算】';
 
 function labelOf(judged: TurnJudgment): string {
   return judged === 'new' ? '新增' : judged === 'parallel' ? '并列' : '冲突';

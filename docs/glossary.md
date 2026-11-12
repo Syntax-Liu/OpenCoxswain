@@ -14,7 +14,7 @@
 | **A** | **User** | 用户 | 说出要做什么，对不可逆的事拍板 |
 | **B** | **Supervisor** | 总管 | **跨项目**的全局统筹：看得见所有项目的进度与冲突 |
 | **C** | **Assistant** | 助理 | 一个项目一个，常驻；派活给 Agent、汇总、汇报 |
-| **D** | **Agent** | 执行者 | 临时工，干一件具体的事，干完结算 |
+| **D** | **Agent** | Agent | 临时工，干一件具体的事，干完结算 |
 
 ### 为什么这么叫
 
@@ -34,14 +34,16 @@
 
 ## 写法规范
 
-**文案必须首字母大写**：User / Supervisor / Assistant / Agent。
+**文案必须一律用英文且首字母大写**：User / Supervisor / Assistant / Agent。
+
+**中文不翻译**——界面上直接显示 Supervisor / Assistant / Agent，不使用「总管 / 助理 / 执行者」这类中文说法。
 
 - ✅ "Assistant 正在派活"
 - ❌ "assistant 正在派活"
 - ✅ 界面标签：「C · Assistant」
 - ❌ 界面标签：「C · 助理」
 
-中文可以简称：总管（Supervisor）/ 助理（Assistant）/ 执行者（Agent），
+中文可以简称：总管（Supervisor）/ 助理（Assistant）/ Agent，
 但**正式名称一律用英文**。
 
 ---
@@ -53,7 +55,7 @@
 | 用户 | `user` | 你 | User |
 | 总管 | `generalManager`（历史名，语义为 Supervisor） | Supervisor | Supervisor |
 | 助理 | `assistant` | Assistant | Assistant |
-| 执行者 | `executor`（历史名，语义为 Agent） | Agent | Agent |
+| Agent | `executor`（历史名，语义为 Agent） | Agent | Agent |
 
 ### 代码里的命名约束
 
@@ -89,7 +91,7 @@
 ### Agent 不是"通用智能体"
 
 Agent 只有 5 个固定工具（读、写、列目录、搜文件、执行命令），
-是**短期、单一职责**的执行者，不是能自主规划的通用智能体。
+是**短期、单一职责**的Agent，不是能自主规划的通用智能体。
 
 ---
 

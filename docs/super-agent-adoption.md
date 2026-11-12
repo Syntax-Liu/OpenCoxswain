@@ -174,7 +174,7 @@ Source plugins ──SourceContext──▶ Engine ◀── Session tools
 
 | # | 差距 | 现状证据 | 后果 |
 | --- | --- | --- | --- |
-| G1 | **验收由执行者自证** | `finish()` 直接采用 `result.acceptance`；全 passed 即 `done`，无人工环节 | 员工说「我过了」就算过；`human` 门槛可被绕过 |
+| G1 | **验收由Agent自证** | `finish()` 直接采用 `result.acceptance`；全 passed 即 `done`，无人工环节 | 员工说「我过了」就算过；`human` 门槛可被绕过 |
 | G2 | **人工验收是批量盖章** | `acceptTask()` 对 `human/rubric` 一律写 `passed`，证据固定为「用户验收通过」 | 无法回答「哪一条、凭什么、谁验的」 |
 | G3 | **无法向运行中的员工追加输入** | `RuntimeAdapter` 只有 `createSession/send/cancel/pause/resume`，无 `sendInput`；API 无任务级 input 端点 | 人只能 cancel 后重来；违反「连续」特征 |
 | G4 | **无停滞/空转/偏航检测** | 代码中无 heartbeat/stall/progress 判定；`progress` 事件只记录不消费 | 员工卡死只能靠预算烧完或人肉发现 |
@@ -211,7 +211,7 @@ Source plugins ──SourceContext──▶ Engine ◀── Session tools
 ## 4. 采纳原则（三条，后续所有改动都受其约束）
 
 1. **结构优先于提示词**。凡是「必须发生」的行为（拆分、验收、授权、停止），都要有代码断言；提示词只负责「怎么做得更好」。
-2. **证据优先于自述**。执行者的输出只是候选；进入 `done` 之前必须有系统可复核的证据。
+2. **证据优先于自述**。Agent 的输出只是候选；进入 `done` 之前必须有系统可复核的证据。
 3. **人的注意力是预算**。任何新增通知、面板字段、审批项，都必须能回答「不做这个决定会怎样」；回答不了就不加。
 
 ---
@@ -232,7 +232,7 @@ Source plugins ──SourceContext──▶ Engine ◀── Session tools
 export type EvidenceKind = 'command_output' | 'diff_stat' | 'file' | 'screenshot' | 'link';
 export type Verdict = 'passed' | 'failed' | 'unverified';
 
-/** 一条可复核的证据。执行者只能"提交"，不能"判定"。 */
+/** 一条可复核的证据。Agent只能"提交"，不能"判定"。 */
 export interface Evidence {
   id: string;
   criterionId: string;
@@ -486,7 +486,7 @@ export interface DelegationPolicy {
 ```ts
 plan_id: string;
 plan_revision: number;
-/** 谁决定的分工：planner = 结构派生；user = 手动；steward = 仅调整执行者 */
+/** 谁决定的分工：planner = 结构派生；user = 手动；steward = 仅调整Agent */
 delegated_by: 'planner' | 'user' | 'steward';
 ```
 

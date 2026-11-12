@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
@@ -9,7 +9,6 @@ export interface SidebarProps {
   readonly projects: readonly ProjectDto[];
   readonly executors: readonly ExecutorDto[];
   readonly currentProjectId: string | null;
-  /** 当前主区展示的是哪个：项目（= C）还是某个执行者（= D）。 */
   readonly view:
     | { readonly kind: 'assistant'; readonly projectId: string }
     | { readonly kind: 'executor'; readonly projectId: string; readonly executorId: string }
@@ -23,144 +22,193 @@ export interface SidebarProps {
   readonly onOpenSettings: () => void;
 }
 
+/** 侧栏宽度范围。DSH 也允许拖动，但有上下限——太窄看不清，太宽挤掉主区。 */
+const MIN_WIDTH = 180;
+const MAX_WIDTH = 420;
+const DEFAULT_WIDTH = 232;
+
+const WIDTH_KEY = 'ocx.sidebarWidth';
+
+function loadWidth(): number {
+  try {
+    const saved = Number(window.localStorage.getItem(WIDTH_KEY));
+    if (Number.isFinite(saved) && saved >= MIN_WIDTH && saved <= MAX_WIDTH) return saved;
+  } catch {
+    // localStorage 不可用时用默认值
+  }
+  return DEFAULT_WIDTH;
+}
+
 /**
- * 左侧导航，结构对齐主流 Agent 软件（DeepSeek / TRAE）：
+ * 左侧导航。布局照 DeepSeek Harness，视觉照 VS Code：
  *
  * ```
- * [B Supervisor]
- * ──────────
- * 工作区
- *  ▾ 项目文件夹        ← 点击 = 进Assistant
- *     · 对话标题        ← 点击 = 看某个执行者（Agent）
+ * [◎ 新会话]            ← 顶部大按钮（DSH）
+ * 插件 / 自动化任务 / 更多  ← 图标 + 文字的功能项
+ * ──────────────
+ * 工作区          ⌕ ⇅ ＋   ← 标题行带小图标（DSH）
+ *  ▾ 项目名                ← 点击 = 进 Assistant
+ *     对话标题      已完成   ← 点击 = 看某个 Agent（右对齐状态）
  * ```
- *
- * 每个项目是一个"文件夹"，文件夹本身是 C；文件夹下的每条记录是一个 D。
  */
 export function Sidebar(props: SidebarProps): JSX.Element {
   const [query, setQuery] = useState('');
   const [onlyRunning, setOnlyRunning] = useState(false);
+  const [width, setWidth] = useState(loadWidth);
+  const dragging = useRef(false);
 
   const filtering = isFiltering(query, onlyRunning);
 
+  // 拖拽调整宽度：鼠标移动即生效，松手才写回存储。
+  const onMouseDown = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    dragging.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent): void => {
+      if (!dragging.current) return;
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, event.clientX));
+      setWidth(next);
+    };
+    const onUp = (): void => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setWidth((w) => {
+        try {
+          window.localStorage.setItem(WIDTH_KEY, String(w));
+        } catch {
+          /* 存不了就算了 */
+        }
+        return w;
+      });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width }}>
+      {/* 顶部：新会话（DSH 的大按钮） */}
+      <div className="sidebar-top">
+        <button type="button" className="new-session" onClick={props.onOpenProject}>
+          <span aria-hidden>⊕</span> 新会话
+        </button>
+      </div>
+
       <nav className="nav-main">
         <button
           type="button"
           className={`nav-item${props.view.kind === 'global' ? ' active' : ''}`}
           onClick={props.onOpenGlobal}
         >
-          <span className="nav-icon">◎</span>
+          <span className="nav-icon" aria-hidden>◎</span>
           Supervisor
         </button>
         <button type="button" className="nav-item" onClick={props.onOpenProject}>
-          <span className="nav-icon">＋</span>
+          <span className="nav-icon" aria-hidden>⊞</span>
           添加项目
         </button>
       </nav>
 
+      {/* 工作区标题行：带搜索/筛选/新建三个小图标（DSH 的做法） */}
       <div className="workspace-head">
-        <span>工作区</span>
+        <span className="workspace-title">工作区</span>
+        <span className="workspace-actions">
+          <input
+            className="workspace-search"
+            value={query}
+            placeholder="搜索"
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="搜索 Agent"
+          />
+          <button
+            type="button"
+            className={`icon-btn${onlyRunning ? ' active' : ''}`}
+            title="只看在跑"
+            onClick={() => setOnlyRunning((v) => !v)}
+          >
+            ⇅
+          </button>
+          <button type="button" className="icon-btn" title="新建项目" onClick={props.onOpenProject}>
+            ＋
+          </button>
+        </span>
       </div>
 
-      <div className="sidebar-filter">
-        <input
-          value={query}
-          placeholder="搜索执行者…"
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="搜索执行者"
-        />
-        <button
-          type="button"
-          className={`chip${onlyRunning ? ' active' : ''}`}
-          onClick={() => setOnlyRunning((v) => !v)}
-          title="只看还在跑的执行者"
-        >
-          在跑
-        </button>
-      </div>
-
-      <nav className="workspace-tree">
+      <div className="workspace-tree">
         {props.projects.length === 0 && (
-          <p className="muted small empty-hint">还没有项目，先「添加项目」。</p>
+          <p className="empty-hint muted small">还没有项目。点「新会话」添加一个。</p>
         )}
-        {filtering && <p className="muted small empty-hint">筛选中。清空搜索框可看全部。</p>}
+
         {props.projects.map((project) => {
-          const all = props.executors.filter((e) => e.projectId === project.id);
-          const executors = all.filter((e) => matchExecutor(e, query, onlyRunning));
+          const projectMatches = matchesProject(project, query, onlyRunning);          const items = props.executors.filter(
+            (e) => e.projectId === project.id && matchExecutor(e, query, onlyRunning),
+          );
+          if (filtering && !projectMatches && items.length === 0) return null;
 
-          // 筛选时没命中的项目整个隐藏；未筛选时保持原样（文件夹本身是有意义的入口）。
-          if (filtering && executors.length === 0 && !matchesProject(project, query, onlyRunning)) {
-            return null;
-          }
+          const active =
+            (props.view.kind === 'assistant' && props.view.projectId === project.id) ||
+            (props.view.kind === 'executor' && props.view.projectId === project.id);
 
-          const isCurrentProject = props.currentProjectId === project.id;
-          const circleActive = props.view.kind === 'assistant' && isCurrentProject;
           return (
             <div className="project-group" key={project.id}>
               <button
                 type="button"
-                className={`project-folder${circleActive ? ' active' : ''}`}
+                className={`project-folder${active ? ' active' : ''}`}
                 onClick={() => props.onOpenAssistant(project.id)}
                 title={project.displayPath}
               >
-                <span className="folder-icon">◇</span>
+                <span className="folder-icon" aria-hidden>▾</span>
                 <span className="folder-name">{project.name}</span>
-                {project.running ? <span className="badge running">{project.running}</span> : null}
-                {filtering && (
-                  <span className="thread-status">{executors.length}/{all.length}</span>
-                )}
               </button>
 
-              {/* 文件夹下的每条 = 一个执行者（Agent） 的对话 */}
-              {executors.length > 0 && (
-                <ul className="thread-list">
-                  {[...executors]
-                    .sort((a, b) => b.createdAt - a.createdAt)
-                    .map((executor) => {
-                      const active =
-                        props.view.kind === 'executor' && props.view.executorId === executor.id;
-                      return (
-                        <li key={executor.id}>
-                          <button
-                            type="button"
-                            className={`thread-item${active ? ' active' : ''}`}
-                            onClick={() => props.onOpenExecutor(project.id, executor.id)}
-                            title={executor.goal}
-                          >
-                            <span className={`thread-dot ${dotClass(executor.status)}`} />
-                            <span className="thread-title">{executor.label}</span>
-                            <span className="thread-status">
-                              {summarize(executor.metrics) ?? EXECUTOR_STATUS_LABEL[executor.status]}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                </ul>
-              )}
+              <ul className="thread-list">
+                {items.map((executor) => {
+                  const selected =
+                    props.view.kind === 'executor' && props.view.executorId === executor.id;
+                  const running = isRunning(executor.status);
+                  return (
+                    <li key={executor.id}>
+                      <button
+                        type="button"
+                        className={`thread-item${selected ? ' active' : ''}`}
+                        onClick={() => props.onOpenExecutor(project.id, executor.id)}
+                        title={executor.label}
+                      >
+                        <span className="thread-title">{executor.label}</span>
+                        <span className={`thread-status${running ? ' busy' : ''}`}>
+                          {running ? summarize(executor.metrics) : EXECUTOR_STATUS_LABEL[executor.status]}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           );
         })}
-      </nav>
+      </div>
 
       <div className="sidebar-foot">
-        <div className="conn" title={props.connectionDetail ?? undefined}>
-          <span className={`dot${props.connected ? ' ok' : ''}`} />
-          {props.connected ? '已连接' : '未连接'}
-        </div>
+        <span className={`dot${props.connected ? ' ok' : ' bad'}`} />
+        <span>{props.connected ? '已连接' : '未连接'}</span>
+        {props.connectionDetail && <span className="muted small">{props.connectionDetail}</span>}
         <button type="button" className="link" onClick={props.onOpenSettings}>
           设置
         </button>
       </div>
+
+      {/* 拖拽把手：放在最右侧，2px 宽也够点中 */}
+      <div className="sidebar-resizer" onMouseDown={onMouseDown} role="separator" aria-orientation="vertical" />
     </aside>
   );
 }
-
-function dotClass(status: ExecutorDto['status']): string {
-  if (status === 'running' || status === 'starting') return 'busy';
-  if (status === 'done') return 'ok';
-  if (status === 'failed') return 'bad';
-  return 'idle';
-}
-

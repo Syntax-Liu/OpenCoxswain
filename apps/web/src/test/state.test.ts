@@ -3,7 +3,7 @@
  *
  * 这些是纯函数，不需要 DOM。合并逻辑写错的后果很具体：
  * - 消息重复 → 用户以为 C 说了两遍；
- * - 增量丢失 → 界面显示一个已经结束的执行者"还在跑"。
+ * - 增量丢失 → 界面显示一个已经结束的Agent"还在跑"。
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -32,7 +32,7 @@ function executor(over: Partial<ExecutorDto> = {}): ExecutorDto {
     id: 'exe_1',
     projectId: 'prj_1',
     sessionId: 'd_1',
-    label: '执行者',
+    label: 'Agent',
     goal: 'g',
     writeScope: [],
     status: 'running',
@@ -87,7 +87,7 @@ describe('快照与增量合并', () => {
     assert.equal(next.messages.length, 0);
   });
 
-  it('执行者事件按 id upsert，不重复', () => {
+  it('Agent事件按 id upsert，不重复', () => {
     const base = { ...initialState, currentProjectId: 'prj_1' };
     const first = applyEvent(base, 1, {
       type: 'executor_started',
@@ -155,7 +155,7 @@ describe('乐观更新与列表', () => {
     );
   });
 
-  it('可见执行者：保留在跑的与最近结束的', () => {
+  it('可见Agent：保留在跑的与最近结束的', () => {
     const list = [
       executor({ id: 'old', status: 'done', createdAt: 1 }),
       executor({ id: 'mid', status: 'done', createdAt: 2 }),

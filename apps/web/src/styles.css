@@ -1985,3 +1985,386 @@ button.small {
 .nav-item {
   font-size: var(--fs-md);
 }
+
+/* ============================================================
+   DSH 布局 + VS Code 视觉
+   ------------------------------------------------------------
+   布局（位置/层级/间距）照 DeepSeek Harness：
+     顶部大按钮 → 功能项 → 工作区标题行(带图标) → 列表 → 底部状态栏
+     主区：标题行 → 标签页 → 内容 → 浮底输入框 → 状态栏
+   视觉（颜色/边框/字号/密度）照 VS Code。
+   ============================================================ */
+
+/* ---------- 侧栏顶部：新会话大按钮（DSH） ---------- */
+
+.sidebar-top {
+  padding: 10px 12px 6px;
+  flex: none;
+}
+
+.new-session {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-strong);
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+
+.new-session:hover {
+  background: var(--bg-hover);
+}
+
+/* ---------- 工作区标题行：文字 + 搜索/筛选/新建（DSH） ---------- */
+
+.workspace-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 4px 14px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.workspace-title {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin-right: auto;
+}
+
+.workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.workspace-search {
+  width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  opacity: 0;
+  transition: width 0.12s ease, opacity 0.12s ease;
+}
+
+/* 鼠标移到工作区标题行才展开搜索框 */
+.workspace-head:hover .workspace-search,
+.workspace-search:focus {
+  width: 96px;
+  padding: 2px 6px;
+  opacity: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+}
+
+.icon-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+}
+
+.icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-strong);
+}
+
+.icon-btn.active {
+  color: var(--accent);
+  background: var(--bg-active);
+}
+
+/* ---------- 列表项：右对齐状态（DSH） ---------- */
+
+.thread-item {
+  gap: 8px;
+}
+
+.thread-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-status {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.thread-status.busy {
+  color: var(--warn);
+}
+
+/* 去掉文件树的竖线引导（DSH 不用） */
+.thread-list::before {
+  display: none;
+}
+
+.thread-item {
+  padding-left: 26px;
+}
+
+/* ---------- 拖拽把手 ---------- */
+
+.sidebar {
+  position: relative;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.sidebar-resizer:hover {
+  background: var(--accent);
+}
+
+/* ---------- 主区标题行（DSH） ---------- */
+
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px 6px;
+  background: transparent;
+  border-bottom: none;
+}
+
+.conversation-header::before {
+  display: none;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.header-main h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.header-badge {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 6px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.header-side {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 标签页（DSH） ---------- */
+
+.view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.view-tab {
+  padding: 6px 10px;
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
+.view-tab:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.view-tab.active {
+  color: var(--text-strong);
+  border-bottom-color: var(--accent);
+}
+
+.view-tab:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.view-tab-more {
+  margin-left: 4px;
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  user-select: none;
+}
+
+/* ---------- 输入框：浮底大框（DSH 布局） ---------- */
+
+.composer {
+  padding: 8px 20px 12px;
+  border-top: none;
+  background: var(--bg);
+}
+
+.composer-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 8px 10px 6px;
+  transition: border-color 0.1s ease;
+}
+
+.composer-box:focus-within {
+  border-color: var(--accent);
+}
+
+.composer-box textarea {
+  width: 100%;
+  min-height: 38px;
+  max-height: 180px;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 2px 2px 6px;
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  resize: none;
+}
+
+.composer-box textarea::placeholder {
+  color: var(--text-dim);
+}
+
+.composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.composer-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-chip {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 1px 8px;
+  background: transparent;
+}
+
+.composer-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.send-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.send-btn:disabled {
+  background: var(--bg-active);
+  color: var(--text-dim);
+}
+
+/* ---------- 底部状态栏（DSH） ---------- */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px 8px;
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.status-icon {
+  opacity: 0.7;
+}
+
+/* ---------- 侧栏底栏（VS Code 状态栏质感） ---------- */
+
+.sidebar-foot {
+  margin-top: auto;
+}
+
+/* ---------- 修正：主区垂直布局必须是"头固定 + 消息撑满 + 输入固定" ---------- */
+
+/* 这几条放最后，确保不被前面的规则覆盖 */
+.conversation {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.conversation-header,
+.view-tabs,
+.memory-review,
+.composer,
+.status-bar {
+  flex: 0 0 auto;
+}
+
+/* 消息区吃掉所有剩余高度，自己滚 */
+.messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}

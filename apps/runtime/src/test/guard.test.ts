@@ -127,7 +127,7 @@ describe('运行指标', () => {
     assert.equal(cacheHitRate({ ...EMPTY_METRICS, tokensIn: 100, cachedTokens: 60 }), 0.6);
   });
 
-  it('聚合多个执行者', () => {
+  it('聚合多个 Agent', () => {
     const totals = aggregate([
       { ...EMPTY_METRICS, turns: 2, steps: 1, tokensIn: 100, tokensOut: 50, cachedTokens: 40 },
       { ...EMPTY_METRICS, turns: 3, steps: 2, tokensIn: 200, tokensOut: 80, cachedTokens: null },
@@ -140,11 +140,11 @@ describe('运行指标', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 端到端：烧 token 的执行者到阈值被停掉
+// 端到端：烧 token 的Agent到阈值被停掉
 // ---------------------------------------------------------------------------
 
 describe('用量止损真的能停下来', () => {
-  it('执行者烧到上限后被中止，且原因写明是止损', async () => {
+  it('Agent烧到上限后被中止，且原因写明是止损', async () => {
     const root = await projectDir();
     const store = new MemoryStore();
 
@@ -174,7 +174,7 @@ describe('用量止损真的能停下来', () => {
       await new Promise((r) => setTimeout(r, 20));
     }
 
-    assert.ok(row, '应当有执行者记录');
+    assert.ok(row, '应当有Agent记录');
     assert.equal(row.status, 'failed', '超限应当被中止');
     assert.match(row.blockedReason ?? '', /用量上限中止/);
     assert.ok(row.metrics.turns > 0, '应当记录了轮次');
@@ -186,14 +186,14 @@ describe('用量止损真的能停下来', () => {
     await runtime.dispose();
   });
 
-  it('超限后拒绝派出新执行者，并给出可读原因', async () => {
+  it('超限后拒绝派出新Agent，并给出可读原因', async () => {
     const root = await projectDir();
     const store = new MemoryStore();
     const runtime = new Orchestrator({ store, llm: new MockLlmClient(() => ({ text: 'ok' })) });
     const { project } = await runtime.openProject({ rootPath: root });
 
     await store.putProject({ ...project, tokenGuard: { perDay: 100 } });
-    // 伪造今天的用量：塞一条已完成的执行者
+    // 伪造今天的用量：塞一条已完成的Agent
     await store.putExecutor({
       id: 'exe_used',
       projectId: project.id,

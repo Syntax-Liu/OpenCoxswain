@@ -65,7 +65,7 @@ export function ImSettings(props: ImSettingsProps): JSX.Element {
     <section className="im-settings">
       <h3>手机通道（Telegram）</h3>
       <p className="muted small">
-        配好之后，手机上发的话等于对Assistant说的话；执行者出结果、需要你批准危险动作时也会推送到手机。
+        配好之后，手机上发的话等于对Assistant说的话；Agent出结果、需要你批准危险动作时也会推送到手机。
       </p>
 
       {status?.status && (

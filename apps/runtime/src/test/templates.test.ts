@@ -193,7 +193,7 @@ describe('定时配置持久化', () => {
 // ---------------------------------------------------------------------------
 
 describe('端到端：模板与定时都不会自动派活', () => {
-  it('**套用模板后没有任何执行者被创建**', async () => {
+  it('**套用模板后没有任何Agent被创建**', async () => {
     const root = await tmpDir();
     const store = new MemoryStore();
     const runtime = new Orchestrator({ store, llm: new MockLlmClient(() => ({ text: 'ok' })) });
@@ -208,7 +208,7 @@ describe('端到端：模板与定时都不会自动派活', () => {
     await runtime.dispose();
   });
 
-  it('**定时到点后只产生汇报，不创建执行者**', async () => {
+  it('**定时到点后只产生汇报，不创建Agent**', async () => {
     const root = await tmpDir();
     const store = new MemoryStore();
     const schedules = new MemoryScheduleStore();
@@ -220,7 +220,7 @@ describe('端到端：模板与定时都不会自动派活', () => {
     const fired = await runtime.checkSchedules(new Date(2026, 10, 12, 9, 5).getTime());
     assert.equal(fired.length, 1, '应当产生一条建议');
 
-    // 关键：没有执行者
+    // 关键：没有Agent
     assert.equal(store.listExecutors({ projectId: project.id }).length, 0, '定时不该自动派活');
 
     // 但用户能看到提醒

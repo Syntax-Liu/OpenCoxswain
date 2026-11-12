@@ -16,7 +16,7 @@ export interface ExecutorChatProps {
 }
 
 /**
- * 一个执行者（Agent） 的对话视图。
+ * 一个 Agent（Agent） 的对话视图。
  *
  * 结构对齐主流 Agent 软件：这里就是"打开原会话"。
  * - 首条是它的任务目标；
@@ -50,7 +50,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
         <div className="header-main">
           <h2>{props.executor.label}</h2>
           <p className="muted small">
-            {props.executor.access === 'readonly' ? '只读执行者' : '执行者'} ·{' '}
+            {props.executor.access === 'readonly' ? '只读Agent' : 'Agent'} ·{' '}
             {EXECUTOR_STATUS_LABEL[props.executor.status]}
           </p>
         </div>
@@ -95,7 +95,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
       <div className="composer">
         <textarea
           value={draft}
-          placeholder={busy ? '执行者还在跑，等它结束再追问…' : '继续追问这个执行者（它会带着原有上下文继续）'}
+          placeholder={busy ? 'Agent还在跑，等它结束再追问…' : '继续追问这个 Agent（它会带着原有上下文继续）'}
           disabled={busy}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {

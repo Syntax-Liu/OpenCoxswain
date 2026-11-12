@@ -16,13 +16,13 @@
  * | GET  | `/api/health` | 健康检查 |
  * | GET  | `/api/projects` | 项目列表 |
  * | POST | `/api/projects` | 打开/新建项目 |
- * | GET  | `/api/projects/:id` | 项目详情（含执行者与汇报） |
+ * | GET  | `/api/projects/:id` | 项目详情（含Agent与汇报） |
  * | GET  | `/api/projects/:id/messages` | Assistant 的对话历史 |
  * | POST | `/api/projects/:id/say` | 对 Assistant 说一句话（立刻返回） |
  * | POST | `/api/projects/:id/stop` | 停止 C 当前这一轮 |
  * | GET  | `/api/projects/:id/reports` | 汇报列表 |
- * | GET  | `/api/executors/:id` | 执行者详情 |
- * | POST | `/api/executors/:id/cancel` | 取消执行者 |
+ * | GET  | `/api/executors/:id` | Agent详情 |
+ * | POST | `/api/executors/:id/cancel` | 取消Agent |
  * | GET  | `/api/executors/:id/messages` | "打开原会话"：Agent 的完整记录 |
  * | POST | `/api/route` | Supervisor 的路由判断 |
  * | POST | `/api/handoff` | B 转交原话 |
@@ -434,7 +434,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
             content: m.content,
             source: m.source,
             at: m.at,
-            // 内部通知（执行者结算等）不进对话流。
+            // 内部通知（Agent结算等）不进对话流。
             internal: isInternalSource(m.source),
           })),
           lastSeq: bus.lastSeq,
@@ -516,13 +516,13 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
-    // ---- 执行者 ----
+    // ---- Agent ----
     const execMatch = /^\/api\/executors\/([^/]+)(?:\/([a-z]+))?$/.exec(url.pathname);
     if (execMatch) {
       const executorId = decodeURIComponent(execMatch[1]!);
       const action = execMatch[2];
       const executor = store.getExecutor(executorId);
-      if (!executor) return deny(404, `执行者 ${executorId} 不存在`);
+      if (!executor) return deny(404, `Agent ${executorId} 不存在`);
 
       if (method === 'GET' && !action) {
         return reply(200, { executor, lastSeq: bus.lastSeq });
@@ -553,7 +553,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         return result.ok ? json(res, 200, result) : fail(res, 400, result.content);
       }
 
-      // "它到底改了什么"：这个执行者的完整副作用台账。
+      // "它到底改了什么"：这个 Agent的完整副作用台账。
       if (method === 'GET' && action === 'effects') {
         return reply(200, {
           effects: store.listSideEffects({ executorId }),

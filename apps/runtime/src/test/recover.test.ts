@@ -95,10 +95,10 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
     await rt2.dispose();
   });
 
-  it('上次被中断的执行者被如实标记为失败，而不是假装还在跑', async () => {
+  it('上次被中断的Agent被如实标记为失败，而不是假装还在跑', async () => {
     const file = await dbPath();
 
-    // 第一次运行：留一个 running 状态的执行者（模拟进程被强杀）
+    // 第一次运行：留一个 running 状态的Agent（模拟进程被强杀）
     const store1 = new SqliteStore({ file });
     const rt1 = new Orchestrator({ store: store1, llm: new MockLlmClient(() => ({ text: 'ok' })) });
     const opened = await rt1.openProject({ rootPath: 'D:/work/x' });

@@ -1,8 +1,8 @@
 /**
  * 对话流纯净性测试。
  *
- * 背景（真实问题）：执行者的结算通知曾经被当成用户消息渲染进对话流，
- * 整块的 `【执行者结算】` + Agent 的原始输出 + "请立刻向用户汇报这一条结果"
+ * 背景（真实问题）：Agent 的结算通知曾经被当成用户消息渲染进对话流，
+ * 整块的 `【Agent结算】` + Agent 的原始输出 + "请立刻向用户汇报这一条结果"
  * 都显示给了用户。那既不是用户说的话，也不是 Assistant 的回复。
  *
  * 这里钉死三件事：
@@ -27,7 +27,7 @@ describe('Inbox：内部通知标记', () => {
 
   it('internal=true 会被保留', () => {
     const inbox = new Inbox();
-    const item = inbox.push('【执行者结算】...', { internal: true, source: 'executor' });
+    const item = inbox.push('【Agent结算】...', { internal: true, source: 'executor' });
     assert.equal(item.internal, true);
     assert.equal(item.source, 'executor');
   });
@@ -41,7 +41,7 @@ describe('内部消息来源标记', () => {
   });
 });
 
-describe('执行者结算不进对话流', () => {
+describe('Agent结算不进对话流', () => {
   it('结算通知进入 Assistant 的上下文，但历史里标为 internal', async () => {
     const store = new MemoryStore();
     const llm = new MockLlmClient((request) => {
@@ -68,7 +68,7 @@ describe('执行者结算不进对话流', () => {
             return {
               tool: 'spawn_executor',
               args: { label: '写文件', goal: '创建 a.txt', writeScope: [] },
-              text: '收到，我派执行者去创建。',
+              text: '收到，我派Agent去创建。',
             };
           }
         }
@@ -131,7 +131,7 @@ describe('执行者结算不进对话流', () => {
     await store.appendMessage('c1', {
       id: 'm2',
       role: 'user',
-      content: '【执行者结算】\n已完成',
+      content: '【Agent结算】\n已完成',
       source: `${INTERNAL_SOURCE_PREFIX}executor`,
       at: 3,
     });

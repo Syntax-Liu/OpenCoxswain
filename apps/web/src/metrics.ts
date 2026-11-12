@@ -43,7 +43,7 @@ export function formatPercent(value: number | null): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-/** 一个执行者的一行摘要：`3 轮 · 5 步 · 12.3k tok · 245 tok/s`。 */
+/** 一个 Agent的一行摘要：`3 轮 · 5 步 · 12.3k tok · 245 tok/s`。 */
 export function summarize(metrics: RunMetricsDto | undefined): string | null {
   if (!metrics) return null;
   const parts: string[] = [];

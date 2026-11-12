@@ -7,7 +7,7 @@
  * | --- | --- | --- |
  * | `project` | 项目 + Assistant | 一个工作目录 + 一个常驻 Assistant 会话 |
  * | `session` | 会话 | C / Agent 的消息历史与状态 |
- * | `executor` | D | 执行者，一事一 Agent，可被追问 |
+ * | `executor` | D | Agent，一事一 Agent，可被追问 |
  * | `turn` | 用户消息 | 留痕冲突判定与用户直连 D |
  * | `report` | Assistant 的汇报 | 每一条向用户的汇报 |
  *
@@ -30,7 +30,7 @@ export type ExecutorStatus = 'starting' | 'running' | 'done' | 'failed' | 'cance
 export const EXECUTOR_TERMINAL: readonly ExecutorStatus[] = ['done', 'failed', 'cancelled'];
 
 /**
- * 执行者的文件访问形态。
+ * Agent 的文件访问形态。
  *
  * `readonly` 表示它**根本不写文件**，因此不参与写域互斥——
  * 三个只读任务可以真正并行。这一点很关键：早期版本把只读任务
@@ -54,7 +54,7 @@ export interface ProjectRow {
   /** Assistant 的会话 id —— 整个架构的锚点。 */
   readonly assistantSessionId: string;
   /**
-   * 用量止损上限（token）。**不是计费**，是防止失控执行者烧光额度的止损线。
+   * 用量止损上限（token）。**不是计费**，是防止失控Agent烧光额度的止损线。
    */
   readonly tokenGuard?: TokenGuard;
   readonly createdAt: number;
@@ -148,7 +148,7 @@ export interface ApprovalRow {
   readonly decidedReason: string | null;
   readonly createdAt: number;
   readonly decidedAt: number | null;
-  /** 超时时间：到点自动拒绝（不能让执行者永远挂着）。 */
+  /** 超时时间：到点自动拒绝（不能让Agent永远挂着）。 */
   readonly expiresAt: number;
 }
 
@@ -218,14 +218,14 @@ export interface Store {
   /** 转成 LLM 需要的形态：system 前缀 + 历史。 */
   chatHistory(sessionId: string): ChatMessage[];
 
-  // 执行者
+  // Agent
   putExecutor(row: ExecutorRow): Promise<void>;
   getExecutor(id: string): ExecutorRow | undefined;
   listExecutors(filter?: { projectId?: string; status?: readonly ExecutorStatus[] }): ExecutorRow[];
   /**
    * 某个项目从 `since` 起的累计成本（token 与折算美元）。
    *
-   * 按执行者的 createdAt 聚合——执行者是成本的载体，
+   * 按Agent 的 createdAt 聚合——Agent是成本的载体，
    * 跨天运行的任务只算在开始那天（简单且可解释）。
    */
   costSince(projectId: string, since: number): CostLedger;
@@ -331,7 +331,7 @@ export class MemoryStore implements Store {
     for (const m of this.histories.get(sessionId) ?? []) {
       // 只回放对话可见的角色；tool 往返不持久化（每轮重建）。
       if (m.role !== 'user' && m.role !== 'assistant') continue;
-      // 内部通知（执行者结算）保留在上下文里 —— C 需要它才能汇报；
+      // 内部通知（Agent结算）保留在上下文里 —— C 需要它才能汇报；
       // 但它不是用户说的话，加上标记让模型分辨来源。
       if (m.role === 'user' && m.source.startsWith(INTERNAL_SOURCE_PREFIX)) {
         out.push({ role: 'user', content: `（系统通知，不是用户说的话）\n${m.content}` });

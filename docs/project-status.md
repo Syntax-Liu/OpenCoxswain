@@ -33,7 +33,7 @@
 
 **OpenCoxswain（舵手）** 是一个**本地优先的 AI 开发助理**。
 
-你用自然语言说要做什么，它派多个执行者去干活，边干边向你汇报。
+你用自然语言说要做什么，它派多个 Agent去干活，边干边向你汇报。
 
 ### 一句话定位
 
@@ -88,7 +88,7 @@ B Supervisor ── 只在"你有多个项目、不知道进哪个"时路由
 C Assistant ── 每个项目一个，**常驻会话**
   │  派活 / 汇报 / 判断冲突
   ▼
-D 执行者 ──── 临时工，干完就结算
+D Agent ──── 临时工，干完就结算
 ```
 
 ### 2.2 主推流程
@@ -119,7 +119,7 @@ D 执行者 ──── 临时工，干完就结算
 ### 2.4 为什么 C 不直接干活
 
 因为**反馈延迟**。一个 D 跑 5 分钟没动静，你不知道它在想还是在卡；
-换成 C 立刻回一句"我派了三个执行者，先做登录页"，你就安心了。
+换成 C 立刻回一句"我派了三个Agent，先做登录页"，你就安心了。
 
 C 的价值不是"更聪明"，是**让你知道现在什么情况**。
 
@@ -157,7 +157,7 @@ C 的价值不是"更聪明"，是**让你知道现在什么情况**。
 | 记忆管理 | ✅ | 能看见记住了什么，能删单条 |
 | 任务模板 | ✅ | 五类，套用只预填，**不自动派活** |
 | 定时建议 | ✅ | 到点只提醒，**不自动开工** |
-| 界面细节 | ✅ | 消息复制/重发、执行者搜索、回到底部 |
+| 界面细节 | ✅ | 消息复制/重发、Agent搜索、回到底部 |
 
 ### 3.4 入口与分发（线 C）
 
@@ -394,7 +394,7 @@ Tauri 2 + Rust，职责很窄：
 | `project` | 项目 | `root_path`、`assistant_session_id`、`token_guard` |
 | `session` | 会话（C 的 / D 的） | `kind`、`parent_session_id`、`system_prompt` |
 | `message` | 消息 | `role`、`content`、`source`（含 `internal:` 前缀） |
-| `executor` | 执行者 | `access`、`write_scope`、`metrics`、`criteria`、`acceptance` |
+| `executor` | Agent | `access`、`write_scope`、`metrics`、`criteria`、`acceptance` |
 | `turn` | 轮次 | `judged`（判定结果，可审计） |
 | `report` | 汇报 | `kind`、`needs_user` |
 | `approval` | 危险动作审批 | `category`、`evidence`、`status`、`expires_at` |
@@ -459,7 +459,7 @@ Authorization: Bearer <token>
 | --- | --- | --- |
 | GET | `/api/projects` | 项目列表 |
 | POST | `/api/projects` | 打开/新建项目 |
-| GET | `/api/projects/:id` | 项目详情（含执行者与汇报） |
+| GET | `/api/projects/:id` | 项目详情（含Agent与汇报） |
 | POST | `/api/projects/:id/say` | 对 Assistant 说话 |
 | POST | `/api/projects/:id/stop` | 停止当前这轮 |
 | GET | `/api/projects/:id/messages` | 会话消息 |
@@ -471,15 +471,15 @@ Authorization: Bearer <token>
 | GET | `/api/projects/:id/memory-list` | 已生效的记忆 |
 | POST | `/api/projects/:id/memory/:scope/:id/forget` | 删除一条记忆 |
 
-#### 执行者
+#### Agent
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/executors/:id` | 执行者详情 |
+| GET | `/api/executors/:id` | Agent详情 |
 | GET | `/api/executors/:id/messages` | 完整轨迹 |
 | GET | `/api/executors/:id/effects` | 副作用台账 |
 | POST | `/api/executors/:id/say` | 直接对 D 追问 |
-| POST | `/api/executors/:id/cancel` | 取消执行者 |
+| POST | `/api/executors/:id/cancel` | 取消Agent |
 
 #### 审批
 
@@ -643,7 +643,7 @@ memory_candidates     记忆候选
 | `llm-settings.test.ts` | 9 | 密钥保管、环境变量优先、立即生效 |
 | `auth.test.ts` | 9 | **真实 HTTP**：跨源拒绝、无令牌 401 |
 | `path.test.ts` | 7 | 盘符根归一化（`D:\` → `d:/`） |
-| `templates.test.ts` | 20 | **套用模板后没有执行者**、定时只产建议 |
+| `templates.test.ts` | 20 | **套用模板后没有Agent**、定时只产建议 |
 | `token.test.ts` | 20 | 令牌生成校验、CORS 白名单、注入转义（XSS） |
 | `dchat.test.ts` | 5 | 三条只读并行、Agent 可续聊 |
 | `purity.test.ts` | 5 | 内部通知不进对话流 |
@@ -800,11 +800,11 @@ DPAPI 是 Win32 API。Node 调它要引原生模块，会破坏零依赖。
 
 ### 11.5 为什么托盘做成"关窗口不退出"
 
-关掉窗口会杀掉运行时，正在跑的执行者全部中断。
+关掉窗口会杀掉运行时，正在跑的Agent全部中断。
 用户点个 × 就丢掉任务，这个体验不能接受。
 
 **折中**：点 × 隐藏到托盘，D 继续跑；真正退出走托盘菜单。
-菜单项文字直接写「退出（会停止正在跑的执行者）」——让你在点之前就知道代价。
+菜单项文字直接写「退出（会停止正在跑的Agent）」——让你在点之前就知道代价。
 
 ### 11.6 为什么模板和定时都不能自动执行
 

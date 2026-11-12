@@ -11,7 +11,7 @@
  * >  梳理相关方案、约束与偏好，为新任务准备好起点。"
  *
  * 三条硬边界（任何实现都不许越）：
- * 1. **不许自己派执行者** —— Supervisor 没有任何派活工具。
+ * 1. **不许自己派Agent** —— Supervisor 没有任何派活工具。
  * 2. **不许自己改代码**。
  * 3. **不许代 C 汇报"已完成"** —— Supervisor 只知道"我转交了"。
  */
@@ -34,7 +34,7 @@ export type RouteDecision =
  * 判断用户这句话属于哪个项目。
  *
  * **规则打分，不做语义模型推断**：给依据比给答案重要。
- * 依据来源：项目名命中、路径片段命中、最近执行者的标题/目标命中。
+ * 依据来源：项目名命中、路径片段命中、最近Agent 的标题/目标命中。
  */
 export function findProject(
   store: Store,
@@ -73,7 +73,7 @@ export function findProject(
       const hit = tokens.filter((t) => haystack.includes(t));
       if (hit.length >= 2) {
         score += hit.length;
-        reasons.push(`最近的执行者命中关键词：${hit.slice(0, 3).join('、')}`);
+        reasons.push(`最近的Agent命中关键词：${hit.slice(0, 3).join('、')}`);
         break;
       }
     }

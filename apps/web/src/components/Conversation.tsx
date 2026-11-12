@@ -13,6 +13,14 @@ export interface ConversationProps {
   readonly memoryReview?: React.ReactNode;
   /** 模板选择器，放在输入框下方。 */
   readonly templatePicker?: React.ReactNode;
+  /** 底部状态栏的汇总指标（照 DSH 的一行指标）。 */
+  readonly stats?: {
+    readonly turns: number;
+    readonly steps: number;
+    readonly tokensPerSecond: string;
+    readonly totalTokens: string;
+    readonly cacheHit: string;
+  };
   /** 外部注入的草稿（模板填入用）；变化时覆盖输入框。 */
   readonly draftSeed?: { readonly text: string; readonly at: number };
   readonly onSend: (text: string) => void;
@@ -22,7 +30,7 @@ export interface ConversationProps {
 /**
  * 与Assistant 的对话。
  *
- * 这里**只显示人和 C 说的话**。执行者的一切（结算通知、工具调用、
+ * 这里**只显示人和 C 说的话**。Agent 的一切（结算通知、工具调用、
  * 原始产出）都不进来——它们在左侧导航里各自的对话中。
  *
  * 输入框**从不被禁用**：C 还在回复时用户依然可以继续发（连发不打断）。
@@ -53,21 +61,36 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
   return (
     <div className="conversation">
+      {/* 标题行照 DSH：标题 + 状态标签 + 右侧操作 */}
       <header className="conversation-header">
         <div className="header-main">
           <h2>{props.project.name}</h2>
-          <p className="muted small" title={props.project.displayPath}>
-            Assistant　{props.project.displayPath}
-          </p>
+          <span className="header-badge">Agent 模式</span>
+        </div>
+        <div className="header-side">
+          <span className="muted small" title={props.project.displayPath}>
+            {props.project.displayPath}
+          </span>
         </div>
       </header>
+
+      {/* 标签页照 DSH：对话 / 轨迹 */}
+      <div className="view-tabs" role="tablist">
+        <button type="button" className="view-tab active" role="tab" aria-selected>
+          对话
+        </button>
+        <button type="button" className="view-tab" role="tab" aria-selected={false} disabled>
+          轨迹
+        </button>
+        <span className="view-tab-more" aria-hidden>⋯</span>
+      </div>
 
       {props.memoryReview}
 
       <div className="messages" ref={scroll.ref}>
         {visible.length === 0 && (
           <div className="hint-card">
-            <p>直接说要做什么，我可以同时派多个执行者：</p>
+            <p>直接说要做什么，我可以同时派多个 Agent：</p>
             <ul>
               <li>把登录页重构成组件</li>
               <li>查一下导出为什么卡住（只读排查）</li>
@@ -109,29 +132,66 @@ export function Conversation(props: ConversationProps): JSX.Element {
         </button>
       )}
 
+      {/* 输入区照 DSH：浮在底部的大框，内含工具栏 + 圆形发送 */}
       <div className="composer">
-        <textarea
-          value={draft}
-          placeholder="对Assistant说点什么…（Enter 发送，Shift+Enter 换行）"
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={3}
-        />
-        <div className="composer-actions">
-          {props.templatePicker}
-          <button type="button" className="ghost" onClick={props.onStop} title="停止当前这轮">
-            停止
-          </button>
-          <button type="button" className="primary" onClick={submit} disabled={!draft.trim()}>
-            发送
-          </button>
+        <div className="composer-box">
+          <textarea
+            value={draft}
+            placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={2}
+          />
+          <div className="composer-bar">
+            <div className="composer-left">
+              {props.templatePicker}
+              <button
+                type="button"
+                className="composer-chip"
+                onClick={props.onStop}
+                title="停止当前这轮"
+              >
+                停止
+              </button>
+            </div>
+            <button
+              type="button"
+              className="send-btn"
+              onClick={submit}
+              disabled={!draft.trim()}
+              aria-label="发送"
+              title="发送（Enter）"
+            >
+              ↑
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* 底部状态栏照 DSH：一行汇总当前项目的运行指标 */}
+      <footer className="status-bar">
+        <span className="status-item">
+          <span className="status-icon" aria-hidden>⟳</span>
+          {props.stats?.turns ?? 0} 轮 · {props.stats?.steps ?? 0} 步
+        </span>
+        <span className="status-item">
+          <span className="status-icon" aria-hidden>⚡</span>
+          {props.stats?.tokensPerSecond ?? '—'} tok/s
+        </span>
+        <span className="status-item">
+          <span className="status-icon" aria-hidden>Σ</span>
+          {props.stats?.totalTokens ?? '—'} tok
+        </span>
+        <span className="status-item">
+          <span className="status-icon" aria-hidden>⚡</span>
+          缓存命中 {props.stats?.cacheHit ?? '—'}
+        </span>
+      </footer>
     </div>
   );
 }

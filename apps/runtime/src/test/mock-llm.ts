@@ -26,7 +26,7 @@ export type ScriptedResponse =
  */
 export type ScriptFn = (request: LlmChatRequest) => ScriptedResponse | Promise<ScriptedResponse>;
 
-/** 可覆盖的用量，用来模拟"烧 token"的执行者。 */
+/** 可覆盖的用量，用来模拟"烧 token"的Agent。 */
 export interface MockUsage {
   readonly tokensIn: number;
   readonly tokensOut: number;
@@ -94,16 +94,16 @@ export function lastUserText(request: LlmChatRequest): string {
   return '';
 }
 
-/** 判断当前请求是不是"Assistant 收到的执行者结算通知"。 */
+/** 判断当前请求是不是"Assistant 收到的Agent结算通知"。 */
 export function isSettlementNotice(request: LlmChatRequest): boolean {
-  return lastUserText(request).includes('【执行者结算】');
+  return lastUserText(request).includes('【Agent结算】');
 }
 
-/** 判断当前请求是不是"执行者（Agent） 的工作轮"。 */
+/** 判断当前请求是不是"Agent 的工作轮"。 */
 export function isExecutorTurn(request: LlmChatRequest): boolean {
   const system = request.messages.find((m) => m.role === 'system');
-  // 必须用 Agent 提示词独有的开头，不能用"你是执行者"——Assistant 的提示词里也会提到执行者。
-  return typeof system?.content === 'string' && system.content.startsWith('你是执行者。');
+  // 必须用 Agent 提示词独有的开头，不能用"你是Agent"——Assistant 的提示词里也会提到Agent。
+  return typeof system?.content === 'string' && system.content.startsWith('你是Agent。');
 }
 
 /** 判断当前请求是不是 Assistant 在回应普通用户消息。 */

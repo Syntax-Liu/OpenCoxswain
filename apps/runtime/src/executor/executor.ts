@@ -1,5 +1,5 @@
 /**
- * 执行者（Agent）：真正干活的 Agent。
+ * Agent：真正干活的 Agent。
  *
  * 与 Assistant 的区别：
  * - C 是常驻的、有项目全局视野、只调工具不直接改代码；
@@ -54,7 +54,7 @@ export function classifyBlock(reason: string): { kind: BlockKind; hint: string }
   ) {
     return {
       kind: 'self-recoverable',
-      hint: '可由执行者自己换法重试（例如换文件、先读再改），不要打扰用户。',
+      hint: '可由Agent自己换法重试（例如换文件、先读再改），不要打扰用户。',
     };
   }
   return {
@@ -75,7 +75,7 @@ export function executorSystemPrompt(input: {
       ? input.writeScope.join(', ')
       : '（未声明 —— 本次按串行执行，仍只允许改本项目）';
   return [
-    `你是执行者。你只干一件确定的活，干完就结束。`,
+    `你是Agent。你只干一件确定的活，干完就结束。`,
     `项目：${input.projectName}`,
     '',
     '## 目标',
@@ -557,7 +557,7 @@ export interface ExecutorOutcome {
 }
 
 /**
- * 跑一次执行者。
+ * 跑一次Agent。
  *
  * 返回的 `finalText` 就是 Assistant 会看到的那段结论——所以提示词里反复强调
  * "结论先行、不要假装完成"。

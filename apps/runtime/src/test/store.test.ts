@@ -93,7 +93,7 @@ for (const [label, factory] of await storeFactories()) {
       await store.close();
     });
 
-    it('执行者：写域数组与访问形态能完整往返', async () => {
+    it('Agent：写域数组与访问形态能完整往返', async () => {
       const store = await factory();
       await store.putExecutor({
         id: 'e1',
@@ -135,7 +135,7 @@ for (const [label, factory] of await storeFactories()) {
       await store.close();
     });
 
-    it('执行者：只读访问形态也能往返', async () => {
+    it('Agent：只读访问形态也能往返', async () => {
       const store = await factory();
       await store.putExecutor({
         id: 'e2',
@@ -226,7 +226,7 @@ for (const [label, factory] of await storeFactories()) {
 // ---------------------------------------------------------------------------
 
 describe('SQLite：关掉软件后完整恢复（D5）', () => {
-  it('重新打开同一个库，项目/会话/历史/执行者/汇报全都还在', async () => {
+  it('重新打开同一个库，项目/会话/历史/Agent/汇报全都还在', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ocx-persist-'));
     temps.push(dir);
     const file = path.join(dir, 'state.db');

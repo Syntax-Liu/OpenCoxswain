@@ -17,7 +17,7 @@ export function isRunning(status: string): boolean {
 }
 
 /**
- * 一个执行者是否符合筛选条件。
+ * 一个 Agent是否符合筛选条件。
  *
  * 搜索同时匹配**标题与目标**——用户往往记得"让它改登录页"，
  * 但不记得当时起的是什么标题。

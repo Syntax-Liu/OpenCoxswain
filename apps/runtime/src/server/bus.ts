@@ -3,7 +3,7 @@
  *
  * 为什么需要重放缓冲（比 legacy 的 SSE 更严）：
  * SSE 客户端断线重连时，中间发生的事件会丢。如果丢的是
- * `executor_settled` 或 `report`，界面就会永久显示一个已经结束的执行者"还在跑"。
+ * `executor_settled` 或 `report`，界面就会永久显示一个已经结束的Agent"还在跑"。
  *
  * 做法：
  * - 每个事件带单调递增的 `seq`；

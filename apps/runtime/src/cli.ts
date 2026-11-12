@@ -10,7 +10,7 @@
  *   OPENCOXSWAIN_LLM_BASE_URL  默认 https://api.deepseek.com/v1
  *   OPENCOXSWAIN_LLM_MODEL     默认 deepseek-chat
  *
- * 这个 CLI 是运行时的**最小可用面**：能开项目、能对 Assistant 说话、能看执行者进展。
+ * 这个 CLI 是运行时的**最小可用面**：能开项目、能对 Assistant 说话、能看Agent进展。
  * 图形界面与 HTTP/SSE 在后续阶段接在同一个 Orchestrator 上。
  */
 import { createInterface } from 'node:readline';
@@ -177,11 +177,11 @@ async function main(): Promise<void> {
       : {}),
   });
 
-  // 重启恢复：上次被中断的执行者如实标记为失败，不静默重跑。
+  // 重启恢复：上次被中断的Agent如实标记为失败，不静默重跑。
   const recovery = await runtime.recover();
   if (recovery.interruptedExecutors.length > 0) {
     console.log(
-      `发现 ${recovery.interruptedExecutors.length} 个上次被中断的执行者，已标记为失败：` +
+      `发现 ${recovery.interruptedExecutors.length} 个上次被中断的Agent，已标记为失败：` +
         recovery.interruptedExecutors.map((e) => `${e.label}(${e.id})`).join('、'),
     );
   }
@@ -192,14 +192,14 @@ async function main(): Promise<void> {
         console.log(`\n[Assistant] ${event.text}\n`);
         break;
       case 'executor_started':
-        console.log(`[执行者] ${event.executor.label} 开始（${event.executor.id}）`);
+        console.log(`[Agent] ${event.executor.label} 开始（${event.executor.id}）`);
         break;
       case 'executor_queued':
-        console.log(`[执行者] ${event.executor.label} 排队：${event.reason}`);
+        console.log(`[Agent] ${event.executor.label} 排队：${event.reason}`);
         break;
       case 'executor_settled':
         console.log(
-          `[执行者] ${event.executor.label} ${event.ok ? '完成' : '未完成'}（${event.executor.id}）`,
+          `[Agent] ${event.executor.label} ${event.ok ? '完成' : '未完成'}（${event.executor.id}）`,
         );
         break;
       case 'report':

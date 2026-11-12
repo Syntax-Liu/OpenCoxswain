@@ -46,7 +46,7 @@ DSH 的「万物皆插件」建立在 **Cordis** 框架上（依赖注入、服�
 
 | 能力 | 契约 | 当前实现 | 将来可能是 |
 | --- | --- | --- | --- |
-| `ExecutorCapability` | 给目标、写域，跑一个执行者 | `executor/executor.ts` | 换执行后端、外部 Agent |
+| `ExecutorCapability` | 给目标、写域，跑一个 Agent | `executor/executor.ts` | 换执行后端、外部 Agent |
 | `MemoryCapability` | 读写删记忆 | `memory/store.ts` | 换向量库、云端同步 |
 | `NotificationCapability` | 汇报、审批推送 | IM 桥接 + 事件 | 加飞书、邮件、桌面通知 |
 | `ModelCapability` | 模型是否可用 | `llm/settings.ts` | 多模型路由 |

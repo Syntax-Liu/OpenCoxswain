@@ -73,7 +73,7 @@ export interface AgentMessage {
   readonly id: string;
   readonly role: ChatRole;
   readonly content: string;
-  /** 这条消息从哪来：用户 / 助理 / 系统 / 执行者汇报 / Supervisor转交。 */
+  /** 这条消息从哪来：用户 / 助理 / 系统 / Agent汇报 / Supervisor转交。 */
   readonly source: string;
   readonly at: number;
 }

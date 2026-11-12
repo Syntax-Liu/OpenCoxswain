@@ -27,7 +27,7 @@ async function projectDir(): Promise<string> {
 }
 
 describe('三条只读任务真正并行（回归：曾逐条执行）', () => {
-  it('同时派三个只读执行者，三个都立刻进入 running，零排队', async () => {
+  it('同时派三个只读Agent，三个都立刻进入 running，零排队', async () => {
     const root = await projectDir();
     const store = new MemoryStore();
     // 让 D 停在一个"等待"上，好观察它们是否同时在跑。
@@ -147,7 +147,7 @@ describe('Agent 可续聊（带原上下文）', () => {
     const { project } = await runtime.openProject({ rootPath: root });
 
     const spawn = await runtime.spawn(project.id, {
-      label: '可续聊的执行者',
+      label: '可续聊的Agent',
       goal: '第一步：读文件',
       writeScope: ['readonly'],
     });
@@ -177,7 +177,7 @@ describe('Agent 可续聊（带原上下文）', () => {
     await runtime.dispose();
   });
 
-  it('已删除/不存在的执行者续聊会给出可读错误', async () => {
+  it('已删除/不存在的Agent续聊会给出可读错误', async () => {
     const store = new MemoryStore();
     const runtime = new Orchestrator({ store, llm: new MockLlmClient(() => ({ text: 'ok' })) });
     const result = await runtime.userSaysToExecutor('exe_nope', '继续');

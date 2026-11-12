@@ -23,7 +23,7 @@ export interface GateStats {
   readonly limit: number;
 }
 
-/** 一个执行者的写域描述。 */
+/** 一个 Agent的写域描述。 */
 export interface ScopeClaim {
   readonly access: ExecutorAccess;
   readonly scopes: readonly string[];
@@ -36,7 +36,7 @@ interface Waiter {
   readonly reject: (error: Error) => void;
 }
 
-/** 判断两个执行者是否必须串行。 */
+/** 判断两个Agent是否必须串行。 */
 export function scopesConflict(a: ScopeClaim | readonly string[], b: ScopeClaim | readonly string[]): boolean {
   const left = toClaim(a);
   const right = toClaim(b);
@@ -225,7 +225,7 @@ export class Gate {
     this.running.clear();
     this.waiters.length = 0;
     for (const waiter of pending) {
-      waiter.reject(new Error('闸门已复位（运行时关停），该执行者需要重新派发'));
+      waiter.reject(new Error('闸门已复位（运行时关停），该Agent需要重新派发'));
     }
   }
 

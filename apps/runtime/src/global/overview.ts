@@ -226,7 +226,7 @@ export function describeOverview(overview: GlobalOverview): string {
     if (lines.length > 0) lines.push('');
     lines.push(`**${running.length} 个项目在跑**：`);
     for (const p of running) {
-      lines.push(`- ${p.name}：${p.running} 个执行者在工作`);
+      lines.push(`- ${p.name}：${p.running} 个Agent在工作`);
     }
   }
 

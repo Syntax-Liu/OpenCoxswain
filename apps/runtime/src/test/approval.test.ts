@@ -241,7 +241,7 @@ describe('端到端：未批准的动作真的没发生', () => {
     assert.equal(approval.category, 'delete');
     assert.match(approval.evidence, /Remove-Item/);
 
-    // 等执行者结束
+    // 等Agent结束
     await waitFor(
       () => {
         const e = store.listExecutors({ projectId: project.id })[0];

@@ -21,7 +21,7 @@ export interface MemoryEntry {
   readonly kind: MemoryKind;
   /** 记忆正文，一句话。 */
   readonly text: string;
-  /** 来源：哪次对话/哪个执行者，必须可追溯。 */
+  /** 来源：哪次对话/哪个Agent，必须可追溯。 */
   readonly source: string;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -70,7 +70,7 @@ export function checkCandidate(candidate: MemoryCandidate): string | null {
     return `未知记忆类型：${String(candidate.kind)}`;
   }
   if (!candidate.source?.trim()) {
-    return '缺少来源，记忆必须可追溯（哪次对话或哪个执行者得出的）';
+    return '缺少来源，记忆必须可追溯（哪次对话或哪个Agent得出的）';
   }
   if (text.length < MIN_LENGTH) {
     return '内容过短，不足以成为记忆';

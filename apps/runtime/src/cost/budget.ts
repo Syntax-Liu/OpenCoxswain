@@ -7,7 +7,7 @@
  * 那为什么还保留一个上限？因为 token 是**真实的、模型自己报告的数字**，
  * 用它做止损不需要任何假设：
  *
- * - 一个失控的执行者（例如反复重试、死循环）可能在几分钟内烧掉大量额度；
+ * - 一个失控的Agent（例如反复重试、死循环）可能在几分钟内烧掉大量额度；
  * - 用户需要能设一条线，超了就停，而不是等账单出来才发现。
  *
  * 所以这里叫 `tokenGuard`（用量保护），不叫 budget（预算）。
@@ -20,7 +20,7 @@ export interface CostLedger {
 
 /** 阈值：达到即触发。 */
 export interface TokenGuard {
-  /** 单个执行者上限。 */
+  /** 单个Agent上限。 */
   readonly perTask?: number;
   /** 项目每日上限。 */
   readonly perDay?: number;
@@ -81,7 +81,7 @@ function check(
 /**
  * 派活前检查：只看项目当日总量。
  *
- * 单个执行者此时还没开始跑，不可能超。
+ * 单个Agent此时还没开始跑，不可能超。
  */
 export function evaluateSpawn(guard: TokenGuard, todayCost: CostLedger): GuardEvaluation {
   const result = check('今日 token ', totalTokens(todayCost), guard.perDay);

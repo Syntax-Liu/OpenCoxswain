@@ -3,7 +3,7 @@
  *
  * 背景（真实 bug）：桌面壳曾把 `D:\` 当作项目根传进来，归一化后得到 `"d:"`。
  * Node 把 `"d:"` 解释成"D 盘的当前目录"，`path.resolve` 出来是错的，
- * 执行者的文件操作随即报 `EISDIR: lstat 'D:'`。
+ * Agent 的文件操作随即报 `EISDIR: lstat 'D:'`。
  *
  * 所以盘符根必须归一化成 `d:/`。
  */
@@ -57,7 +57,7 @@ describe('盘符根路径可被 Node 正确解析', () => {
   });
 });
 
-describe('执行者可以在真实临时目录工作（端到端）', () => {
+describe('Agent可以在真实临时目录工作（端到端）', () => {
   it('在临时目录下写文件成功——证明路径解析没退化', async () => {
     const { Orchestrator } = await import('../orchestrator.js');
     const { MemoryStore } = await import('../store/store.js');
@@ -71,7 +71,7 @@ describe('执行者可以在真实临时目录工作（端到端）', () => {
     const llm = new MockLlmClient((request) => {
       const system = request.messages.find((m) => m.role === 'system');
       const isExecutor =
-        typeof system?.content === 'string' && system.content.startsWith('你是执行者。');
+        typeof system?.content === 'string' && system.content.startsWith('你是Agent。');
       if (!isExecutor) return { text: 'ok' };
       step += 1;
       if (step === 1) {

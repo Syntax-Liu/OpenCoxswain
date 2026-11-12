@@ -27,7 +27,7 @@ export interface InboxItem {
   /** 来源：webapp / im / Supervisor转交。 */
   readonly source: string;
   /**
-   * 是否是系统内部通知（如执行者结算）。
+   * 是否是系统内部通知（如Agent结算）。
    *
    * 内部通知要进 Assistant 的上下文，但**不该出现在用户的对话流里**——
    * 那是给模型看的指令，不是用户说的话。

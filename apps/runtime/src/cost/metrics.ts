@@ -12,7 +12,7 @@
  * 吞吐、缓存命中。这些不需要任何假设，也不会因为价格变动而失真。
  *
  * 唯一的例外是 `tokenGuard`：它不是计费，是**止损线**——
- * 防止一个失控的执行者把额度烧光，超了直接停。
+ * 防止一个失控的Agent把额度烧光，超了直接停。
  */
 import type { CostLedger } from '../cost/budget.js';
 
@@ -89,7 +89,7 @@ export function aggregate(rows: readonly RunMetrics[]): {
   return { turns, steps, tokensIn, tokensOut, cachedTokens: cached };
 }
 
-/** 从执行者行里取 CostLedger 形状（供止损判定复用）。 */
+/** 从Agent行里取 CostLedger 形状（供止损判定复用）。 */
 export function toCostLedger(m: RunMetrics): CostLedger {
   return { tokensIn: m.tokensIn, tokensOut: m.tokensOut };
 }

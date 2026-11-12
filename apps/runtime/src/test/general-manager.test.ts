@@ -43,7 +43,7 @@ describe('跨项目写冲突', () => {
     projectId: 'p1',
     projectRoot: 'D:/proj-a',
     agentId: 'a1',
-    label: 'A 的执行者',
+    label: 'A 的Agent',
     writeScope: ['src'],
     readonly: false,
     ...over,
@@ -90,10 +90,10 @@ describe('跨项目写冲突', () => {
     const text = describeConflict({
       withProjectId: 'p2',
       withAgentId: 'a2',
-      withLabel: 'Supervisor 的执行者',
+      withLabel: 'Supervisor 的Agent',
       overlap: 'd:/shared/utils',
     });
-    assert.match(text, /Supervisor 的执行者/);
+    assert.match(text, /Supervisor 的Agent/);
     assert.match(text, /互相覆盖/);
   });
 });
@@ -229,7 +229,7 @@ describe('端到端：跨项目冲突真的会拦住派活', () => {
       id: 'exe_running',
       projectId: p1.id,
       sessionId: 'd1',
-      label: 'A 的执行者',
+      label: 'A 的Agent',
       goal: '改共享库',
       access: 'readwrite',
       writeScope: [sharedLib],
@@ -248,7 +248,7 @@ describe('端到端：跨项目冲突真的会拦住派活', () => {
     await assert.rejects(
       () =>
         runtime.spawn(p2.id, {
-          label: 'Supervisor 的执行者',
+          label: 'Supervisor 的Agent',
           goal: '也改共享库',
           writeScope: ['shared-lib/strings.ts'],
         }),
@@ -269,7 +269,7 @@ describe('端到端：跨项目冲突真的会拦住派活', () => {
       id: 'exe_x',
       projectId: p1.id,
       sessionId: 'd1',
-      label: 'X 的执行者',
+      label: 'X 的Agent',
       goal: 'g',
       access: 'readwrite',
       writeScope: ['src'],
@@ -286,7 +286,7 @@ describe('端到端：跨项目冲突真的会拦住派活', () => {
 
     // 项目 Y 也改自己的 src —— 不该被拦
     const result = await runtime.spawn(p2.id, {
-      label: 'Y 的执行者',
+      label: 'Y 的Agent',
       goal: 'g',
       writeScope: ['src'],
     });

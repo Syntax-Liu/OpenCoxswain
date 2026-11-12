@@ -16,7 +16,7 @@
  *
  * 关键映射（用户的原话）：
  * - **点文件夹 = 进入 C**（Assistant，项目的主人）
- * - **点对话 = 某个 Agent**（执行者，可看完整轨迹并继续追问）
+ * - **点对话 = 某个 Agent**（Agent，可看完整轨迹并继续追问）
  * - **B 单独入口**，只在多项目迷路时用
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -45,6 +45,7 @@ import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { MemoryReview } from './components/MemoryReview.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
+import { formatTokens } from './metrics.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
@@ -71,7 +72,7 @@ export function App(): JSX.Element {
 
   /** 待审批的危险动作。轮询获取——审批是人工操作，不需要 SSE 高频推送。 */
   const [approvals, setApprovals] = useState<ApprovalDto[]>([]);
-  /** 当前查看的执行者的副作用台账。 */
+  /** 当前查看的Agent 的副作用台账。 */
   const [effects, setEffects] = useState<SideEffectDto[]>([]);
   /** 记忆候选。 */
   const [memories, setMemories] = useState<MemoryCandidateDto[]>([]);
@@ -205,7 +206,7 @@ export function App(): JSX.Element {
   }, [state.appliedSeq]);
 
   // 审批轮询：每 3 秒问一次有没有新的待审批动作。
-  // 有执行者正在跑时才轮询，空闲时不打扰后端。
+  // 有Agent正在跑时才轮询，空闲时不打扰后端。
   useEffect(() => {
     const projectId = view && view.kind !== 'global' ? view.projectId : state.currentProjectId;
     if (!projectId) return;
@@ -432,6 +433,39 @@ export function App(): JSX.Element {
       ? 'Supervisor'
       : (currentProject?.name ?? '未打开项目');
 
+  // 底部状态栏：当前项目所有 Agent 的汇总（照 DSH 的一行指标）。
+  const projectStats = (() => {
+    if (!currentProject) return undefined;
+    const agents = state.executors.filter((e) => e.projectId === currentProject.id);
+    let turns = 0;
+    let steps = 0;
+    let tokensIn = 0;
+    let tokensOut = 0;
+    let cached = 0;
+    let durationMs = 0;
+    for (const agent of agents) {
+      // metrics 可能还为空（刚建的 Agent 没跑过）
+      const m = agent.metrics;
+      if (!m) continue;
+      turns += m.turns;
+      steps += m.steps;
+      tokensIn += m.tokensIn;
+      tokensOut += m.tokensOut;
+      cached += m.cachedTokens ?? 0;
+      durationMs += m.durationMs;
+    }
+    const rate = durationMs > 0 ? Math.round((tokensOut / durationMs) * 1000) : null;
+    const total = tokensIn + tokensOut;
+    return {
+      turns,
+      steps,
+      tokensPerSecond: rate === null ? '—' : String(rate),
+      totalTokens: formatTokens(total),
+      cacheHit:
+        tokensIn > 0 ? `${Math.round((cached / tokensIn) * 100)}%` : '—',
+    };
+  })();
+
   const needsSetup = settings !== null && !settings.configured;
   if (needsSetup) {
     return (
@@ -507,6 +541,7 @@ export function App(): JSX.Element {
               />
             }
             {...(draftSeed ? { draftSeed } : {})}
+            stats={projectStats}
             onSend={(text) => void handleSendToAssistant(text)}
             onStop={() => void handleStop()}
           />

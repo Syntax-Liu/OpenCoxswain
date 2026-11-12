@@ -39,13 +39,13 @@ describe('对话流过滤', () => {
     );
   });
 
-  it('内部通知被过滤（回归：曾整块显示【执行者结算】）', () => {
+  it('内部通知被过滤（回归：曾整块显示【Agent结算】）', () => {
     const list = [
       msg({ id: '1', role: 'user', content: '创建文件' }),
       msg({
         id: '2',
         role: 'user',
-        content: '【执行者结算】\n已完成\n请立刻向用户汇报这一条结果。',
+        content: '【Agent结算】\n已完成\n请立刻向用户汇报这一条结果。',
         source: 'internal:executor',
         internal: true,
       }),

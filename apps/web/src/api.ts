@@ -2,7 +2,7 @@
  * 与运行时通信的客户端。
  *
  * 两条通道：
- * 1. **REST**：拉快照（项目、消息、执行者、汇报）与发指令（说话、停止、取消）。
+ * 1. **REST**：拉快照（项目、消息、Agent、汇报）与发指令（说话、停止、取消）。
  * 2. **SSE**：接收增量事件。
  *
  * 快照 + 增量是本设计的关键：
@@ -33,7 +33,7 @@ export interface ExecutorDto {
   readonly sessionId: string;
   readonly label: string;
   readonly goal: string;
-  /** 只读执行者不参与写域互斥，可与他人并行。 */
+  /** 只读Agent不参与写域互斥，可与他人并行。 */
   readonly access?: 'readwrite' | 'readonly';
   readonly writeScope: readonly string[];
   readonly status: ExecutorStatus;
@@ -91,7 +91,7 @@ export interface MessageDto {
   readonly source: string;
   readonly at: number;
   /**
-   * 是否是系统内部通知（如执行者结算）。
+   * 是否是系统内部通知（如Agent结算）。
    *
    * 这类消息进入 Assistant 的上下文，但**不该显示在用户的对话流里**——
    * 它是给模型的指令，不是用户说的话。
@@ -356,7 +356,7 @@ export class ApiClient {
     });
   }
 
-  /** "打开原会话"：执行者的完整记录（含每次工具调用）。 */
+  /** "打开原会话"：Agent 的完整记录（含每次工具调用）。 */
   executorMessages(executorId: string): Promise<{
     executor: ExecutorDto;
     session: unknown;
@@ -378,7 +378,7 @@ export class ApiClient {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/usage`);
   }
 
-  /** 某个执行者的副作用台账：它到底改了什么。 */
+  /** 某个 Agent的副作用台账：它到底改了什么。 */
   executorEffects(executorId: string): Promise<{ effects: SideEffectDto[] }> {
     return this.request(`/api/executors/${encodeURIComponent(executorId)}/effects`);
   }

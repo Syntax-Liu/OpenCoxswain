@@ -34,14 +34,14 @@ async function makeProjectDir(): Promise<string> {
 }
 
 /**
- * 一个"假 C"：收到用户需求就派执行者；收到结算通知就汇报。
+ * 一个"假 C"：收到用户需求就派Agent；收到结算通知就汇报。
  * 模拟真实 Assistant 的行为契约，但用固定脚本保证测试确定性。
  */
 function makeAssistantLlm(_projectRoot: string) {
   let spawned = 0;
   return new MockLlmClient((request) => {
     if (isSettlementNotice(request)) {
-      return { text: '✅ 已汇报：执行者完成，具体见上。' };
+      return { text: '✅ 已汇报：Agent完成，具体见上。' };
     }
     if (isAssistantTurn(request)) {
       // 已经派过就不再派。真实模型靠提示词 + 会话历史约束，
@@ -59,7 +59,7 @@ function makeAssistantLlm(_projectRoot: string) {
             writeScope: [],
             judged: 'new',
           },
-          text: '收到，我派一个执行者去创建文件。',
+          text: '收到，我派一个 Agent去创建文件。',
         };
       }
       return { text: '你好，我是Assistant。' };
@@ -72,7 +72,7 @@ function makeAssistantLlm(_projectRoot: string) {
 function makeExecutorLlm(projectRoot: string) {
   let step = 0;
   return new MockLlmClient((request) => {
-    if (!isExecutorTurn(request)) return { text: '（非执行者轮）' };
+    if (!isExecutorTurn(request)) return { text: '（非Agent轮）' };
     step += 1;
     if (step === 1) {
       return {
@@ -127,14 +127,14 @@ describe('写域互斥', () => {
     assert.equal(scopesConflict(['src'], []), true);
   });
 
-  it('闸门：不相交的两个执行者可以并行', async () => {
+  it('闸门：不相交的两个Agent可以并行', async () => {
     const gate = new Gate(5);
     await gate.acquire('a', ['src/x']);
     await gate.acquire('b', ['src/y']);
     assert.equal(gate.stats().running, 2);
   });
 
-  it('闸门：相交的第二个执行者排队，释放后补位', async () => {
+  it('闸门：相交的第二个Agent排队，释放后补位', async () => {
     const gate = new Gate(5);
     await gate.acquire('a', ['src/x']);
     const pending = gate.acquire('b', ['src/x']);
@@ -224,7 +224,7 @@ describe('主推流程端到端', () => {
     const content = await readFile(path.join(root, 'hello.txt'), 'utf8');
     assert.equal(content, 'hello');
 
-    // 执行者已结算为 done
+    // Agent已结算为 done
     const executors = store.listExecutors({ projectId: project.id });
     assert.equal(executors.length, 1);
     assert.equal(executors[0]!.status, 'done');
@@ -278,7 +278,7 @@ describe('主推流程端到端', () => {
     await runtime.dispose();
   });
 
-  it('两个写域不同的执行者可以并行', async () => {
+  it('两个写域不同的Agent可以并行', async () => {
     const root = await makeProjectDir();
     const store = new MemoryStore();
     const runtime = new Orchestrator({
@@ -297,7 +297,7 @@ describe('主推流程端到端', () => {
     await runtime.dispose();
   });
 
-  it('写域相交的执行者被排队（冲突兜底）', async () => {
+  it('写域相交的Agent被排队（冲突兜底）', async () => {
     const root = await makeProjectDir();
     const store = new MemoryStore();
     // 让 D 慢一点，确保第一个还在跑
@@ -319,7 +319,7 @@ describe('主推流程端到端', () => {
     await runtime.dispose();
   });
 
-  it('先完成先汇报：先结算的执行者先产生汇报', async () => {
+  it('先完成先汇报：先结算的Agent先产生汇报', async () => {
     const root = await makeProjectDir();
     const store = new MemoryStore();
     const order: string[] = [];
