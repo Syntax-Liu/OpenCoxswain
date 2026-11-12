@@ -604,6 +604,10 @@ export function App(): JSX.Element {
             messages={state.messages}
             // 轨迹页要**全部**消息：Assistant 的对话 + 所有 Agent 的工具轨迹
             traceMessages={[...state.messages, ...agentTrace]}
+            executors={state.executors.filter((e) => e.projectId === currentProject?.id)}
+            onOpenExecutor={(id) => {
+              if (currentProject) setView({ kind: 'executor', projectId: currentProject.id, executorId: id });
+            }}
             thinking={state.thinking}
             memoryReview={
               <MemoryReview

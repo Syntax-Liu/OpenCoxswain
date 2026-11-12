@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { MessageDto, ProjectDto } from '../api.js';
+import type { ExecutorDto, MessageDto, ProjectDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
 import { MessageActions } from './MessageActions.js';
 import { useAutoScroll } from './useAutoScroll.js';
 import { TraceView } from './TraceView.js';
+import { BatchBlock } from './BatchBlock.js';
+import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 
 export interface ConversationProps {
   readonly project: ProjectDto;
@@ -16,6 +18,10 @@ export interface ConversationProps {
   readonly templatePicker?: React.ReactNode;
   /** 轨迹页用的完整消息（含内部通知）；不给就用 messages。 */
   readonly traceMessages?: readonly MessageDto[];
+  /** 当前项目的 Agent 列表，用来画批次线。 */
+  readonly executors?: readonly ExecutorDto[];
+  /** 点批次里的某个 Agent → 打开它的对话。 */
+  readonly onOpenExecutor?: (executorId: string) => void;
   /** 底部状态栏的汇总指标（照 DSH 的一行指标）。 */
   readonly stats?: {
     readonly turns: number;
@@ -40,6 +46,8 @@ export interface ConversationProps {
  */
 export function Conversation(props: ConversationProps): JSX.Element {
   const [draft, setDraft] = useState('');
+  // 批次：同一轮派出的 Agent 归到一起（签名元素）
+  const allBatches = useMemo(() => groupBatches(props.executors ?? []), [props.executors]);
   /** 当前标签页：对话 / 轨迹（照 DSH）。 */
   const [tab, setTab] = useState<'chat' | 'trace'>('chat');
   // 轨迹条数（标签上的小数字）
@@ -127,13 +135,31 @@ export function Conversation(props: ConversationProps): JSX.Element {
         {visible.map((message, index) => {
           const prev = visible[index - 1];
           const showTime = shouldShowTime(prev, message);
+          // 这一条之后要插入的批次：按派出时间落在两条消息之间
+          const here = batchesBetween(message, visible[index + 1], allBatches);
           return (
             <div key={message.id}>
               {showTime && <div className="time-divider">{formatTime(message.at)}</div>}
               <Message message={message} onResend={props.onSend} />
+              {here.map((batch) => (
+                <BatchBlock
+                  key={batch.id}
+                  batch={batch}
+                  onOpen={(id) => props.onOpenExecutor?.(id)}
+                />
+              ))}
             </div>
           );
         })}
+
+        {/* 最后一条之后可能还有批次（刚派出去、还没回复） */}
+        {batchesBetween(visible[visible.length - 1], undefined, allBatches).map((batch) => (
+          <BatchBlock
+            key={batch.id}
+            batch={batch}
+            onOpen={(id) => props.onOpenExecutor?.(id)}
+          />
+        ))}
 
         {props.thinking && (
           <div className="message assistant">
@@ -251,6 +277,23 @@ function Message({
 function shouldShowTime(prev: MessageDto | undefined, current: MessageDto): boolean {
   if (!prev) return true;
   return current.at - prev.at > 5 * 60_000;
+}
+
+/**
+ * 找出落在两条消息之间的批次。
+ *
+ * 批次代表「这一轮派出去的 Agent」，时间点是第一个 Agent 的创建时间。
+ * 落在 `(after.at, before.at]` 区间内就显示在这里。
+ * **单条 Agent 的批次不画**——那是普通派活，不需要强调「批」。
+ */
+function batchesBetween(
+  after: MessageDto | undefined,
+  before: MessageDto | undefined,
+  allBatches: readonly Batch[],
+): readonly Batch[] {
+  if (!after) return [];
+  const end = before?.at ?? Number.POSITIVE_INFINITY;
+  return allBatches.filter((b) => isNotableBatch(b) && b.at > after.at && b.at <= end);
 }
 
 function formatTime(at: number): string {

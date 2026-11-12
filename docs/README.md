@@ -5,6 +5,7 @@
 | 想知道什么 | 看哪份 |
 | --- | --- |
 | **下一步做什么** | [`roadmap.md`](roadmap.md) ← **最新** |
+| **界面往哪走** | [design-direction.md](design-direction.md) ← **视觉方向方案（待确认）** |
 | **改界面之前** | [ui-spec.md](ui-spec.md) ← **界面规范，唯一标准** |
 | **术语怎么叫** | [glossary.md](glossary.md) ← **命名的唯一权威来源** |
 | **完整了解项目** | [`project-status.md`](project-status.md) ← **全景快照：功能、结构、数据、API、决策、踩坑记录** |
