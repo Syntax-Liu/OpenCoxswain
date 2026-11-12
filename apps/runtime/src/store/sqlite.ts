@@ -47,8 +47,9 @@ import {
 import { INTERNAL_SOURCE_PREFIX } from './store.js';
 import type { CostLedger } from '../cost/budget.js';
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
+import type { ContentPart } from '../llm/types.js';
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -85,7 +86,9 @@ CREATE TABLE IF NOT EXISTS message (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   source TEXT NOT NULL,
-  at INTEGER NOT NULL
+  at INTEGER NOT NULL,
+  -- v8：图片附件（JSON 数组）。NULL 表示没有附件。
+  images TEXT
 );
 CREATE INDEX IF NOT EXISTS message_session ON message(session_id, seq);
 
@@ -248,6 +251,11 @@ export class SqliteStore implements Store {
           if (!this.hasColumn(table, column)) this.db.exec(ddl);
         }
       }
+      // v7 → v8：message 表新增 images 列（图片附件）。
+      // 老库补列，老数据为 NULL（没有附件），不影响回放。
+      if (version < 8 && !this.hasColumn('message', 'images')) {
+        this.db.exec('ALTER TABLE message ADD COLUMN images TEXT;');
+      }
       this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
       // v3 → v4 只是新增 approval 表，SCHEMA 里的 CREATE IF NOT EXISTS 已覆盖，
       // 无需额外 ALTER。
@@ -367,22 +375,45 @@ export class SqliteStore implements Store {
   async appendMessage(sessionId: string, message: AgentMessage): Promise<void> {
     this.db
       .prepare(
-        'INSERT INTO message (session_id, id, role, content, source, at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO message (session_id, id, role, content, source, at, images) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
-      .run(sessionId, message.id, message.role, message.content, message.source, message.at);
+      .run(
+        sessionId,
+        message.id,
+        message.role,
+        message.content,
+        message.source,
+        message.at,
+        // 图片以 JSON 存。没有附件时存 NULL 而不是 '[]'——
+        // 这样「有没有图片」只看一个列是否为空，不用解析。
+        message.images && message.images.length > 0 ? JSON.stringify(message.images) : null,
+      );
   }
 
   messages(sessionId: string): AgentMessage[] {
     const rows = this.db
       .prepare('SELECT * FROM message WHERE session_id = ? ORDER BY seq ASC')
       .all(sessionId) as Row[];
-    return rows.map((r) => ({
-      id: String(r.id),
-      role: String(r.role) as AgentMessage['role'],
-      content: String(r.content),
-      source: String(r.source),
-      at: Number(r.at),
-    }));
+    return rows.map((r) => {
+      // 图片列是 JSON；解析失败（老数据或损坏）就当没有附件，不影响回放
+      let images: ContentPart[] | undefined;
+      if (typeof r.images === 'string' && r.images) {
+        try {
+          const parsed = JSON.parse(r.images) as ContentPart[];
+          if (Array.isArray(parsed) && parsed.length > 0) images = parsed;
+        } catch {
+          /* 损坏的 JSON 忽略 */
+        }
+      }
+      return {
+        id: String(r.id),
+        role: String(r.role) as AgentMessage['role'],
+        content: String(r.content),
+        source: String(r.source),
+        at: Number(r.at),
+        ...(images ? { images } : {}),
+      };
+    });
   }
 
   chatHistory(sessionId: string): ChatMessage[] {
@@ -395,6 +426,17 @@ export class SqliteStore implements Store {
       // 内部通知保留在上下文里（C 靠它汇报），但标明来源。
       if (m.role === 'user' && m.source.startsWith(INTERNAL_SOURCE_PREFIX)) {
         out.push({ role: 'user', content: `（系统通知，不是用户说的话）\n${m.content}` });
+        continue;
+      }
+      // 带图片的消息：文本走 content，图片走 parts。
+      // 由 toWireMessages 按模型能力决定发不发图。
+      const images = m.images ?? [];
+      if (images.length > 0) {
+        const parts: ContentPart[] = [
+          ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+          ...images,
+        ];
+        out.push({ role: m.role, content: m.content || null, parts });
         continue;
       }
       out.push({ role: m.role, content: m.content });

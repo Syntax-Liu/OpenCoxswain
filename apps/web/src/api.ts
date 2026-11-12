@@ -90,6 +90,8 @@ export interface MessageDto {
   readonly content: string;
   readonly source: string;
   readonly at: number;
+  /** 图片附件（用户拖入或粘贴的图）；刷新后用于显示缩略图。 */
+  readonly images?: ReadonlyArray<{ type: 'image'; dataUrl: string; name?: string }>;
   /**
    * 是否是系统内部通知（如Agent结算）。
    *
@@ -372,10 +374,20 @@ export class ApiClient {
   }
 
   /** 对 Assistant 说话。**立刻返回**，Assistant 的回复通过 SSE 到达。 */
-  say(projectId: string, text: string): Promise<{ accepted: boolean }> {
+  say(
+    projectId: string,
+    text: string,
+    images?: readonly { type: 'image'; dataUrl: string; name: string }[],
+  ): Promise<{ accepted: boolean }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/say`, {
       method: 'POST',
-      body: { text, source: 'webapp' },
+      body: {
+        text,
+        source: 'webapp',
+        // 图片单独传：运行时据此构造多模态消息。
+        // 不传时行为与以前完全一致。
+        ...(images && images.length > 0 ? { images } : {}),
+      },
     });
   }
 

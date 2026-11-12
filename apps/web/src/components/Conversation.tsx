@@ -6,6 +6,8 @@ import { MessageActions } from './MessageActions.js';
 import { useAutoScroll } from './useAutoScroll.js';
 import { TraceView } from './TraceView.js';
 import { BatchBlock } from './BatchBlock.js';
+import { AttachmentStrip } from './AttachmentStrip.js';
+import { attachmentsToText, imageParts, useAttachments } from './attachments.js';
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 
 export interface ConversationProps {
@@ -32,7 +34,13 @@ export interface ConversationProps {
   };
   /** 外部注入的草稿（模板填入用）；变化时覆盖输入框。 */
   readonly draftSeed?: { readonly text: string; readonly at: number };
-  readonly onSend: (text: string) => void;
+  /**
+   * 发送消息。
+   *
+   * 第二个参数是图片附件——**只有图片走这里**，文本文件的内容已经
+   * 由调用方拼进 text 了。
+   */
+  readonly onSend: (text: string, images?: readonly { type: 'image'; dataUrl: string; name: string }[]) => void;
   readonly onStop: () => void;
 }
 
@@ -50,6 +58,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
   const allBatches = useMemo(() => groupBatches(props.executors ?? []), [props.executors]);
   /** 当前标签页：对话 / 轨迹（照 DSH）。 */
   const [tab, setTab] = useState<'chat' | 'trace'>('chat');
+  // 附件：拖入 / 粘贴 / 选择
+  const attachments = useAttachments();
+  const fileInput = useRef<HTMLInputElement>(null);
   // 轨迹条数（标签上的小数字）
   const traceCount = (props.traceMessages ?? props.messages).filter((m) => !m.internal).length;
 
@@ -69,9 +80,21 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
   const submit = (): void => {
     const text = draft.trim();
-    if (!text) return;
-    props.onSend(text);
+    const hasAttachments = attachments.attachments.length > 0;
+
+    // 允许**只发附件不发文字**——拖一张截图就发是很自然的动作
+    if (!text && !hasAttachments) return;
+
+    // 把附件拼进消息：
+    // - 文本文件的内容直接注入（让模型真的读到）
+    // - 图片单独传（走多模态通道，由协议层决定发不发）
+    const attachmentText = attachmentsToText(attachments.attachments);
+    const fullText = [text, attachmentText].filter(Boolean).join('\n\n');
+
+    props.onSend(fullText || '（见附件）', imageParts(attachments.attachments));
+
     setDraft('');
+    attachments.clear();
   };
 
   return (
@@ -140,7 +163,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           return (
             <div key={message.id}>
               {showTime && <div className="time-divider">{formatTime(message.at)}</div>}
-              <Message message={message} onResend={props.onSend} />
+              <Message message={message} onResend={(text) => props.onSend(text)} />
               {here.map((batch) => (
                 <BatchBlock
                   key={batch.id}
@@ -183,12 +206,42 @@ export function Conversation(props: ConversationProps): JSX.Element {
       )}
 
       {/* 输入区照 DSH：浮在底部的大框，内含工具栏 + 圆形发送 */}
-      <div className="composer">
+      <div
+        className={`composer${attachments.dragging ? ' dragging' : ''}`}
+        // 拖入：整个输入区都是投放目标，不用精确瞄准
+        onDragOver={(e) => {
+          e.preventDefault();
+          attachments.setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          // 只有真的离开输入区才取消，避免掠过子元素时闪烁
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            attachments.setDragging(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          attachments.setDragging(false);
+          void attachments.add(e.dataTransfer.files);
+        }}
+      >
+        {attachments.dragging && <div className="drop-hint">松手添加附件</div>}
+
         <div className="composer-box">
+          <AttachmentStrip attachments={attachments.attachments} onRemove={attachments.remove} />
+
           <textarea
             value={draft}
-            placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话"
+            placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话（可拖入文件）"
             onChange={(e) => setDraft(e.target.value)}
+            onPaste={(e) => {
+              // 粘贴截图：直接从剪贴板取文件。这是最高频的附件入口。
+              const files = Array.from(e.clipboardData.files);
+              if (files.length > 0) {
+                e.preventDefault();
+                void attachments.add(files);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -199,6 +252,27 @@ export function Conversation(props: ConversationProps): JSX.Element {
           />
           <div className="composer-bar">
             <div className="composer-left">
+              {/* 选择文件：拖入和粘贴之外的第三条路，
+                  也是唯一对不习惯拖拽的用户友好的入口 */}
+              <button
+                type="button"
+                className="composer-chip attach-btn"
+                title="添加附件（也可以直接拖入或粘贴）"
+                onClick={() => fileInput.current?.click()}
+              >
+                ＋
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  if (e.target.files) void attachments.add(e.target.files);
+                  // 清空 value，否则选同一个文件第二次不会触发 change
+                  e.target.value = '';
+                }}
+              />
               {props.templatePicker}
               <button
                 type="button"
@@ -261,7 +335,21 @@ function Message({
       {/* 角色标签取代头像：桌面软件不用圆形头像，用一行小字 */}
       <span className="msg-role">{isUser ? '你' : 'Assistant'}</span>
       <div className="bubble">
-        {renderMarkdown(message.content)}
+        {/* 历史消息里的图片：刷新后还能看到自己发过的图 */}
+        {(message.images ?? []).length > 0 && (
+          <div className="bubble-images">
+            {(message.images ?? []).map((img, i) => (
+              <img
+                key={`${message.id}-img-${i}`}
+                className="bubble-image"
+                src={img.dataUrl}
+                alt={img.name ?? '图片'}
+                title={img.name}
+              />
+            ))}
+          </div>
+        )}
+        {message.content && renderMarkdown(message.content)}
         <div className="bubble-footer">
           <MessageActions
             content={message.content}

@@ -53,6 +53,7 @@ import {
 import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
+import type { ContentPart } from '../llm/types.js';
 
 export interface ServerOptions {
   readonly orchestrator: Orchestrator;
@@ -509,6 +510,9 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
             at: m.at,
             // 内部通知（Agent结算等）不进对话流。
             internal: isInternalSource(m.source),
+            // 图片附件：刷新后历史里要能看到缩略图。
+            // 不返回的话，用户重开界面就看不到自己发过的图了。
+            ...(m.images && m.images.length > 0 ? { images: m.images } : {}),
           })),
           lastSeq: bus.lastSeq,
         });
@@ -516,11 +520,35 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
       if (method === 'POST' && action === 'say') {
         const body = await readJson(req);
-        const text = str(body.text);
-        if (!text) return deny(400, '缺少 text');
+        const text = str(body.text) ?? '';
+
+        // 图片附件：每项是 { type:'image', dataUrl, name }
+        const rawImages = Array.isArray(body.images) ? body.images : [];
+        const images: ContentPart[] = [];
+        for (const item of rawImages) {
+          const record = item as { dataUrl?: unknown; name?: unknown };
+          if (typeof record?.dataUrl !== 'string') continue;
+          // **只接受 data:image/**：不接受任意 URL，避免把"让服务端去抓某个
+          // 网址"变成一条攻击路径（SSRF）。
+          // 显式拒绝而不是静默跳过——静默跳过会让用户以为图发出去了。
+          if (!record.dataUrl.startsWith('data:image/')) {
+            return deny(400, '图片必须是 data:image/ 开头的内联数据，不接受外部 URL');
+          }
+          images.push({
+            type: 'image',
+            dataUrl: record.dataUrl,
+            ...(typeof record.name === 'string' ? { name: record.name } : {}),
+          });
+        }
+
+        // **允许只发图片不发文字**——拖一张截图就发是很自然的动作。
+        // 但没有文字也没有图片才是真的空请求。
+        if (!text && images.length === 0) return deny(400, '缺少 text，也没有图片');
+
         // 立刻返回：Assistant 的回复通过 SSE 推送，不在这里等。
         await orchestrator.userSays(projectId, text, {
           source: str(body.source) ?? 'webapp',
+          ...(images.length > 0 ? { images } : {}),
         });
         return reply(202, { accepted: true, lastSeq: bus.lastSeq });
       }

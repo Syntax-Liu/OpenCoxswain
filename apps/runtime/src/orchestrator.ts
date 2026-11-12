@@ -78,6 +78,7 @@ import {
   type Store,
   type TurnJudgment,
 } from './store/store.js';
+import type { ContentPart } from './llm/types.js';
 
 export interface OrchestratorOptions {
   readonly store: Store;
@@ -488,7 +489,13 @@ export class Orchestrator extends EventEmitter {
   async userSays(
     projectId: string,
     text: string,
-    options: { source?: string; target?: 'next' | 'step'; internal?: boolean } = {},
+    options: {
+      source?: string;
+      target?: 'next' | 'step';
+      internal?: boolean;
+      /** 图片附件。**只有图片走这里**，文本文件的内容已经拼进 text。 */
+      images?: readonly ContentPart[];
+    } = {},
   ): Promise<void> {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`项目 ${projectId} 不存在`);
@@ -498,6 +505,7 @@ export class Orchestrator extends EventEmitter {
       ...(options.source ? { source: options.source } : {}),
       ...(options.target ? { target: options.target } : {}),
       ...(options.internal ? { internal: true } : {}),
+      ...(options.images && options.images.length > 0 ? { images: options.images } : {}),
     });
 
     // 不 await：Assistant 在后台自己跑，用户随时可以继续发。
@@ -534,7 +542,9 @@ export class Orchestrator extends EventEmitter {
   ): Promise<void> {
     const inputs = assistant.inbox.drainForStep();
     for (const item of inputs) {
-      await assistant.recordUser(item.text, item.source, item.internal);
+      // 图片随消息一起落库：刷新/重启后历史里还能看到，
+      // 且模型能从存储里拿到（是否真的发出去由模型能力决定）。
+      await assistant.recordUser(item.text, item.source, item.internal, item.images);
     }
 
     // 用一个"只消费一轮"的 drain：本轮开头已取走全部消息。

@@ -31,6 +31,22 @@ describe('Inbox：内部通知标记', () => {
     assert.equal(item.internal, true);
     assert.equal(item.source, 'executor');
   });
+
+  it('**图片附件会被带上**（漏传会让图在入库前就丢了）', () => {
+    const inbox = new Inbox();
+    const images = [{ type: 'image' as const, dataUrl: 'data:image/png;base64,AAA', name: 'a.png' }];
+    const item = inbox.push('看这张图', { images });
+    assert.equal(item.images?.length, 1);
+    const first = item.images?.[0];
+    assert.equal(first?.type, 'image');
+    // 收窄后才有 name 字段
+    if (first?.type === 'image') assert.equal(first.name, 'a.png');
+  });
+
+  it('没有图片时不产生 images 字段', () => {
+    const inbox = new Inbox();
+    assert.equal(inbox.push('纯文本').images, undefined);
+  });
 });
 
 describe('内部消息来源标记', () => {

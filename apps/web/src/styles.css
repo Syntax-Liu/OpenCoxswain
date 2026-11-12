@@ -3634,3 +3634,139 @@ body.is-resizing {
     opacity: 1;
   }
 }
+
+/* ============================================================
+   附件（拖入 / 粘贴 / 选择）
+   ============================================================ */
+
+/* 拖入时的整框提示：明确告诉用户"松手就行" */
+.composer.dragging {
+  outline: 1px dashed var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-lg);
+}
+
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 15, 0.85);
+  border-radius: var(--radius-lg);
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px 0;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 4px 6px 4px 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.attachment-chip.has-warning {
+  border-color: var(--warn);
+}
+
+.attachment-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+}
+
+.attachment-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.attachment-warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.attachment-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+.attachment-remove:hover {
+  color: var(--danger);
+  background: var(--bg-hover);
+}
+
+.attach-btn {
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 8px;
+}
+
+/* composer 需要相对定位，拖入提示才能铺满 */
+.composer {
+  position: relative;
+}
+
+/* 历史消息里的图片 */
+.bubble-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.bubble-image {
+  max-width: 320px;
+  max-height: 240px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  object-fit: contain;
+  cursor: zoom-in;
+}
+
+/* 极小的图片也要占一个可见的框：否则用户以为图丢了。
+   min-width/min-height 让 1×1 的图也有 48px，配合棋盘背景能看出是图。 */
+.bubble-image {
+  min-width: 48px;
+  min-height: 48px;
+  background:
+    repeating-conic-gradient(var(--bg-input) 0% 25%, var(--bg-elevated) 0% 50%)
+    50% / 12px 12px;
+}

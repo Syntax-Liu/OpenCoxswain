@@ -21,6 +21,7 @@ import type { AcceptancePolicy, AcceptanceResult, Criterion } from '../acceptanc
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 import type { MemoryKind } from '../memory/gate.js';
 import { EMPTY_METRICS, type RunMetrics } from '../cost/metrics.js';
+import type { ContentPart } from '../llm/types.js';
 
 // ---------------------------------------------------------------------------
 // 领域类型
@@ -343,6 +344,17 @@ export class MemoryStore implements Store {
       // 但它不是用户说的话，加上标记让模型分辨来源。
       if (m.role === 'user' && m.source.startsWith(INTERNAL_SOURCE_PREFIX)) {
         out.push({ role: 'user', content: `（系统通知，不是用户说的话）\n${m.content}` });
+        continue;
+      }
+      // 带图片的消息：文本走 content，图片走 parts。
+      // 由 toWireMessages 按模型能力决定发不发图。
+      const images = m.images ?? [];
+      if (images.length > 0) {
+        const parts: ContentPart[] = [
+          ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+          ...images,
+        ];
+        out.push({ role: m.role, content: m.content || null, parts });
         continue;
       }
       out.push({ role: m.role, content: m.content });

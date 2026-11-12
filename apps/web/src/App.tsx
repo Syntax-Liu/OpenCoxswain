@@ -394,7 +394,10 @@ export function App(): JSX.Element {
   );
 
   const handleSendToAssistant = useCallback(
-    async (text: string) => {
+    async (
+      text: string,
+      images?: readonly { type: 'image'; dataUrl: string; name: string }[],
+    ) => {
       if (view?.kind !== 'assistant') return;
       setState((s) => ({
         ...s,
@@ -402,7 +405,8 @@ export function App(): JSX.Element {
         thinking: true,
       }));
       try {
-        await api.say(view.projectId, text);
+        // 图片单独传：走多模态通道，由运行时按模型能力决定发不发
+        await api.say(view.projectId, text, images);
       } catch (error) {
         setState((s) => ({ ...s, thinking: false }));
         setError(error instanceof Error ? error.message : '发送失败');

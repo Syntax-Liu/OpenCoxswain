@@ -1,3 +1,6 @@
+import type { ContentPart } from '../llm/types.js';
+
+
 /**
  * 连发不打断：用户消息的投递队列。
  *
@@ -33,6 +36,13 @@ export interface InboxItem {
    * 那是给模型看的指令，不是用户说的话。
    */
   readonly internal: boolean;
+  /**
+   * 图片附件。
+   *
+   * 用户拖入/粘贴的图片。**只在这里存一份**，不复制到每个队列项。
+   * 是否真的发给模型由运行时按模型能力决定。
+   */
+  readonly images?: readonly ContentPart[];
 }
 
 export class Inbox {
@@ -48,7 +58,13 @@ export class Inbox {
    */
   push(
     text: string,
-    options: { target?: InboxTarget; source?: string; internal?: boolean } = {},
+    options: {
+      target?: InboxTarget;
+      source?: string;
+      internal?: boolean;
+      /** 图片附件；只放在第一条上，避免队列里复制多份。 */
+      images?: readonly ContentPart[];
+    } = {},
   ): InboxItem {
     this.counter += 1;
     const item: InboxItem = {
@@ -58,6 +74,7 @@ export class Inbox {
       at: Date.now(),
       source: options.source ?? 'webapp',
       internal: options.internal === true,
+      ...(options.images && options.images.length > 0 ? { images: options.images } : {}),
     };
     if (item.target === 'step') this.step.push(item);
     else this.next.push(item);

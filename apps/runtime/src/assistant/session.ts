@@ -12,7 +12,7 @@
  * - 它对项目的记忆 = 会话历史 + 项目记忆文件（见记忆模块）。
  */
 import { Inbox } from '../inbox/inbox.js';
-import type { AgentMessage, ChatMessage } from '../llm/types.js';
+import type { AgentMessage, ChatMessage, ContentPart } from '../llm/types.js';
 import { newId, type ProjectRow, type SessionRow, type Store } from '../store/store.js';
 
 export interface AssistantSessionOptions {
@@ -80,7 +80,13 @@ export class AssistantSession {
    */
   say(
     text: string,
-    options: { target?: 'next' | 'step'; source?: string; internal?: boolean } = {},
+    options: {
+      target?: 'next' | 'step';
+      source?: string;
+      internal?: boolean;
+      /** 图片附件；只在模型支持时才会真的发出去。 */
+      images?: readonly ContentPart[];
+    } = {},
   ): void {
     this.inbox.push(text, options);
   }
@@ -91,13 +97,19 @@ export class AssistantSession {
    * `internal` 的消息（如Agent结算通知）会进 Assistant 的上下文，
    * 但 source 记为 `internal:` 前缀，界面据此不把它当用户消息显示。
    */
-  async recordUser(text: string, source: string, internal = false): Promise<void> {
+  async recordUser(
+    text: string,
+    source: string,
+    internal = false,
+    images?: readonly ContentPart[],
+  ): Promise<void> {
     const message: AgentMessage = {
       id: newId('msg'),
       role: 'user',
       content: text,
       source: internal ? `internal:${source}` : source,
       at: Date.now(),
+      ...(images && images.length > 0 ? { images } : {}),
     };
     await this.store.appendMessage(this.sessionId, message);
   }

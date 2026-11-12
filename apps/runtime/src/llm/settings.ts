@@ -16,6 +16,7 @@ import path from 'node:path';
 import type { LlmClient } from '../llm/types.js';
 import { OpenAiCompatClient } from '../llm/types.js';
 import { CIPHER_PREFIX, isCipher, type SecretCipher } from './secret.js';
+import type { ModelParams } from './models.js';
 
 export interface LlmSettings {
   readonly apiKey: string;
@@ -211,7 +212,17 @@ export class LlmProvider implements LlmClient {
   readonly name = 'deferred';
   private client: OpenAiCompatClient | null = null;
 
-  constructor(private readonly store: LlmSettingsStore) {}
+  constructor(
+    private readonly store: LlmSettingsStore,
+    /**
+     * 取当前生效的模型参数（来自多模型配置）。
+     *
+     * 为什么用回调而不是直接持有 ModelStore：`LlmProvider` 只关心
+     * "这一轮该用哪些参数"，不关心模型怎么存、按角色怎么绑。
+     * 把它和存储解耦，以后加角色级覆盖也不用动这里。
+     */
+    private readonly paramsOf?: () => Promise<ModelParams | null>,
+  ) {}
 
   /** 重新解析配置；返回是否已具备可用密钥。 */
   async refresh(): Promise<boolean> {
@@ -220,10 +231,16 @@ export class LlmProvider implements LlmClient {
       this.client = null;
       return false;
     }
+
+    // 模型参数（是否支持图片等）。取不到就按不支持处理——**保守**。
+    const params = (await this.paramsOf?.()) ?? null;
+
     this.client = new OpenAiCompatClient({
       apiKey: settings.apiKey,
       baseUrl: settings.baseUrl,
       model: settings.model,
+      // 只有明确声明支持的模型才发图片块。
+      supportsImages: params?.supportsImages === true,
     });
     return true;
   }

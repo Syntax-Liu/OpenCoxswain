@@ -27,6 +27,7 @@ import { ScheduleStore } from './schedules/store.js';
 import { CloseSettingsStore } from './settings/close.js';
 import { PermissionStore } from './settings/permission.js';
 import { ModelStore } from './llm/modelStore.js';
+import { modelForRole } from './llm/models.js';
 import { TokenStore } from './server/token.js';
 import { secretServiceFromEnv } from './llm/secret.js';
 import path from 'node:path';
@@ -131,7 +132,24 @@ async function main(): Promise<void> {
       path.join(os.homedir(), '.opencoxswain', 'llm.json'),
     cipher: secretCipher,
   });
-  const llm = new LlmProvider(settingsStore);
+  // 多模型配置：llm 和 Orchestrator 共用同一个实例，
+  // 保证"角色绑定改了什么"和"实际发给模型的参数"是同一份数据。
+  const modelStore = new ModelStore({
+    file: path.join(os.homedir(), '.opencoxswain', 'models.json'),
+    cipher: secretServiceFromEnv(),
+  });
+
+  const llm = new LlmProvider(settingsStore, async () => {
+    // 取当前生效模型的参数（主要是 supportsImages）。
+    // 读不到就返回 null —— LlmProvider 会按"不支持图片"处理，**保守优先**。
+    try {
+      const settings = await modelStore.load();
+      const bound = modelForRole(settings, 'assistant') ?? modelForRole(settings, 'agent');
+      return bound?.params ?? null;
+    } catch {
+      return null;
+    }
+  });
   const ready = await llm.refresh();
 
   if (!ready && !args.serve) {
@@ -180,10 +198,7 @@ async function main(): Promise<void> {
     // MCP 服务器配置：读 ~/.opencoxswain/mcp.json。
     // **读不到文件就不启用**——MCP 是可选能力，不该因为缺配置报错。
     mcpServers: await loadMcpServers(),
-    models: new ModelStore({
-      file: path.join(os.homedir(), '.opencoxswain', 'models.json'),
-      cipher: secretServiceFromEnv(),
-    }),
+    models: modelStore,
     ...(extensions.beforeTool.length + extensions.afterTool.length > 0
       ? { extensions: { beforeTool: extensions.beforeTool, afterTool: extensions.afterTool } }
       : {}),
