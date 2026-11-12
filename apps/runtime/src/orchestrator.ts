@@ -1272,6 +1272,56 @@ export class Orchestrator extends EventEmitter {
   }
 
   /** 取消一个 Agent。 */
+  /**
+   * 把一个项目移出工作区。
+   *
+   * ## 安全前提：有 Agent 在跑就不许移除
+   *
+   * 不是"顺手停掉"，而是**拒绝**。理由：
+   * 用户点"移除"时可能没意识到有个 Agent 正在改文件。
+   * 悄悄停掉它，等于把一个正在进行的破坏中途打断——
+   * 那比直接拒绝更容易造成半截状态。
+   *
+   * 所以让用户先明确停掉，再移除。多做一步，但每一步都是他自己做的决定。
+   *
+   * ## 磁盘上的文件一个都不动
+   *
+   * 见 `Store.archiveProject` 的说明。
+   */
+  async removeProject(projectId: string): Promise<{ ok: boolean; message: string }> {
+    const project = this.store.getProject(projectId);
+    if (!project) return { ok: false, message: '项目不存在' };
+
+    const running = this.store.listExecutors({
+      projectId,
+      status: ['running', 'starting'],
+    });
+    if (running.length > 0) {
+      return {
+        ok: false,
+        message:
+          `还有 ${running.length} 个 Agent 在跑，先把它们停掉再移除。` +
+          '（不会自动停——正在改文件的任务被中途打断，容易留下半截状态）',
+      };
+    }
+
+    // 落一个归档前的事实：以后想知道"这次改了什么"还能查
+    this.emit('runtime', {
+      type: 'project_removed',
+      projectId,
+      name: project.name,
+      at: Date.now(),
+    });
+
+    await this.store.archiveProject(projectId);
+    return {
+      ok: true,
+      message:
+        `已把「${project.name}」移出工作区。磁盘上的文件没有动，` +
+        '历史记录也都保留着——需要时可以重新打开同一个目录。',
+    };
+  }
+
   async cancel(executorId: string, projectId?: string): Promise<{ ok: boolean; content: string }> {
     const row = this.store.getExecutor(executorId);
     if (!row) return { ok: false, content: `Agent ${executorId} 不存在` };

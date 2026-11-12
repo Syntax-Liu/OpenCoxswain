@@ -392,6 +392,13 @@ export class ApiClient {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/messages`);
   }
 
+  /** 把项目移出工作区（归档，**不删磁盘文件**）。有 Agent 在跑时返回 409。 */
+  archiveProject(projectId: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/archive`, {
+      method: 'DELETE',
+    });
+  }
+
   /** 全文搜索消息内容。 */
   search(query: string, projectId?: string): Promise<{ hits: SearchHitDto[] }> {
     const params = new URLSearchParams({ q: query });

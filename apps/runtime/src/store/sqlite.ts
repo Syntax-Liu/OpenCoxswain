@@ -319,6 +319,18 @@ export class SqliteStore implements Store {
     return raw ? toProject(raw) : undefined;
   }
 
+  /**
+   * 把一个项目移出工作区。
+   *
+   * **只改 archived 标记，不删任何数据**——磁盘文件、会话、消息、
+   * 轨迹、台账全部保留。删项目时顺手删目录是单向门，不给用户后悔机会。
+   */
+  async archiveProject(id: string): Promise<void> {
+    this.db
+      .prepare('UPDATE project SET archived = 1, updated_at = ? WHERE id = ?')
+      .run(Date.now(), id);
+  }
+
   listProjects(): ProjectRow[] {
     const rows = this.db
       .prepare('SELECT * FROM project WHERE archived = 0 ORDER BY created_at ASC')

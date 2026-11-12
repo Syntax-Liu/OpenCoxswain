@@ -210,6 +210,23 @@ export interface MemoryCandidateRow {
 export interface Store {
   // 项目
   putProject(row: ProjectRow): Promise<void>;
+
+  /**
+   * 把一个项目移出工作区（标记归档）。
+   *
+   * ## 为什么是归档而不是删除
+   *
+   * **磁盘上的文件一个都不动**——这是刻意的。删项目时顺手删目录是
+   * 一道单向门，用户点错了就没有后悔的机会。
+   *
+   * 归档只是让它从列表里消失：
+   * - 项目记录被标记 `archived=1`，`listProjects` 不再返回
+   * - 会话、消息、轨迹、台账全部保留（出事时还能查）
+   * - 唯一索引 `WHERE archived = 0` 让它以后还能重新打开同一目录
+   *
+   * 想知道"删掉的那次改了什么"，历史仍然在。
+   */
+  archiveProject(id: string): Promise<void>;
   getProject(id: string): ProjectRow | undefined;
   getProjectByPath(rootPath: string): ProjectRow | undefined;
   listProjects(): ProjectRow[];
@@ -310,6 +327,17 @@ export class MemoryStore implements Store {
 
   async putProject(row: ProjectRow): Promise<void> {
     this.projects.set(row.id, row);
+  }
+
+  /**
+   * 内存后端：直接置归档标记。
+   *
+   * 保留记录而不是删除——和 SQLite 后端行为一致（历史仍可取）。
+   */
+  async archiveProject(id: string): Promise<void> {
+    const row = this.projects.get(id);
+    if (!row) return;
+    this.projects.set(id, { ...row, archived: true, updatedAt: Date.now() });
   }
   getProject(id: string): ProjectRow | undefined {
     return this.projects.get(id);

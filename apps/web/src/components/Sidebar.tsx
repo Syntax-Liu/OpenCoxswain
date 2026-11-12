@@ -27,6 +27,8 @@ export interface SidebarProps {
   readonly onOpenSettings: () => void;
   /** 删除一条会话（Agent）。 */
   readonly onDeleteExecutor?: (projectId: string, executorId: string) => void;
+  /** 把项目移出工作区（不删磁盘文件）。 */
+  readonly onRemoveProject?: (projectId: string) => void;
   /**
    * 宽度变化回调。
    *
@@ -66,13 +68,17 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   /** 收起的项目 id。折叠状态是纯界面状态，不持久化。 */
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(new Set());
 
-  /** 右键菜单：哪条会话、哪个位置。 */
-  const [menu, setMenu] = useState<{
-    x: number;
-    y: number;
-    projectId: string;
-    executor: ExecutorDto;
-  } | null>(null);
+  /**
+   * 右键菜单。
+   *
+   * 两种目标：会话（列出会话相关动作）和项目（列出项目相关动作）。
+   * 合成一个状态而不是两个——同时只可能有一个菜单。
+   */
+  const [menu, setMenu] = useState<
+    | { x: number; y: number; kind: 'executor'; projectId: string; executor: ExecutorDto }
+    | { x: number; y: number; kind: 'project'; projectId: string; projectName: string }
+    | null
+  >(null);
 
   const toggleCollapse = (projectId: string): void => {
     setCollapsedIds((prev) => {
@@ -269,7 +275,19 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             <div className="project-group" key={project.id}>
               {/* 文件夹行拆成两半：箭头负责折叠，名字负责进入。
                   DSH / VS Code 都是这个惯例，整行一个按钮会让人误点。 */}
-              <div className={`project-folder${active ? ' active' : ''}`}>
+              <div
+                className={`project-folder${active ? ' active' : ''}`}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    kind: 'project',
+                    projectId: project.id,
+                    projectName: project.name,
+                  });
+                }}
+              >
                 <button
                   type="button"
                   className="folder-toggle"
@@ -311,6 +329,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                             setMenu({
                               x: e.clientX,
                               y: e.clientY,
+                              kind: 'executor',
                               projectId: project.id,
                               executor,
                             });
@@ -344,7 +363,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       {/* 拖拽把手：放在最右侧，2px 宽也够点中 */}
       <div className="sidebar-resizer" onMouseDown={onMouseDown} role="separator" aria-orientation="vertical" />
 
-      {/* 会话右键菜单（照 TRAE / VS Code 的组织方式） */}
+      {/* 右键菜单（照 TRAE / VS Code 的组织方式） */}
       {menu && (
         <div
           className="ctx-menu"
@@ -355,41 +374,84 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           role="menu"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              props.onOpenExecutor(menu.projectId, menu.executor.id);
-              setMenu(null);
-            }}
-          >
-            打开会话
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              void navigator.clipboard?.writeText(menu.executor.id);
-              setMenu(null);
-            }}
-          >
-            复制会话 ID
-          </button>
-          <div className="ctx-sep" />
-          <button
-            type="button"
-            role="menuitem"
-            className="danger"
-            disabled={isRunning(menu.executor.status)}
-            title={isRunning(menu.executor.status) ? '正在运行，先停止再删除' : '删除这条会话'}
-            onClick={() => {
-              const target = menu.executor;
-              setMenu(null);
-              props.onDeleteExecutor?.(menu.projectId, target.id);
-            }}
-          >
-            删除会话
-          </button>
+          {menu.kind === 'executor' && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  props.onOpenExecutor(menu.projectId, menu.executor.id);
+                  setMenu(null);
+                }}
+              >
+                打开会话
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(menu.executor.id);
+                  setMenu(null);
+                }}
+              >
+                复制会话 ID
+              </button>
+              <div className="ctx-sep" />
+              <button
+                type="button"
+                role="menuitem"
+                className="danger"
+                disabled={isRunning(menu.executor.status)}
+                title={isRunning(menu.executor.status) ? '正在运行，先停止再删除' : '删除这条会话'}
+                onClick={() => {
+                  const target = menu.executor;
+                  setMenu(null);
+                  props.onDeleteExecutor?.(menu.projectId, target.id);
+                }}
+              >
+                删除会话
+              </button>
+            </>
+          )}
+
+          {menu.kind === 'project' && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  props.onOpenAssistant(menu.projectId);
+                  setMenu(null);
+                }}
+              >
+                打开 Assistant
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(menu.projectName);
+                  setMenu(null);
+                }}
+              >
+                复制项目名
+              </button>
+              <div className="ctx-sep" />
+              <button
+                type="button"
+                role="menuitem"
+                className="danger"
+                title="从工作区移除（不删除磁盘文件）"
+                onClick={() => {
+                  const target = menu.projectId;
+                  setMenu(null);
+                  props.onRemoveProject?.(target);
+                }}
+              >
+                移除项目
+              </button>
+            </>
+          )}
         </div>
       )}
     </aside>

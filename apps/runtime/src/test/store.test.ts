@@ -54,6 +54,59 @@ for (const [label, factory] of await storeFactories()) {
       await store.close();
     });
 
+    it('**归档项目后数据全部保留**（移除 ≠ 删除）', async () => {
+      const store = await factory();
+      await store.putProject(project());
+      await store.putSession({
+        id: 's1',
+        kind: 'assistant',
+        projectId: 'prj_1',
+        parentSessionId: null,
+        label: 'Assistant',
+        systemPrompt: 'sys',
+        status: 'idle',
+        resumable: true,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await store.appendMessage('s1', {
+        id: 'm1',
+        role: 'user',
+        content: '改一下登录页',
+        source: 'webapp',
+        at: 2,
+      });
+
+      await store.archiveProject('prj_1');
+
+      // 从列表消失
+      assert.equal(store.listProjects().length, 0);
+      // **但会话和消息都还在**——出事时还要能查到
+      assert.ok(store.getSession('s1'), '会话应当保留');
+      assert.equal(store.messages('s1').length, 1, '消息应当保留');
+      // 项目记录本身也在（只是标记归档）
+      assert.equal(store.getProject('prj_1')?.id, 'prj_1', '项目记录应当保留');
+      await store.close();
+    });
+
+    it('**归档后可以用同一目录重新打开**', async () => {
+      const store = await factory();
+      await store.putProject(project());
+      await store.archiveProject('prj_1');
+
+      // 唯一索引是 WHERE archived = 0，所以同路径可以再建一条
+      await store.putProject({ ...project(), id: 'prj_2' });
+      assert.equal(store.listProjects().length, 1);
+      assert.equal(store.listProjects()[0]?.id, 'prj_2');
+      await store.close();
+    });
+
+    it('归档不存在的项目不报错', async () => {
+      const store = await factory();
+      await store.archiveProject('prj_nope');
+      await store.close();
+    });
+
     it('会话与消息历史按顺序回放，含 system', async () => {
       const store = await factory();
       await store.putSession({

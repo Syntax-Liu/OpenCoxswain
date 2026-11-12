@@ -485,6 +485,21 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return reply(200, { project: opened.project, lastSeq: bus.lastSeq });
     }
 
+    // ---- 移除项目（归档，不删磁盘文件）-----------------------------------
+    //
+    // 用 DELETE /api/projects/:id/archive。
+    // 有 Agent 在跑时返回 409——不自动停，让用户自己做这个决定。
+    {
+      const archiveMatch = /^\/api\/projects\/([^/]+)\/archive$/.exec(url.pathname);
+      if (method === 'DELETE' && archiveMatch) {
+        const targetId = decodeURIComponent(archiveMatch[1]!);
+        const result = await orchestrator.removeProject(targetId);
+        return result.ok
+          ? reply(200, { ok: true, message: result.message })
+          : deny(409, result.message);
+      }
+    }
+
     // ---- 全文搜索 ---------------------------------------------------------
     //
     // 搜消息正文，不只是会话标题——用户的问题是"我上次让它改登录页

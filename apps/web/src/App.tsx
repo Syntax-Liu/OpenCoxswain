@@ -496,6 +496,41 @@ export function App(): JSX.Element {
     return items;
   }, [state.projects, openAssistant]);
 
+  /**
+   * 把项目移出工作区。
+   *
+   * 二次确认是必需的：这个动作虽然**不动磁盘文件**，但项目会从列表里消失，
+   * 用户会有一瞬间觉得"东西没了"。明确告诉它文件还在，能消除大部分顾虑。
+   */
+  const handleRemoveProject = useCallback(
+    async (projectId: string) => {
+      const project = state.projects.find((p) => p.id === projectId);
+      const name = project?.name ?? '这个项目';
+
+      const ok = window.confirm(
+        `把「${name}」移出工作区？\n\n` +
+          '· 磁盘上的文件**不会**被删除\n' +
+          '· 对话记录和轨迹都保留着\n' +
+          '· 以后可以重新打开同一个目录',
+      );
+      if (!ok) return;
+
+      try {
+        const result = await api.archiveProject(projectId);
+        await refreshProjects();
+        // 正开着的就是这个项目 → 退回全局视图
+        if (view && view.kind !== 'global' && 'projectId' in view && view.projectId === projectId) {
+          setView({ kind: 'global' });
+        }
+        setError(result.message);
+      } catch (error) {
+        // 409（有 Agent 在跑）会走到这里，把原因原样展示
+        setError(error instanceof Error ? error.message : '移除失败');
+      }
+    },
+    [api, state.projects, view, refreshProjects, setError],
+  );
+
   /** 删除一条会话。正在跑的会被服务端拒绝，这里把原因显示出来。 */
   const handleDeleteExecutor = useCallback(
     async (projectId: string, executorId: string) => {
@@ -720,6 +755,7 @@ export function App(): JSX.Element {
         onOpenProject={() => setShowOpen(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDeleteExecutor={(projectId, executorId) => void handleDeleteExecutor(projectId, executorId)}
+        onRemoveProject={(projectId) => void handleRemoveProject(projectId)}
         onWidthChange={(w) => {
           setSidebarWidth(w);
           saveSidebarWidth(w);
