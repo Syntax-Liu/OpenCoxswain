@@ -50,6 +50,7 @@ import type { MessageDto } from './api.js';
 import { readSavedSidebarWidth, saveSidebarWidth } from './sidebarWidth.js';
 import { CommandPalette, type PaletteItem } from './components/CommandPalette.js';
 import { resolveShortcut } from './shortcuts.js';
+import { ERROR_KIND_LABEL, classifyError } from './components/errorDisplay.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
@@ -67,6 +68,8 @@ export function App(): JSX.Element {
   const [view, setView] = useState<View | null>(null);
   const [showOpen, setShowOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  /** 当前错误的分类结果（null 表示没有错误）。 */
+  const errorInfo = state.error ? classifyError(state.error) : null;
   /** 侧栏折叠（Ctrl+B）。独立于宽度——折叠不是把宽度设成 0。 */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   /** 命令面板（Ctrl+K）。 */
@@ -872,12 +875,27 @@ export function App(): JSX.Element {
         />
       )}
 
-      {state.error && (
-        <div className="toast" role="alert">
-          <span>{state.error}</span>
-          <button type="button" onClick={() => setError(null)} aria-label="关闭提示">
-            ×
-          </button>
+      {errorInfo && (
+        // 错误是**事实**，不是提示——不自动消失，用户自己关。
+        // 分类展示：告诉用户"谁该动这一步"，而不只是甩一行红字。
+        <div className={`error-card tone-${errorInfo.tone}`} role="alert">
+          <div className="error-card-head">
+            <span className="error-card-kind">{ERROR_KIND_LABEL[errorInfo.kind]}</span>
+            <span className="error-card-title">{errorInfo.title}</span>
+            <button
+              type="button"
+              className="error-card-close"
+              onClick={() => setError(null)}
+              aria-label="关闭"
+            >
+              ×
+            </button>
+          </div>
+          <p className="error-card-action">{errorInfo.action}</p>
+          <details className="error-card-detail">
+            <summary>原始信息</summary>
+            <pre>{errorInfo.detail}</pre>
+          </details>
         </div>
       )}
       </div>

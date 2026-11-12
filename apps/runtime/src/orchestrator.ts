@@ -16,6 +16,7 @@
  * 决定怎么展示。
  */
 import { EventEmitter } from 'node:events';
+import { stat as fsStat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -428,6 +429,22 @@ export class Orchestrator extends EventEmitter {
   }): Promise<{ project: ProjectRow; session: AssistantSession }> {
     const normalized = normalizePath(input.rootPath);
     if (!normalized) throw new Error('项目路径不能为空');
+
+    // **必须是个真实存在的目录**。
+    //
+    // 不校验的话，用户输错路径也能"成功打开"，得到一个空项目——
+    // 之后每次派活都失败，但错误发生在很远的地方，很难对上原因。
+    // 在入口挡住，错误信息就在用户输入的地方。
+    let isDir = false;
+    try {
+      const info = await fsStat(normalized);
+      isDir = info.isDirectory();
+    } catch {
+      throw new Error(`目录不存在或没有访问权限：${input.rootPath}`);
+    }
+    if (!isDir) {
+      throw new Error(`这不是一个目录：${input.rootPath}`);
+    }
 
     const existing = this.store.getProjectByPath(normalized);
     if (existing) {

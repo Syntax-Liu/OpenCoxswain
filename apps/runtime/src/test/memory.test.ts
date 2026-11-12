@@ -18,6 +18,19 @@ import { MemoryStore } from '../store/store.js';
 import { MockLlmClient, isAssistantTurn } from './mock-llm.js';
 import type { ChatMessage } from '../llm/types.js';
 
+/** 建一个真实存在的临时目录。
+ *
+ * openProject 会校验目录真实存在（防止用户输错路径却"成功打开"），
+ * 所以测试不能再用虚构路径，必须有实际目录。
+ */
+const createdDirs: string[] = [];
+async function tempDir(label: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), `ocx-${label}-`));
+  createdDirs.push(dir);
+  return dir;
+}
+
+
 const temps: string[] = [];
 after(async () => {
   for (const dir of temps) await rm(dir, { recursive: true, force: true });
@@ -259,7 +272,7 @@ describe('记忆接进Assistant', () => {
 
     const store = new MemoryStore();
     const runtime = new Orchestrator({ store, llm, memory });
-    const { project } = await runtime.openProject({ rootPath: 'D:/work/memtest' });
+    const { project } = await runtime.openProject({ rootPath: await tempDir('memtest') });
 
     await runtime.userSays(project.id, '我们约定一下构建命令');
     await waitIdle(runtime, project.id);
@@ -300,7 +313,7 @@ describe('记忆接进Assistant', () => {
 
     const store = new MemoryStore();
     const runtime = new Orchestrator({ store, llm, memory });
-    const { project } = await runtime.openProject({ rootPath: 'D:/work/reject' });
+    const { project } = await runtime.openProject({ rootPath: await tempDir('reject') });
 
     await runtime.userSays(project.id, '这次先这样');
     await waitIdle(runtime, project.id);

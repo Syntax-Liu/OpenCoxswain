@@ -478,10 +478,17 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       const body = await readJson(req);
       const rootPath = str(body.rootPath);
       if (!rootPath) return deny(400, '缺少 rootPath（项目的绝对路径）');
-      const opened = await orchestrator.openProject({
-        rootPath,
-        ...(str(body.name) ? { name: str(body.name)! } : {}),
-      });
+      // 路径问题（不存在、不是目录）是**用户输入错误**，不该报 500。
+      // 500 意味着"服务端出问题了"，会让人去查日志而不是改输入。
+      let opened;
+      try {
+        opened = await orchestrator.openProject({
+          rootPath,
+          ...(str(body.name) ? { name: str(body.name)! } : {}),
+        });
+      } catch (error) {
+        return deny(400, error instanceof Error ? error.message : '打开项目失败');
+      }
       return reply(200, { project: opened.project, lastSeq: bus.lastSeq });
     }
 

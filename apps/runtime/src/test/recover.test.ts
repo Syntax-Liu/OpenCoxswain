@@ -15,6 +15,29 @@ import { SqliteStore } from '../store/sqlite.js';
 import { EMPTY_METRICS } from '../cost/metrics.js';
 import { MockLlmClient, isAssistantTurn, isExecutorTurn, isSettlementNotice } from './mock-llm.js';
 
+/** 建一个真实存在的临时目录。
+ *
+ * openProject 会校验目录真实存在（防止用户输错路径却"成功打开"），
+ * 所以测试不能再用虚构路径，必须有实际目录。
+ */
+const createdDirs: string[] = [];
+/**
+ * 同一个 label 返回同一个目录。
+ *
+ * 测试"重启后复用项目"需要路径稳定——每次新建目录的话，
+ * 第二次启动看到的路径不同，就不会复用同一个项目。
+ */
+const dirCache = new Map<string, string>();
+async function tempDir(label: string): Promise<string> {
+  const cached = dirCache.get(label);
+  if (cached) return cached;
+  const dir = await mkdtemp(path.join(tmpdir(), `ocx-${label}-`));
+  dirCache.set(label, dir);
+  createdDirs.push(dir);
+  return dir;
+}
+
+
 const temps: string[] = [];
 after(async () => {
   for (const dir of temps) await rm(dir, { recursive: true, force: true });
@@ -60,7 +83,7 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
     // ---------- 第一次运行 ----------
     const store1 = new SqliteStore({ file });
     const rt1 = new Orchestrator({ store: store1, llm: makeSpyLlm(seenFirst) });
-    const opened1 = await rt1.openProject({ rootPath: 'D:/work/app', name: 'demo' });
+    const opened1 = await rt1.openProject({ rootPath: await tempDir('app'), name: 'demo' });
 
     await rt1.userSays(opened1.project.id, '我的项目使用 TypeScript 和 pnpm');
     await waitFor(() => seenFirst.length >= 1, 5000);
@@ -76,7 +99,7 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
     assert.equal(recovery.recoveredProjects[0]!.assistantSessionId, opened1.project.assistantSessionId);
 
     // 同一路径重新打开 → 必须是同一个项目与同一个 C
-    const opened2 = await rt2.openProject({ rootPath: 'D:/work/app' });
+    const opened2 = await rt2.openProject({ rootPath: await tempDir('app') });
     assert.equal(opened2.project.id, opened1.project.id, '项目必须复用');
     assert.equal(
       opened2.project.assistantSessionId,
@@ -101,7 +124,7 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
     // 第一次运行：留一个 running 状态的Agent（模拟进程被强杀）
     const store1 = new SqliteStore({ file });
     const rt1 = new Orchestrator({ store: store1, llm: new MockLlmClient(() => ({ text: 'ok' })) });
-    const opened = await rt1.openProject({ rootPath: 'D:/work/x' });
+    const opened = await rt1.openProject({ rootPath: await tempDir('x') });
     await store1.putExecutor({
       id: 'exe_stuck',
       projectId: opened.project.id,
@@ -148,7 +171,7 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
 
     const store1 = new SqliteStore({ file });
     const rt1 = new Orchestrator({ store: store1, llm: new MockLlmClient(() => ({ text: 'ok' })) });
-    const opened = await rt1.openProject({ rootPath: 'D:/work/y' });
+    const opened = await rt1.openProject({ rootPath: await tempDir('y') });
     await store1.putReport({
       id: 'rpt_1',
       projectId: opened.project.id,

@@ -4181,3 +4181,111 @@ body.is-resizing {
   background: var(--accent);
   animation-duration: 2s;
 }
+
+/* ============================================================
+   错误卡片：分类展示，不自动消失
+   ============================================================ */
+
+.error-card {
+  position: fixed;
+  right: 20px;
+  bottom: 60px;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-left-width: 3px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 150;
+}
+
+/* 三类不同色调：谁该动，一眼看出来 */
+.error-card.tone-muted {
+  border-left-color: var(--text-dim);
+}
+
+.error-card.tone-warn {
+  border-left-color: var(--warn);
+}
+
+.error-card.tone-danger {
+  border-left-color: var(--danger);
+}
+
+.error-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.error-card-kind {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+}
+
+.error-card.tone-warn .error-card-kind {
+  color: var(--warn);
+}
+
+.error-card.tone-danger .error-card-kind {
+  color: var(--danger);
+}
+
+.error-card-title {
+  flex: 1;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.error-card-close {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.error-card-close:hover {
+  color: var(--text);
+}
+
+.error-card-action {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* 原始信息默认折叠：需要时看，不需要时不干扰 */
+.error-card-detail {
+  font-size: 11px;
+}
+
+.error-card-detail summary {
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.error-card-detail pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 160px;
+  overflow-y: auto;
+}

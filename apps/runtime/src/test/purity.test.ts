@@ -11,12 +11,28 @@
  * 3. 对话流只含用户与 Assistant 的消息。
  */
 import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { Orchestrator, INTERNAL_NOTICE_PREFIX } from '../index.js';
 import { MemoryStore, isInternalSource, INTERNAL_SOURCE_PREFIX } from '../store/store.js';
 import { Inbox } from '../inbox/inbox.js';
 import { MockLlmClient, isAssistantTurn, isExecutorTurn, isSettlementNotice } from './mock-llm.js';
+
+/** 建一个真实存在的临时目录。
+ *
+ * openProject 会校验目录真实存在（防止用户输错路径却"成功打开"），
+ * 所以测试不能再用虚构路径，必须有实际目录。
+ */
+const createdDirs: string[] = [];
+async function tempDir(label: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), `ocx-${label}-`));
+  createdDirs.push(dir);
+  return dir;
+}
+
 
 describe('Inbox：内部通知标记', () => {
   it('internal 默认为 false（用户消息）', () => {
@@ -94,7 +110,7 @@ describe('Agent结算不进对话流', () => {
     });
 
     const runtime = new Orchestrator({ store, llm });
-    const { project } = await runtime.openProject({ rootPath: 'D:/work/purity' });
+    const { project } = await runtime.openProject({ rootPath: await tempDir('purity') });
 
     await runtime.userSays(project.id, '帮我创建 a.txt');
     await waitFor(

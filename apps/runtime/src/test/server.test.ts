@@ -18,6 +18,19 @@ import { startServer, type RunningServer } from '../server/server.js';
 import type { Store } from '../store/store.js';
 import { MockLlmClient, isAssistantTurn, isExecutorTurn, isSettlementNotice } from './mock-llm.js';
 
+/** 建一个真实存在的临时目录。
+ *
+ * openProject 会校验目录真实存在（防止用户输错路径却"成功打开"），
+ * 所以测试必须有实际目录。
+ */
+const createdDirs: string[] = [];
+async function tempDir(label: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), `ocx-${label}-`));
+  createdDirs.push(dir);
+  return dir;
+}
+
+
 const temps: string[] = [];
 const servers: RunningServer[] = [];
 
@@ -79,7 +92,7 @@ describe('HTTP 接口', () => {
   it('打开项目 → 列表能查到 → 详情含 Assistant 会话锚点', async () => {
     const { server } = await makeRuntime();
     const opened = await post(`${server.url}/api/projects`, {
-      rootPath: 'D:/work/app',
+      rootPath: await tempDir('app'),
       name: 'demo',
     });
     assert.equal(opened.status, 200);
@@ -112,7 +125,7 @@ describe('HTTP 接口', () => {
 
   it('对 Assistant 说话立刻返回 202，不等模型', async () => {
     const { store, server } = await makeRuntime();
-    const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/a' });
+    const opened = await post(`${server.url}/api/projects`, { rootPath: await tempDir('a') });
     const projectId = opened.json.project.id;
 
     const res = await post(`${server.url}/api/projects/${projectId}/say`, { text: '你好' });
@@ -131,7 +144,7 @@ describe('HTTP 接口', () => {
 
   it('空白文本被拒绝', async () => {
     const { server } = await makeRuntime();
-    const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/b' });
+    const opened = await post(`${server.url}/api/projects`, { rootPath: await tempDir('b') });
     const res = await post(`${server.url}/api/projects/${opened.json.project.id}/say`, {
       text: '   ',
     });
@@ -140,7 +153,7 @@ describe('HTTP 接口', () => {
 
   it('"打开原会话"能读到Agent 的完整记录', async () => {
     const { store, orchestrator, server } = await makeRuntime();
-    const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/c' });
+    const opened = await post(`${server.url}/api/projects`, { rootPath: await tempDir('c') });
     const projectId = opened.json.project.id;
 
     const spawn = await orchestrator.spawn(projectId, { label: '干活', goal: 'g' });
@@ -158,7 +171,7 @@ describe('HTTP 接口', () => {
 
   it('Supervisor 的路由：命中给依据，不命中不给答案', async () => {
     const { server } = await makeRuntime();
-    await post(`${server.url}/api/projects`, { rootPath: 'D:/work/webapp', name: 'webapp' });
+    await post(`${server.url}/api/projects`, { rootPath: await tempDir('webapp'), name: 'webapp' });
 
     const hit = await post(`${server.url}/api/route`, { query: '把 webapp 改一下' });
     assert.equal(hit.status, 200);
@@ -171,7 +184,7 @@ describe('HTTP 接口', () => {
 
   it('B 转交原话成功，且原话被记录', async () => {
     const { store, server } = await makeRuntime();
-    const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/d' });
+    const opened = await post(`${server.url}/api/projects`, { rootPath: await tempDir('d') });
     const projectId = opened.json.project.id;
 
     const original = '把登录页重构一下，顺便看看导出为什么卡住';
@@ -235,7 +248,7 @@ describe('SSE 事件流', () => {
 
   it('连接后能收到后续事件', async () => {
     const { orchestrator, server } = await makeRuntime();
-    const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/e' });
+    const opened = await post(`${server.url}/api/projects`, { rootPath: await tempDir('e') });
     const projectId = opened.json.project.id;
 
     const received: string[] = [];
@@ -276,7 +289,7 @@ describe('SSE 事件流', () => {
 
   it('断线重连用 after 补发错过的事件（不丢状态）', async () => {
     const { orchestrator, server } = await makeRuntime();
-    const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/f' });
+    const opened = await post(`${server.url}/api/projects`, { rootPath: await tempDir('f') });
     const projectId = opened.json.project.id;
 
     // 先产生几个事件
