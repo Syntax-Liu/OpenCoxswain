@@ -109,5 +109,5 @@ export function isExecutorTurn(request: LlmChatRequest): boolean {
 /** 判断当前请求是不是 C 在回应普通用户消息。 */
 export function isAssistantTurn(request: LlmChatRequest): boolean {
   const system = request.messages.find((m) => m.role === 'system');
-  return typeof system?.content === 'string' && system.content.startsWith('你是这个项目的「项目助理」');
+  return typeof system?.content === 'string' && system.content.startsWith('你是这个项目的「项目经理」');
 }

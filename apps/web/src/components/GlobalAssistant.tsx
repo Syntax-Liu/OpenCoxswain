@@ -15,7 +15,7 @@ interface RouteResult {
 }
 
 /**
- * 全局助理 B：只在多项目迷路时用。
+ * 总经理 B：只在多项目迷路时用。
  *
  * B 的职责严格收窄为**指路 + 转交原话**：
  * - 给出依据（为什么是这个项目）；
@@ -49,7 +49,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
     setError(null);
     try {
       await props.api.handoff(projectId, query.trim());
-      setHandoffNote(`已把原话转交给「${projectName}」的项目助理。`);
+      setHandoffNote(`已把原话转交给「${projectName}」的项目经理。`);
     } catch (e) {
       setError(e instanceof Error ? e.message : '转交失败');
     } finally {
@@ -61,14 +61,14 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
     <div className="conversation">
       <header className="conversation-header">
         <div className="header-main">
-          <h2>全局助理 · B</h2>
-          <p className="muted small">只在多个项目之间迷路时用。我负责指路，不替项目助理干活。</p>
+          <h2>总经理 · B</h2>
+          <p className="muted small">只在多个项目之间迷路时用。我负责指路，不替项目经理干活。</p>
         </div>
       </header>
 
       <div className="messages">
         <div className="hint-card">
-          <p>说一句你想推进的事，我帮你找对项目助理：</p>
+          <p>说一句你想推进的事，我帮你找对项目经理：</p>
           <ul>
             {props.projects.slice(0, 4).map((p) => (
               <li key={p.id}>{p.name}</li>

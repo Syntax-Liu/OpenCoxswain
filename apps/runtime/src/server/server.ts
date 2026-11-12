@@ -308,6 +308,15 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return reply(200, { ok: true });
     }
 
+    // ---- General Manager：跨项目视图与优先级 ----
+    if (method === 'GET' && url.pathname === '/api/global') {
+      return reply(200, {
+        overview: orchestrator.globalOverview(),
+        priorities: orchestrator.priorities(),
+        summary: orchestrator.describeGlobal(),
+      });
+    }
+
     // ---- 任务模板 ----
     if (method === 'GET' && url.pathname === '/api/templates') {
       return reply(200, { templates: orchestrator.listTemplates() });
@@ -445,7 +454,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
       if (method === 'POST' && action === 'stop') {
         const assistant = orchestrator.getAssistant(projectId);
-        if (!assistant) return deny(404, '该项目的项目助理当前未加载');
+        if (!assistant) return deny(404, '该项目的项目经理当前未加载');
         assistant.stop();
         return reply(200, { stopped: true });
       }

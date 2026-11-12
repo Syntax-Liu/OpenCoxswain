@@ -1,5 +1,5 @@
 /**
- * 项目助理 C：一个项目一个常驻会话。
+ * 项目经理 C：一个项目一个常驻会话。
  *
  * 参照 TRAE 宝的实现（官方文档）：
  * > "项目专属 · TRAE 宝 —— 点项目栏中的某个项目，即可打开与'项目专属 · TRAE 宝'
@@ -57,7 +57,7 @@ export class AssistantSession {
       kind: 'assistant',
       projectId: project.id,
       parentSessionId: null,
-      label: `${project.name} 的项目助理`,
+      label: `${project.name} 的项目经理`,
       systemPrompt,
       status: 'idle',
       resumable: true,
@@ -128,7 +128,7 @@ export class AssistantSession {
   beginTurn(): { signal: AbortSignal; end: () => void } {
     if (this.running) {
       throw new Error(
-        `项目助理 ${this.sessionId} 已有一轮在跑；新消息应进 inbox 排队，而不是并行开轮。`,
+        `项目经理 ${this.sessionId} 已有一轮在跑；新消息应进 inbox 排队，而不是并行开轮。`,
       );
     }
     this.running = true;

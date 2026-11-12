@@ -27,10 +27,10 @@ export interface SidebarProps {
  * 左侧导航，结构对齐主流 Agent 软件（DeepSeek / TRAE）：
  *
  * ```
- * [B 全局助理]
+ * [B 总经理]
  * ──────────
  * 工作区
- *  ▾ 项目文件夹        ← 点击 = 进项目助理 C
+ *  ▾ 项目文件夹        ← 点击 = 进项目经理 C
  *     · 对话标题        ← 点击 = 看某个执行者 D
  * ```
  *
@@ -51,7 +51,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           onClick={props.onOpenGlobal}
         >
           <span className="nav-icon">◎</span>
-          全局助理 · B
+          总经理 · B
         </button>
         <button type="button" className="nav-item" onClick={props.onOpenProject}>
           <span className="nav-icon">＋</span>

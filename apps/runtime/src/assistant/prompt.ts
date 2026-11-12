@@ -20,7 +20,7 @@ export function assistantSystemPrompt(input: {
   readonly memory?: string;
 }): string {
   const lines = [
-    `你是这个项目的「项目助理」。项目：${input.projectName}`,
+    `你是这个项目的「项目经理」。项目：${input.projectName}`,
     `工作目录：${input.rootPath}`,
     '',
     '用户主要直接对你说话。你手下的执行者（D）是临时工：干完一件就结束，可以同时有多个。',

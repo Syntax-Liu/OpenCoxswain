@@ -74,7 +74,7 @@ pnpm --filter @opencoxswain/dsh-bao build
 - id: bao
   name: '@opencoxswain/dsh-bao'
   config:
-    parentSessionId: '<你的全局助理会话 id>'   # 建议填上
+    parentSessionId: '<你的总经理会话 id>'   # 建议填上
     maxConcurrent: 5
     provider: spawn
     driverPreset: project-driver
@@ -105,7 +105,7 @@ pnpm --filter @opencoxswain/dsh-bao build
 用户：把登录页的重构推进一下，顺便看看昨天那个导出功能卡在哪了
 ```
 
-全局助理的行为：
+总经理的行为：
 
 1. `dispatch_task({ projectPath: 'D:/work/webapp', title: '登录页重构', goal: '...' })` → `tsk_...`（立即返回）
 2. `dispatch_task({ projectPath: 'D:/work/export-tool', title: '导出功能排障', goal: '...' })` → `tsk_...`
@@ -113,7 +113,7 @@ pnpm --filter @opencoxswain/dsh-bao build
 
 两个子代理**同时**跑起来（闸门 5 以内）。各自结束后：
 
-- 子代理的收尾结论作为完成通知回到全局助理会话；
+- 子代理的收尾结论作为完成通知回到总经理会话；
 - 插件同时把结论写进 `report` 表，任务推进到 `done` / `failed`。
 
 ## 5. 设计上几个刻意的选择

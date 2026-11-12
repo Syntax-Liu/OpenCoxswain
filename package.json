@@ -1,6 +1,6 @@
 {
   "name": "opencoxswain",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "OpenCoxswain · 舵手 — 本地优先的四层 AI 助理（A 用户 / B 全局助理 / C 项目助理 / D 执行者）",
   "license": "Apache-2.0",

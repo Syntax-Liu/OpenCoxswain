@@ -189,7 +189,7 @@ async function main(): Promise<void> {
   runtime.on('runtime', (event: RuntimeEvent) => {
     switch (event.type) {
       case 'assistant_text':
-        console.log(`\n[项目助理] ${event.text}\n`);
+        console.log(`\n[项目经理] ${event.text}\n`);
         break;
       case 'executor_started':
         console.log(`[执行者] ${event.executor.label} 开始（${event.executor.id}）`);
@@ -220,7 +220,7 @@ async function main(): Promise<void> {
           ...(args.name ? { name: args.name } : {}),
         });
         console.log(`已打开项目「${opened.project.name}」：${opened.project.displayPath}`);
-        console.log(`项目助理会话：${opened.project.assistantSessionId}\n`);
+        console.log(`项目经理会话：${opened.project.assistantSessionId}\n`);
         return opened.project;
       })()
     : undefined;

@@ -80,7 +80,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
 
         {busy && (
           <div className="message assistant">
-            <span className="msg-role">D · 执行者</span>
+            <span className="msg-role">D · Agent</span>
             <div className="bubble">
               <span className="typing">
                 <i />
@@ -260,7 +260,7 @@ function TranscriptItem({ message }: { message: MessageDto }): JSX.Element | nul
 
   return (
     <div className="message assistant">
-      <span className="msg-role">D · 执行者</span>
+      <span className="msg-role">D · Agent</span>
       <div className="bubble">{renderMarkdown(message.content)}</div>
     </div>
   );

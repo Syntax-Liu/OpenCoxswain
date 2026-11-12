@@ -25,6 +25,15 @@ import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
 import type { MarkdownMemoryStore, MemoryScope } from './memory/store.js';
 import { extractCandidates } from './memory/extract.js';
+import {
+  buildGlobalOverview,
+  checkBeforeSpawn,
+  describeConflict,
+  describeOverview,
+  prioritize,
+  type GlobalOverview,
+  type ProjectOverview,
+} from './global/overview.js';
 import { TEMPLATES, applyTemplate, findTemplate, type AppliedTemplate, type TaskTemplate } from './templates/templates.js';
 import { checkSchedules, type ScheduleSpec, type Suggestion } from './schedules/schedules.js';
 import { MemoryScheduleStore, type ScheduleStorage } from './schedules/store.js';
@@ -401,7 +410,7 @@ export class Orchestrator extends EventEmitter {
       this.emit('runtime', {
         type: 'assistant_text',
         projectId,
-        text: `项目助理执行出错：${errorText(error)}`,
+        text: `项目经理执行出错：${errorText(error)}`,
       });
     });
   }
@@ -484,7 +493,7 @@ export class Orchestrator extends EventEmitter {
         this.emit('runtime', {
           type: 'assistant_text',
           projectId: project.id,
-          text: `（项目助理出错：${event.message}）`,
+          text: `（项目经理出错：${event.message}）`,
         } as RuntimeEvent);
       }
     }
@@ -607,7 +616,7 @@ export class Orchestrator extends EventEmitter {
               const result = await this.memory.write(scope, {
                 kind,
                 text,
-                source: `项目 ${project.name} · 项目助理会话 ${assistant.sessionId}`,
+                source: `项目 ${project.name} · 项目经理会话 ${assistant.sessionId}`,
               });
               if (!result.ok) {
                 // 拒绝原因要如实回给模型，让它知道为什么没记住。
@@ -692,6 +701,29 @@ export class Orchestrator extends EventEmitter {
     // 解析访问形态：只读任务不参与写域互斥，因此三条只读任务能真正并行。
     // （早期版本把"只读"和"没声明写域"混为一谈，导致并行失效。）
     const claim = parseScopeClaim(input.writeScope);
+
+    // **跨项目写冲突检查**：项目内的写域互斥（Gate）只看相对路径，
+    // 两个互不相干的项目都有 src/ 但那不是冲突。真正危险的是
+    // 两个项目在改同一个绝对路径 —— 后写的覆盖先写的，两边台账都记"成功"。
+    // 这条检查只在"其它项目正在跑"时才有意义。
+    const crossConflict = checkBeforeSpawn(this.store, project, {
+      agentId: 'pending',
+      label: input.label.trim(),
+      writeScope: claim.scopes,
+      readonly: claim.access === 'readonly',
+    });
+    if (crossConflict) {
+      const reason = describeConflict(crossConflict);
+      await this.recordReport({
+        projectId,
+        executorId: null,
+        kind: 'blocked',
+        body: `已拒绝派活「${input.label}」：${reason}`,
+        needsUser: true,
+      });
+      throw new Error(`已拒绝派活：${reason}`);
+    }
+
     const active = this.store
       .listExecutors({ projectId })
       .filter((e) => !isExecutorTerminal(e.status))
@@ -1314,6 +1346,29 @@ export class Orchestrator extends EventEmitter {
   /** 可见状态，供 UI 与测试读取。 */
   stats(): { running: number; queued: number; limit: number } {
     return this.gate.stats();
+  }
+
+  // -------------------------------------------------------------------------
+  // General Manager（跨项目能力）
+  // -------------------------------------------------------------------------
+
+  /**
+   * 全局视图：所有项目的状态汇总。
+   *
+   * 这是 General Manager 的核心能力——Project Manager 只看得到自己那一个。
+   */
+  globalOverview(): GlobalOverview {
+    return buildGlobalOverview(this.store);
+  }
+
+  /** 优先级裁决：多个项目都在等用户时，谁该先处理。 */
+  priorities(): readonly ProjectOverview[] {
+    return prioritize(this.globalOverview());
+  }
+
+  /** 按人类可读的方式描述全局状态。 */
+  describeGlobal(): string {
+    return describeOverview(this.globalOverview());
   }
 
   // -------------------------------------------------------------------------
