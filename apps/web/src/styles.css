@@ -2368,3 +2368,118 @@ button.small {
   min-height: 0;
   overflow-y: auto;
 }
+
+
+/* ============================================================
+   按 DeepSeek Harness 源码校准的布局
+   ------------------------------------------------------------
+   以下数值全部来自 dsh-web-frontend/dist/assets/index-*.css，
+   不是凭截图估的。
+   ============================================================ */
+
+/* 侧栏：DSH 源码里是固定 244px */
+.sidebar {
+  width: 244px;
+}
+
+/* 标签页：DSH 高 34px、padding 0 12px、圆角 md、
+   选中态**只变字重和颜色**，没有下划线 */
+.view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 20px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.view-tab {
+  height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.view-tab.active {
+  color: var(--text-strong);
+  font-weight: 600;
+  border-bottom: none;
+  background: transparent;
+}
+
+.view-tab:hover:not(:disabled):not(.active) {
+  color: var(--text);
+}
+
+/* 主区头部：DSH 的 padding 是 22px 14px 12px 24px */
+.conversation-header {
+  padding: 14px 20px 6px;
+}
+
+/* 消息气泡：DSH 用 padding 10px 16px + 大圆角，不用左侧竖线 */
+.message.assistant .bubble,
+.message.user .bubble {
+  border-left: none;
+  padding-left: 0;
+}
+
+.bubble {
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  line-height: 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 用户消息：灰底气泡，右对齐（DSH 的样子） */
+.message.user {
+  align-items: flex-end;
+}
+
+.message.user .bubble {
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+}
+
+.message.assistant .bubble {
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 消息之间的间距：DSH 更松 */
+.messages {
+  gap: 14px;
+  padding: 12px 24px 16px;
+}
+
+/* 输入框：DSH 是**内嵌**样式，不是大圆角浮框 */
+.composer {
+  padding: 6px 24px 10px;
+  background: var(--bg);
+}
+
+.composer-box {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 6px 10px 4px;
+}
+
+.composer-box textarea {
+  font-size: 14px;
+  line-height: 22px;
+  min-height: 28px;
+  padding: 3px 0;
+}
+
+/* 状态栏：DSH 的 footer 用右对齐 + 8px 间距 */
+.status-bar {
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px 8px;
+}

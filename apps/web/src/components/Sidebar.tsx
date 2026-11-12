@@ -25,7 +25,7 @@ export interface SidebarProps {
 /** 侧栏宽度范围。DSH 也允许拖动，但有上下限——太窄看不清，太宽挤掉主区。 */
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 420;
-const DEFAULT_WIDTH = 232;
+const DEFAULT_WIDTH = 244;  // DSH 源码里的固定值
 
 const WIDTH_KEY = 'ocx.sidebarWidth';
 
