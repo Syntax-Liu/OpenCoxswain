@@ -4,6 +4,7 @@ import type { MessageDto, ProjectDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
 import { MessageActions } from './MessageActions.js';
 import { useAutoScroll } from './useAutoScroll.js';
+import { TraceView } from './TraceView.js';
 
 export interface ConversationProps {
   readonly project: ProjectDto;
@@ -13,6 +14,8 @@ export interface ConversationProps {
   readonly memoryReview?: React.ReactNode;
   /** 模板选择器，放在输入框下方。 */
   readonly templatePicker?: React.ReactNode;
+  /** 轨迹页用的完整消息（含内部通知）；不给就用 messages。 */
+  readonly traceMessages?: readonly MessageDto[];
   /** 底部状态栏的汇总指标（照 DSH 的一行指标）。 */
   readonly stats?: {
     readonly turns: number;
@@ -37,6 +40,10 @@ export interface ConversationProps {
  */
 export function Conversation(props: ConversationProps): JSX.Element {
   const [draft, setDraft] = useState('');
+  /** 当前标签页：对话 / 轨迹（照 DSH）。 */
+  const [tab, setTab] = useState<'chat' | 'trace'>('chat');
+  // 轨迹条数（标签上的小数字）
+  const traceCount = (props.traceMessages ?? props.messages).filter((m) => !m.internal).length;
 
   // 模板填入：只在 seed 变化时覆盖一次，不干扰用户后续输入。
   const lastSeed = useRef<number>(0);
@@ -74,20 +81,37 @@ export function Conversation(props: ConversationProps): JSX.Element {
         </div>
       </header>
 
-      {/* 标签页照 DSH：对话 / 轨迹 */}
+      {/* 标签页：对话 / 轨迹（照 DSH） */}
       <div className="view-tabs" role="tablist">
-        <button type="button" className="view-tab active" role="tab" aria-selected>
+        <button
+          type="button"
+          className={`view-tab${tab === 'chat' ? ' active' : ''}`}
+          role="tab"
+          aria-selected={tab === 'chat'}
+          onClick={() => setTab('chat')}
+        >
           对话
         </button>
-        <button type="button" className="view-tab" role="tab" aria-selected={false} disabled>
+        <button
+          type="button"
+          className={`view-tab${tab === 'trace' ? ' active' : ''}`}
+          role="tab"
+          aria-selected={tab === 'trace'}
+          onClick={() => setTab('trace')}
+        >
           轨迹
+          {traceCount > 0 && <span className="view-tab-count">{traceCount}</span>}
         </button>
         <span className="view-tab-more" aria-hidden>⋯</span>
       </div>
 
-      {props.memoryReview}
+      {tab === 'trace' ? (
+        <TraceView messages={props.traceMessages ?? props.messages} />
+      ) : (
+        <>
+          {props.memoryReview}
 
-      <div className="messages" ref={scroll.ref}>
+          <div className="messages" ref={scroll.ref}>
         {visible.length === 0 && (
           <div className="hint-card">
             <p>直接说要做什么，我可以同时派多个 Agent：</p>
@@ -172,6 +196,8 @@ export function Conversation(props: ConversationProps): JSX.Element {
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* 底部状态栏照 DSH：一行汇总当前项目的运行指标 */}
       <footer className="status-bar">

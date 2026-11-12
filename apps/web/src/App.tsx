@@ -46,6 +46,8 @@ import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { MemoryReview } from './components/MemoryReview.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
 import { formatTokens } from './metrics.js';
+import type { MessageDto } from './api.js';
+import { readSavedSidebarWidth, saveSidebarWidth } from './sidebarWidth.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
@@ -84,7 +86,15 @@ export function App(): JSX.Element {
   /** 模板填入的草稿；带时间戳，保证重复点同一个模板也会生效。 */
   const [draftSeed, setDraftSeed] = useState<{ text: string; at: number } | null>(null);
   /** 侧栏宽度；由 Sidebar 拖动时上报，用于同步网格列宽。 */
-  const [sidebarWidth, setSidebarWidth] = useState(244);
+  /**
+   * 侧栏宽度。
+   *
+   * **必须和 Sidebar 用同一个来源**。之前这里写死 244，而侧栏从
+   * localStorage 读（可能是 384），两边不一致 —— 重启后网格列压在 244，
+   * 侧栏内部却是 384，拖动一次才同步，看起来就是"重启后错位、拖一下就正常"。
+   * 现在初始值也从 localStorage 读。
+   */
+  const [sidebarWidth, setSidebarWidth] = useState(readSavedSidebarWidth);
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -428,7 +438,48 @@ export function App(): JSX.Element {
       ? (state.executors.find((e) => e.id === view.executorId) ?? null)
       : null;
 
-  // 标题栏的路径提示：像 VS Code 的标签页，告诉你在哪。
+  /**
+   * 轨迹页要显示**所有 Agent 的工具调用**。
+   *
+   * 工具轨迹存在各自 Agent 的会话里（source: 'tool' / 'tool-result'），
+   * Assistant 会话里只有对话。所以轨迹页必须把这些会话拼起来，
+   * 按时间排序后才是完整的执行过程。
+   */
+  const [agentTrace, setAgentTrace] = useState<readonly MessageDto[]>([]);
+
+  useEffect(() => {
+    const projectId = state.currentProjectId;
+    if (!projectId) {
+      setAgentTrace([]);
+      return;
+    }
+    const agents = state.executors.filter((e) => e.projectId === projectId);
+    if (agents.length === 0) {
+      setAgentTrace([]);
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all(
+      agents.map((agent) =>
+        api
+          .executorMessages(agent.id)
+          .then((r) => r.messages ?? [])
+          .catch(() => [] as MessageDto[]),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setAgentTrace(results.flat());
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // 只在项目或 Agent 集合变化时重新拉，不跟每条消息走
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.currentProjectId, state.executors.length]);
+
+
   const titleCrumb = currentExecutor
     ? `${currentProject?.name ?? ''} / ${currentExecutor.label}`
     : view?.kind === 'global'
@@ -509,7 +560,10 @@ export function App(): JSX.Element {
         onOpenGlobal={() => setView({ kind: 'global' })}
         onOpenProject={() => setShowOpen(true)}
         onOpenSettings={() => setShowSettings(true)}
-        onWidthChange={setSidebarWidth}
+        onWidthChange={(w) => {
+          setSidebarWidth(w);
+          saveSidebarWidth(w);
+        }}
       />
 
       <main className="main">
@@ -527,6 +581,8 @@ export function App(): JSX.Element {
           <Conversation
             project={currentProject as ProjectDto}
             messages={state.messages}
+            // 轨迹页要**全部**消息：Assistant 的对话 + 所有 Agent 的工具轨迹
+            traceMessages={[...state.messages, ...agentTrace]}
             thinking={state.thinking}
             memoryReview={
               <MemoryReview

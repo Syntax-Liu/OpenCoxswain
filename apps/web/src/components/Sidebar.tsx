@@ -4,6 +4,11 @@ import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
+import {
+  clampSidebarWidth,
+  readSavedSidebarWidth,
+  saveSidebarWidth,
+} from '../sidebarWidth.js';
 
 export interface SidebarProps {
   readonly projects: readonly ProjectDto[];
@@ -30,22 +35,12 @@ export interface SidebarProps {
   readonly onWidthChange?: (width: number) => void;
 }
 
-/** 侧栏宽度范围。DSH 也允许拖动，但有上下限——太窄看不清，太宽挤掉主区。 */
-const MIN_WIDTH = 180;
-const MAX_WIDTH = 420;
-const DEFAULT_WIDTH = 244;  // DSH 源码里的固定值
-
-const WIDTH_KEY = 'ocx.sidebarWidth';
-
-function loadWidth(): number {
-  try {
-    const saved = Number(window.localStorage.getItem(WIDTH_KEY));
-    if (Number.isFinite(saved) && saved >= MIN_WIDTH && saved <= MAX_WIDTH) return saved;
-  } catch {
-    // localStorage 不可用时用默认值
-  }
-  return DEFAULT_WIDTH;
-}
+/**
+ * 侧栏宽度与持久化统一放在 `sidebarWidth.ts`。
+ *
+ * 早期这里自己定义了一套常量并读 localStorage，而 App 那边写死 244，
+ * 两边初始值不一致 → 重启后侧栏被网格列压住，拖一下才恢复。
+ */
 
 /**
  * 左侧导航。布局照 DeepSeek Harness，视觉照 VS Code：
@@ -70,7 +65,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
   }, [searchOpen]);
-  const [width, setWidth] = useState(loadWidth);
+  const [width, setWidth] = useState(readSavedSidebarWidth);
   const dragging = useRef(false);
   const widthRef = useRef(width);
 
@@ -91,7 +86,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     document.body.classList.add('is-resizing');
 
     const onMove = (e: MouseEvent): void => {
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (e.clientX - startX)));
+      const next = clampSidebarWidth(startWidth + (e.clientX - startX));
       widthRef.current = next;
       setWidth(next);
       props.onWidthChange?.(next);
@@ -102,7 +97,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       try {
-        window.localStorage.setItem(WIDTH_KEY, String(widthRef.current));
+        saveSidebarWidth(widthRef.current);
       } catch {
         /* 存不了就算了 */
       }

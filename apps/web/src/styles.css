@@ -2775,3 +2775,231 @@ body.is-resizing {
 .workspace-search {
   display: none;
 }
+
+/* ---------- 轨迹页（照 DSH） ---------- */
+
+.trace-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 顶部统计条 */
+.trace-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 20px;
+  flex: none;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.trace-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.trace-stat-key {
+  color: var(--text-dim);
+}
+
+.trace-search {
+  margin-left: auto;
+  width: 200px;
+  height: 26px;
+  font-size: var(--fs-sm);
+}
+
+/* 时间轴：一次调用一段，按类型着色 */
+.trace-timeline {
+  display: flex;
+  gap: 1px;
+  height: 14px;
+  padding: 0 20px;
+  flex: none;
+  margin: 6px 0;
+  overflow: hidden;
+}
+
+.trace-seg {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 1px;
+  opacity: 0.85;
+}
+
+.trace-seg.user {
+  background: #4a7fb5;
+}
+
+.trace-seg.assistant {
+  background: #7a5aa8;
+}
+
+.trace-seg.tool {
+  background: #3f6b52;
+}
+
+/* 明细列表 */
+.trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.trace-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 20px 3px 16px;
+  position: relative;
+  font-size: var(--fs-sm);
+  line-height: 20px;
+}
+
+.trace-row:hover {
+  background: var(--bg-hover);
+}
+
+/* 左侧圆点：位置固定，形成一条竖向节奏 */
+.trace-dot {
+  flex: none;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.trace-row.tool .trace-dot {
+  background: #3f6b52;
+}
+
+.trace-row.assistant .trace-dot {
+  background: #7a5aa8;
+}
+
+.trace-row.user .trace-dot {
+  background: #4a7fb5;
+}
+
+.trace-label {
+  flex: none;
+  width: 52px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.trace-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 0;
+}
+
+.trace-row.assistant .trace-title {
+  font-family: var(--font);
+  color: var(--text-muted);
+}
+
+.trace-title:hover {
+  color: var(--text-strong);
+  text-decoration: underline;
+}
+
+.trace-time {
+  flex: none;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 展开后的完整内容 */
+.trace-detail {
+  flex-basis: 100%;
+  margin: 4px 0 6px 60px;
+  padding: 8px 10px;
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.trace-empty {
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.trace-no-match {
+  padding: 16px 20px;
+}
+
+/* 标签上的条数 */
+.view-tab-count {
+  margin-left: 5px;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 修正：轨迹统计条的间距与排版 ---------- */
+
+.trace-stats {
+  gap: 20px;
+}
+
+.trace-stat {
+  gap: 6px;
+}
+
+/* 标签和数值之间要能看出层次，而不是粘成一串 */
+.trace-stat-key::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+}
+
+.trace-stat-key {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+/* 数值本身稍亮一点，形成对比 */
+.trace-stat-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 搜索框靠右，但不要贴边 */
+.trace-search {
+  margin-left: auto;
+}
