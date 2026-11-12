@@ -54,3 +54,6 @@ apikey*.txt
 
 # Rust/Tauri 构建产物兜底（各 app 目录已单独覆盖）
 target/
+
+# 第三方参考代码，不纳入版本管理
+dsh-superagent-prototype-main/
