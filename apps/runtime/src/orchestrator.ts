@@ -37,6 +37,13 @@ import {
 import { TEMPLATES, applyTemplate, findTemplate, type AppliedTemplate, type TaskTemplate } from './templates/templates.js';
 import { checkSchedules, type ScheduleSpec, type Suggestion } from './schedules/schedules.js';
 import { MemoryScheduleStore, type ScheduleStorage } from './schedules/store.js';
+import {
+  MemoryCloseSettings,
+  shouldConfirmQuit,
+  type CloseAction,
+  type CloseSettings,
+  type CloseSettingsStoreLike,
+} from './settings/close.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -75,6 +82,8 @@ export interface OrchestratorOptions {
   readonly approvalTimeoutMs?: number;
   /** 定时配置存储；不提供时定时功能不可用。 */
   readonly schedules?: ScheduleStorage;
+  /** 关闭行为设置；不提供时默认最小化到托盘。 */
+  readonly closeSettings?: CloseSettingsStoreLike;
   /**
    * 用户扩展（geek 自定义口）。
    *
@@ -164,6 +173,7 @@ export class Orchestrator extends EventEmitter {
   /** 审批超时（毫秒）。到点自动拒绝，不让Agent无限挂起。 */
   private readonly approvalTimeoutMs: number | undefined;
   private readonly scheduleStore: ScheduleStorage;
+  private readonly closeStore: CloseSettingsStoreLike;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -180,6 +190,7 @@ export class Orchestrator extends EventEmitter {
     this.approvalTimeoutMs = options.approvalTimeoutMs;
     // 没提供时用内存实现，保证方法可调用（只是不持久化）。
     this.scheduleStore = options.schedules ?? new MemoryScheduleStore();
+    this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
     this.extensions = options.extensions;
   }
 
@@ -1349,7 +1360,53 @@ export class Orchestrator extends EventEmitter {
   }
 
   // -------------------------------------------------------------------------
-  // General Manager（跨项目能力）
+  // 关闭行为
+  // -------------------------------------------------------------------------
+
+  /** 有多少 Agent 正在跑（决定关闭时要不要提醒）。 */
+  runningAgents(): number {
+    let count = 0;
+    for (const project of this.store.listProjects()) {
+      for (const agent of this.store.listExecutors({ projectId: project.id })) {
+        if (agent.status === 'running' || agent.status === 'starting') count += 1;
+      }
+    }
+    return count;
+  }
+
+  async closeSettings(): Promise<CloseSettings> {
+    return this.closeStore.load();
+  }
+
+  async setCloseSettings(settings: CloseSettings): Promise<void> {
+    await this.closeStore.save(settings);
+  }
+
+  /**
+   * 关闭前的检查。
+   *
+   * 选「退出」且有 Agent 在跑 → 必须确认。
+   * 判断放在这里而不是界面，保证壳和界面用同一套规则。
+   */
+  async checkClose(): Promise<{
+    action: CloseAction;
+    running: number;
+    confirm: boolean;
+    message: string;
+  }> {
+    const settings = await this.closeStore.load();
+    const running = this.runningAgents();
+    const verdict = shouldConfirmQuit(settings.closeAction, running);
+    return {
+      action: settings.closeAction,
+      running,
+      confirm: verdict.confirm,
+      message: verdict.message,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Supervisor（跨项目能力）
   // -------------------------------------------------------------------------
 
   /**

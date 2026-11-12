@@ -56,44 +56,44 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   const [onlyRunning, setOnlyRunning] = useState(false);
   const [width, setWidth] = useState(loadWidth);
   const dragging = useRef(false);
+  const widthRef = useRef(width);
 
   const filtering = isFiltering(query, onlyRunning);
 
-  // 拖拽调整宽度：鼠标移动即生效，松手才写回存储。
+  // 拖拽调整宽度。
+  //
+  // **记录起点差值**，不能用 clientX 直接当宽度：
+  // 侧栏左边不一定贴着屏幕左缘（有标题栏、窗口偏移），
+  // 早期直接用 clientX 会导致"一拖就跳到鼠标位置"。
   const onMouseDown = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
     dragging.current = true;
+    const startX = event.clientX;
+    const startWidth = widthRef.current;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, []);
 
-  useEffect(() => {
-    const onMove = (event: MouseEvent): void => {
-      if (!dragging.current) return;
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, event.clientX));
+    const onMove = (e: MouseEvent): void => {
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (e.clientX - startX)));
+      widthRef.current = next;
       setWidth(next);
     };
     const onUp = (): void => {
-      if (!dragging.current) return;
       dragging.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      setWidth((w) => {
-        try {
-          window.localStorage.setItem(WIDTH_KEY, String(w));
-        } catch {
-          /* 存不了就算了 */
-        }
-        return w;
-      });
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      try {
+        window.localStorage.setItem(WIDTH_KEY, String(widthRef.current));
+      } catch {
+        /* 存不了就算了 */
+      }
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
   }, []);
+
 
   return (
     <aside className="sidebar" style={{ width }}>
@@ -133,13 +133,31 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           <button
             type="button"
             className={`icon-btn${onlyRunning ? ' active' : ''}`}
-            title="只看在跑"
+            title={onlyRunning ? '显示全部' : '只看在跑'}
+            aria-pressed={onlyRunning}
             onClick={() => setOnlyRunning((v) => !v)}
           >
-            ⇅
+            {/* 用 SVG 不用文字字符：字符在深色下粗细不匀、基线对不齐，
+                这是之前"违和感"的来源。 */}
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path
+                d="M4.5 2.5v11M4.5 13.5 2 11M4.5 13.5 7 11M11.5 13.5v-11M11.5 2.5 9 5M11.5 2.5 14 5"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
           <button type="button" className="icon-btn" title="新建项目" onClick={props.onOpenProject}>
-            ＋
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path
+                d="M8 3v10M3 8h10"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         </span>
       </div>

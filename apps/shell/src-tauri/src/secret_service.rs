@@ -228,6 +228,11 @@ pub fn handle_window_action(stream: &mut TcpStream, action: &str) -> std::io::Re
             crate::window_action("close");
             respond(stream, 200, r#"{"ok":true}"#)
         }
+        // 自绘标题栏的拖拽。前端在标题栏 mousedown 时调它。
+        "start_drag" => {
+            crate::window_action("start_drag");
+            respond(stream, 200, r#"{"ok":true}"#)
+        }
         _ => respond(stream, 404, r#"{"error":"未知窗口操作"}"#),
     }
 }

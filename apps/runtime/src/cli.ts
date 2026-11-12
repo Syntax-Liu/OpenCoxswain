@@ -24,6 +24,7 @@ import { ImBridge } from './im/bridge.js';
 import { TelegramClient } from './im/telegram.js';
 import { loadExtensions } from './extensions/index.js';
 import { ScheduleStore } from './schedules/store.js';
+import { CloseSettingsStore } from './settings/close.js';
 import { TokenStore } from './server/token.js';
 import { secretServiceFromEnv } from './llm/secret.js';
 import path from 'node:path';
@@ -172,6 +173,7 @@ async function main(): Promise<void> {
     memory,
     // 定时配置落成 JSON：量小，用户还能直接看和改。
     schedules: new ScheduleStore(path.join(os.homedir(), '.opencoxswain', 'schedules.json')),
+    closeSettings: new CloseSettingsStore(path.join(os.homedir(), '.opencoxswain', 'close.json')),
     ...(extensions.beforeTool.length + extensions.afterTool.length > 0
       ? { extensions: { beforeTool: extensions.beforeTool, afterTool: extensions.afterTool } }
       : {}),

@@ -409,6 +409,20 @@ export class ApiClient {
     });
   }
 
+  /** 关闭行为设置。 */
+  closeSettings(): Promise<{ settings: { closeAction: 'tray' | 'quit' }; running: number }> {
+    return this.request('/api/close-settings');
+  }
+
+  setCloseAction(closeAction: 'tray' | 'quit'): Promise<{ ok: boolean }> {
+    return this.request('/api/close-settings', { method: 'POST', body: { closeAction } });
+  }
+
+  /** 关闭前检查：选「退出」且有 Agent 在跑时要提示。 */
+  closeCheck(): Promise<{ action: 'tray' | 'quit'; running: number; confirm: boolean; message: string }> {
+    return this.request('/api/close-check');
+  }
+
   /** 任务模板。 */
   templates(): Promise<{ templates: TaskTemplateDto[] }> {
     return this.request('/api/templates');

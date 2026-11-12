@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ApiClient, ProjectDto, SettingsStatus } from '../api.js';
 import { ImSettings } from './ImSettings.js';
@@ -22,6 +22,27 @@ export interface SettingsDialogProps {
  * 界面上不回显已有密钥。
  */
 export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
+  const [closeAction, setCloseAction] = useState<'tray' | 'quit'>('tray');
+
+  // 打开时读一次关闭设置
+  useEffect(() => {
+    void props.api
+      .closeSettings()
+      .then((r) => setCloseAction(r.settings.closeAction))
+      .catch(() => {
+        /* 读不到就保持默认 */
+      });
+  }, [props.api]);
+
+  const saveCloseAction = async (next: 'tray' | 'quit'): Promise<void> => {
+    setCloseAction(next);
+    try {
+      await props.api.setCloseAction(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败');
+    }
+  };
+
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState(props.status.baseUrl);
   const [model, setModel] = useState(props.status.model);
@@ -107,6 +128,35 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
         </label>
 
         {error && <p className="form-error">{error}</p>}
+
+        {/* 关闭行为：点窗口 × 时怎么办 */}
+        <div className="field-group">
+          <h3>关闭窗口时</h3>
+          <label className="radio-row">
+            <input
+              type="radio"
+              name="closeAction"
+              checked={closeAction === 'tray'}
+              onChange={() => void saveCloseAction('tray')}
+            />
+            <span>
+              最小化到系统托盘
+              <span className="muted small">（Agent 继续运行）</span>
+            </span>
+          </label>
+          <label className="radio-row">
+            <input
+              type="radio"
+              name="closeAction"
+              checked={closeAction === 'quit'}
+              onChange={() => void saveCloseAction('quit')}
+            />
+            <span>
+              直接退出软件
+              <span className="muted small">（有 Agent 在跑时会先提示）</span>
+            </span>
+          </label>
+        </div>
 
         <div className="modal-actions">
           {props.status.configured && props.status.source === 'file' && (

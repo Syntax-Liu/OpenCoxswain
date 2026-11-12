@@ -308,7 +308,28 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return reply(200, { ok: true });
     }
 
-    // ---- General Manager：跨项目视图与优先级 ----
+    // ---- 关闭行为设置 ----
+    if (url.pathname === '/api/close-settings') {
+      if (method === 'GET') {
+        return reply(200, {
+          settings: await orchestrator.closeSettings(),
+          running: orchestrator.runningAgents(),
+        });
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        const action = body.closeAction === 'quit' ? 'quit' : 'tray';
+        await orchestrator.setCloseSettings({ closeAction: action });
+        return reply(200, { ok: true, settings: { closeAction: action } });
+      }
+    }
+
+    // 关闭前检查：选「退出」且有 Agent 在跑时，要提示用户。
+    if (method === 'GET' && url.pathname === '/api/close-check') {
+      return reply(200, await orchestrator.checkClose());
+    }
+
+    // ---- Supervisor：跨项目视图与优先级 ----
     if (method === 'GET' && url.pathname === '/api/global') {
       return reply(200, {
         overview: orchestrator.globalOverview(),

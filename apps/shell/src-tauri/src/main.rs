@@ -475,6 +475,114 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
+/// 关闭窗口时是否应该真正退出软件。
+///
+/// 规则（与运行时 `settings/close.ts` 保持一致）：
+/// - 设置是 `tray` → 隐藏到托盘，返回 false
+/// - 设置是 `quit` 且**没有** Agent 在跑 → 直接退出，返回 true
+/// - 设置是 `quit` 但**有** Agent 在跑 → 弹确认框；用户确认才退出
+///
+/// 读取设置走运行时的 HTTP 接口（界面和壳用同一份配置，避免两边不一致）。
+fn close_should_quit(app: &tauri::AppHandle) -> bool {
+    let check = fetch_close_check();
+    match check {
+        Some(info) => {
+            if info.action != "quit" {
+                return false;
+            }
+            if info.running == 0 {
+                return true;
+            }
+            // 有 Agent 在跑：必须让用户明确确认。
+            use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+            let confirmed = app
+                .dialog()
+                .message(format!(
+                    "还有 {} 个 Agent 正在运行。\n\n现在退出会中断它们，未完成的工作会丢掉。",
+                    info.running
+                ))
+                .title("确认退出 OpenCoxswain")
+                .kind(MessageDialogKind::Warning)
+                .buttons(MessageDialogButtons::OkCancelCustom(
+                    "仍然退出".to_string(),
+                    "继续运行".to_string(),
+                ))
+                .blocking_show();
+            if confirmed {
+                append_log(&format!(
+                    "用户确认在 {} 个 Agent 运行时退出",
+                    info.running
+                ));
+            } else {
+                append_log("用户取消退出（Agent 继续运行）");
+            }
+            confirmed
+        }
+        // 读不到设置时按最安全的行为：隐藏到托盘，不杀 Agent。
+        None => {
+            append_log("读不到关闭设置，按最小化到托盘处理");
+            false
+        }
+    }
+}
+
+struct CloseCheck {
+    action: String,
+    running: u32,
+}
+
+/// 极简 HTTP GET（只用于读运行时自己的接口，值不值得引一个 HTTP 库——不值得）。
+fn http_get(url: &str, token: &str) -> Option<String> {
+    use std::io::{Read, Write};
+
+    // 解析 host:port 与 path
+    let rest = url.strip_prefix("http://")?;
+    let (authority, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, "/"),
+    };
+    let addr: SocketAddr = authority.parse().ok()?;
+
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(800)).ok()?;
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(2000)));
+    let request = format!(
+        "GET {path} HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(request.as_bytes()).ok()?;
+
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).ok()?;
+    let text = String::from_utf8_lossy(&raw).to_string();
+
+    // 只取 body
+    let mut parts = text.splitn(2, "\r\n\r\n");
+    parts.next()?;
+    parts.next().map(|s| s.to_string())
+}
+
+/// 从运行时读关闭检查结果。
+///
+/// 令牌从运行时自己的令牌文件读——壳启动运行时后知道它的位置，
+/// 但不能假设环境变量里有（那是运行时的内部约定）。
+fn fetch_close_check() -> Option<CloseCheck> {
+    let token = read_api_token()?;
+    let body = http_get(&format!("http://127.0.0.1:{PORT}/api/close-check"), &token)?;
+    let parsed: serde_json::Value = serde_json::from_str(&body).ok()?;
+    Some(CloseCheck {
+        action: parsed.get("action")?.as_str()?.to_string(),
+        running: parsed.get("running")?.as_u64()? as u32,
+    })
+}
+
+/// 读运行时的 API 令牌（`~/.opencoxswain/token`）。
+fn read_api_token() -> Option<String> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .ok()?;
+    let path = std::path::Path::new(&home).join(".opencoxswain").join("token");
+    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+}
+
 fn main() {
     // 崩溃也要留下痕迹：桌面应用没有终端，否则用户只看到窗口消失。
     install_panic_hook();
@@ -497,6 +605,8 @@ fn main() {
         // 自动更新：检查与下载由插件完成，安装后由 process 插件重启。
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // 关闭前确认框（有 Agent 在跑时提示）。
+        .plugin(tauri_plugin_dialog::init())
         // 更新相关的三个命令由界面通过运行时转发调用（界面跑在 http 端口上，
         // 拿不到 Tauri IPC，所以必须由壳暴露成 HTTP 能触达的命令）。
         .invoke_handler(tauri::generate_handler![
@@ -577,13 +687,25 @@ fn main() {
         } => {
             if label == "main" {
                 api.prevent_close();
-                if let Some(window) = app.get_webview_window("main") {
+                // 关闭行为由用户设置决定（设置里可选"最小化到托盘"或"退出"）。
+                // 这条设置由运行时负责持久化，壳通过 HTTP 读它。
+                if close_should_quit(app) {
+                    append_log("用户设置：关闭即退出软件");
+                    // exit 会触发 RunEvent::Exit，那里的逻辑负责结束运行时。
+                    app.exit(0);
+                } else if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
+                    append_log("窗口已隐藏到托盘（Agent 继续运行；从托盘菜单可退出）");
                 }
-                append_log("窗口已隐藏到托盘（执行者继续运行；从托盘菜单可退出）");
             }
         }
         tauri::RunEvent::Exit => {
+            // **先移除托盘图标再退出**。
+            // 进程被强杀时 Windows 来不及回收托盘，会留下"幽灵图标"
+            // （鼠标划过才消失）。显式隐藏能保证托盘干净。
+            if let Some(tray) = app.tray_by_id("main-tray") {
+                let _ = tray.set_visible(false);
+            }
             if let Ok(mut slot) = app.state::<Runtime>().0.lock() {
                 if let Some(mut child) = slot.take() {
                     // Windows 上 child.kill() 只结束运行时本身，

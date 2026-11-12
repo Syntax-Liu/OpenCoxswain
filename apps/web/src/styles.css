@@ -2483,3 +2483,97 @@ button.small {
   gap: 8px;
   padding: 0 24px 8px;
 }
+
+/* ---------- 修正：内容宽度与标题栏按钮 ---------- */
+
+/* 正文最宽限制：DSH 的消息区也不是无限拉伸的。
+   屏幕上太宽一行读起来很累，限制在 820px 并把整块居中。 */
+.messages > * {
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+/* 输入框同样限宽，和消息对齐 */
+.composer-box {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+/* 状态栏同样限宽 */
+.status-bar {
+  max-width: 820px;
+  margin: 0 auto;
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 窗口按钮：之前贴到最右边，鼠标移到右上角反而点不到。
+   给右侧留出安全余量，并保证按钮本身足够大。 */
+.title-bar {
+  padding-right: 4px;
+}
+
+.title-bar-actions {
+  margin-right: 12px;
+}
+
+.win-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+.win-btn svg {
+  pointer-events: none;
+}
+
+/* 图标按钮：SVG 需要居中对齐 */
+.icon-btn svg {
+  display: block;
+}
+
+.icon-btn {
+  cursor: pointer;
+}
+
+/* ---------- 设置里的关闭行为选项 ---------- */
+
+.field-group {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.field-group h3 {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0 0 8px;
+}
+
+.radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0;
+  cursor: pointer;
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+.radio-row input {
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.radio-row .muted {
+  color: var(--text-dim);
+  margin-left: 4px;
+}
