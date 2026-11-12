@@ -1,5 +1,5 @@
 /**
- * 执行者运行器：把一个 D 从"已排到队"跑到"有了结论"。
+ * 执行者运行器：把一个 Agent 从"已排到队"跑到"有了结论"。
  *
  * 从 `orchestrator.ts` 整块搬出来（原来那个方法 300 多行，
  * 和派活、排队、汇报混在一起，改任何一处都要读完整个文件）。
@@ -71,7 +71,7 @@ export async function runExecutorOnce(
 ): Promise<RunResult> {
   const { store } = deps;
 
-  // 建 D 的会话行（历史可回看 = "打开原会话"）。
+  // 建 Agent 的会话行（历史可回看 = "打开原会话"）。
   // systemPrompt 存下来，续聊时才能重建同样的角色设定。
   await store.putSession({
     id: executor.sessionId,
@@ -91,7 +91,7 @@ export async function runExecutorOnce(
     updatedAt: Date.now(),
   });
 
-  // 首轮目标作为 D 会话的第一条用户消息落库（轨迹从这里开始）。
+  // 首轮目标作为 Agent 会话的第一条用户消息落库（轨迹从这里开始）。
   await store.appendMessage(executor.sessionId, {
     id: newId('msg'),
     role: 'user',
@@ -151,7 +151,7 @@ export function stillRunnable(store: Store, executorId: string): ExecutorRow | n
 }
 
 /**
- * 把工具轨迹写进 D 的会话。
+ * 把工具轨迹写进 Agent 的会话。
  *
  * 首轮和续聊共用——之前两处各写了一份一模一样的代码，
  * 改一处容易漏另一处。

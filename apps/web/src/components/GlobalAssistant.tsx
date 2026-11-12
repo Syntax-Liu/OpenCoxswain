@@ -15,9 +15,9 @@ interface RouteResult {
 }
 
 /**
- * Supervisor B：只在多项目迷路时用。
+ * Supervisor：只在多项目迷路时用。
  *
- * B 的职责严格收窄为**指路 + 转交原话**：
+ * Supervisor 的职责严格收窄为**指路 + 转交原话**：
  * - 给出依据（为什么是这个项目）；
  * - 依据不足或等分时反问，不硬猜；
  * - 转交的是用户原话，绝不改写，也绝不代 C 汇报。
@@ -61,7 +61,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
     <div className="conversation">
       <header className="conversation-header">
         <div className="header-main">
-          <h2>Supervisor · B</h2>
+          <h2>Supervisor</h2>
           <p className="muted small">只在多个项目之间迷路时用。我负责指路，不替Assistant干活。</p>
         </div>
       </header>

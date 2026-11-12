@@ -30,8 +30,8 @@ export interface SidebarProps {
  * [B Supervisor]
  * ──────────
  * 工作区
- *  ▾ 项目文件夹        ← 点击 = 进Assistant C
- *     · 对话标题        ← 点击 = 看某个执行者 D
+ *  ▾ 项目文件夹        ← 点击 = 进Assistant
+ *     · 对话标题        ← 点击 = 看某个执行者（Agent）
  * ```
  *
  * 每个项目是一个"文件夹"，文件夹本身是 C；文件夹下的每条记录是一个 D。
@@ -51,7 +51,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           onClick={props.onOpenGlobal}
         >
           <span className="nav-icon">◎</span>
-          Supervisor · B
+          Supervisor
         </button>
         <button type="button" className="nav-item" onClick={props.onOpenProject}>
           <span className="nav-icon">＋</span>
@@ -112,7 +112,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                 )}
               </button>
 
-              {/* 文件夹下的每条 = 一个执行者 D 的对话 */}
+              {/* 文件夹下的每条 = 一个执行者（Agent） 的对话 */}
               {executors.length > 0 && (
                 <ul className="thread-list">
                   {[...executors]

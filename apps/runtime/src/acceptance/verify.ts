@@ -32,7 +32,7 @@ export interface VerifyOptions {
   readonly defaultTimeoutMs?: number;
   /**
    * 危险动作闸门。**必须提供**——验收命令若不经过它，
-   * 就等于给 D 开了一个绕过审批执行任意命令的后门。
+   * 就等于给 Agent 开了一个绕过审批执行任意命令的后门。
    */
   readonly approve: (
     tool: string,

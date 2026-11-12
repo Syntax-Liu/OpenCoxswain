@@ -291,7 +291,7 @@ describe('SQLite：关掉软件后完整恢复（D5）', () => {
     assert.equal(proj.assistantSessionId, 'c_prj_1');
 
     const session = second.getSession('c1');
-    assert.ok(session, 'C 的会话必须还在');
+    assert.ok(session, 'Assistant 的会话必须还在');
     assert.equal(session.systemPrompt, '你是Assistant');
 
     const history = second.chatHistory('c1');

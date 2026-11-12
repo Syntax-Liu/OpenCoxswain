@@ -20,7 +20,7 @@ export interface ConversationProps {
 }
 
 /**
- * 与Assistant C 的对话。
+ * 与Assistant 的对话。
  *
  * 这里**只显示人和 C 说的话**。执行者的一切（结算通知、工具调用、
  * 原始产出）都不进来——它们在左侧导航里各自的对话中。
@@ -57,7 +57,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
         <div className="header-main">
           <h2>{props.project.name}</h2>
           <p className="muted small" title={props.project.displayPath}>
-            Assistant · C　{props.project.displayPath}
+            Assistant　{props.project.displayPath}
           </p>
         </div>
       </header>
@@ -90,7 +90,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
         {props.thinking && (
           <div className="message assistant">
-            <span className="msg-role">C · Assistant</span>
+            <span className="msg-role">Assistant</span>
             <div className="bubble">
               <span className="typing">
                 <i />
@@ -147,7 +147,7 @@ function Message({
   return (
     <div className={`message ${isUser ? 'user' : 'assistant'}`}>
       {/* 角色标签取代头像：桌面软件不用圆形头像，用一行小字 */}
-      <span className="msg-role">{isUser ? '你' : 'C · Assistant'}</span>
+      <span className="msg-role">{isUser ? '你' : 'Assistant'}</span>
       <div className="bubble">
         {renderMarkdown(message.content)}
         <div className="bubble-footer">

@@ -2,13 +2,13 @@
  * 对话流纯净性测试。
  *
  * 背景（真实问题）：执行者的结算通知曾经被当成用户消息渲染进对话流，
- * 整块的 `【执行者结算】` + D 的原始输出 + "请立刻向用户汇报这一条结果"
- * 都显示给了用户。那既不是用户说的话，也不是 C 的回复。
+ * 整块的 `【执行者结算】` + Agent 的原始输出 + "请立刻向用户汇报这一条结果"
+ * 都显示给了用户。那既不是用户说的话，也不是 Assistant 的回复。
  *
  * 这里钉死三件事：
- * 1. 内部通知进 C 的上下文（否则 C 不知道结算了）；
+ * 1. 内部通知进 Assistant 的上下文（否则 Assistant 不知道结算了）；
  * 2. 内部通知**不进**对话流；
- * 3. 对话流只含用户与 C 的消息。
+ * 3. 对话流只含用户与 Assistant 的消息。
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -42,7 +42,7 @@ describe('内部消息来源标记', () => {
 });
 
 describe('执行者结算不进对话流', () => {
-  it('结算通知进入 C 的上下文，但历史里标为 internal', async () => {
+  it('结算通知进入 Assistant 的上下文，但历史里标为 internal', async () => {
     const store = new MemoryStore();
     const llm = new MockLlmClient((request) => {
       if (isExecutorTurn(request)) {
@@ -92,7 +92,7 @@ describe('执行者结算不进对话流', () => {
     const normalUser = history.filter((m) => m.role === 'user' && !isInternalSource(m.source));
 
     // 结算通知确实进了历史（C 需要它）
-    assert.ok(internal.length >= 1, '内部通知应进入 C 的上下文');
+    assert.ok(internal.length >= 1, '内部通知应进入 Assistant 的上下文');
     assert.match(internal[0]!.content, new RegExp(INTERNAL_NOTICE_PREFIX));
 
     // 但用户消息只有自己说的那句

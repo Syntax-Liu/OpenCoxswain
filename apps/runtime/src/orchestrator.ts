@@ -1,13 +1,13 @@
 /**
- * 编排核心：把 C 与 D 连起来。
+ * 编排核心：把 Assistant 与 Agent 连起来。
  *
  * 这个文件实现用户设想里最关键的几条：
  *
  * | 用户要求 | 这里怎么实现 |
  * | --- | --- |
- * | 用户对 C 说话，C 立刻回复 | `say()` 同步入队，不等模型 |
+ * | 用户对 Assistant 说话，C 立刻回复 | `say()` 同步入队，不等模型 |
  * | 连发不打断 | 消息进 Inbox，跑到步边界才被看到 |
- * | C 调多个 D 并行 | `spawn()` 立刻返回，D 在后台跑 |
+ * | C 调多个 D 并行 | `spawn()` 立刻返回，Agent 在后台跑 |
  * | 谁先完成先汇报谁 | 每个 D 独立结算、独立回调，不等兄弟 |
  * | 写域互斥兜底 | `Gate` 在派发时排队 |
  * | C 主动推进 | 卡点分类 + 可继续使用的 message 通道 |
@@ -67,7 +67,7 @@ export interface OrchestratorOptions {
   /** 项目记忆读取器；返回空串表示没有。 */
   readonly readMemory?: (project: ProjectRow) => Promise<string>;
   /**
-   * 记忆存储。提供后，C 会得到 remember / search_memory 两个工具，
+   * 记忆存储。提供后，Assistant 会得到 remember / search_memory 两个工具，
    * 且每次开轮时按当前消息检索相关记忆注入系统提示。
    */
   readonly memory?: MarkdownMemoryStore;
@@ -117,7 +117,7 @@ export interface SpawnInput {
   readonly writeScope?: readonly string[] | string;
   readonly judged?: TurnJudgment;
   /**
-   * 验收标准。C 派活时声明"怎么算做完了"。
+   * 验收标准。Assistant 派活时声明"怎么算做完了"。
    *
    * 不声明也能派，但那样就只能靠人看结论——**没有任何自动复核**。
    */
@@ -137,7 +137,7 @@ export interface SpawnResult {
 export interface RecoveryReport {
   /** 上次运行中被中断、已被如实标记为失败的执行者。 */
   readonly interruptedExecutors: ExecutorRow[];
-  /** 可从历史恢复的项目与它们的 C 会话。 */
+  /** 可从历史恢复的项目与它们的 Assistant 会话。 */
   readonly recoveredProjects: Array<{ projectId: string; name: string; assistantSessionId: string }>;
   /** 重启后作废的、曾经在等待中的审批数量。 */
   readonly expiredApprovals: number;
@@ -153,11 +153,11 @@ export class Orchestrator extends EventEmitter {
   private readonly readMemory: ((project: ProjectRow) => Promise<string>) | undefined;
   private readonly memory: MarkdownMemoryStore | undefined;
 
-  /** 每个项目的 C 会话（内存句柄；历史在 store 里）。 */
+  /** 每个项目的 Assistant 会话（内存句柄；历史在 store 里）。 */
   private readonly assistants = new Map<string, AssistantSession>();
-  /** D 的中途输入通道：executorId → 待注入文本。 */
+  /** Agent 的中途输入通道：executorId → 待注入文本。 */
   private readonly executorInputs = new Map<string, string[]>();
-  /** D 的中止控制器。 */
+  /** Agent 的中止控制器。 */
   private readonly executorAborts = new Map<string, AbortController>();
   /** 本次运行中止是否由用量止损触发（用于写准确的失败原因）。 */
   private tokenGuardTripped: string | null = null;
@@ -382,13 +382,13 @@ export class Orchestrator extends EventEmitter {
   // -------------------------------------------------------------------------
 
   /**
-   * 用户对 C 说一句。**立刻返回**。
+   * 用户对 Assistant 说一句。**立刻返回**。
    *
    * 如果 C 当前空闲，会在后台立刻开始一轮；如果正在跑，
    * 这条消息就排在 inbox 里等下一个边界（不打断）。
    *
    * `internal=true` 表示这是**系统内部的投递**（如执行者结算通知），
-   * 不是用户说的话：它会进入 C 的上下文，但不应出现在对话流里。
+   * 不是用户说的话：它会进入 Assistant 的上下文，但不应出现在对话流里。
    */
   async userSays(
     projectId: string,
@@ -405,7 +405,7 @@ export class Orchestrator extends EventEmitter {
       ...(options.internal ? { internal: true } : {}),
     });
 
-    // 不 await：C 在后台自己跑，用户随时可以继续发。
+    // 不 await：Assistant 在后台自己跑，用户随时可以继续发。
     void this.pumpAssistant(project).catch((error: unknown) => {
       this.emit('runtime', {
         type: 'assistant_text',
@@ -415,7 +415,7 @@ export class Orchestrator extends EventEmitter {
     });
   }
 
-  /** C 的主循环：有排队消息且当前空闲就跑一轮。 */
+  /** Assistant 的主循环：有排队消息且当前空闲就跑一轮。 */
   private async pumpAssistant(project: ProjectRow): Promise<void> {
     const assistant = await this.ensureAssistant(project);
     if (assistant.isRunning || assistant.inbox.pendingCount === 0) return;
@@ -501,7 +501,7 @@ export class Orchestrator extends EventEmitter {
     await assistant.recordAssistant(finalText);
   }
 
-  /** C 的工具执行宿主。 */
+  /** Assistant 的工具执行宿主。 */
   private createAssistantToolHost(
     project: ProjectRow,
     assistant: AssistantSession,
@@ -660,11 +660,11 @@ export class Orchestrator extends EventEmitter {
   }
 
   // -------------------------------------------------------------------------
-  // D 的派发与结算
+  // Agent 的派发与结算
   // -------------------------------------------------------------------------
 
   /**
-   * 派一个执行者。**立刻返回**，D 在后台跑。
+   * 派一个执行者。**立刻返回**，Agent 在后台跑。
    *
    * @returns admitted=false 表示在排队（写域相交或达并发上限）。
    */
@@ -760,7 +760,7 @@ export class Orchestrator extends EventEmitter {
     };
     await this.store.putExecutor(executor);
 
-    // 记一条 turn，留痕"这条需求被判定成什么"，让 C 判错可审计。
+    // 记一条 turn，留痕"这条需求被判定成什么"，让 Assistant 判错可审计。
     await this.store.appendTurn({
       id: newId('turn'),
       projectId,
@@ -833,7 +833,7 @@ export class Orchestrator extends EventEmitter {
       return;
     }
 
-    // 建 D 的会话行（历史可回看 = "打开原会话"）。
+    // 建 Agent 的会话行（历史可回看 = "打开原会话"）。
     // systemPrompt 存下来，续聊时才能重建同样的角色设定。
     const session: SessionRow = {
       id: ready.sessionId,
@@ -853,7 +853,7 @@ export class Orchestrator extends EventEmitter {
       updatedAt: Date.now(),
     };
     await store.putSession(session);
-    // 首轮目标作为 D 会话的第一条用户消息落库（轨迹从这里开始）。
+    // 首轮目标作为 Agent 会话的第一条用户消息落库（轨迹从这里开始）。
     await store.appendMessage(ready.sessionId, {
       id: newId('msg'),
       role: 'user',
@@ -958,7 +958,7 @@ export class Orchestrator extends EventEmitter {
     this.gate.release(ready.id);
     this.executorAborts.delete(ready.id);
 
-    // 把结论写进 D 的会话轨迹，用户点开这条对话时能看到完整过程。
+    // 把结论写进 Agent 的会话轨迹，用户点开这条对话时能看到完整过程。
     if (outcome.finalText.trim()) {
       await store.appendMessage(ready.sessionId, {
         id: newId('msg'),
@@ -986,7 +986,7 @@ export class Orchestrator extends EventEmitter {
   }
 
   /**
-   * 把结算结果交给 C 并让它开口汇报。
+   * 把结算结果交给 Assistant 并让它开口汇报。
    *
    * 这是"谁先完成先报谁"的关键：每个 D 结算时独立触发一次，
    * 互不等待。C 自己去决定措辞（它知道用户刚才说了什么）。
@@ -1007,10 +1007,10 @@ export class Orchestrator extends EventEmitter {
       needsUser: !ok,
     });
 
-    // 投给 C：它会用 followup 语义处理（排到下一轮），然后向用户汇报。
+    // 投给 Assistant：它会用 followup 语义处理（排到下一轮），然后向用户汇报。
     //
-    // **internal=true**：这条是系统给 C 的内部通知，不是用户说的话。
-    // 它仍会进入 C 的上下文（否则 C 不知道结算了），但：
+    // **internal=true**：这条是系统给 Assistant 的内部通知，不是用户说的话。
+    // 它仍会进入 Assistant 的上下文（否则 Assistant 不知道结算了），但：
     // - 不进入对话流（界面上不显示成用户消息）；
     // - 界面上只显示 C 随后的自然回复。
     // 早期版本把整段结算 + "请立刻向用户汇报这一条结果" 都渲染进了对话，
@@ -1048,12 +1048,12 @@ export class Orchestrator extends EventEmitter {
   }
 
   /**
-   * 用户在界面上点开某条 D 的对话，接着说一句。
+   * 用户在界面上点开某条 Agent 的对话，接着说一句。
    *
    * 这是"用户可直接和 D 对话"（方案 §3.3 / P3）。要点：
    * - D 带着**原有上下文**继续：把它的历史消息作为 priorMessages 传进去；
    * - 只读 D 仍然只读，写域限制也保持不变（不能借续聊越权）；
-   * - 续聊产生的结论同样进 D 的会话轨迹，并通知 C（D3：C 要知情）。
+   * - 续聊产生的结论同样进 Agent 的会话轨迹，并通知 C（D3：Assistant 要知情）。
    */
   async userSaysToExecutor(
     executorId: string,
@@ -1133,7 +1133,7 @@ export class Orchestrator extends EventEmitter {
       ok,
     } as RuntimeEvent);
 
-    // D3：C 必须知道用户直接跟 D 说的话，否则它的汇总会与事实不符。
+    // D3：C 必须知道用户直接跟 Agent 说的话，否则它的汇总会与事实不符。
     await this.recordReport({
       projectId: project.id,
       executorId: row.id,
@@ -1431,8 +1431,8 @@ export class Orchestrator extends EventEmitter {
    * 1. 上次进程被中断时仍在跑的执行者 → 如实标记为失败。
    *    子代理随进程一起死了，`running` 是上一世的记忆，不承认它继续有效。
    *    **不能**悄悄改回队列自动重跑：那会在用户不知情的情况下重复执行副作用。
-   * 2. 项目与 C 的会话历史本来就在库里，这里只是把句柄重新挂上，
-   *    下一次用户说话时 C 会带着原上下文继续。
+   * 2. 项目与 Assistant 的会话历史本来就在库里，这里只是把句柄重新挂上，
+   *    下一次用户说话时 Assistant 会带着原上下文继续。
    *
    * 幂等：可以重复调用。
    */
@@ -1487,7 +1487,7 @@ export class Orchestrator extends EventEmitter {
  * 内部通知的标记前缀。
  *
  * 用于两件事：
- * 1. 让 C 在上下文里分辨"这是系统通知"而不是用户说的话；
+ * 1. 让 Assistant 在上下文里分辨"这是系统通知"而不是用户说的话；
  * 2. 界面与历史查询据此把它和真实用户消息区分开。
  */
 export const INTERNAL_NOTICE_PREFIX = '【执行者结算】';

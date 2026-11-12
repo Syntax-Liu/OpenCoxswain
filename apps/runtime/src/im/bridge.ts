@@ -1,5 +1,5 @@
 /**
- * IM 桥接：把手机上的消息接进 C 的会话。
+ * IM 桥接：把手机上的消息接进 Assistant 的会话。
  *
  * 核心约束（决定了整个设计）：**IM 不是第二个入口，是同一入口的另一个通道**。
  *
@@ -154,7 +154,7 @@ export class ImBridge {
 
     // **同一路径**：和 Web 端调的是同一个方法。
     //
-    // 注意 `userSays` 是"入队即返回"的（连发不打断）——C 在后台跑。
+    // 注意 `userSays` 是"入队即返回"的（连发不打断）——Assistant 在后台跑。
     // 所以这里记下入队前的消息数，等 C 产生新的回复再取出来发回去。
     const assistantSessionId = project.assistantSessionId;
     const before = this.options.store.messages(assistantSessionId).length;

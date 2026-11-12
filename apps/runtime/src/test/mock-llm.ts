@@ -94,19 +94,19 @@ export function lastUserText(request: LlmChatRequest): string {
   return '';
 }
 
-/** 判断当前请求是不是"C 收到的执行者结算通知"。 */
+/** 判断当前请求是不是"Assistant 收到的执行者结算通知"。 */
 export function isSettlementNotice(request: LlmChatRequest): boolean {
   return lastUserText(request).includes('【执行者结算】');
 }
 
-/** 判断当前请求是不是"执行者 D 的工作轮"。 */
+/** 判断当前请求是不是"执行者（Agent） 的工作轮"。 */
 export function isExecutorTurn(request: LlmChatRequest): boolean {
   const system = request.messages.find((m) => m.role === 'system');
-  // 必须用 D 提示词独有的开头，不能用"你是执行者"——C 的提示词里也会提到执行者。
+  // 必须用 Agent 提示词独有的开头，不能用"你是执行者"——Assistant 的提示词里也会提到执行者。
   return typeof system?.content === 'string' && system.content.startsWith('你是执行者。');
 }
 
-/** 判断当前请求是不是 C 在回应普通用户消息。 */
+/** 判断当前请求是不是 Assistant 在回应普通用户消息。 */
 export function isAssistantTurn(request: LlmChatRequest): boolean {
   const system = request.messages.find((m) => m.role === 'system');
   return typeof system?.content === 'string' && system.content.startsWith('你是这个项目的「Assistant」');

@@ -1,5 +1,5 @@
 /**
- * Assistant C：一个项目一个常驻会话。
+ * Assistant：一个项目一个常驻会话。
  *
  * 参照 TRAE 宝的实现（官方文档）：
  * > "项目专属 · TRAE 宝 —— 点项目栏中的某个项目，即可打开与'项目专属 · TRAE 宝'
@@ -22,7 +22,7 @@ export interface AssistantSessionOptions {
 }
 
 /**
- * 一个 C 的运行时句柄。
+ * 一个 Assistant 的运行时句柄。
  *
  * 持有会话 id、inbox、以及"当前是否在跑"。消息历史以 Store 为准，
  * 这里只做缓存与投递，避免把状态放两处。
@@ -40,7 +40,7 @@ export class AssistantSession {
   ) {}
 
   /**
-   * 打开（或创建）某项目的 C 会话。
+   * 打开（或创建）某项目的 Assistant 会话。
    *
    * 同一项目永远复用同一个 assistantSessionId —— 这是"项目的主人"
    * 能记住上下文的前提，也是整个架构的锚点。
@@ -73,9 +73,9 @@ export class AssistantSession {
   }
 
   /**
-   * 用户对 C 说一句（也可能是系统的内部通知）。**立刻返回**。
+   * 用户对 Assistant 说一句（也可能是系统的内部通知）。**立刻返回**。
    *
-   * 这正是"用户发送后 C 立即回复、用户可以继续发送"的实现：
+   * 这正是"用户发送后 Assistant 立即回复、用户可以继续发送"的实现：
    * 投递是同步的，回复是异步产生的（通过事件流出）。
    */
   say(
@@ -88,7 +88,7 @@ export class AssistantSession {
   /**
    * 记录一条消息到历史。
    *
-   * `internal` 的消息（如执行者结算通知）会进 C 的上下文，
+   * `internal` 的消息（如执行者结算通知）会进 Assistant 的上下文，
    * 但 source 记为 `internal:` 前缀，界面据此不把它当用户消息显示。
    */
   async recordUser(text: string, source: string, internal = false): Promise<void> {

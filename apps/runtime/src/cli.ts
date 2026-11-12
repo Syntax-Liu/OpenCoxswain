@@ -10,7 +10,7 @@
  *   OPENCOXSWAIN_LLM_BASE_URL  默认 https://api.deepseek.com/v1
  *   OPENCOXSWAIN_LLM_MODEL     默认 deepseek-chat
  *
- * 这个 CLI 是运行时的**最小可用面**：能开项目、能对 C 说话、能看执行者进展。
+ * 这个 CLI 是运行时的**最小可用面**：能开项目、能对 Assistant 说话、能看执行者进展。
  * 图形界面与 HTTP/SSE 在后续阶段接在同一个 Orchestrator 上。
  */
 import { createInterface } from 'node:readline';
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
     console.log('尚未配置模型密钥：界面打开后请在设置里填写（保存后立即生效）。');
   }
 
-  // 持久化：默认放在用户数据目录，关掉软件后 C 的上下文与项目都还在。
+  // 持久化：默认放在用户数据目录，关掉软件后 Assistant 的上下文与项目都还在。
   const dbPath =
     process.env.OPENCOXSWAIN_DB ??
     path.join(os.homedir(), '.opencoxswain', 'runtime.db');
@@ -284,7 +284,7 @@ async function main(): Promise<void> {
     console.log(`  GET  ${server.url}/api/events   (SSE)`);
   }
 
-  // IM 通道跑起来：有这个通道，D 的结论和待审批能推到手机。
+  // IM 通道跑起来：有这个通道，Agent 的结论和待审批能推到手机。
   if (im) {
     im.start();
     console.log(
@@ -354,7 +354,7 @@ async function main(): Promise<void> {
   ask();
 }
 
-/** 等 C 与所有 D 都空闲。 */
+/** 等 Assistant 与所有 D 都空闲。 */
 async function waitQuiet(runtime: Orchestrator, projectId: string, timeoutMs: number): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {

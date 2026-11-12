@@ -1,17 +1,17 @@
 /**
- * 执行者 D：真正干活的 Agent。
+ * 执行者（Agent）：真正干活的 Agent。
  *
- * 与 C 的区别：
+ * 与 Assistant 的区别：
  * - C 是常驻的、有项目全局视野、只调工具不直接改代码；
  * - D 是临时的、只干一件确定的活、**直接操作文件**。
  *
- * D 的循环继承 legacy `builtin.ts` 已验证的做法：
+ * Agent 的循环继承 legacy `builtin.ts` 已验证的做法：
  * 模型 → 工具 → 回灌 → 直到给出结论。工具是受限的（只在项目目录内、只在写域内）。
  *
  * 关键约束（来自实际踩坑）：
  * 1. 写文件必须在项目根目录内，且落在声明的写域里。
  * 2. 命令执行必须有超时，超时按进程树结束（Windows 下会残留孙进程）。
- * 3. D 的**收尾文本**就是它唯一被 C 看到的交付——不能靠"发消息"结尾。
+ * 3. Agent 的**收尾文本**就是它唯一被 Assistant 看到的交付——不能靠"发消息"结尾。
  */
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -26,14 +26,14 @@ import type { SideEffectLedger } from '../security/ledger.js';
 
 const execAsync = promisify(exec);
 
-/** D 的卡点三分类（方案 §6 P4-T1）。 */
+/** Agent 的卡点三分类（方案 §6 P4-T1）。 */
 export type BlockKind = 'self-recoverable' | 'needs-user' | 'environment';
 
 /**
- * 把 D 的失败原因归类。
+ * 把 Agent 的失败原因归类。
  *
  * 这是**规则判断**，不调用 LLM：宁可保守归成"必须问用户"，
- * 也不要让 C 在没有依据的情况下耗光重试预算。
+ * 也不要让 Assistant 在没有依据的情况下耗光重试预算。
  */
 export function classifyBlock(reason: string): { kind: BlockKind; hint: string } {
   const text = reason.toLowerCase();
@@ -116,7 +116,7 @@ export function executorSystemPrompt(input: {
   ].join('\n');
 }
 
-/** D 的工具集：直接操作文件系统 / 执行命令，全部限制在项目目录内。 */
+/** Agent 的工具集：直接操作文件系统 / 执行命令，全部限制在项目目录内。 */
 export function executorTools(): ToolDefinition[] {
   return [
     {
@@ -515,7 +515,7 @@ export interface RunExecutorOptions {
    * 续聊时的既有历史（不含 system）。
    *
    * 提供后不再从"请开始执行：goal"起步，而是带着原上下文继续，
-   * 把 `goal` 当作这一轮的新指令。这是"D 完成后还能接着聊"的实现。
+   * 把 `goal` 当作这一轮的新指令。这是"Agent 完成后还能接着聊"的实现。
    */
   readonly priorMessages?: readonly { readonly role: 'user' | 'assistant'; readonly content: string }[];
   /** 已完成轮次的事件回调，便于上层把轨迹落库。 */
@@ -559,7 +559,7 @@ export interface ExecutorOutcome {
 /**
  * 跑一次执行者。
  *
- * 返回的 `finalText` 就是 C 会看到的那段结论——所以提示词里反复强调
+ * 返回的 `finalText` 就是 Assistant 会看到的那段结论——所以提示词里反复强调
  * "结论先行、不要假装完成"。
  */
 export async function runExecutor(options: RunExecutorOptions): Promise<ExecutorOutcome> {

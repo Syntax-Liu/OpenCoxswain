@@ -171,7 +171,7 @@ describe('IM 配置存储', () => {
 // ---------------------------------------------------------------------------
 
 describe('端到端：IM 消息与 Web 走同一条路径', () => {
-  it('手机消息进入 C 的同一个会话，回复发回手机', async () => {
+  it('手机消息进入 Assistant 的同一个会话，回复发回手机', async () => {
     const root = await tmp();
     const store = new MemoryStore();
     const llm = new MockLlmClient((request) =>
@@ -199,13 +199,13 @@ describe('端到端：IM 消息与 Web 走同一条路径', () => {
 
     await bridge.handleMessage({ chatId: '42', text: '把登录页重构一下', fromName: '小明' });
 
-    // **关键：消息进了 C 的会话历史，和 Web 发的一模一样**
+    // **关键：消息进了 Assistant 的会话历史，和 Web 发的一模一样**
     const history = store.messages(project.assistantSessionId);
     assert.ok(
       history.some((m) => m.role === 'user' && m.content === '把登录页重构一下'),
-      'IM 消息必须进同一个 C 会话',
+      'IM 消息必须进同一个 Assistant 会话',
     );
-    assert.ok(sent.length > 0, '应当把 C 的回复发回手机');
+    assert.ok(sent.length > 0, '应当把 Assistant 的回复发回手机');
 
     await runtime.dispose();
   });
@@ -270,7 +270,7 @@ describe('端到端：IM 消息与 Web 走同一条路径', () => {
     await bridge.handleMessage({ chatId: '777', text: '我也要用', fromName: '陌生人' });
     assert.match(sent[0] ?? '', /没有绑定/);
 
-    // 陌生人的话不能进 C 的会话
+    // 陌生人的话不能进 Assistant 的会话
     const history = store.messages(project.assistantSessionId);
     assert.ok(!history.some((m) => m.content === '我也要用'));
 

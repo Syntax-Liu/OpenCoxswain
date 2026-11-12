@@ -1,9 +1,9 @@
 /**
- * C 的系统提示词与工具集。
+ * Assistant 的系统提示词与工具集。
  *
  * 提示词按用户设想写死，不是可选项：
- * 1. 用户直接对 C 说话 —— C 是项目的主人。
- * 2. C 派 D 干活，**立刻返回**，不等待。
+ * 1. 用户直接对 Assistant 说话 —— Assistant 是项目的主人。
+ * 2. Assistant 派 D 干活，**立刻返回**，不等待。
  * 3. 谁先完成先汇报谁，不等兄弟。
  * 4. 连发不打断：新需求先判断冲突还是并列。
  * 5. 卡住时 C 主动推进，只把"必须人决定"的问题带回来。
@@ -23,7 +23,7 @@ export function assistantSystemPrompt(input: {
     `你是这个项目的「Assistant」。项目：${input.projectName}`,
     `工作目录：${input.rootPath}`,
     '',
-    '用户主要直接对你说话。你手下的执行者（D）是临时工：干完一件就结束，可以同时有多个。',
+    '用户主要直接对你说话。你手下的执行者（Agent）是临时工：干完一件就结束，可以同时有多个。',
     '',
     '## 你的循环',
     '1. 用户提出需求 → 你**立刻**回复一句"收到，我派 X 去做"，然后调用 spawn_executor。',
@@ -89,13 +89,13 @@ export function assistantSystemPrompt(input: {
   return lines.join('\n');
 }
 
-/** C 能用的工具。D 也复用其中一部分（见 executor 模块）。 */
+/** Assistant 能用的工具。Agent 也复用其中一部分（见 executor 模块）。 */
 export function assistantTools(): ToolDefinition[] {
   return [
     {
       name: 'spawn_executor',
       description:
-        '派一个执行者（D）去干一件确定的活，**立刻返回**，不等待结果。' +
+        '派一个执行者（Agent）去干一件确定的活，**立刻返回**，不等待结果。' +
         '可以连续调用多次让多个执行者**真正并行**推进。' +
         '关键：如果这个任务只读不写（查询、分析、调研、排障），必须把 writeScope 设为 ["readonly"]，' +
         '这样它不会和别的任务排队；否则系统会保守地把它当写任务串行。',

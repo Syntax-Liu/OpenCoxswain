@@ -1,9 +1,9 @@
 /**
- * 端到端：三条只读任务并行 + D 可续聊。
+ * 端到端：三条只读任务并行 + Agent 可续聊。
  *
  * 对应用户反馈的两个诉求：
  * 1. "我让它开三条会话，仍然是逐条执行的" —— 只读任务必须真正并行；
- * 2. "点开某条对话继续跟它聊" —— D 完成后能带上下文续跑。
+ * 2. "点开某条对话继续跟它聊" —— Agent 完成后能带上下文续跑。
  */
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -123,8 +123,8 @@ describe('三条只读任务真正并行（回归：曾逐条执行）', () => {
   });
 });
 
-describe('D 可续聊（带原上下文）', () => {
-  it('D 完成后用户继续追问，它带着历史回答', async () => {
+describe('Agent 可续聊（带原上下文）', () => {
+  it('Agent 完成后用户继续追问，它带着历史回答', async () => {
     const root = await projectDir();
     const store = new MemoryStore();
     const seen: string[][] = [];
@@ -153,7 +153,7 @@ describe('D 可续聊（带原上下文）', () => {
     });
     await waitFor(() => store.getExecutor(spawn.executor.id)?.status === 'done', 8000);
 
-    // 用户直接对 D 追问
+    // 用户直接对 Agent 追问
     const result = await runtime.userSaysToExecutor(
       spawn.executor.id,
       '刚才你读了什么？再解释一下',

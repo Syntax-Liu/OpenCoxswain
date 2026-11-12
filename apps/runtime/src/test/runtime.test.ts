@@ -35,7 +35,7 @@ async function makeProjectDir(): Promise<string> {
 
 /**
  * 一个"假 C"：收到用户需求就派执行者；收到结算通知就汇报。
- * 模拟真实 C 的行为契约，但用固定脚本保证测试确定性。
+ * 模拟真实 Assistant 的行为契约，但用固定脚本保证测试确定性。
  */
 function makeAssistantLlm(_projectRoot: string) {
   let spawned = 0;
@@ -94,7 +94,7 @@ function makeExecutorLlm(projectRoot: string) {
   });
 }
 
-/** 把 C 与 D 的脚本合成一个客户端：按 system prompt 分流。 */
+/** 把 Assistant 与 Agent 的脚本合成一个客户端：按 system prompt 分流。 */
 function makeRouterLlm(projectRoot: string) {
   const assistant = makeAssistantLlm(projectRoot);
   const executor = makeExecutorLlm(projectRoot);
@@ -174,7 +174,7 @@ describe('卡点分类', () => {
   });
 });
 
-describe('B 的路由', () => {
+describe('Supervisor 的路由', () => {
   it('按项目名命中并给出依据', async () => {
     const store = new MemoryStore();
     await store.putProject({
@@ -204,7 +204,7 @@ describe('B 的路由', () => {
 // ---------------------------------------------------------------------------
 
 describe('主推流程端到端', () => {
-  it('用户对 C 说话 → C 派 D → D 真的写文件 → C 收到结算并汇报', async () => {
+  it('用户对 Assistant 说话 → Assistant 派 D → D 真的写文件 → Assistant 收到结算并汇报', async () => {
     const root = await makeProjectDir();
     const store = new MemoryStore();
     const llm = makeRouterLlm(root);
@@ -230,13 +230,13 @@ describe('主推流程端到端', () => {
     assert.equal(executors[0]!.status, 'done');
     assert.match(executors[0]!.summary ?? '', /已创建 hello\.txt/);
 
-    // C 收到了结算通知并汇报
+    // Assistant 收到了结算通知并汇报
     assert.ok(reports.some((r) => r.includes('已完成')), '必须有完成汇报');
 
     await runtime.dispose();
   });
 
-  it('C 的会话是常驻的：同一项目反复打开是同一个会话', async () => {
+  it('Assistant 的会话是常驻的：同一项目反复打开是同一个会话', async () => {
     const root = await makeProjectDir();
     const store = new MemoryStore();
     const runtime = new Orchestrator({ store, llm: new MockLlmClient(() => ({ text: 'ok' })) });

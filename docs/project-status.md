@@ -131,10 +131,10 @@ C 的价值不是"更聪明"，是**让你知道现在什么情况**。
 
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
-| 对 C 说话派活 | ✅ | 自然语言，自动判断能否并行 |
+| 对 Assistant 说话派活 | ✅ | 自然语言，自动判断能否并行 |
 | D 多路并行 | ✅ | 只读任务不互斥；写任务按写域加锁 |
 | 先完成先汇报 | ✅ | 同一批完成的会去抖合并成一条 |
-| D 可续聊 | ✅ | 点开某个 D 的会话，带着原上下文继续追问 |
+| Agent 可续聊 | ✅ | 点开某个 D 的会话，带着原上下文继续追问 |
 | 关软件再打开 | ✅ | C 和 D 的历史都在，从断点继续 |
 | B 路由 | ✅ | 项目多了不知道进哪个时，B 给依据或转交原话 |
 
@@ -163,7 +163,7 @@ C 的价值不是"更聪明"，是**让你知道现在什么情况**。
 
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
-| 手机通道（Telegram） | ✅ | 手机发的话 = 对 C 说的话 |
+| 手机通道（Telegram） | ✅ | 手机发的话 = 对 Assistant 说的话 |
 | 自动更新 | ✅ | 签名校验；界面只提示不擅自下载 |
 | 单实例锁 | ✅ | 第二次双击唤回窗口 |
 | 托盘 | ✅ | 关窗口不退出 |
@@ -234,7 +234,7 @@ OpenCoxswain/
 **总调度**。C 和 D 的所有协调逻辑在这里：
 
 - `openProject()` — 打开/新建项目，恢复 C 会话
-- `userSays()` — 用户对 C 说话（入队即返回，不阻塞）
+- `userSays()` — 用户对 Assistant 说话（入队即返回，不阻塞）
 - `spawn()` — C 派活：判断冲突、建记录、后台跑
 - `runExecutorBackground()` — D 的执行编排
 - `userSaysToExecutor()` — 用户直接对 D 追问
@@ -333,7 +333,7 @@ src/
 │ ◎ Supervisor B │                          │
 │ ＋ 添加项目  │                          │
 │─────────────│        主区              │
-│ 工作区       │   （点文件夹 = 对 C 说话）│
+│ 工作区       │   （点文件夹 = 对 Assistant 说话）│
 │ ▾ 项目 A     │   （点条目   = 看某个 D）│
 │   · 对话1    │                          │
 │   · 对话2    │                          │
@@ -460,7 +460,7 @@ Authorization: Bearer <token>
 | GET | `/api/projects` | 项目列表 |
 | POST | `/api/projects` | 打开/新建项目 |
 | GET | `/api/projects/:id` | 项目详情（含执行者与汇报） |
-| POST | `/api/projects/:id/say` | 对 C 说话 |
+| POST | `/api/projects/:id/say` | 对 Assistant 说话 |
 | POST | `/api/projects/:id/stop` | 停止当前这轮 |
 | GET | `/api/projects/:id/messages` | 会话消息 |
 | GET | `/api/projects/:id/reports` | 汇报列表 |
@@ -645,7 +645,7 @@ memory_candidates     记忆候选
 | `path.test.ts` | 7 | 盘符根归一化（`D:\` → `d:/`） |
 | `templates.test.ts` | 20 | **套用模板后没有执行者**、定时只产建议 |
 | `token.test.ts` | 20 | 令牌生成校验、CORS 白名单、注入转义（XSS） |
-| `dchat.test.ts` | 5 | 三条只读并行、D 可续聊 |
+| `dchat.test.ts` | 5 | 三条只读并行、Agent 可续聊 |
 | `purity.test.ts` | 5 | 内部通知不进对话流 |
 | `boundary.test.ts` | 4 | **零依赖、不依赖 DSH、接口层不碰实现** |
 | `recover.test.ts` | 3 | 关掉再打开，C 带着对话继续 |

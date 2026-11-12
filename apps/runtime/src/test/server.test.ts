@@ -76,7 +76,7 @@ describe('HTTP 接口', () => {
     assert.equal(typeof res.json.stats.limit, 'number');
   });
 
-  it('打开项目 → 列表能查到 → 详情含 C 会话锚点', async () => {
+  it('打开项目 → 列表能查到 → 详情含 Assistant 会话锚点', async () => {
     const { server } = await makeRuntime();
     const opened = await post(`${server.url}/api/projects`, {
       rootPath: 'D:/work/app',
@@ -84,7 +84,7 @@ describe('HTTP 接口', () => {
     });
     assert.equal(opened.status, 200);
     const projectId = opened.json.project.id;
-    assert.ok(opened.json.project.assistantSessionId, '必须回填 C 的会话 id');
+    assert.ok(opened.json.project.assistantSessionId, '必须回填 Assistant 的会话 id');
 
     const list = await get(`${server.url}/api/projects`);
     assert.equal(list.json.projects.length, 1);
@@ -110,7 +110,7 @@ describe('HTTP 接口', () => {
     assert.match(res.json.error, /不存在/);
   });
 
-  it('对 C 说话立刻返回 202，不等模型', async () => {
+  it('对 Assistant 说话立刻返回 202，不等模型', async () => {
     const { store, server } = await makeRuntime();
     const opened = await post(`${server.url}/api/projects`, { rootPath: 'D:/work/a' });
     const projectId = opened.json.project.id;
@@ -119,7 +119,7 @@ describe('HTTP 接口', () => {
     assert.equal(res.status, 202);
     assert.equal(res.json.accepted, true);
 
-    // 稍等后，C 的回复应当已落进会话历史
+    // 稍等后，Assistant 的回复应当已落进会话历史
     await waitFor(
       () => store.messages(opened.json.project.assistantSessionId).length >= 2,
       5000,
@@ -156,7 +156,7 @@ describe('HTTP 接口', () => {
     assert.ok(res.json.session, '必须返回它的会话（原会话入口）');
   });
 
-  it('B 的路由：命中给依据，不命中不给答案', async () => {
+  it('Supervisor 的路由：命中给依据，不命中不给答案', async () => {
     const { server } = await makeRuntime();
     await post(`${server.url}/api/projects`, { rootPath: 'D:/work/webapp', name: 'webapp' });
 

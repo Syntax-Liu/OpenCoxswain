@@ -3,7 +3,7 @@
  *
  * ## 为什么需要 B
  *
- * Project Manager（C）**只看得到自己那个项目**——这是它的全部职责范围。
+ * Project Manager（Assistant）**只看得到自己那个项目**——这是它的全部职责范围。
  * 所以它结构上做不了这几件事：
  *
  * 1. 我手头三个项目都什么状态？
@@ -11,8 +11,8 @@
  * 3. 三个项目都在等我决定，先做哪个？
  * 4. 用户说过什么**跨项目**的规矩？
  *
- * 早期 B 只有"找项目 + 转交原话"，和 C 高度重复。
- * 现在改为只做这四件 C 做不到的事。
+ * 早期 Supervisor 只有"找项目 + 转交原话"，和 C 高度重复。
+ * 现在改为只做这四件 Assistant 做不到的事。
  *
  * ## 一条硬规矩
  *
@@ -65,7 +65,7 @@ function isRunning(status: ExecutorRow['status']): boolean {
 /**
  * 汇总所有项目的状态。
  *
- * 这是 B 的核心数据源：C 看不到别的项目，B 看得到全部。
+ * 这是 Supervisor 的核心数据源：C 看不到别的项目，B 看得到全部。
  */
 export function buildGlobalOverview(store: Store): GlobalOverview {
   const projects = store.listProjects().map((project): ProjectOverview => {
@@ -201,7 +201,7 @@ export function prioritize(overview: GlobalOverview): ProjectOverview[] {
     });
 }
 
-/** 把全局视图写成人话（B 对用户说的话）。 */
+/** 把全局视图写成人话（Supervisor 对用户说的话）。 */
 export function describeOverview(overview: GlobalOverview): string {
   if (overview.projects.length === 0) {
     return '还没有打开任何项目。';

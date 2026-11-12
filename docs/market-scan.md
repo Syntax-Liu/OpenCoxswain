@@ -16,7 +16,7 @@
 
 ## 1. 我们的方向是什么（先对齐，再比）
 
-四层结构：**A 用户 → B Supervisor → C Assistant（一项目一 C，常驻） → D 执行 Agent（一事一 D，并行）**。
+四层结构：**A 用户 → B Supervisor → C Assistant（一项目一 C，常驻） → D 执行 Agent（一事一 Agent，并行）**。
 
 三个判别特征，缺一个就不算同一赛道：
 

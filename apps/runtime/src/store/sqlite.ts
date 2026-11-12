@@ -7,7 +7,7 @@
  * 设计原则：
  * 1. **与 `MemoryStore` 实现同一个 `Store` 接口**，行为必须完全一致。
  *    切换后端不允许改变任何可观察行为（这一点由 `store.test.ts` 双后端跑同一套断言保证）。
- * 2. **写同步落盘**。C 的会话历史、D 的结算、冲突判定都是事实，
+ * 2. **写同步落盘**。Assistant 的会话历史、Agent 的结算、冲突判定都是事实，
  *    进程被强杀也不能丢——所以每个写操作都是立即提交的事务。
  * 3. **schema 版本化**。用 `PRAGMA user_version` 做迁移，老库能升级。
  *
@@ -15,12 +15,12 @@
  *
  * | 表 | 角色 |
  * | --- | --- |
- * | `project` | 项目 + C 的会话锚点 |
- * | `session` | C / D 的会话元数据 |
+ * | `project` | 项目 + Assistant 的会话锚点 |
+ * | `session` | C / Agent 的会话元数据 |
  * | `message` | 会话消息历史（"打开原会话"靠它） |
- * | `executor` | D 的记录 |
+ * | `executor` | Agent 的记录 |
  * | `turn` | 用户消息与冲突判定留痕 |
- * | `report` | C 的汇报 |
+ * | `report` | Assistant 的汇报 |
  */
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';

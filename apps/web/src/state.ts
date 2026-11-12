@@ -128,7 +128,7 @@ export function upsertExecutor(
  * 追加一段助手文本。
  *
  * 合并规则：如果上一条是"同一轮刚产生的助手消息"（保留源标记），
- * 就拼到它后面；否则新建一条。这样 C 的"收到，我派 X 去做"和随后的
+ * 就拼到它后面；否则新建一条。这样 Assistant 的"收到，我派 X 去做"和随后的
  * 结论不会变成两条割裂的消息。
  */
 export function mergeAssistantText(

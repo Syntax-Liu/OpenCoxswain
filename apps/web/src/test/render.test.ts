@@ -26,7 +26,7 @@ const msg = (over: Partial<MessageDto>): MessageDto => ({
 });
 
 describe('对话流过滤', () => {
-  it('只保留用户与 C 的消息', () => {
+  it('只保留用户与 Assistant 的消息', () => {
     const list = [
       msg({ id: '1', role: 'user', content: '你好' }),
       msg({ id: '2', role: 'assistant', content: '收到' }),

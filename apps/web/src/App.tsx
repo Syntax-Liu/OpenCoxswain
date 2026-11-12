@@ -7,16 +7,16 @@
  * ┌────────────┬────────────────────────────┐
  * │ B Supervisor  │                            │
  * │ 添加项目    │      主区                  │
- * │ ─────────  │  · 进项目 → 与 C 对话       │
+ * │ ─────────  │  · 进项目 → 与 Assistant 对话       │
  * │ 工作区      │  · 点某条 → 看 / 续聊 D     │
  * │ ◇ 项目      │  · 点 B → 跨项目路由        │
- * │   · D 对话  │                            │
+ * │   · 对话  │                            │
  * └────────────┴────────────────────────────┘
  * ```
  *
  * 关键映射（用户的原话）：
  * - **点文件夹 = 进入 C**（Assistant，项目的主人）
- * - **点对话 = 某个 D**（执行者，可看完整轨迹并继续追问）
+ * - **点对话 = 某个 Agent**（执行者，可看完整轨迹并继续追问）
  * - **B 单独入口**，只在多项目迷路时用
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -168,7 +168,7 @@ export function App(): JSX.Element {
     const stream = new EventStream('', {
       onEvent: (item) => {
         setState((s) => applyEvent(s, item.seq, item.event));
-        // 正在看某个 D 时，它结算了就重拉轨迹。
+        // 正在看某个 Agent 时，它结算了就重拉轨迹。
         const current = stateRef.current;
         if (
           item.event.type === 'executor_settled' &&
@@ -378,7 +378,7 @@ export function App(): JSX.Element {
     [api, view, setError],
   );
 
-  /** 用户直接对某个 D 追问。 */
+  /** 用户直接对某个 Agent 追问。 */
   const handleSendToExecutor = useCallback(
     async (text: string) => {
       if (view?.kind !== 'executor') return;

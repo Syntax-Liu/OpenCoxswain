@@ -93,7 +93,7 @@ export interface MessageDto {
   /**
    * 是否是系统内部通知（如执行者结算）。
    *
-   * 这类消息进入 C 的上下文，但**不该显示在用户的对话流里**——
+   * 这类消息进入 Assistant 的上下文，但**不该显示在用户的对话流里**——
    * 它是给模型的指令，不是用户说的话。
    */
   readonly internal?: boolean;
@@ -336,7 +336,7 @@ export class ApiClient {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/messages`);
   }
 
-  /** 对 C 说话。**立刻返回**，C 的回复通过 SSE 到达。 */
+  /** 对 Assistant 说话。**立刻返回**，Assistant 的回复通过 SSE 到达。 */
   say(projectId: string, text: string): Promise<{ accepted: boolean }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/say`, {
       method: 'POST',
@@ -365,7 +365,7 @@ export class ApiClient {
     return this.request(`/api/executors/${encodeURIComponent(executorId)}/messages`);
   }
 
-  /** 用户直接对某个 D 追问：它带着原上下文继续。 */
+  /** 用户直接对某个 Agent 追问：它带着原上下文继续。 */
   sayToExecutor(executorId: string, text: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/executors/${encodeURIComponent(executorId)}/say`, {
       method: 'POST',

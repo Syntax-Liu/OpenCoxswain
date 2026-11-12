@@ -1,8 +1,8 @@
 /**
- * General Manager（B）的跨项目能力测试。
+ * General Manager（Supervisor）的跨项目能力测试。
  *
- * B 存在的理由是**做 Project Manager（C）结构上做不到的事**：
- * C 只看得到自己那个项目，B 看得到全部。
+ * B 存在的理由是**做 Project Manager（Assistant）结构上做不到的事**：
+ * Assistant 只看得到自己那个项目，B 看得到全部。
  *
  * 最重要的一条：**跨项目写冲突必须被拦住**。
  * 两个项目同时改同一个文件会互相覆盖，而两边台账都显示"成功"。
@@ -90,10 +90,10 @@ describe('跨项目写冲突', () => {
     const text = describeConflict({
       withProjectId: 'p2',
       withAgentId: 'a2',
-      withLabel: 'B 的执行者',
+      withLabel: 'Supervisor 的执行者',
       overlap: 'd:/shared/utils',
     });
-    assert.match(text, /B 的执行者/);
+    assert.match(text, /Supervisor 的执行者/);
     assert.match(text, /互相覆盖/);
   });
 });
@@ -248,7 +248,7 @@ describe('端到端：跨项目冲突真的会拦住派活', () => {
     await assert.rejects(
       () =>
         runtime.spawn(p2.id, {
-          label: 'B 的执行者',
+          label: 'Supervisor 的执行者',
           goal: '也改共享库',
           writeScope: ['shared-lib/strings.ts'],
         }),

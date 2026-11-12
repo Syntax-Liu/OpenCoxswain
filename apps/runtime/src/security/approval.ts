@@ -6,11 +6,11 @@
  * 1. **执行前冻结，不是执行后通知**。命中危险动作时，工具**不会被真正执行**，
  *    而是先建一条待审批记录并挂起。用户批准才继续。
  *
- * 2. **超时就拒绝，不是永远挂着**。用户可能一直不在，D 不能无限等待——
+ * 2. **超时就拒绝，不是永远挂着**。用户可能一直不在，Agent 不能无限等待——
  *    到点自动判为拒绝（`expired`），D 收到明确原因后可以继续做别的。
  *    默认 10 分钟，可配。
  *
- * 3. **拒绝要给出可读原因**。D 看到"用户拒绝了 rm -rf（理由：那是测试夹具）"
+ * 3. **拒绝要给出可读原因**。Agent 看到"用户拒绝了 rm -rf（理由：那是测试夹具）"
  *    才能调整做法；只告诉它"失败"没有意义。
  */
 import { newId, type ApprovalRow, type Store } from '../store/store.js';
@@ -96,7 +96,7 @@ export async function requestApproval(
       };
     }
     if (Date.now() >= current.expiresAt) {
-      // 超时自动拒绝：D 不该被无限挂起。
+      // 超时自动拒绝：Agent 不该被无限挂起。
       await store.putApproval({
         ...current,
         status: 'expired',

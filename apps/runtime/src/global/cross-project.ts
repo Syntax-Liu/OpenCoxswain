@@ -8,7 +8,7 @@
  *
  * ```
  * 项目 A 的 Agent 在改 D:\shared\utils\strings.ts
- * 项目 B 的 Agent 也在改 D:\shared\utils\strings.ts
+ * 项目 Supervisor 的 Agent 也在改 D:\shared\utils\strings.ts
  * → 后写的覆盖先写的，两边台账都显示"成功"
  * ```
  *

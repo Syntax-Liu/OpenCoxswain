@@ -16,7 +16,7 @@ export interface ExecutorChatProps {
 }
 
 /**
- * 一个执行者 D 的对话视图。
+ * 一个执行者（Agent） 的对话视图。
  *
  * 结构对齐主流 Agent 软件：这里就是"打开原会话"。
  * - 首条是它的任务目标；
@@ -80,7 +80,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
 
         {busy && (
           <div className="message assistant">
-            <span className="msg-role">D · Agent</span>
+            <span className="msg-role">Agent</span>
             <div className="bubble">
               <span className="typing">
                 <i />
@@ -260,7 +260,7 @@ function TranscriptItem({ message }: { message: MessageDto }): JSX.Element | nul
 
   return (
     <div className="message assistant">
-      <span className="msg-role">D · Agent</span>
+      <span className="msg-role">Agent</span>
       <div className="bubble">{renderMarkdown(message.content)}</div>
     </div>
   );

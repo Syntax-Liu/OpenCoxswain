@@ -52,7 +52,7 @@ function makeSpyLlm(seen: string[][]) {
 }
 
 describe('关掉软件后 C 完整恢复（D5）', () => {
-  it('第二次启动时 C 能带着上一次的对话继续', async () => {
+  it('第二次启动时 Assistant 能带着上一次的对话继续', async () => {
     const file = await dbPath();
     const seenFirst: string[][] = [];
     const seenSecond: string[][] = [];
@@ -81,7 +81,7 @@ describe('关掉软件后 C 完整恢复（D5）', () => {
     assert.equal(
       opened2.project.assistantSessionId,
       opened1.project.assistantSessionId,
-      'C 的会话必须复用',
+      'Assistant 的会话必须复用',
     );
 
     await rt2.userSays(opened2.project.id, '我刚才说用什么工具链？');

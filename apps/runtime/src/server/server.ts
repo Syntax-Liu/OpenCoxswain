@@ -17,14 +17,14 @@
  * | GET  | `/api/projects` | 项目列表 |
  * | POST | `/api/projects` | 打开/新建项目 |
  * | GET  | `/api/projects/:id` | 项目详情（含执行者与汇报） |
- * | GET  | `/api/projects/:id/messages` | C 的对话历史 |
- * | POST | `/api/projects/:id/say` | 对 C 说一句话（立刻返回） |
+ * | GET  | `/api/projects/:id/messages` | Assistant 的对话历史 |
+ * | POST | `/api/projects/:id/say` | 对 Assistant 说一句话（立刻返回） |
  * | POST | `/api/projects/:id/stop` | 停止 C 当前这一轮 |
  * | GET  | `/api/projects/:id/reports` | 汇报列表 |
  * | GET  | `/api/executors/:id` | 执行者详情 |
  * | POST | `/api/executors/:id/cancel` | 取消执行者 |
- * | GET  | `/api/executors/:id/messages` | "打开原会话"：D 的完整记录 |
- * | POST | `/api/route` | B 的路由判断 |
+ * | GET  | `/api/executors/:id/messages` | "打开原会话"：Agent 的完整记录 |
+ * | POST | `/api/route` | Supervisor 的路由判断 |
  * | POST | `/api/handoff` | B 转交原话 |
  * | GET  | `/api/events` | SSE 事件流（支持 `?after=`） |
  */
@@ -445,7 +445,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         const body = await readJson(req);
         const text = str(body.text);
         if (!text) return deny(400, '缺少 text');
-        // 立刻返回：C 的回复通过 SSE 推送，不在这里等。
+        // 立刻返回：Assistant 的回复通过 SSE 推送，不在这里等。
         await orchestrator.userSays(projectId, text, {
           source: str(body.source) ?? 'webapp',
         });
@@ -529,7 +529,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
 
       if (method === 'GET' && action === 'messages') {
-        // "打开原会话"：D 的完整轨迹（含每次工具调用）。
+        // "打开原会话"：Agent 的完整轨迹（含每次工具调用）。
         const transcript = orchestrator.executorTranscript(executorId);
         return reply(200, {
           executor: executor,
@@ -540,7 +540,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
 
       if (method === 'POST' && action === 'say') {
-        // 用户直接对 D 说一句（带原上下文续跑）。
+        // 用户直接对 Agent 说一句（带原上下文续跑）。
         const body = await readJson(req);
         const text = str(body.text);
         if (!text) return deny(400, '缺少 text');
@@ -561,7 +561,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
-    // ---- B 的路由 ----
+    // ---- Supervisor 的路由 ----
     if (method === 'POST' && url.pathname === '/api/route') {
       const body = await readJson(req);
       const query = str(body.query);

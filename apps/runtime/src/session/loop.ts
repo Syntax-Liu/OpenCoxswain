@@ -183,7 +183,7 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
   yield { type: 'done', finalText: lastText, steps: maxSteps };
 }
 
-/** 不带工具跑一次纯对话（B 的路由判断、记忆提炼等场景）。 */
+/** 不带工具跑一次纯对话（Supervisor 的路由判断、记忆提炼等场景）。 */
 export async function chatOnce(
   llm: LlmClient,
   messages: ChatMessage[],

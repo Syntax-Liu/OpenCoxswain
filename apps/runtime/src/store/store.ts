@@ -5,11 +5,11 @@
  *
  * | 表 | 角色 | 一句话 |
  * | --- | --- | --- |
- * | `project` | 项目 + C | 一个工作目录 + 一个常驻Assistant会话 |
- * | `session` | 会话 | C / D 的消息历史与状态 |
- * | `executor` | D | 执行者，一事一 D，可被追问 |
+ * | `project` | 项目 + Assistant | 一个工作目录 + 一个常驻 Assistant 会话 |
+ * | `session` | 会话 | C / Agent 的消息历史与状态 |
+ * | `executor` | D | 执行者，一事一 Agent，可被追问 |
  * | `turn` | 用户消息 | 留痕冲突判定与用户直连 D |
- * | `report` | C 的汇报 | 每一条向用户的汇报 |
+ * | `report` | Assistant 的汇报 | 每一条向用户的汇报 |
  *
  * 为什么先做内存实现：运行时骨架阶段要先把**行为**跑通并被测试钉死，
  * 换存储后端时行为不能变。接口按"读同步、写异步"设计，SQLite 后端
@@ -51,7 +51,7 @@ export interface ProjectRow {
   readonly rootPath: string;
   /** 原始路径（展示用，保留大小写）。 */
   readonly displayPath: string;
-  /** C 的会话 id —— 整个架构的锚点。 */
+  /** Assistant 的会话 id —— 整个架构的锚点。 */
   readonly assistantSessionId: string;
   /**
    * 用量止损上限（token）。**不是计费**，是防止失控执行者烧光额度的止损线。
@@ -66,7 +66,7 @@ export interface SessionRow {
   readonly id: string;
   readonly kind: SessionKind;
   readonly projectId: string | null;
-  /** D 的父会话（也就是 C）；C/B 为 null。 */
+  /** Agent 的父会话（也就是 C）；C/B 为 null。 */
   readonly parentSessionId: string | null;
   readonly label: string;
   /** system prompt 快照，恢复会话时重放用。 */
@@ -92,7 +92,7 @@ export interface ExecutorRow {
   readonly blockedReason: string | null;
   /** 运行指标（不做计费，只反映真实用量）。 */
   readonly metrics: RunMetrics;
-  /** 验收标准（C 派活时声明）。可能为空——空表示只由人看结论。 */
+  /** 验收标准（Assistant 派活时声明）。可能为空——空表示只由人看结论。 */
   readonly criteria: readonly Criterion[];
   /** 验收策略。默认 unverified_only。 */
   readonly policy: AcceptancePolicy;
@@ -482,7 +482,7 @@ export function newId(prefix: string): string {
 /**
  * 内部消息的 source 前缀。
  *
- * 消息进 C 的上下文，但**不进用户的对话流**——它是系统给模型的指令，
+ * 消息进 Assistant 的上下文，但**不进用户的对话流**——它是系统给模型的指令，
  * 不是用户说的话。界面上不该出现，历史查询时也要标出来。
  */
 export const INTERNAL_SOURCE_PREFIX = 'internal:';

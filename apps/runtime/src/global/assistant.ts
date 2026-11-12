@@ -1,8 +1,8 @@
 /**
- * Supervisor B：只做路由，不执行。
+ * Supervisor：只做路由，不执行。
  *
  * 用户设想：
- * > "用户在主推流程外，可直接与 B 对话，B 会引导用户和哪一个 C 对接，
+ * > "用户在主推流程外，可直接与 Supervisor 对话，它会引导用户和哪一个 Assistant 对接，
  * >  其余流程和主推流程一致，这个流程在用户有多个项目、
  * >  且不知道该向哪一个 C 发送任务时比较有效。"
  *
@@ -11,9 +11,9 @@
  * >  梳理相关方案、约束与偏好，为新任务准备好起点。"
  *
  * 三条硬边界（任何实现都不许越）：
- * 1. **不许自己派执行者** —— B 没有任何派活工具。
+ * 1. **不许自己派执行者** —— Supervisor 没有任何派活工具。
  * 2. **不许自己改代码**。
- * 3. **不许代 C 汇报"已完成"** —— B 只知道"我转交了"。
+ * 3. **不许代 C 汇报"已完成"** —— Supervisor 只知道"我转交了"。
  */
 import { newId, type ProjectRow, type Store } from '../store/store.js';
 import type { Orchestrator } from '../orchestrator.js';
@@ -126,7 +126,7 @@ export interface HandoffResult {
 /**
  * 把用户的**原话原样**转交给目标项目的 C。
  *
- * 为什么不加工：B 一旦改写用户原话，C 就会在错误的前提上开工。
+ * 为什么不加工：Supervisor 一旦改写用户原话，Assistant 就会在错误的前提上开工。
  */
 export async function handoff(
   orchestrator: Orchestrator,
