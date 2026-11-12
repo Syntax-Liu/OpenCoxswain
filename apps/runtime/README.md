@@ -62,7 +62,7 @@ src/
     sqlite.ts           SQLite 实现（node:sqlite）
   global/
     assistant.ts        B 的路由与转交
-  test/                 285 条测试
+  test/                 305 条测试
 ```
 
 ## 关键机制
@@ -230,7 +230,7 @@ pnpm --filter @opencoxswain/runtime build
 pnpm --filter @opencoxswain/runtime test
 ```
 
-**285 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
+**305 条测试**，全部用脚本化假模型（`MockLlmClient`）驱动，不需要网络：
 
 | 文件 | 条数 | 覆盖 |
 | --- | --- | --- |

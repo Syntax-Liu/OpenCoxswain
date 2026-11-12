@@ -211,6 +211,27 @@ export interface UpdateCheckDto {
   readonly checkedAt: number;
 }
 
+export interface TaskTemplateDto {
+  readonly id: string;
+  readonly name: string;
+  readonly whenToUse: string;
+  readonly writeScope: readonly string[];
+  readonly policy: string;
+  readonly readonly?: boolean;
+}
+
+export interface AppliedTemplateDto {
+  readonly templateId: string;
+  readonly label: string;
+  readonly goal: string;
+  readonly writeScope: readonly string[];
+  readonly criteria: readonly unknown[];
+  readonly policy: string;
+  readonly readonly: boolean;
+  /** 永远是 true：模板只预填，不自动派活。 */
+  readonly requiresConfirmation: true;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -385,6 +406,22 @@ export class ApiClient {
   dismissMemory(candidateId: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/memories/${encodeURIComponent(candidateId)}/dismiss`, {
       method: 'POST',
+    });
+  }
+
+  /** 任务模板。 */
+  templates(): Promise<{ templates: TaskTemplateDto[] }> {
+    return this.request('/api/templates');
+  }
+
+  /** 套用模板：只生成待确认草稿，**不派活**。 */
+  applyTemplate(
+    id: string,
+    input: { label: string; goal: string },
+  ): Promise<AppliedTemplateDto> {
+    return this.request(`/api/templates/${encodeURIComponent(id)}/apply`, {
+      method: 'POST',
+      body: input,
     });
   }
 

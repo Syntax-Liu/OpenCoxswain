@@ -76,6 +76,8 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 | --- | --- |
 | **C 常驻** | 一项目一 `assistantSessionId`；关掉软件再打开，C 带着原对话继续 |
 | **关窗口不退出** | 点 × 只是隐藏到托盘，执行者继续跑；真正退出走托盘菜单「退出」 |
+| **任务模板** | 修缺陷 / 加功能 / 写文档 / 重构 / 调研五类，套用只预填，**不自动派活** |
+| **定时建议** | 到点只提醒，不自动开工——人拍板是产品前提 |
 | **连发不打断** | 新消息进 Inbox 排队，当前这轮跑完才被看到 |
 | **真正的并行** | 只读任务（`writeScope: ["readonly"]`）之间**永远不排队**；写任务按写域相交互斥 |
 | **D 可续聊** | 点开任何一个执行者，看它的完整轨迹并带上下文继续追问 |
@@ -90,7 +92,7 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 ## 测试
 
 ```bash
-pnpm test        # 运行时 285 + 界面 38 = 323 条
+pnpm test        # 运行时 305 + 界面 38 = 343 条
 pnpm typecheck
 pnpm app:check   # Rust 壳编译检查
 ```

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { MessageDto, ProjectDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
@@ -11,6 +11,10 @@ export interface ConversationProps {
   readonly thinking: boolean;
   /** 记忆候选审阅区（可折叠），放在顶部。 */
   readonly memoryReview?: React.ReactNode;
+  /** 模板选择器，放在输入框下方。 */
+  readonly templatePicker?: React.ReactNode;
+  /** 外部注入的草稿（模板填入用）；变化时覆盖输入框。 */
+  readonly draftSeed?: { readonly text: string; readonly at: number };
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
 }
@@ -25,6 +29,14 @@ export interface ConversationProps {
  */
 export function Conversation(props: ConversationProps): JSX.Element {
   const [draft, setDraft] = useState('');
+
+  // 模板填入：只在 seed 变化时覆盖一次，不干扰用户后续输入。
+  const lastSeed = useRef<number>(0);
+  useEffect(() => {
+    if (!props.draftSeed || props.draftSeed.at === lastSeed.current) return;
+    lastSeed.current = props.draftSeed.at;
+    setDraft(props.draftSeed.text);
+  }, [props.draftSeed]);
 
   const visible = props.messages.filter(
     (m) => (m.role === 'user' || m.role === 'assistant') && !m.internal,
@@ -111,6 +123,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           rows={3}
         />
         <div className="composer-actions">
+          {props.templatePicker}
           <button type="button" className="ghost" onClick={props.onStop} title="停止当前这轮">
             停止
           </button>

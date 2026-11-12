@@ -25,6 +25,9 @@ import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
 import type { MarkdownMemoryStore, MemoryScope } from './memory/store.js';
 import { extractCandidates } from './memory/extract.js';
+import { TEMPLATES, applyTemplate, findTemplate, type AppliedTemplate, type TaskTemplate } from './templates/templates.js';
+import { checkSchedules, type ScheduleSpec, type Suggestion } from './schedules/schedules.js';
+import { MemoryScheduleStore, type ScheduleStorage } from './schedules/store.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -61,6 +64,8 @@ export interface OrchestratorOptions {
   readonly memory?: MarkdownMemoryStore;
   /** 危险动作审批的超时（毫秒）。默认 10 分钟，到点自动拒绝。 */
   readonly approvalTimeoutMs?: number;
+  /** 定时配置存储；不提供时定时功能不可用。 */
+  readonly schedules?: ScheduleStorage;
   /**
    * 用户扩展（geek 自定义口）。
    *
@@ -149,6 +154,7 @@ export class Orchestrator extends EventEmitter {
   private tokenGuardTripped: string | null = null;
   /** 审批超时（毫秒）。到点自动拒绝，不让执行者无限挂起。 */
   private readonly approvalTimeoutMs: number | undefined;
+  private readonly scheduleStore: ScheduleStorage;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -163,6 +169,8 @@ export class Orchestrator extends EventEmitter {
     this.readMemory = options.readMemory;
     this.memory = options.memory;
     this.approvalTimeoutMs = options.approvalTimeoutMs;
+    // 没提供时用内存实现，保证方法可调用（只是不持久化）。
+    this.scheduleStore = options.schedules ?? new MemoryScheduleStore();
     this.extensions = options.extensions;
   }
 
@@ -1306,6 +1314,59 @@ export class Orchestrator extends EventEmitter {
   /** 可见状态，供 UI 与测试读取。 */
   stats(): { running: number; queued: number; limit: number } {
     return this.gate.stats();
+  }
+
+  // -------------------------------------------------------------------------
+  // 模板与定时（都只产出"待确认"，不自动开工）
+  // -------------------------------------------------------------------------
+
+  /** 列出内置任务模板。 */
+  listTemplates(): readonly TaskTemplate[] {
+    return TEMPLATES;
+  }
+
+  /**
+   * 套用模板 → 待确认的派活草稿。
+   *
+   * **不会派活。** 调用方必须让用户确认后再调 `spawn`。
+   */
+  applyTemplate(id: string, input: { label: string; goal: string }): AppliedTemplate {
+    const template = findTemplate(id);
+    if (!template) throw new Error(`模板 ${id} 不存在`);
+    return applyTemplate(template, input);
+  }
+
+  /**
+   * 检查定时并产出建议。
+   *
+   * **只产出建议，不派活。** 整个模块没有"自动执行"的入口。
+   */
+  async checkSchedules(now = Date.now()): Promise<Suggestion[]> {
+    const schedules = await this.scheduleStore.load();
+    const fired = await checkSchedules(schedules, (spec) => this.scheduleStore.save(spec), now);
+    for (const suggestion of fired) {
+      await this.recordReport({
+        projectId: suggestion.projectId,
+        executorId: null,
+        kind: 'progress',
+        body:
+          `⏰ 定时提醒：${suggestion.title}\n\n${suggestion.goal}\n\n` +
+          '（这只是提醒，还没有派活。确认后才会开始。）',
+        needsUser: true,
+      });
+    }
+    return fired;
+  }
+
+  /** 创建/更新一条定时。 */
+  async saveSchedule(spec: ScheduleSpec): Promise<void> {
+    await this.scheduleStore.save(spec);
+  }
+
+  /** 列出定时。 */
+  async listSchedules(projectId?: string): Promise<readonly ScheduleSpec[]> {
+    const all = await this.scheduleStore.load();
+    return projectId ? all.filter((s) => s.projectId === projectId) : all;
   }
 
   /**

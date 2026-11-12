@@ -1368,3 +1368,100 @@ button.small {
 .update-banner .link {
   margin-left: auto;
 }
+
+/* ---------- ÈÎÎñÄ£°å ---------- */
+
+.template-picker {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-panel);
+}
+
+.template-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+
+.template-head .link {
+  margin-left: auto;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 7px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  position: relative;
+}
+
+.template-card:hover {
+  border-color: var(--accent-dim);
+}
+
+.template-card.active {
+  border-color: var(--accent);
+  background: #13202b;
+}
+
+.template-icon { font-size: 15px; }
+.template-name { font-size: 12.5px; font-weight: 600; }
+.template-hint { font-size: 11px; color: var(--text-muted); }
+
+.template-tag {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.template-form {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.template-form input,
+.template-form textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.template-form input:focus,
+.template-form textarea:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+
+.template-form button {
+  align-self: flex-end;
+}

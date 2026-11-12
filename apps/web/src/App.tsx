@@ -45,6 +45,7 @@ import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { MemoryReview } from './components/MemoryReview.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
+import { TemplatePicker } from './components/TemplatePicker.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 
@@ -77,6 +78,8 @@ export function App(): JSX.Element {
     project: Array<{ id: string; kind: string; text: string; source: string }>;
   }>({ global: [], project: [] });
   const [extracting, setExtracting] = useState(false);
+  /** 模板填入的草稿；带时间戳，保证重复点同一个模板也会生效。 */
+  const [draftSeed, setDraftSeed] = useState<{ text: string; at: number } | null>(null);
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -482,6 +485,16 @@ export function App(): JSX.Element {
                 onForget={(scope, id) => void handleForgetMemory(scope, id)}
               />
             }
+            templatePicker={
+              <TemplatePicker
+                api={api}
+                onPick={(applied) => {
+                  // 模板只把话写好——**还是要用户自己点发送**。
+                  setDraftSeed({ text: `${applied.label}\n${applied.goal}`, at: Date.now() });
+                }}
+              />
+            }
+            {...(draftSeed ? { draftSeed } : {})}
             onSend={(text) => void handleSendToAssistant(text)}
             onStop={() => void handleStop()}
           />

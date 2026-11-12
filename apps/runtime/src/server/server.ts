@@ -42,6 +42,7 @@ import type { ImBridge } from '../im/bridge.js';
 import { TelegramClient } from '../im/telegram.js';
 import { readUpdateCheck } from '../update/check.js';
 import { isAllowedOrigin, isAuthorized } from './token.js';
+import type { ScheduleSpec } from '../schedules/schedules.js';
 import { parseTokenGuard, startOfToday } from '../cost/budget.js';
 import { aggregate } from '../cost/metrics.js';
 import { EventBus } from './bus.js';
@@ -305,6 +306,51 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     if (method === 'POST' && url.pathname === '/api/im/stop') {
       await im?.stop();
       return reply(200, { ok: true });
+    }
+
+    // ---- 任务模板 ----
+    if (method === 'GET' && url.pathname === '/api/templates') {
+      return reply(200, { templates: orchestrator.listTemplates() });
+    }
+
+    // ---- 套用模板：只生成草稿，**不派活** ----
+    const applyMatch = /^\/api\/templates\/([^/]+)\/apply$/.exec(url.pathname);
+    if (method === 'POST' && applyMatch) {
+      const templateId = decodeURIComponent(applyMatch[1]!);
+      const body = await readJson(req);
+      try {
+        const applied = orchestrator.applyTemplate(templateId, {
+          label: str(body.label) ?? '',
+          goal: str(body.goal) ?? '',
+        });
+        return reply(200, applied);
+      } catch (error) {
+        return deny(400, error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    // ---- 定时建议 ----
+    if (method === 'GET' && url.pathname === '/api/schedules') {
+      const projectId = url.searchParams.get('projectId') ?? undefined;
+      return reply(200, { schedules: await orchestrator.listSchedules(projectId) });
+    }
+    if (method === 'POST' && url.pathname === '/api/schedules') {
+      const body = await readJson(req);
+      const spec = body as unknown as ScheduleSpec;
+      if (!spec?.id || !spec?.projectId || !spec.title || !spec.goal) {
+        return deny(400, '定时任务缺少必要字段（id / projectId / title / goal）');
+      }
+      await orchestrator.saveSchedule(spec);
+      return reply(200, { ok: true });
+    }
+
+    // 手动触发一次检查：返回建议，**仍然不派活**。
+    if (method === 'POST' && url.pathname === '/api/schedules/check') {
+      const fired = await orchestrator.checkSchedules();
+      return reply(200, {
+        suggestions: fired,
+        note: '这只是提醒，还没有派活。确认后才会开始。',
+      });
     }
 
     // ---- 危险动作审批 ----

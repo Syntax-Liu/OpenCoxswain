@@ -23,6 +23,7 @@ import { ImSettingsStore } from './im/settings.js';
 import { ImBridge } from './im/bridge.js';
 import { TelegramClient } from './im/telegram.js';
 import { loadExtensions } from './extensions/index.js';
+import { ScheduleStore } from './schedules/store.js';
 import { TokenStore } from './server/token.js';
 import { secretServiceFromEnv } from './llm/secret.js';
 import path from 'node:path';
@@ -169,6 +170,8 @@ async function main(): Promise<void> {
     llm,
     maxConcurrentExecutors: args.maxConcurrent,
     memory,
+    // 定时配置落成 JSON：量小，用户还能直接看和改。
+    schedules: new ScheduleStore(path.join(os.homedir(), '.opencoxswain', 'schedules.json')),
     ...(extensions.beforeTool.length + extensions.afterTool.length > 0
       ? { extensions: { beforeTool: extensions.beforeTool, afterTool: extensions.afterTool } }
       : {}),
