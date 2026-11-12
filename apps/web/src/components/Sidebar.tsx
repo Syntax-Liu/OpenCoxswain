@@ -62,6 +62,14 @@ function loadWidth(): number {
 export function Sidebar(props: SidebarProps): JSX.Element {
   const [query, setQuery] = useState('');
   const [onlyRunning, setOnlyRunning] = useState(false);
+  /** 搜索框是否展开。收起时只显示一个放大镜（照 DSH）。 */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // 展开后自动聚焦，用户不用再点一下
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
   const [width, setWidth] = useState(loadWidth);
   const dragging = useRef(false);
   const widthRef = useRef(width);
@@ -128,36 +136,75 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         </button>
       </nav>
 
-      {/* 工作区标题行：带搜索/筛选/新建三个小图标（DSH 的做法） */}
-      <div className="workspace-head">
-        <span className="workspace-title">工作区</span>
-        <span className="workspace-actions">
-          <input
-            className="workspace-search"
-            value={query}
-            placeholder="搜索"
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="搜索 Agent"
-          />
-          <button
-            type="button"
-            className={`icon-btn${onlyRunning ? ' active' : ''}`}
-            title={onlyRunning ? '显示全部' : '只看在跑'}
-            aria-pressed={onlyRunning}
-            onClick={() => setOnlyRunning((v) => !v)}
-          >
-            {/* 用 SVG 不用文字字符：字符在深色下粗细不匀、基线对不齐，
-                这是之前"违和感"的来源。 */}
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path
-                d="M4.5 2.5v11M4.5 13.5 2 11M4.5 13.5 7 11M11.5 13.5v-11M11.5 2.5 9 5M11.5 2.5 14 5"
-                stroke="currentColor"
-                strokeWidth="1.1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+      {/* 工作区标题行。
+          搜索是**收起态**：默认一个放大镜，点开才展开成输入框（照 DSH）。 */}
+      <div className={`workspace-head${searchOpen ? ' searching' : ''}`}>
+        {searchOpen ? (
+          <span className="search-box">
+            <svg className="search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-          </button>
+            <input
+              ref={searchRef}
+              className="search-input"
+              value={query}
+              placeholder="搜索会话名称"
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setQuery('');
+                  setSearchOpen(false);
+                }
+              }}
+              aria-label="搜索会话名称"
+            />
+            <button
+              type="button"
+              className="search-clear"
+              title="关闭搜索"
+              onClick={() => {
+                setQuery('');
+                setSearchOpen(false);
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </span>
+        ) : (
+          <>
+            <span className="workspace-title">工作区</span>
+            <span className="workspace-actions">
+              <button
+                type="button"
+                className="icon-btn"
+                title="搜索"
+                onClick={() => setSearchOpen(true)}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={`icon-btn${onlyRunning ? ' active' : ''}`}
+                title={onlyRunning ? '显示全部' : '只看在跑'}
+                aria-pressed={onlyRunning}
+                onClick={() => setOnlyRunning((v) => !v)}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <path
+                    d="M4.5 2.5v11M4.5 13.5 2 11M4.5 13.5 7 11M11.5 13.5v-11M11.5 2.5 9 5M11.5 2.5 14 5"
+                    stroke="currentColor"
+                    strokeWidth="1.1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
           <button type="button" className="icon-btn" title="新建项目" onClick={props.onOpenProject}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
               <path
@@ -168,7 +215,9 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               />
             </svg>
           </button>
-        </span>
+            </span>
+          </>
+        )}
       </div>
 
       <div className="workspace-tree">

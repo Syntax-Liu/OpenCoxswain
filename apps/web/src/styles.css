@@ -2707,3 +2707,71 @@ body.is-resizing {
 .message.user .msg-role {
   display: none;
 }
+
+/* ---------- 搜索：收起是放大镜，展开是输入框（照 DSH） ---------- */
+
+/* 展开后整行变成搜索框，标题和图标都让位 */
+.workspace-head.searching {
+  padding: 8px 10px 6px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.search-box:focus-within {
+  border-color: var(--accent);
+}
+
+.search-icon {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 18px;
+}
+
+.search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.search-clear {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-dim);
+}
+
+.search-clear:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+/* 收起态：原来的搜索框样式不再需要（现在是按钮） */
+.workspace-search {
+  display: none;
+}
