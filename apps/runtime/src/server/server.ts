@@ -620,9 +620,34 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   const port = options.port ?? 47900;
 
   await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
+    const onListenError = (error: NodeJS.ErrnoException): void => {
+      // 端口被占用是最常见的情况：多半是已经开了一个实例。
+      // 原始错误 `listen EADDRINUSE 127.0.0.1:47900` 对用户毫无意义，
+      // 这里换成能照着做的说明。
+      if (error.code === 'EADDRINUSE') {
+        reject(
+          new Error(
+            `端口 ${port} 已被占用。\n` +
+              `通常是因为已经开了一个 OpenCoxswain。\n` +
+              `请先关掉那个窗口；若确认没有在运行，可能是别的程序占用了 ${port} 端口，\n` +
+              `可以用 \`netstat -ano | findstr ${port}\` 查看是谁，` +
+              `或设置环境变量 OPENCOXSWAIN_PORT 换一个端口。`,
+          ),
+        );
+        return;
+      }
+      if (error.code === 'EACCES') {
+        reject(new Error(`没有权限监听端口 ${port}。请换一个大于 1024 的端口。`));
+        return;
+      }
+      reject(error);
+    };
+
+    server.once('error', onListenError);
     server.listen(port, host, () => {
-      server.off('error', reject);
+      // 启动成功后换成持久监听，避免之后 socket 出错时无人处理而崩掉进程。
+      server.removeListener('error', onListenError);
+      server.on('error', (error) => log('error', `服务出错：${error.message}`));
       resolve();
     });
   });

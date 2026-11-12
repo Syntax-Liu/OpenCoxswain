@@ -327,6 +327,20 @@ fn main() {
     install_panic_hook();
 
     let app = match tauri::Builder::default()
+        // 单实例必须**第一个**注册（插件文档要求）：
+        // 它要在其它插件和窗口初始化之前就拦下第二个进程。
+        //
+        // 第二个进程进来时不会起新窗口，而是把已有窗口拉到前台——
+        // 之前双击两次会起两个进程，抢同一个端口和同一个 SQLite 库：
+        // 轻则第二个窗口白屏，重则两个进程同时写库。
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            append_log("检测到已有实例，唤回原窗口");
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         // 自动更新：检查与下载由插件完成，安装后由 process 插件重启。
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())

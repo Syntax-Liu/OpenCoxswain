@@ -44,7 +44,9 @@ function parseArgs(argv: readonly string[]): CliArgs {
   let name: string | undefined;
   let maxConcurrent = 5;
   let serve = false;
-  let port = 47900;
+  // 端口优先级：--port 参数 > OPENCOXSWAIN_PORT 环境变量 > 默认 47900。
+// 环境变量存在是为了"端口被别的程序占了"时能换一个，不用改启动参数。
+let port = Number(process.env.OPENCOXSWAIN_PORT) || 47900;
   let staticDir: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -74,8 +76,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
       case '--port':
         port = Number(next) || port;
         i += 1;
-        break;
-      case '--static':
+        break;      case '--static':
         staticDir = next;
         // 给了静态目录意味着要服务界面，自动开启 HTTP。
         serve = true;

@@ -89,7 +89,7 @@ pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsi
 ## 测试
 
 ```bash
-pnpm test        # 运行时 245 + 界面 38 = 283 条
+pnpm test        # 运行时 246 + 界面 38 = 284 条
 pnpm typecheck
 pnpm app:check   # Rust 壳编译检查
 ```
@@ -113,6 +113,7 @@ pnpm app:check   # Rust 壳编译检查
 | `OPENCOXSWAIN_DB` | `~/.opencoxswain/runtime.db` | SQLite 库 |
 | `OPENCOXSWAIN_MEMORY` | `~/.opencoxswain/memory` | 记忆目录 |
 | `OPENCOXSWAIN_NODE_BIN` | 空 | 桌面壳启动运行时用的 node |
+| `OPENCOXSWAIN_PORT` | `47900` | 运行时 HTTP 端口（端口被占用时改这个） |
 | `OPENCOXSWAIN_IM_FILE` | `~/.opencoxswain/im.json` | 手机通道（Telegram）配置 |
 | `OPENCOXSWAIN_TELEGRAM_TOKEN` | 空 | 手机通道 bot token（优先于配置文件） |
 | `TAURI_SIGNING_PRIVATE_KEY` | 空 | **只用于发版构建**：自动更新签名私钥。见 [docs/release.md](docs/release.md) |
