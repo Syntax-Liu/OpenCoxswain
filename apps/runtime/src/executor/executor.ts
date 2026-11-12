@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 
 import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/loop.js';
 import { applyEdit } from './edit.js';
+import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
@@ -69,12 +70,16 @@ export function executorSystemPrompt(input: {
   readonly goal: string;
   readonly writeScope: readonly string[];
   readonly readonlyTask?: boolean;
+  /** 可用技能。只渲染名称和描述——正文要模型调 use_skill 才加载。 */
+  readonly skills?: readonly SkillSummary[];
 }): string {
   const scope = input.readonlyTask
     ? '只读任务 —— 不要修改、创建或删除任何文件，只做查询与分析'
     : input.writeScope.length > 0
       ? input.writeScope.join(', ')
       : '（未声明 —— 本次按串行执行，仍只允许改本项目）';
+  // 技能目录：只占约 20 token/个。正文按需加载，这是省上下文的关键。
+  const catalog = renderCatalog(input.skills ?? []);
   return [
     `你是Agent。你只干一件确定的活，干完就结束。`,
     `项目：${input.projectName}`,
@@ -107,6 +112,7 @@ export function executorSystemPrompt(input: {
         ].join('\n')
       : '`run_command` 在 POSIX shell 中执行。',
     '',
+    ...(catalog ? [catalog, ''] : []),
     '## 交付格式（必须包含这三段）',
     '### 做了什么',
     '具体改了哪些文件、做了什么判断。',
@@ -207,6 +213,21 @@ export function executorTools(): ToolDefinition[] {
         },
       },
     },
+    {
+      name: 'use_skill',
+      description:
+        '加载一个技能的完整说明。技能是"这个项目怎么做某类事"的知识' +
+        '（比如测试怎么写、发布流程）。系统提示里只列出了技能名称和描述，' +
+        '**需要时再调用这个工具拿正文**。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name'],
+        properties: {
+          name: { type: 'string', description: '技能名（见系统提示里的「可用技能」）' },
+        },
+      },
+    },
   ].filter((t) => t.name !== 'search_files' || true) as ToolDefinition[];
 }
 
@@ -254,6 +275,8 @@ export interface ExecutorToolHostOptions {
   };
   readonly commandTimeoutMs?: number;
   readonly maxOutputChars?: number;
+  /** 可用技能列表（只含名称与描述）。模型调用 use_skill 时才读正文。 */
+  readonly skills?: readonly SkillSummary[];
 }
 
 /** 把相对路径解析到项目内，越界就抛错。 */
@@ -350,6 +373,29 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             const target = resolveInside(rootPath, String(args.path ?? ''));
             const content = await readFile(target, 'utf8');
             return { ok: true, content: content.slice(0, maxOutput) };
+          }
+          case 'use_skill': {
+            // 只读操作：加载说明不改任何文件，只读任务里也能用
+            const skills = options.skills ?? [];
+            const wanted = String(args.name ?? '').trim();
+
+            const found = skills.find((s) => s.name === wanted);
+            if (!found) {
+              const names = skills.map((s) => s.name).join(', ') || '（没有可用技能）';
+              return { ok: false, content: `没有名为 ${wanted} 的技能。可用：${names}` };
+            }
+
+            const full = await loadSkill(found);
+            if (!full) {
+              return { ok: false, content: `技能 ${wanted} 加载失败（文件可能已被删除）。` };
+            }
+            if (!full.content.trim()) {
+              return { ok: false, content: `技能 ${wanted} 的正文是空的。` };
+            }
+            return {
+              ok: true,
+              content: `<skill_content name="${full.name}">\n${full.content.slice(0, maxOutput)}\n</skill_content>`,
+            };
           }
           case 'edit_file': {
             if (options.readonlyTask) {
@@ -558,6 +604,8 @@ export interface RunExecutorOptions {
   readonly projectName: string;
   readonly goal: string;
   readonly writeScope: readonly string[];
+  /** 可用技能（名称 + 描述）。正文由模型调 use_skill 加载。 */
+  readonly skills?: readonly SkillSummary[];
   /** 只读任务：不写文件，工具层硬性拦截写入。 */
   readonly readonlyTask?: boolean;
   readonly signal: AbortSignal;

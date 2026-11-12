@@ -16,6 +16,8 @@
  * 决定怎么展示。
  */
 import { EventEmitter } from 'node:events';
+import os from 'node:os';
+import path from 'node:path';
 
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
@@ -54,6 +56,7 @@ import {
 import type { PermissionLevel } from './settings/permission.js';
 import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
+import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -98,6 +101,8 @@ export interface OrchestratorOptions {
   readonly permissions?: PermissionStoreLike;
   /** 多模型配置；不提供时用内存实现。 */
   readonly models?: ModelStoreLike;
+  /** 用户级技能目录；不提供时用 ~/.opencoxswain/skills。 */
+  readonly userSkillsDir?: string;
   /**
    * 用户扩展（geek 自定义口）。
    *
@@ -190,6 +195,8 @@ export class Orchestrator extends EventEmitter {
   private readonly closeStore: CloseSettingsStoreLike;
   private readonly permissionStore: PermissionStoreLike;
   private readonly modelStore: ModelStoreLike;
+  /** 用户级技能目录（~/.opencoxswain/skills）。 */
+  private readonly userSkillsDir: string;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -209,6 +216,7 @@ export class Orchestrator extends EventEmitter {
     this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
     this.modelStore = options.models ?? new MemoryModelStore();
+    this.userSkillsDir = options.userSkillsDir ?? path.join(os.homedir(), '.opencoxswain', 'skills');
     this.extensions = options.extensions;
   }
 
@@ -254,6 +262,8 @@ export class Orchestrator extends EventEmitter {
   private runnerDeps(input: {
     projectId: string;
     executorId: string;
+    /** 派活时扫好的技能列表；不给就不注入技能目录。 */
+    skills?: readonly SkillSummary[];
     /** 用量止损判定；续聊不参与止损时传 undefined。 */
     tokenGuard?: ProjectRow['tokenGuard'];
     onAbort?: () => void;
@@ -266,6 +276,7 @@ export class Orchestrator extends EventEmitter {
         ? { commandTimeoutMs: this.commandTimeoutMs }
         : {}),
       ...(this.extensions ? { extensions: this.extensions } : {}),
+      ...(input.skills ? { skills: input.skills } : {}),
       approve: (tool, args) =>
         this.approveFor(input.projectId, input.executorId, tool, args),
       drainInputs: (executorId) => {
@@ -909,6 +920,9 @@ export class Orchestrator extends EventEmitter {
 
     // 建 Agent 的会话行（历史可回看 = "打开原会话"）。
     // systemPrompt 存下来，续聊时才能重建同样的角色设定。
+    //
+    // 技能在派活时扫一次：改了技能文件立刻生效，不用重启。
+    const skills = await this.skillsFor(project);
     const session: SessionRow = {
       id: ready.sessionId,
       kind: 'executor',
@@ -920,6 +934,7 @@ export class Orchestrator extends EventEmitter {
         goal: ready.goal,
         writeScope: ready.writeScope,
         ...(ready.access === 'readonly' ? { readonlyTask: true } : {}),
+        skills,
       }),
       status: 'running',
       resumable: true,
@@ -947,6 +962,7 @@ export class Orchestrator extends EventEmitter {
       this.runnerDeps({
         projectId: project.id,
         executorId: ready.id,
+        skills,
         ...(project.tokenGuard ? { tokenGuard: project.tokenGuard } : {}),
         onAbort: () => abort.abort(),
       }),
@@ -1440,6 +1456,24 @@ export class Orchestrator extends EventEmitter {
     this.executorAborts.delete(executorId);
     this.executorInputs.delete(executorId);
     await this.store.deleteExecutor(executorId);
+  }
+
+  /**
+   * 扫描某个项目可用的技能。
+   *
+   * 两个来源，**项目级覆盖用户级**：
+   * - `<项目>/.opencoxswain/skills/` —— 这个项目自己的约定
+   * - `~/.opencoxswain/skills/` —— 跨项目通用的习惯
+   *
+   * 每次派活时扫一次（技能文件很小，读目录开销可以忽略），
+   * 好处是改了技能文件立刻生效，不用重启。
+   */
+  async skillsFor(project: ProjectRow): Promise<SkillSummary[]> {
+    const [projectSkills, userSkills] = await Promise.all([
+      scanSkillRoot(path.join(project.rootPath, '.opencoxswain', 'skills'), 'project'),
+      scanSkillRoot(this.userSkillsDir, 'user'),
+    ]);
+    return mergeSkills([projectSkills, userSkills]);
   }
 
   // -------------------------------------------------------------------------
