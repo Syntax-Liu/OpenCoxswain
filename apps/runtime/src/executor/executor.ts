@@ -22,6 +22,7 @@ import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/lo
 import { applyEdit } from './edit.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { McpTool } from '../mcp/client.js';
+import { findSymbol, listSymbols, renderSymbolResult } from '../codeintel/symbols.js';
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
@@ -96,6 +97,12 @@ export function executorSystemPrompt(input: {
     '2. **结论先行**：先用一句话写结论，再补充细节。',
     '   你的**收尾文本**就是你唯一被看到的交付，Assistant看不到你的思考过程。',
     '3. 卡住时如实说明，不要假装完成。',
+    '',
+    '## 找代码时先想清楚用哪个工具',
+    '- 「这个函数在哪定义、谁在调用」→ `find_symbol`（按标识符边界，不会把 foobar 当成 foo）',
+    '- 「这个文件里有什么」→ `list_symbols`',
+    '- 找某段文字 / 配置 / 注释 → `search_files`',
+    '- 改一处代码 → `edit_file`（不要用 write_file 重写整个文件）',
     '',
     '## 卡住时怎么办',
     '- 自己能修好的（路径写错、类型错误、测试失败）：**换法重试一次**，不要停下来问。',
@@ -211,6 +218,34 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
         properties: {
           command: { type: 'string', description: '要执行的命令' },
           timeoutMs: { type: 'integer', description: '超时毫秒数，默认 120000' },
+        },
+      },
+    },
+    {
+      name: 'find_symbol',
+      description:
+        '查找一个函数 / 类 / 变量的**定义位置和所有引用**。' +
+        '做重构、改名、理解调用链时先用它，比文本搜索准（不会把 foobar 当成 foo）。\n' +
+        '注意：这是词法层面的查找，同名不同作用域的符号会被混在一起。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name'],
+        properties: {
+          name: { type: 'string', description: '符号名（函数名、类名、变量名）' },
+          scope: { type: 'string', description: '限定搜索目录（相对项目根），缺省为全项目' },
+        },
+      },
+    },
+    {
+      name: 'list_symbols',
+      description: '列出一个文件里定义的所有函数 / 类 / 变量。了解文件结构时用。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['path'],
+        properties: {
+          path: { type: 'string', description: '相对项目根的路径' },
         },
       },
     },
@@ -396,6 +431,32 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             const target = resolveInside(rootPath, String(args.path ?? ''));
             const content = await readFile(target, 'utf8');
             return { ok: true, content: content.slice(0, maxOutput) };
+          }
+          case 'find_symbol': {
+            // 纯读取，只读任务里也能用
+            const symbol = String(args.name ?? '').trim();
+            if (!symbol) return { ok: false, content: '必须提供 name。' };
+
+            const scopeArg = args.scope ? String(args.scope) : '.';
+            const scopeRoot = resolveInside(rootPath, scopeArg);
+
+            const result = await findSymbol(scopeRoot, symbol);
+            return { ok: true, content: renderSymbolResult(symbol, result) };
+          }
+          case 'list_symbols': {
+            const relative = String(args.path ?? '');
+            const target = resolveInside(rootPath, relative);
+            const symbols = await listSymbols(target);
+            if (symbols.length === 0) {
+              return { ok: true, content: `${relative} 里没有识别到符号定义。` };
+            }
+            const lines = symbols.map(
+              (s) => `- 第 ${s.line} 行  [${s.kind}]  ${s.preview}`,
+            );
+            return {
+              ok: true,
+              content: [`## ${relative} 里的符号（${symbols.length} 个）`, ...lines].join('\n'),
+            };
           }
           case 'use_skill': {
             // 只读操作：加载说明不改任何文件，只读任务里也能用
