@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { ApiClient, ModelConfigDto, ProjectDto, SettingsStatus } from '../api.js';
 import { ImSettings } from './ImSettings.js';
 import { CloseBehaviorSettings } from './CloseBehaviorSettings.js';
+import { FontScaleSetting } from './FontScaleSetting.js';
 import { shortcutHelp } from '../shortcuts.js';
 import { PermissionSettingsPanel } from './PermissionSettingsPanel.js';
 import { ModelSettingsPanel } from './ModelSettingsPanel.js';
@@ -133,6 +134,7 @@ function GeneralSection(props: { api: ApiClient; status: SettingsStatus }): JSX.
   return (
     <section className="settings-block">
       <h2>通用</h2>
+      <FontScaleSetting />
       <CloseBehaviorSettings api={props.api} />
 
       <h3 className="settings-subhead">键盘快捷键</h3>

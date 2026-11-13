@@ -49,26 +49,45 @@ describe('near 档', () => {
   });
 });
 
-describe('compacted 档', () => {
-  it('压缩过就升级到 compacted', () => {
-    const r = describeContext(1000, { compactionCount: 2 });
+describe('刚压缩时的提示', () => {
+  it('刚压缩完 → compacted 档', () => {
+    const r = describeContext(1000, { compactionCount: 2, recentlyCompacted: true });
     assert.equal(r.level, 'compacted');
   });
 
-  it('**即使当前用量低也提示**（用户需要知道前面为什么没了）', () => {
-    const r = describeContext(100, { compactionCount: 1 });
+  it('**即使当前用量低也提示**（用户需要知道前面的内容为什么没了）', () => {
+    const r = describeContext(100, { compactionCount: 1, recentlyCompacted: true });
     assert.equal(r.level, 'compacted');
     assert.ok(r.message !== null);
   });
 
-  it('提示里说明压缩了几次', () => {
-    const r = describeContext(1000, { compactionCount: 3 });
+  it('提示里说明累计压缩了几次', () => {
+    const r = describeContext(1000, { compactionCount: 3, recentlyCompacted: true });
     assert.match(r.message ?? '', /3 次/);
   });
 
   it('提示给出减少压缩的办法', () => {
-    const r = describeContext(1000, { compactionCount: 1 });
+    const r = describeContext(1000, { compactionCount: 1, recentlyCompacted: true });
     assert.match(r.message ?? '', /@/);
+  });
+});
+
+describe('**压缩过但不再常驻提示**', () => {
+  it('压缩过、但已经过去很久 → 不显示压缩横幅', () => {
+    // 长任务必然压缩（实测 40 次），永久提示会变成一整行没人读的装饰
+    const r = describeContext(1000, { compactionCount: 40 });
+    assert.notEqual(r.level, 'compacted');
+    assert.equal(r.message, null, '不该再常驻提示');
+  });
+
+  it('压缩过且用量正常 → ok 档', () => {
+    const r = describeContext(1000, { compactionCount: 40 });
+    assert.equal(r.level, 'ok');
+  });
+
+  it('压缩过但用量接近上限 → 走 near 档（这才是有行动价值的提示）', () => {
+    const r = describeContext(90_000, { compactionCount: 40 });
+    assert.equal(r.level, 'near');
   });
 });
 

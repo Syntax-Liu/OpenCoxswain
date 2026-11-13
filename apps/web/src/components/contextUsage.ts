@@ -50,14 +50,24 @@ export interface ContextUsage {
 /**
  * 计算上下文用量与提示。
  *
- * `compactionCount` 来自轨迹里压缩记录的条数——已经压缩过就升级到
- * compacted 档，因为那时用户最需要知道"前面为什么没了"。
+ * `compactionCount` 来自轨迹里压缩记录的条数。
+ *
+ * ## 为什么不再"压缩过就一直提示"
+ *
+ * 早期实现是只要压过一次就把整条提示常驻在输入框上方。结果：
+ * 长任务必然压缩（实测 40 次），于是那条提示变成**永久装饰**，
+ * 占着一整行，用户既不会读也不知道能做什么。
+ *
+ * 现在：压缩**刚发生时**（`recentlyCompacted`）才提示一次，
+ * 平时只留在状态栏的百分比里。用户需要细节时自己去状态栏看。
  */
 export function describeContext(
   used: number,
   options: {
     readonly limit?: number;
     readonly compactionCount?: number;
+    /** 是否刚刚发生压缩（用于"提示一次"）。 */
+    readonly recentlyCompacted?: boolean;
   } = {},
 ): ContextUsage {
   const limit = options.limit ?? CONTEXT_WINDOW;
@@ -65,15 +75,16 @@ export function describeContext(
   const ratio = limit > 0 ? Math.min(1, safeUsed / limit) : 0;
   const compactionCount = options.compactionCount ?? 0;
 
-  if (compactionCount > 0) {
+  // **只有刚压缩完才给这条提示**，而且是可关掉的一次性提示。
+  if (options.recentlyCompacted) {
     return {
       used: safeUsed,
       limit,
       ratio,
       level: 'compacted',
       message:
-        `上下文已压缩 ${compactionCount} 次——较早的内容被折叠了，所以它可能想不起很久之前说过的话。` +
-        '想减少压缩：把长任务拆成几个短会话，或用 @ 精确引用文件而不是让它自己搜。',
+        `刚刚压缩过上下文（累计 ${compactionCount} 次）：较早的内容被折叠了，它想不起很久之前说过的话。` +
+        '想减少压缩：把长任务拆成几个短会话，或用 @ 精确引用文件。',
     };
   }
 

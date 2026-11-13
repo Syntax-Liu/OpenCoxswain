@@ -120,6 +120,31 @@ export function App(): JSX.Element {
     return list.projects;
   }, [api]);
 
+  /**
+   * 加载所有项目的会话列表。
+   *
+   * **侧栏要能展开任意项目**，所以不能只加载当前项目的。
+   * 之前只加载当前项目，展开别的项目是空的——
+   * 用户会以为"两个项目不能同时展开"。
+   *
+   * 并行请求，单个失败不影响其它项目。
+   */
+  const refreshAllExecutors = useCallback(
+    async (projects: readonly ProjectDto[]) => {
+      const results = await Promise.all(
+        projects.map((p) =>
+          api
+            .projectDetail(p.id)
+            .then((d) => d.executors)
+            .catch(() => [] as ExecutorDto[]),
+        ),
+      );
+      const merged = results.flat();
+      setState((s) => ({ ...s, executors: merged }));
+    },
+    [api],
+  );
+
   const refreshProject = useCallback(
     async (projectId: string) => {
       const detail = await api.projectDetail(projectId);
@@ -127,7 +152,17 @@ export function App(): JSX.Element {
       setState((s) =>
         applySnapshot(s, {
           messages: messages.messages,
-          executors: detail.executors,
+          // **合并而不是替换**。
+          //
+          // 之前是 `executors: detail.executors`，只保留当前项目的会话，
+          // 其它项目的会话被冲掉——侧栏于是展开别的项目也看不到东西，
+          // 看起来像"两个项目不能同时展开"。
+          //
+          // 现在：先用别的项目的旧数据打底，再用当前项目的新数据覆盖。
+          executors: [
+            ...s.executors.filter((e) => e.projectId !== projectId),
+            ...detail.executors,
+          ],
           reports: detail.reports,
           lastSeq: Math.max(detail.lastSeq, messages.lastSeq),
         }),
@@ -176,6 +211,8 @@ export function App(): JSX.Element {
         setSettings(status);
         if (!status.configured) return;
         const projects = await refreshProjects();
+        // 侧栏要能展开任意项目——先把所有项目的会话都拉下来
+        await refreshAllExecutors(projects);
         const first = projects[0];
         if (first) await openAssistant(first.id);
         else setView({ kind: 'global' });

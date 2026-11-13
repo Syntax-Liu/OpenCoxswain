@@ -67,10 +67,17 @@
     system-ui, sans-serif;
   --font-mono: 'Cascadia Code', 'Cascadia Mono', Consolas, 'Courier New', monospace;
 
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-lg: 15px;
+  /* ---- 字号：**可整体缩放** ----
+     用户反馈"字体偏小"。与其逐个调，不如给一个缩放系数：
+     设置里选 小 / 标准 / 大 / 更大，改的就是 --font-scale。
+
+     基准是"标准"档：11 / 12 / 13 / 15。
+     缩放用 calc，所以档位之间的比例关系保持不变。 */
+  --font-scale: 1.08; /* 默认略微放大——实测 11/12/13 在 2K 屏上偏小 */
+  --fs-xs: calc(11px * var(--font-scale));
+  --fs-sm: calc(12px * var(--font-scale));
+  --fs-md: calc(13px * var(--font-scale));
+  --fs-lg: calc(15px * var(--font-scale));
 
 
   /* ---- 控件高度：**只有 3 档** ---- */
@@ -1993,7 +2000,7 @@ button.small {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--g-2);  height: var(--h-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
@@ -4443,4 +4450,49 @@ body.is-resizing {
   display: flex;
   gap: 12px;
   margin-top: 4px;
+}
+
+/* 字号档位选择：四个并排按钮 */
+.font-scale-row {
+  display: flex;
+  gap: var(--g-2);
+  margin-bottom: var(--g-2);
+}
+
+.font-scale-btn {
+  height: var(--h-sm);
+  padding: 0 var(--g-3);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.font-scale-btn:hover {
+  color: var(--text);
+  border-color: var(--border-focus);
+}
+
+.font-scale-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 上下文预警横幅：可关闭 */
+.context-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+}
+
+.context-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.context-banner-close {
+  flex: none;
+  font-size: var(--fs-sm);
 }

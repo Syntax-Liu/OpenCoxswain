@@ -93,6 +93,8 @@ export function Conversation(props: ConversationProps): JSX.Element {
   const allBatches = useMemo(() => groupBatches(props.executors ?? []), [props.executors]);
   /** 当前标签页：对话 / 轨迹（照 DSH）。 */
   const [tab, setTab] = useState<'chat' | 'trace'>('chat');
+  /** 上下文预警横幅是否已被用户关掉。 */
+  const [dismissedBanner, setDismissedBanner] = useState(false);
   // 附件：拖入 / 粘贴 / 选择
   const attachments = useAttachments();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -148,10 +150,23 @@ export function Conversation(props: ConversationProps): JSX.Element {
     // 粗略换算：中文约 1 字/token，英文约 4 字符/token。取中间值 2.5 字符/token
     const used = Math.round(chars / 2.5);
 
-    const compactionCount = (props.traceMessages ?? []).filter(
+    const compactions = (props.traceMessages ?? []).filter(
       (m) => m.source === 'compaction',
-    ).length;
-    return describeContext(used, { compactionCount });
+    );
+
+    // **只在刚压缩完的两分钟内提示一次**。
+    //
+    // 之前是"压过一次就永久提示"——长任务必然压缩（实测 40 次），
+    // 那条提示于是常驻在输入框上方，变成一整行没人读的装饰。
+    //
+    // 现在压缩后短暂提示，用户知道"刚才发生了什么"；
+    // 之后只留状态栏的百分比，需要细节时自己去状态栏看。
+    const recentlyCompacted = compactions.some((m) => Date.now() - m.at < 2 * 60_000);
+
+    return describeContext(used, {
+      compactionCount: compactions.length,
+      recentlyCompacted,
+    });
   }, [props.messages, props.traceMessages]);
 
   /**
@@ -451,14 +466,25 @@ export function Conversation(props: ConversationProps): JSX.Element {
         />
       )}
 
-      {/* 上下文预警：只在 near / compacted 时出现。
-          ok 档不显示——每次都提示"上下文正常"比不提示更烦人。 */}
-      {contextUsage.message && (
+      {/* 上下文预警：只在 near / 刚压缩过时出现，且可以关掉。
+          ok 档不显示——每次都提示"上下文正常"比不提示更烦人。
+
+          为什么加关闭按钮：压缩后有提示是有用的（用户想知道"前面的内容为什么没了"），
+          但它不该常驻。长任务会反复压缩，永久横幅会变成一整行没人读的装饰。 */}
+      {contextUsage.message && !dismissedBanner && (
         <div className={`context-banner level-${contextUsage.level}`}>
           <span className="context-banner-icon" aria-hidden>
             {contextUsage.level === 'compacted' ? 'ⓘ' : '⚠'}
           </span>
-          <span>{contextUsage.message}</span>
+          <span className="context-banner-text">{contextUsage.message}</span>
+          <button
+            type="button"
+            className="link context-banner-close"
+            title="知道了，不再显示"
+            onClick={() => setDismissedBanner(true)}
+          >
+            知道了
+          </button>
         </div>
       )}
 
