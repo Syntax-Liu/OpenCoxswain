@@ -21,7 +21,14 @@ import { createHash } from 'node:crypto';
 export const SIDE_EFFECT_KINDS = ['fs.write', 'fs.delete', 'proc.exec', 'net.send'] as const;
 export type SideEffectKind = (typeof SIDE_EFFECT_KINDS)[number];
 
-export type SideEffectState = 'pending' | 'succeeded' | 'failed' | 'rejected';
+/**
+ * 副作用状态。
+ *
+ * `undone` 是**追加**的状态，不替代 `succeeded`——
+ * 一条被撤销的记录仍然是"曾经成功执行过"，只是后来被撤销了。
+ * 这样台账能回答"它当时做了什么、后来怎么处理的"。
+ */
+export type SideEffectState = 'pending' | 'succeeded' | 'failed' | 'rejected' | 'undone';
 
 export interface SideEffectIntent {
   readonly kind: SideEffectKind;
@@ -104,6 +111,12 @@ export function classifySideEffect(
   const target = targetOf(args) || tool;
 
   if (tool === 'write_file') {
+    return { kind: 'fs.write', target, reversible: REVERSIBLE['fs.write'] };
+  }
+
+  // **edit_file 也是写文件**——而且是我们推荐模型优先用的方式。
+  // 漏掉它等于：Agent 改了文件但台账里没记录、也没有快照、无法撤销。
+  if (tool === 'edit_file') {
     return { kind: 'fs.write', target, reversible: REVERSIBLE['fs.write'] };
   }
 

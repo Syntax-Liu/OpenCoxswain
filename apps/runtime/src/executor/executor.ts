@@ -24,6 +24,7 @@ import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js'
 import type { McpTool } from '../mcp/client.js';
 import { findSymbol, listSymbols, renderSymbolResult } from '../codeintel/symbols.js';
 import { checkCommand } from './sandbox.js';
+import type { SnapshotStore } from '../security/snapshot.js';
 import type { LlmClient, ToolDefinition } from '../llm/types.js';
 import type { RunMetrics } from '../cost/metrics.js';
 import { classifyDanger } from '../security/classify.js';
@@ -313,6 +314,12 @@ export interface ExecutorToolHostOptions {
    */
   readonly ledger?: SideEffectLedger;
   /**
+   * 文件快照。提供后，写文件前会留一份原内容，用于事后撤销。
+   *
+   * 不提供就不备份——撤销功能整体不可用，但其它功能正常。
+   */
+  readonly snapshots?: SnapshotStore;
+  /**
    * 用户扩展（geek 自定义口）。见 `extensions/index.ts`。
    *
    * 只提供"否决"与"观察"，不提供改参数、跳过审批、绕过验收——
@@ -368,6 +375,8 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
       // ---- 记账：执行前落 pending ----
       // 读类工具没有副作用，begin 会返回 row=null，后续结算自动跳过。
       let pending: Awaited<ReturnType<SideEffectLedger['begin']>> | null = null;
+      // 快照失败时的说明（不阻断执行，只是记下来）
+      let laterSnapshotNote: string | null = null;
       if (options.ledger) {
         try {
           pending = await options.ledger.begin(name, args);
@@ -378,6 +387,32 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
           // 台账写不进去不能阻断工具执行，但要知道发生了。
           pending = null;
         }
+      }
+
+      // ---- 快照：写文件前留一份原内容，为"撤销"提供数据 ----
+      //
+      // 必须在这里做（写之前），而且只在真的会写文件时做。
+      // 快照失败不阻断执行——撤销是加分项，不是主流程。
+      if (options.snapshots && pending?.row) {
+        const target = String(args.path ?? '');
+        const willWrite = name === 'write_file' || name === 'edit_file';
+        if (willWrite && target) {
+          try {
+            const snap = await options.snapshots.save(pending.row.id, rootPath, target);
+            if (!snap.saved && snap.reason) {
+              // 大文件没备份：让模型知道"这次改动无法撤销"
+              laterSnapshotNote = snap.reason;
+            }
+          } catch {
+            laterSnapshotNote = '原始内容没有备份成功，这次改动可能无法撤销';
+          }
+        }
+      } else if (name === 'write_file' || name === 'edit_file') {
+        // 走到这里说明：要么没配快照、要么台账没给出记录。
+        // 把原因记下来——撤销功能依赖它，静默失效最难查。
+        laterSnapshotNote =
+          '这次的改动没有备份原始内容，无法撤销。' +
+          `（诊断：snapshots=${options.snapshots ? '有' : '无'}，pending=${pending ? (pending.row ? '有row' : 'row为空') : 'pending为空'}）`;
       }
 
       const settle = async (
@@ -513,7 +548,12 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             if (!applied.ok) return { ok: false, content: applied.error };
 
             await writeFile(target, applied.content, 'utf8');
-            return { ok: true, content: `已修改 ${relative}${applied.summary}` };
+            return {
+              ok: true,
+              content:
+                `已修改 ${relative}${applied.summary}` +
+                (laterSnapshotNote ? `\n（注意：${laterSnapshotNote}）` : ''),
+            };
           }
           case 'write_file': {
             if (options.readonlyTask) {
@@ -529,7 +569,12 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             const target = resolveInside(rootPath, relative);
             await mkdir(path.dirname(target), { recursive: true });
             await writeFile(target, String(args.content ?? ''), 'utf8');
-            return { ok: true, content: `已写入 ${relative}（${String(args.content ?? '').length} 字）` };
+            return {
+              ok: true,
+              content:
+                `已写入 ${relative}（${String(args.content ?? '').length} 字）` +
+                (laterSnapshotNote ? `\n（注意：${laterSnapshotNote}）` : ''),
+            };
           }
           case 'list_dir': {
             const target = resolveInside(rootPath, String(args.path ?? '.'));
@@ -745,6 +790,12 @@ export interface RunExecutorOptions {
   ) => Promise<{ approved: boolean; reason: string }>;
   /** 副作用台账。提供后每次副作用都执行前落 pending、执行后结算。 */
   readonly ledger?: SideEffectLedger;
+  /**
+   * 文件快照。提供后，写文件前会留一份原内容，用于事后撤销。
+   *
+   * 不提供就不备份——撤销功能整体不可用，但其它功能正常。
+   */
+  readonly snapshots?: SnapshotStore;
   /** 运行结束时的指标回调（轮次/步数/token/耗时），用于落库。 */
   readonly onMetrics?: (metrics: RunMetrics) => void;
   /**
@@ -806,6 +857,9 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
     ...(options.readonlyTask ? { readonlyTask: true } : {}),
     ...(options.approve ? { approve: options.approve } : {}),
     ...(options.ledger ? { ledger: options.ledger } : {}),
+    // 快照：必须在这里也传下去。runExecutor 会自己建一个 tool host，
+    // 漏了这一步的话，快照永远到不了真正的写文件逻辑。
+    ...(options.snapshots ? { snapshots: options.snapshots } : {}),
     ...(options.commandTimeoutMs !== undefined
       ? { commandTimeoutMs: options.commandTimeoutMs }
       : {}),

@@ -11,6 +11,7 @@
 import type { LlmClient } from '../llm/types.js';
 import type { LoopEvent } from '../session/loop.js';
 import type { SkillSummary } from '../skills/index.js';
+import type { SnapshotStore } from '../security/snapshot.js';
 import type { McpTool } from '../mcp/client.js';
 import {
   isExecutorTerminal,
@@ -47,6 +48,8 @@ export interface ExecutorRunnerDeps {
    * 这是省上下文的关键：一个 2000 字的技能平时只占约 20 token。
    */
   readonly skills?: readonly SkillSummary[];
+  /** 文件快照（撤销用）。不提供就不备份。 */
+  readonly snapshots?: SnapshotStore;
   /** MCP 工具（名字带服务器前缀）。 */
   readonly mcpTools?: readonly McpTool[];
   /** MCP 调用入口。 */
@@ -145,6 +148,10 @@ export async function runExecutorOnce(
         projectId: project.id,
         executorId: executor.id,
       }),
+      // 快照：runExecutor 内部会自己建 tool host，必须在这一层传进去
+      ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
+      // 文件快照：写文件前留一份原内容，用于事后撤销。
+      ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       drainInputs: () => deps.drainInputs(executor.id),
       // 轨迹落库：每一步工具调用都记下来，供"打开原会话"查看。
@@ -277,6 +284,10 @@ export async function resumeExecutorOnce(
         projectId: project.id,
         executorId: executor.id,
       }),
+      // 快照：runExecutor 内部会自己建 tool host，必须在这一层传进去
+      ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
+      // 文件快照：写文件前留一份原内容，用于事后撤销。
+      ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       priorMessages: request.priorMessages as never,
       onEvent: traceHandler(store, executor.sessionId),

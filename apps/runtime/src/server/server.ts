@@ -492,6 +492,22 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return reply(200, { project: opened.project, lastSeq: bus.lastSeq });
     }
 
+    // ---- 撤销 ------------------------------------------------------------
+    //
+    // 只对文件写入有效。跑过的命令撤不了、发出去的请求收不回——
+    // 那些在界面上标"不可撤销"，不给假承诺。
+    {
+      const undoMatch = /^\/api\/side-effects\/([^/]+)\/undo$/.exec(url.pathname);
+      if (method === 'POST' && undoMatch) {
+        const effectId = decodeURIComponent(undoMatch[1]!);
+        const body: Record<string, unknown> = await readJson(req).catch(() => ({}));
+        const result = await orchestrator.undo(effectId, str(body.projectId) ?? undefined);
+        return result.ok
+          ? reply(200, { ok: true, message: result.message })
+          : deny(409, result.message);
+      }
+    }
+
     // ---- 移除项目（归档，不删磁盘文件）-----------------------------------
     //
     // 用 DELETE /api/projects/:id/archive。

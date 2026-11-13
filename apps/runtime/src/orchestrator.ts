@@ -59,6 +59,8 @@ import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
 import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
 import { McpManager, type McpServerConfig } from './mcp/client.js';
+import { FileSnapshotStore, type SnapshotStore } from './security/snapshot.js';
+import { isUndoable, undoFileWrite } from './security/undo.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -106,6 +108,8 @@ export interface OrchestratorOptions {
   readonly models?: ModelStoreLike;
   /** 用户级技能目录；不提供时用 ~/.opencoxswain/skills。 */
   readonly userSkillsDir?: string;
+  /** 文件快照存储；不提供时用 ~/.opencoxswain/snapshots。 */
+  readonly snapshots?: SnapshotStore;
   /** MCP 服务器配置；不提供就不启用 MCP。 */
   readonly mcpServers?: readonly McpServerConfig[];
   /**
@@ -204,6 +208,8 @@ export class Orchestrator extends EventEmitter {
   private readonly userSkillsDir: string;
   /** MCP 连接管理；没配置服务器时为 null。 */
   private mcp: McpManager | null = null;
+  /** 文件快照（撤销用）。 */
+  private readonly snapshots: SnapshotStore;
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -224,6 +230,10 @@ export class Orchestrator extends EventEmitter {
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
     this.modelStore = options.models ?? new MemoryModelStore();
     this.userSkillsDir = options.userSkillsDir ?? path.join(os.homedir(), '.opencoxswain', 'skills');
+    // 快照目录：和 skills 同级，用户能直接看到
+    this.snapshots =
+      options.snapshots ??
+      new FileSnapshotStore(path.join(os.homedir(), '.opencoxswain', 'snapshots'));
     // MCP：**启动失败不影响主流程**。服务器起不来只是少几个工具，
     // 不能让整个程序报错。所以启动是 fire-and-forget，失败静默。
     if (options.mcpServers && options.mcpServers.length > 0) {
@@ -292,6 +302,8 @@ export class Orchestrator extends EventEmitter {
         : {}),
       ...(this.extensions ? { extensions: this.extensions } : {}),
       ...(input.skills ? { skills: input.skills } : {}),
+      // 快照：让写文件前留一份原内容，撤销才有数据可用
+      snapshots: this.snapshots,
       // MCP：工具列表按当前连接取，连接还没建立时为空数组（不影响其它工具）。
       ...(this.mcp && this.mcp.listTools().length > 0
         ? { mcpTools: this.mcp.listTools(), mcp: this.mcp }
@@ -1337,6 +1349,68 @@ export class Orchestrator extends EventEmitter {
         `已把「${project.name}」移出工作区。磁盘上的文件没有动，` +
         '历史记录也都保留着——需要时可以重新打开同一个目录。',
     };
+  }
+
+  /**
+   * 撤销一个文件写入。
+   *
+   * **只对文件写入有效**。跑过的命令撤不了、发出去的请求收不回，
+   * 这些在界面上会明确标"不可撤销"，不给假承诺。
+   *
+   * 校验顺序很重要：
+   * 1. 找副作用记录（不存在就没什么可撤）
+   * 2. 判断类型能不能撤
+   * 3. 比对"文件是否在之后又被改过"——**不符就拒绝**
+   * 4. 执行恢复
+   */
+  async undo(
+    sideEffectId: string,
+    projectId?: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    const effects = this.store.listSideEffects({
+      ...(projectId ? { projectId } : {}),
+    });
+    const effect = effects.find((e) => e.id === sideEffectId);
+    if (!effect) return { ok: false, message: '找不到这条副作用记录' };
+
+    if (!isUndoable(effect.kind, effect.reversible)) {
+      return {
+        ok: false,
+        message:
+          effect.reversible
+            ? '这类动作无法撤销（只有文件写入可以）'
+            : '这个动作本来就不可撤销，没有保留恢复数据',
+      };
+    }
+
+    if (effect.state === 'undone') {
+      return { ok: false, message: '这条已经撤销过了' };
+    }
+
+    const project = this.store.getProject(effect.projectId);
+    if (!project) return { ok: false, message: '项目已不在工作区，无法撤销' };
+
+    // 注意：**不传 expectedContent**。
+    //
+    // 台账里没有存"改完之后的内容"，所以查不出文件后来有没有被人改过。
+    // 这个保护是重要的（见 docs/undo.md），但要有数据才能做——
+    // 后续在 settle 时把结果内容一起记下来，才能启用这一层校验。
+    const result = await undoFileWrite({
+      snapshot: this.snapshots,
+      rootPath: project.rootPath,
+      sideEffectId,
+      relativePath: effect.target,
+    });
+
+    if (result.ok) {
+      // **不删台账**，改状态为 undone。
+      // 和"重试不删历史"是同一个原则：事实不该被抹掉。
+      await this.store
+        .putSideEffect({ ...effect, state: 'undone', note: result.message, settledAt: Date.now() })
+        .catch(() => {});
+    }
+
+    return { ok: result.ok, message: result.message };
   }
 
   async cancel(executorId: string, projectId?: string): Promise<{ ok: boolean; content: string }> {
