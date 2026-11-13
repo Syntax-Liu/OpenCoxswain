@@ -10,11 +10,15 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  DECISION_VISIBLE_LIMIT,
   decisionPanelTitle,
+  hiddenDecisionCount,
   isAckedDecision,
   isPendingDecision,
   pendingDecisions,
+  stripMarkdown,
   summarizeDecision,
+  visibleDecisions,
 } from '../components/decisions.js';
 import type { ReportDto } from '../api.js';
 
@@ -100,6 +104,73 @@ describe('摘要', () => {
 
   it('短的保持原样', () => {
     assert.equal(summarizeDecision('简短'), '简短');
+  });
+});
+
+describe('**摘要必须剥掉 Markdown 标记**', () => {
+  it('粗体标记不漏出来', () => {
+    // 真实 bug：面板上显示成 "**结论**：任务 2–5 全部跑完"
+    assert.equal(
+      summarizeDecision('**结论**：任务 2–5 全部跑完'),
+      '结论：任务 2–5 全部跑完',
+    );
+  });
+
+  it('标题符号不漏出来', () => {
+    assert.equal(
+      summarizeDecision('## 结论 我倾向 **先做 B**'),
+      '结论 我倾向 先做 B',
+    );
+  });
+
+  it('行内代码去掉反引号', () => {
+    assert.equal(summarizeDecision('改 `undo-test.txt` 这个文件'), '改 undo-test.txt 这个文件');
+  });
+
+  it('列表符号去掉', () => {
+    assert.equal(stripMarkdown('- 第一条\n- 第二条'), '第一条 第二条');
+    assert.equal(stripMarkdown('1. 第一条\n2. 第二条'), '第一条 第二条');
+  });
+
+  it('代码块整体去掉（摘要里没有意义）', () => {
+    assert.equal(stripMarkdown('看这段：\n```\ncode here\n```\n完毕'), '看这段： 完毕');
+  });
+
+  it('引用符号去掉', () => {
+    assert.equal(stripMarkdown('> 这是引用'), '这是引用');
+  });
+});
+
+describe('**面板数量要限**', () => {
+  const many = Array.from({ length: 6 }, (_, i) => ({
+    id: `d${i}`,
+    projectId: 'p',
+    body: `决策 ${i}`,
+    at: 6000 - i * 1000,
+    executorId: null,
+  }));
+
+  it('默认只显示前 3 条（不让面板压垮主区域）', () => {
+    assert.equal(DECISION_VISIBLE_LIMIT, 3);
+    assert.equal(visibleDecisions(many).length, 3);
+  });
+
+  it('**显示最新的**（排在前面的是最要紧的）', () => {
+    const shown = visibleDecisions(many);
+    assert.equal(shown[0]?.id, 'd0', 'at=6000 最新');
+  });
+
+  it('展开后显示全部', () => {
+    assert.equal(visibleDecisions(many, true).length, 6);
+  });
+
+  it('给出被折叠的数量', () => {
+    assert.equal(hiddenDecisionCount(many), 3);
+    assert.equal(hiddenDecisionCount(many, true), 0);
+  });
+
+  it('不足 3 条时不提示折叠', () => {
+    assert.equal(hiddenDecisionCount(many.slice(0, 2)), 0);
   });
 });
 

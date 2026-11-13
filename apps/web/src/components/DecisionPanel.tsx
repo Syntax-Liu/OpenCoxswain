@@ -12,7 +12,14 @@
 import { useMemo, useState } from 'react';
 
 import type { ReportDto } from '../api.js';
-import { decisionPanelTitle, pendingDecisions, summarizeDecision } from './decisions.js';
+import {
+  DECISION_VISIBLE_LIMIT,
+  decisionPanelTitle,
+  hiddenDecisionCount,
+  pendingDecisions,
+  summarizeDecision,
+  visibleDecisions,
+} from './decisions.js';
 import { renderMarkdown } from './Markdown.js';
 
 export interface DecisionPanelProps {
@@ -26,6 +33,11 @@ export interface DecisionPanelProps {
 export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
   const items = useMemo(() => pendingDecisions(props.reports), [props.reports]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  /** 是否展开全部待决策（默认只显示前几条，不让面板压垮主区域）。 */
+  const [showAll, setShowAll] = useState(false);
+
+  const shown = useMemo(() => visibleDecisions(items, showAll), [items, showAll]);
+  const hidden = hiddenDecisionCount(items, showAll);
 
   if (items.length === 0) return null;
 
@@ -40,7 +52,7 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
       </div>
 
       <ul className="decision-list">
-        {items.map((item) => (
+        {shown.map((item) => (
           <li key={item.id} className="decision-item">
             <button
               type="button"
@@ -79,6 +91,17 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
           </li>
         ))}
       </ul>
+
+      {hidden > 0 && (
+        <button type="button" className="link decision-more" onClick={() => setShowAll(true)}>
+          还有 {hidden} 件（展开）
+        </button>
+      )}
+      {showAll && items.length > DECISION_VISIBLE_LIMIT && (
+        <button type="button" className="link muted decision-more" onClick={() => setShowAll(false)}>
+          收起
+        </button>
+      )}
     </div>
   );
 }
