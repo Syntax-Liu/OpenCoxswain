@@ -59,6 +59,7 @@ import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
 import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
 import { McpManager, type McpServerConfig } from './mcp/client.js';
+import { needsUserDecision } from './orchestrator/decisionRules.js';
 import { FileSnapshotStore, type SnapshotStore } from './security/snapshot.js';
 import { isUndoable, undoFileWrite } from './security/undo.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
@@ -1162,7 +1163,14 @@ export class Orchestrator extends EventEmitter {
       executorId: executor.id,
       kind: ok ? 'done' : 'failed',
       body,
-      needsUser: !ok,
+      // **不要写 `needsUser: !ok`**。
+      //
+      // 那样等于"Agent 没成功就要用户拍板"——可大多数失败能自己重试，
+      // 或者换个做法就行。这行曾让待决策面板里 3/5 都是噪音。
+      //
+      // 要不要用户介入，交给 recordReport 里的判据按类型判：
+      // 只有 blocked（卡住）才算。
+      needsUser: false,
     });
 
     // 投给 Assistant：它会用 followup 语义处理（排到下一轮），然后向用户汇报。
@@ -1499,7 +1507,21 @@ export class Orchestrator extends EventEmitter {
       executorId: input.executorId,
       kind: input.kind,
       body: input.body.slice(0, 8000),
-      needsUser: input.needsUser,
+      // **统一在这里过一遍判据**。
+      //
+      // 之前每个调用点自己决定 needsUser，结果 `needsUser: !ok`
+      // 把"Agent 没成功"也标成了待决策——界面上 5 条有 3 条是噪音。
+      //
+      // 规则：
+      // - 调用方说"要"（true）→ 尊重
+      // - 调用方说"不要"（false）→ 也尊重，但只对 blocked 类放宽：
+      //   blocked 本身就该问用户，调用方写 false 多半是没想清楚
+      // - 没表态 → 交给判据按类型判
+      needsUser: needsUserDecision({
+        kind: input.kind,
+        body: input.body,
+        ...(input.needsUser ? { explicit: true } : {}),
+      }),
       at: Date.now(),
       ackedAt: null,
     };
