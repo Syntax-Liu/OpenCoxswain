@@ -111,15 +111,49 @@ button {
   font-family: inherit;
   font-size: var(--fs-md);
   cursor: pointer;
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
-  padding: 7px 14px;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  /* 默认就是标准按钮的尺寸（--h-md），子类按需覆盖 */
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+/* ============================================================
+   按钮状态：**统一在这里定，不要各处重写**
+   ------------------------------------------------------------
+   背景：界面里曾有 46 条状态规则，但 :focus-visible 只有 1 条。
+   16 处用 :focus（鼠标点击也触发），键盘用户看不到焦点在哪——
+   这是可访问性问题，不只是视觉问题。
+
+   规则：
+   - focus 用 :focus-visible，只在键盘导航时显示
+   - 焦点环用 outline + offset -2px，**不占布局**，不会让按钮抖动
+   - disabled 统一 0.4 透明，不许各处自己定
+   ============================================================ */
+
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* 鼠标点击不留焦点环——只在键盘导航时给 */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
 }
 
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+  /* 禁用的按钮不该有 hover 反馈 */
+  pointer-events: none;
 }
 
 button.primary {
@@ -152,7 +186,7 @@ button.link {
   padding: 0;
   color: var(--accent);
   font-size: var(--fs-sm);
-}
+  height: auto;}
 
 button.link.danger {
   color: var(--danger);
@@ -195,22 +229,23 @@ button.link.danger {
 .nav-main {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding-bottom: 6px;
+  /* 两个导航项之间留 4px，否则和下方的"工作区"标题挤成一坨 */
+  gap: var(--g-1);
+  padding-bottom: var(--g-2);
   border-bottom: 1px solid var(--border);
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 7px;
+  height: var(--h-md);
+  gap: var(--g-1);
   background: transparent;
   border: none;
   color: var(--text);
   text-align: left;
-  padding: 4px 14px;
+  padding: 0 var(--g-3);
   border-radius: 0;
-  line-height: 20px;
 }
 
 .nav-item:hover {
@@ -298,15 +333,16 @@ button.link.danger {
 .thread-item {
   display: flex;
   align-items: center;
+  height: var(--h-sm);
   width: 100%;
   background: transparent;
   border: none;
   color: var(--text-muted);
   text-align: left;
-  padding: 3px 14px 3px 28px;
+  /* 右内边距留给状态标签，左内边距和项目名对齐（12px + 图标宽度） */
+  padding: 0 var(--g-3) 0 28px;
   border-radius: 0;
   font-size: var(--fs-sm);
-  line-height: 18px;
 }
 
 .thread-item:hover {
@@ -1132,7 +1168,7 @@ button.ghost.danger {
 
 .memory-head .link {
   font-size: var(--fs-sm);
-}
+  height: auto;}
 
 .memory-head .ghost {
   margin-left: auto;
@@ -1257,7 +1293,7 @@ button.small {
 .msg-actions .link {
   font-size: var(--fs-xs);
   color: var(--text-muted);
-}
+  height: auto;}
 
 .jump-bottom {
   position: absolute;
@@ -1375,7 +1411,7 @@ button.small {
 
 .update-banner .link {
   margin-left: auto;
-}
+  height: auto;}
 
 /* ---------- ����ģ�� ---------- */
 
@@ -1397,7 +1433,7 @@ button.small {
 
 .template-head .link {
   margin-left: auto;
-}
+  height: auto;}
 
 .template-grid {
   display: grid;
@@ -1956,8 +1992,7 @@ button.small {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  height: 32px;
+  gap: 7px;  height: var(--h-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -2013,6 +2048,7 @@ button.small {
 }
 
 .icon-btn {
+  height: var(--h-sm);
   padding: 0;
   display: grid;
   place-items: center;
@@ -2131,6 +2167,7 @@ button.small {
 }
 
 .view-tab {
+  height: var(--h-md);
   border-bottom: 2px solid transparent;
 }
 
@@ -2197,8 +2234,7 @@ button.small {
 .composer-chip {
   /* 统一到 --h-sm / --fs-sm：之前是 19px 高、font 11px、padding 1px 8px，
      和旁边的"+"按钮（21px / 15px / 2px 8px）对不齐。
-     规范见 docs/control-spec.md。 */
-  height: var(--h-sm);
+     规范见 docs/control-spec.md。 */  height: var(--h-sm);
   font-size: var(--fs-sm);
   color: var(--text-muted);
   border: 1px solid var(--border-strong);
@@ -2216,8 +2252,7 @@ button.small {
 }
 
 .send-btn {
-  width: 26px;
-  height: 26px;
+  width: 26px;  height: var(--h-md);
   padding: 0;
   display: grid;
   place-items: center;
@@ -2313,8 +2348,7 @@ button.small {
   border-bottom: 1px solid var(--border);
 }
 
-.view-tab {
-  height: 34px;
+.view-tab {  height: var(--h-md);
   padding: 0 12px;
   border: none;
   border-radius: var(--r-md);
@@ -2454,6 +2488,7 @@ button.small {
 }
 
 .icon-btn {
+  height: var(--h-sm);
   cursor: pointer;
 }
 
@@ -2553,8 +2588,7 @@ body.is-resizing {
 .icon-btn {
   background: transparent;
   color: var(--text-dim);
-  width: 22px;
-  height: 22px;
+  width: 22px;  height: var(--h-sm);
   border-radius: var(--r-md);
 }
 
@@ -2959,8 +2993,7 @@ body.is-resizing {
 
 .folder-toggle {
   flex: none;
-  width: 18px;
-  height: 24px;
+  width: 18px;  height: var(--h-md);
   padding: 0;
   display: grid;
   place-items: center;
@@ -2987,6 +3020,7 @@ body.is-resizing {
 }
 
 .folder-name-btn {
+  height: var(--h-md);
   flex: 1;
   min-width: 0;
   text-align: left;
@@ -3443,6 +3477,7 @@ body.is-resizing {
 }
 
 .batch-task {
+  height: var(--h-sm);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3639,8 +3674,7 @@ body.is-resizing {
      但**高度和内边距必须和旁边的 chip 一致**，否则底部对不齐。 */
   font-size: var(--fs-lg);
   line-height: 1;
-  padding: 0 var(--g-2);
-  height: var(--h-sm);
+  padding: 0 var(--g-2);  height: var(--h-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4395,7 +4429,7 @@ body.is-resizing {
   font-size: var(--fs-md);
   cursor: pointer;
   line-height: 1.5;
-}
+  height: auto;}
 
 .decision-summary:hover {
   color: var(--accent);
