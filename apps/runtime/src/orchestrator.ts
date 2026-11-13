@@ -326,6 +326,19 @@ export class Orchestrator extends EventEmitter {
           input.onAbort?.();
         }
       },
+      /**
+       * 每轮文本都存成"当前进展"。
+       *
+       * 这不是最终结论（那由结算写），而是**被中断时的保底**：
+       * 用户按停止之后，Assistant 至少能说出"它停之前做到哪了"。
+       */
+      onPartialText: (targetId, text) => {
+        const current = this.store.getExecutor(targetId);
+        if (!current) return;
+        void this.store
+          .putExecutor({ ...current, summary: text.slice(0, 4000) })
+          .catch(() => {});
+      },
     };
   }
 
@@ -963,7 +976,7 @@ export class Orchestrator extends EventEmitter {
     } catch (error) {
       const current = store.getExecutor(executor.id);
       if (current && !isExecutorTerminal(current.status)) {
-        await this.finishExecutor(executor.id, 'cancelled', `排队期间中止：${errorText(error)}`);
+        await this.finishExecutor(executor.id, 'cancelled', `排队期间中止：${errorText(error)}`, undefined, 'system');
       }
       return;
     }
@@ -1176,6 +1189,13 @@ export class Orchestrator extends EventEmitter {
     status: 'done' | 'failed' | 'cancelled',
     blockedReason: string | null,
     summary?: string,
+    /** 
+     * 取消的来源。
+     *
+     * user：用户点了停止——要告诉 Assistant。
+     * system：排队期间中止、止损等——调用方自己会说明原因，这里不重复发。
+     */
+    cancelledBy?: 'user' | 'system',
   ): Promise<void> {
     const row = this.store.getExecutor(id);
     if (!row) return;
@@ -1189,6 +1209,43 @@ export class Orchestrator extends EventEmitter {
     const session = this.store.getSession(row.sessionId);
     if (session) {
       await this.store.putSession({ ...session, status: 'idle', updatedAt: Date.now() });
+    }
+
+    // **取消也要告诉 Assistant**。
+    //
+    // 不然它可能还在等这个 Agent 的结果，或者在下一轮里把"还在跑"当成事实。
+    // 这个产品和 Codex 那类实现的一个明显差别就在这里：他们的子 Agent 被中断后
+    // 结果不浮出来，父线程完全不知道发生了什么。
+    //
+    // 只报告"用户主动取消"这一种。排队期间中止（token 超限等）
+    // 由调用方自己说清楚原因，不在这里重复。
+    if (status === 'cancelled' && cancelledBy !== 'system') {
+      await this.notifyCancelled(row);
+    }
+  }
+
+  /**
+   * 告诉 Assistant 某个 Agent 被取消了。
+   *
+   * **只发事实，不催它立刻汇报**——用户自己按的停止，
+   * 他知道发生了什么，Assistant 追着念一遍反而吵。
+   * 但如果它下一轮要提这个 Agent，必须知道它已经停了。
+   */
+  private async notifyCancelled(row: ExecutorRow): Promise<void> {
+    const project = this.store.getProject(row.projectId);
+    if (!project) return;
+
+    const body =
+      `Agent「${row.label}」已被用户停止，没有跑完。\n` +
+      (row.summary ? `它停之前完成的部分：${row.summary}` : '它没有留下阶段性结论。');
+
+    try {
+      await this.userSays(project.id, `${INTERNAL_NOTICE_PREFIX}\n${body}`, {
+        source: 'executor',
+        internal: true,
+      });
+    } catch {
+      // Assistant 不在场也不影响事实：Agent 的状态已经落库
     }
   }
 
@@ -1424,7 +1481,7 @@ export class Orchestrator extends EventEmitter {
     }
 
     this.executorAborts.get(executorId)?.abort();
-    await this.finishExecutor(executorId, 'cancelled', null);
+    await this.finishExecutor(executorId, 'cancelled', null, undefined, 'user');
     this.gate.release(executorId);
     return { ok: true, content: `Agent ${executorId} 已取消` };
   }

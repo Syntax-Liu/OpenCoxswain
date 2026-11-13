@@ -68,6 +68,14 @@ export interface ExecutorRunnerDeps {
     executorId: string,
     partial: { tokensIn: number; tokensOut: number },
   ) => void;
+  /**
+   * 每轮结束时回调当前进展文本。
+   *
+   * **被中断时靠它保住"已经做到哪了"**。
+   * 不记的话，用户按停止之后，这个 Agent 在 Assistant 眼里等于什么都没做——
+   * 它跑了几十步、读了哪些文件、得出了什么初步结论，全都没有浮出来。
+   */
+  readonly onPartialText?: (executorId: string, text: string) => void;
   /** 用户扩展（geek 自定义口）。 */
   readonly extensions?: ExecutorToolHostOptions['extensions'];
 }
@@ -155,7 +163,9 @@ export async function runExecutorOnce(
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       drainInputs: () => deps.drainInputs(executor.id),
       // 轨迹落库：每一步工具调用都记下来，供"打开原会话"查看。
-      onEvent: traceHandler(store, executor.sessionId),
+      onEvent: traceHandler(store, executor.sessionId, (text) =>
+        deps.onPartialText?.(executor.id, text),
+      ),
       // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
       onProgressMetrics: (partial) => deps.onProgressMetrics(executor.id, partial),
       onMetrics: (metrics) => {
@@ -189,6 +199,8 @@ export function stillRunnable(store: Store, executorId: string): ExecutorRow | n
 export function traceHandler(
   store: Store,
   sessionId: string,
+  /** 每轮文本回调：用于在中断时保住进展。 */
+  onPartial?: (text: string) => void,
 ): (event: LoopEvent) => void {
   return (event) => {
     // **上下文压缩**：记一条轨迹，让用户知道历史被压缩过。
@@ -226,6 +238,12 @@ export function traceHandler(
         source: 'tool-result',
         at: Date.now(),
       });
+    } else if (event.type === 'assistant_text' && event.text.trim()) {
+      // **每轮文本都往上报一次进展**。
+      //
+      // 用法：agent 跑到一半被用户停止时，上层能说出"它停之前做到哪了"。
+      // 不报的话，这个 Agent 在 Assistant 眼里等于什么都没做。
+      onPartial?.(event.text);
     }
   };
 }
@@ -290,7 +308,9 @@ export async function resumeExecutorOnce(
       ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       priorMessages: request.priorMessages as never,
-      onEvent: traceHandler(store, executor.sessionId),
+      onEvent: traceHandler(store, executor.sessionId, (text) =>
+        deps.onPartialText?.(executor.id, text),
+      ),
       onProgressMetrics: (partial) => deps.onProgressMetrics(executor.id, partial),
       onMetrics: (metrics) => {
         const current = store.getExecutor(executor.id);
