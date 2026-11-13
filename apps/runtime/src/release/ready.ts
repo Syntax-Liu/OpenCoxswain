@@ -132,14 +132,19 @@ export function evaluateRelease(facts: ReleaseFacts): ReleaseVerdict {
   });
 
   // ---- 4. 版本号必须变 ----
+  //
+  // **拿不到上一个版本时判 warn，不是 pass**。
+  // 判 pass 等于"没检查也放行"，比不检查更糟——
+  // 用户会以为检查过了。
   const versionChanged = facts.previousVersion !== null && facts.version !== facts.previousVersion;
   checks.push({
     id: 'version',
     label: '版本号已更新',
-    status: facts.previousVersion !== null && !versionChanged ? 'fail' : 'pass',
+    status:
+      facts.previousVersion === null ? 'warn' : versionChanged ? 'pass' : 'fail',
     detail:
       facts.previousVersion === null
-        ? `首个版本 ${facts.version}`
+        ? `查不到上一个发布版本，无法确认 ${facts.version} 是新版本——发之前自己确认一下`
         : versionChanged
           ? `${facts.previousVersion} → ${facts.version}`
           : `版本号还是 ${facts.version}，没有更新`,

@@ -112,24 +112,32 @@ async function currentVersion() {
 }
 
 /**
- * 上一个发布版本。
+ * 上一个**已发布**的版本。
  *
- * **以 `latest.json` 为准**，不用 git tag：
- * 这个仓库有 36 个版本是通过 GitHub Release 发的、没打 tag，
- * 只读 tag 会得到 0.14.0 这种严重过时的答案。
+ * 三个本地来源都不可靠：
  *
- * latest.json 是发布脚本生成的，反映**真正发出去的最后那一版**。
+ * - `latest.json` —— 发布流程里会被重新生成成当前版本，自己比自己
+ * - git tag —— 这个仓库 36 个版本走 GitHub Release，tag 停在 v0.14.0
+ * - `HEAD~1:package.json` —— 版本号常常在更早的提交里就 bump 了
+ *
+ * **所以查 GitHub Release 列表**，那是"真正发出去过什么"的唯一权威来源。
+ * 查不到时返回 null，判据会明确说"无法确认"而不是默认通过。
  */
 async function previousVersion() {
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  if (!token) return null;
   try {
-    const raw = await readFile(
-      path.join(
-        process.cwd(),
-        'apps/shell/src-tauri/target/release/bundle/nsis/latest.json',
-      ),
-      'utf8',
-    );
-    return JSON.parse(raw).version ?? null;
+    const res = await fetch('https://api.github.com/repos/Syntax-Liu/OpenCoxswain/releases?per_page=1', {
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: 'application/vnd.github+json',
+        'user-agent': 'opencoxswain-release-check',
+      },
+    });
+    if (!res.ok) return null;
+    const list = await res.json();
+    const tag = Array.isArray(list) ? list[0]?.tag_name : null;
+    return tag ? String(tag).replace(/^v/, '') : null;
   } catch {
     return null;
   }

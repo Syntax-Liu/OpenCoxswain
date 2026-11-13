@@ -58,6 +58,14 @@ describe('能不能发', () => {
     assert.match(v.blockers.join(' '), /没有更新/);
   });
 
+  it('**查不到上一个版本 → 只提醒，不静默放行**', () => {
+    const v = evaluateRelease(facts({ previousVersion: null }));
+    assert.equal(v.ready, true);
+    // 关键：状态是 warn，不是 pass
+    assert.equal(v.checks.find((c) => c.id === 'version')?.status, 'warn');
+    assert.match(v.summary, /提醒/);
+  });
+
   it('新增 TODO 只是提醒，不拦发布', () => {
     const v = evaluateRelease(facts({ newTodos: 2 }));
     assert.equal(v.ready, true);
