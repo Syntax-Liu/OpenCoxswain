@@ -68,11 +68,62 @@ function asksUserToAct(body: string): boolean {
 }
 
 /**
+ * 正文里**有没有真的在问用户**。
+ *
+ * ## 为什么看结尾，而不是全文
+ *
+ * 第一版是"全文中出现问号就算"。结果：一条汇报里顺便提了个反问句，
+ * 整条就被判成待决策——
+ *
+ *     "**结论**：任务 2–5 全部跑完……需要你决定什么：这个结果够不够？"
+ *
+ * 这句话里的问号是**汇报的一部分**，不是真的在等用户回答。
+ *
+ * 真人提问有几个特征：放在最后、以问句收尾。所以只看**末尾一段**。
+ *
+ * ## 例外
+ *
+ * 系统自己标注的（卡点分类）、定时提醒、危险动作被拒——
+ * 这些正文不是问句，但确实需要用户动作，由调用方另行判断。
+ */
+function looksLikeQuestion(body: string): boolean {
+  // 去掉代码块，里面有问号不代表在问用户
+  const text = body.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ');
+
+  // **只看最后 120 字**。真人提问会放在最后。
+  const tail = text.trim().slice(-120);
+
+  if (/[？?]\s*$/.test(tail)) return true;
+  // 问句不一定以问号结尾（中文里常省略）
+  if (/(?:要不要|是否|请选择|选哪个|你希望|你想)[^。？?]{0,40}[。？?]?\s*$/.test(tail)) {
+    return true;
+  }
+  // 明确的行动请求，放哪儿都算
+  if (/需要你(?:决定|选|提供|确认|授权)/.test(text)) return true;
+  return false;
+}
+
+/**
  * 判断一条报告是否真的需要用户拍板。
  *
  * 返回 `false` 的报告仍会记录、仍会展示，只是**不进入待决策面板**。
  */
 export function needsUserDecision(ctx: DecisionContext): boolean {
+  // **先做内容检查**：明显是汇报的，即使调用方说要也不算。
+  //
+  // 调用方的 `explicit: true` 常常是 Assistant 的习惯性设置，
+  // 它把每条汇报都标成"需要用户"，但内容明明是结论。
+  if (ctx.explicit === true && !looksLikeQuestion(ctx.body)) {
+    // 三类例外：正文不是问句，但**确实需要用户动作**
+    // 1. 卡点标记——系统自己判定的，比模型的自述可信
+    // 2. 定时提醒——"确认后才会开始"，用户不动它就不会跑
+    // 3. 危险动作被拒——任务卡在那里，只有用户能解锁
+    const isSystemFlagged = /卡点分类[：:]\s*需用户决定/.test(ctx.body);
+    const isScheduleReminder = /定时提醒/.test(ctx.body) && /确认后?才?会?开始/.test(ctx.body);
+    const isRejectedAction = /危险动作|未获批准|已被拒绝/.test(ctx.body);
+    if (!isSystemFlagged && !isScheduleReminder && !isRejectedAction) return false;
+  }
+
   // 调用方明确表态时，尊重它
   if (ctx.explicit !== undefined) return ctx.explicit;
 
