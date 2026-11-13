@@ -223,7 +223,7 @@ button.link.danger {
   border-right: 1px solid var(--border);
   min-height: 0;
   padding: 6px 0;
-  gap: 1px;
+  gap: 0;
 }
 
 .nav-main {
@@ -710,7 +710,7 @@ button.link.danger {
 }
 
 .md-p {
-  margin: 3px 0;
+  margin: var(--g-1) 0;
 }
 
 .md-gap {
@@ -731,7 +731,7 @@ button.link.danger {
 .md-inline-code {
   background: rgba(255, 255, 255, 0.08);
   border-radius: var(--r-md);
-  padding: 1px 5px;
+  padding: 2px var(--g-1);
   font-size: var(--fs-sm);
   font-family: 'Cascadia Code', Consolas, monospace;
 }
@@ -1227,7 +1227,9 @@ button.ghost.danger {
 
 button.small {
   font-size: var(--fs-sm);
-  padding: 3px 10px;
+  /* 高度由 button 基础层的 --h-md 定，这里只管左右内边距 */
+  padding: 0 var(--g-2);
+  height: var(--h-sm);
 }
 
 /* ---------- B4 ����ϸ�� ---------- */
@@ -1544,7 +1546,7 @@ button.small {
   color: var(--text-dim);
   letter-spacing: 0.3px;
   text-transform: none;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
   user-select: none;
 }
 
@@ -1795,7 +1797,7 @@ button.small {
 /* 底栏：VS Code 状态栏的样子 */
 .sidebar-foot {
   border-top: 1px solid var(--border);
-  padding: 5px 14px;
+  padding: var(--g-1) 14px;
   font-size: var(--fs-xs);
   color: var(--text-dim);
 }
@@ -1992,7 +1994,7 @@ button.small {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;  height: var(--h-lg);
+  gap: var(--g-2);  height: var(--h-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -2137,7 +2139,7 @@ button.small {
 .header-main {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--g-2);
   min-width: 0;
 }
 
@@ -2429,7 +2431,7 @@ button.small {
   font-size: var(--fs-md);
   line-height: 22px;
   min-height: 28px;
-  padding: 3px 0;
+  padding: var(--g-1) 0;
 }
 
 /* 状态栏：DSH 的 footer 用右对齐 + 8px 间距 */
@@ -3020,7 +3022,7 @@ body.is-resizing {
   text-align: left;
   background: transparent;
   border: none;
-  padding: 3px 6px 3px 0;
+  padding: 2px var(--g-1) 2px 0;
   border-radius: var(--r-sm);
   color: inherit;
   font-size: var(--fs-sm);
@@ -3438,7 +3440,7 @@ body.is-resizing {
 .batch-meta {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--g-1);
   font-size: var(--fs-xs);
   color: var(--text-dim);
   white-space: nowrap;
@@ -3467,7 +3469,7 @@ body.is-resizing {
   padding: 0 0 0 10px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .batch-task {
