@@ -905,8 +905,10 @@ export function App(): JSX.Element {
               hint: `${hit.projectName} · ${hit.sessionLabel}`,
               group: '会话内容',
               run: () => {
-                // 跳到所在会话：Agent 会话直接打开，Assistant 会话打开对应项目
-                void openAssistant(hit.projectId);
+                // **直接跳到那条消息所在的会话**。
+                // 只跳到项目的话，用户还得自己在会话列表里找一遍。
+                if (hit.executorId) void openExecutor(hit.projectId, hit.executorId);
+                else void openAssistant(hit.projectId);
               },
             }));
           }}

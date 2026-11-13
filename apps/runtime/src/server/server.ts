@@ -547,6 +547,9 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           projectName: owningProject?.name ?? '',
           // Assistant 的会话没有 executor 对应，标签就写 Assistant
           sessionLabel: owningExecutor?.label ?? 'Assistant',
+          // 带上 executorId，界面才能直接跳到那条会话。
+          // 不带的话只能跳到项目，用户还得自己找是哪个会话。
+          executorId: owningExecutor?.id ?? null,
         };
       });
 

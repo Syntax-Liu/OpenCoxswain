@@ -102,6 +102,8 @@ export interface SearchHitDto {
   readonly at: number;
   readonly projectName: string;
   readonly sessionLabel: string;
+  /** 所属 Agent 的 id；Assistant 的会话为 null。 */
+  readonly executorId: string | null;
 }
 
 export interface FileEntryDto {
