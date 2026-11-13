@@ -4289,3 +4289,80 @@ body.is-resizing {
   max-height: 160px;
   overflow-y: auto;
 }
+
+/* 输入区提示：告诉用户可以继续说 */
+.composer-hint {
+  padding: 6px 12px 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.composer-hint.tone-quiet {
+  color: var(--text-dim);
+}
+
+/* 有 Agent 在跑时稍微亮一点——这时才是真的需要用户知道 */
+.composer-hint.tone-active {
+  color: var(--warn);
+}
+
+/* ============================================================
+   侧栏批次分组：同一轮派的 Agent 连成一组
+   ============================================================ */
+
+/* 用左边框把同一批连起来，不改变行高、不新增元素 */
+.thread-list li.batch-first,
+.thread-list li.batch-middle,
+.thread-list li.batch-last {
+  position: relative;
+}
+
+.thread-list li.batch-first::before,
+.thread-list li.batch-middle::before,
+.thread-list li.batch-last::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  width: 1px;
+  background: var(--border-strong);
+  pointer-events: none;
+}
+
+/* 首：从行中间往下 */
+.thread-list li.batch-first::before {
+  top: 50%;
+  bottom: 0;
+}
+
+/* 中：整行 */
+.thread-list li.batch-middle::before {
+  top: 0;
+  bottom: 0;
+}
+
+/* 尾：从顶部到行中间 */
+.thread-list li.batch-last::before {
+  top: 0;
+  bottom: 50%;
+}
+
+/* 首尾各加一个小圆点，标出这一批的起止 */
+.thread-list li.batch-first::after,
+.thread-list li.batch-last::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.thread-list li.batch-first::after {
+  top: calc(50% - 2px);
+}
+
+.thread-list li.batch-last::after {
+  bottom: calc(50% - 2px);
+}

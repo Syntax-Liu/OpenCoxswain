@@ -12,6 +12,7 @@ import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens, progressBar } from './contextUsage.js';
 import { describeWait } from './waitStatus.js';
+import { composerHint } from './composerHint.js';
 import { Onboarding } from './Onboarding.js';
 import { shouldShowOnboarding } from './starterGuide.js';
 import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
@@ -172,6 +173,14 @@ export function Conversation(props: ConversationProps): JSX.Element {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [props.thinking]);
+
+  /** 输入区提示：Agent 在跑时告诉用户可以继续说。 */
+  const hint = composerHint({
+    thinking: props.thinking,
+    runningAgents: (props.executors ?? []).filter(
+      (e) => e.status === 'running' || e.status === 'starting',
+    ).length,
+  });
 
   const waitStatus = useMemo(() => {
     const elapsed = waitStartedAt === null ? 0 : now - waitStartedAt;
@@ -334,6 +343,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
         }}
       >
         {attachments.dragging && <div className="drop-hint">松手添加附件</div>}
+
+        {/* 在跑时告诉用户可以继续说——这个能力一直有，但界面没说过 */}
+        {hint && <div className={`composer-hint tone-${hint.tone}`}>{hint.text}</div>}
 
         {/* @ 引用：输入 @ 后弹出文件选择器 */}
         {mention.active && (

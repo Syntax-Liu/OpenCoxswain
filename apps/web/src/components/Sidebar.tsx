@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
+import { computeBatchPositions } from './sidebarBatches.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
 import {
@@ -262,9 +263,12 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
         {props.projects.map((project) => {
           const projectMatches = matchesProject(project, query, onlyRunning);
-          const collapsed = collapsedIds.has(project.id);          const items = props.executors.filter(
+          const collapsed = collapsedIds.has(project.id);
+          const items = props.executors.filter(
             (e) => e.projectId === project.id && matchExecutor(e, query, onlyRunning),
           );
+          // 批次位置：同一轮派的会话在侧栏里连成一组
+          const groupInfo = computeBatchPositions(items);
           if (filtering && !projectMatches && items.length === 0) return null;
 
           const active =
@@ -311,12 +315,22 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
               {!collapsed && (
                 <ul className="thread-list">
-                  {items.map((executor) => {
+                  {items.map((executor, itemIndex) => {
                     const selected =
                       props.view.kind === 'executor' && props.view.executorId === executor.id;
                     const running = isRunning(executor.status);
+                    // 同一批的会话连成一组（看看它们是谁一起派的）
+                    const group = groupInfo[itemIndex];
+                    const batchClass =
+                      group && group.position !== 'none' ? `batch-${group.position}` : undefined;
                     return (
-                      <li key={executor.id}>
+                      <li
+                        key={executor.id}
+                        className={batchClass}
+                        {...(group && group.position === 'first'
+                          ? { title: `这一批共 ${group.batchSize} 个 Agent` }
+                          : {})}
+                      >
                         <button
                           type="button"
                           className={`thread-item${selected ? ' active' : ''}`}
