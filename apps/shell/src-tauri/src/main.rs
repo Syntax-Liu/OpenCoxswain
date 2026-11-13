@@ -267,10 +267,79 @@ fn runtime_command(
     command
 }
 
+/// 清掉上一次运行残留的运行时进程。
+///
+/// ## 为什么需要
+///
+/// 用户强杀进程（任务管理器、崩溃、断电）时，`RunEvent::Exit` 里的
+/// taskkill 不会执行，node 子进程就成了孤儿，一直占着 47900。
+///
+/// 后果不只是端口冲突：**那个孤儿进程没有本轮启动时生成的 DPAPI 令牌**，
+/// 它解不开 `llm.json` 里的密文，界面上就会弹出"请填 API Key"——
+/// 用户以为配置丢了。
+///
+/// ## 做法
+///
+/// 启动前按**端口**找占用者，只杀命令行里明显是 OpenCoxswain 运行时的进程，
+/// 不碰其它 node。
+#[cfg(windows)]
+fn reap_orphan_runtime() {
+    // 找占用 47900 的 PID
+    let Ok(output) = Command::new("netstat").args(["-ano", "-p", "TCP"]).output() else {
+        return;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut pids: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        if !line.contains(":47900") || !line.contains("LISTENING") {
+            continue;
+        }
+        if let Some(pid) = line.split_whitespace().last() {
+            pids.push(pid);
+        }
+    }
+    if pids.is_empty() {
+        return;
+    }
+
+    // 确认是 OpenCoxswain 的运行时再杀——别误伤别人
+    for pid in pids {
+        let Ok(info) = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "(Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\").CommandLine"
+                ),
+            ])
+            .output()
+        else {
+            continue;
+        };
+        let cmdline = String::from_utf8_lossy(&info.stdout).to_lowercase();
+        if !(cmdline.contains("opencoxswain") || cmdline.contains("runtime\\cli.js")) {
+            append_log(&format!("47900 被其它程序占用（PID {pid}），不动它"));
+            continue;
+        }
+        append_log(&format!("清理残留运行时进程 PID {pid}"));
+        let _ = Command::new("taskkill")
+            .args(["/F", "/T", "/PID", pid])
+            .status();
+    }
+}
+
+#[cfg(not(windows))]
+fn reap_orphan_runtime() {}
+
 fn spawn_runtime(app: &tauri::App, secret: Option<&SecretService>) -> Option<Child> {
     let entry = runtime_entry(app)?;
     let node = node_binary(app);
     let statics = static_dir(app);
+
+    // **先清孤儿**：不然新运行时绑不上端口，而且旧进程没有 DPAPI 令牌，
+    // 表现为"配置凭空没了"。
+    reap_orphan_runtime();
+
     append_log(&format!(
         "runtime entry: {}（node: {}, static: {:?}）",
         entry.display(),
