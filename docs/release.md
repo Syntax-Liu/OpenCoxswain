@@ -151,8 +151,10 @@ workflow 里引用 `${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}`，
 
 ## 六、还没做的
 
-| 项 | 说明 |
-| --- | --- |
-| 安装包代码签名 | 需要 EV 证书；不做就一直有 SmartScreen 提示 |
-| 自动发布到 Releases | 目前手动上传三个文件；开源后可加 GitHub Actions 自动做 |
-| 增量更新 | 每次都是完整安装包（24MB），可接受 |
+**2026-11-13 重新核实**：
+
+| 项 | 状态 | 说明 |
+| --- | --- | --- |
+| 安装包代码签名 | ❌ 还没做 | 需要 EV 证书（约 1000–3000 元/年）；不做就一直有 SmartScreen 提示 |
+| ~~自动发布到 Releases~~ | ✅ **已做** | `scripts/publish-release.mjs` 一条命令完成建 Release + 传三个文件 + 打 tag |
+| 增量更新 | 不做 | 每次完整包 24MB；工程量远大于收益 |

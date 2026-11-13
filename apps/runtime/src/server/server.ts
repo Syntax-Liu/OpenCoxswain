@@ -508,6 +508,19 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
+    // ---- 使用报告 --------------------------------------------------------
+    //
+    // 回答"我自己是怎么用这个产品的"。
+    // **全在本地算，不上报任何数据。**
+    {
+      const usageMatch = /^\/api\/insights\/usage$/.exec(url.pathname);
+      if (method === 'GET' && usageMatch) {
+        const days = Number(url.searchParams.get('days') ?? 30);
+        const window = Number.isSafeInteger(days) && days > 0 && days <= 365 ? days : 30;
+        return reply(200, { usage: orchestrator.buildUsageReport(window) });
+      }
+    }
+
     // ---- 待决策：标记已处理 ------------------------------------------------
     //
     // 只改 acked_at，不删记录——用户可能回头查"当时我是怎么决定的"。

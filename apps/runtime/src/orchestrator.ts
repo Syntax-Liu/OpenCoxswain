@@ -59,6 +59,7 @@ import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
 import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
 import { McpManager, type McpServerConfig } from './mcp/client.js';
+import { buildUsageReport, type UsageStats } from './insights/usage.js';
 import { needsUserDecision } from './orchestrator/decisionRules.js';
 import { FileSnapshotStore, type SnapshotStore } from './security/snapshot.js';
 import { isUndoable, undoFileWrite } from './security/undo.js';
@@ -1542,6 +1543,46 @@ export class Orchestrator extends EventEmitter {
     await this.store.putReport(report);
     this.emit('runtime', { type: 'report', projectId: input.projectId, report } as RuntimeEvent);
     return report;
+  }
+
+  /**
+   * 全局使用报告。
+   *
+   * 回答"我自己是怎么用这个产品的"——派了多少、成功率多少、
+   * 哪类失败最多、哪些项目冷掉了。
+   *
+   * **只统计，不评价**；**全在本地算，不上报**。
+   */
+  buildUsageReport(days = 30): UsageStats {
+    const since = Date.now() - days * 86_400_000;
+
+    const executors = this.store.listProjects().flatMap((project) =>
+      this.store.listExecutors({ projectId: project.id }).map((e) => ({
+        status: e.status,
+        label: e.label,
+        createdAt: e.createdAt,
+        blockedReason: e.blockedReason,
+      })),
+    );
+
+    const effects = this.store.listProjects().flatMap((project) =>
+      this.store.listSideEffects({ projectId: project.id }).map((e) => ({
+        tool: e.tool,
+        target: e.target,
+        state: e.state,
+        createdAt: e.createdAt,
+      })),
+    );
+
+    const projects = this.store.listProjects().map((p) => {
+      // 最后活动时间取该项目下最新的任务创建时间
+      const mine = this.store.listExecutors({ projectId: p.id });
+      const last = mine.reduce((max, e) => Math.max(max, e.createdAt), p.createdAt);
+      return { name: p.name, lastActivityAt: last };
+    });
+
+    void since;
+    return buildUsageReport({ days, executors, effects, projects });
   }
 
   /**
