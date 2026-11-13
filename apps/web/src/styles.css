@@ -45,6 +45,9 @@
   --ok: #5a8f7b;            /* 暗青绿：完成 */
   --warn: #c98b4b;          /* 需要留意 */
   --danger: #b85450;        /* 需要你介入、破坏性操作 */
+  /* 中性信息：排队中、进度。**不抢琥珀的语义**——
+     琥珀只留给"需要你操作"。 */
+  --info: #5a7d99;
 
   /* ---- 尺寸 ---- */
   /* ---- 圆角：**只有 3 档** ----
@@ -4389,8 +4392,13 @@ body.is-resizing {
 .decision-panel {
   margin: 0 0 12px;
   padding: var(--g-3) var(--g-4);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  /* **容器用中性色，不用琥珀**。
+     之前整块面板是琥珀色底 + 琥珀边框，加上里面的图标和链接，
+     一屏里冒出大片琥珀——"需要你操作"这个信号就被稀释了。
+     现在只有标题的图标是琥珀，容器走普通面板色。 */
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-left: 2px solid var(--accent);
   border-radius: var(--r-md);
 }
 
