@@ -114,30 +114,21 @@ async function currentVersion() {
 /**
  * 上一个**已发布**的版本。
  *
- * 三个本地来源都不可靠：
+ * 用 git tag：这个仓库的版本 tag 已经补齐（v0.15.0–v0.50.3 共 67 个），
+ * tag 是"哪一版对应哪次提交"的唯一权威记录。
  *
- * - `latest.json` —— 发布流程里会被重新生成成当前版本，自己比自己
- * - git tag —— 这个仓库 36 个版本走 GitHub Release，tag 停在 v0.14.0
- * - `HEAD~1:package.json` —— 版本号常常在更早的提交里就 bump 了
+ * 曾经不可靠是因为 tag 只到 v0.14.0（36 个版本走 GitHub Release 没打 tag）。
+ * 已于 2026-11-13 从提交信息里批量补回，现在可信。
  *
- * **所以查 GitHub Release 列表**，那是"真正发出去过什么"的唯一权威来源。
- * 查不到时返回 null，判据会明确说"无法确认"而不是默认通过。
+ * 拿不到时返回 null，判据会明确说"无法确认"而不是默认通过。
  */
 async function previousVersion() {
-  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
-  if (!token) return null;
   try {
-    const res = await fetch('https://api.github.com/repos/Syntax-Liu/OpenCoxswain/releases?per_page=1', {
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: 'application/vnd.github+json',
-        'user-agent': 'opencoxswain-release-check',
-      },
+    // 排除当前 HEAD 上的 tag——那说明还没发新版
+    const { stdout } = await exec('git', ['describe', '--tags', '--abbrev=0', 'HEAD~1'], {
+      cwd: process.cwd(),
     });
-    if (!res.ok) return null;
-    const list = await res.json();
-    const tag = Array.isArray(list) ? list[0]?.tag_name : null;
-    return tag ? String(tag).replace(/^v/, '') : null;
+    return stdout.trim().replace(/^v/, '');
   } catch {
     return null;
   }
