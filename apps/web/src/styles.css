@@ -46,14 +46,22 @@
      **只有这一层允许写十六进制颜色。**
      语义层和组件层一律用 var() 引用这里。 */
 
-  /* 中性（冷蓝灰）：暗色主题的主体。只变明度，不偏色。 */
-  --c-neutral-950: #0a0c0f;   /* 最深：画布 */
+  /* 中性（冷蓝灰）：暗色主题的主体。只变明度，不偏色。
+     **补到 12 级**——DSH 的中性色板有 22 级（00 到 1000），
+     我们的暗色端之前只有 4 级（950/900/880/850/800/750/700 算 7 级），
+     导致"比面板深一点""比悬停浅一点"这类需求只能新造颜色。
+     这里把暗色端加密，相邻档位能看出差别但不会突兀。 */
+  --c-neutral-1000: #07080a;  /* 最深：遮罩底 */
+  --c-neutral-950: #0a0c0f;   /* 画布 */
   --c-neutral-900: #0d1013;   /* 侧栏 */
-  --c-neutral-880: #0e1216;   /* 输入框（比画布深，表达凹陷） */
+  --c-neutral-880: #0e1216;   /* 输入框（凹陷） */
   --c-neutral-850: #11151a;   /* 面板 */
+  --c-neutral-820: #141920;   /* 面板与抬起之间 */
   --c-neutral-800: #171c23;   /* 抬起的元素 */
+  --c-neutral-780: #191e26;   /* 抬起与悬停之间 */
   --c-neutral-750: #1a2028;   /* 悬停 */
   --c-neutral-700: #1f262f;   /* 选中 */
+  --c-neutral-650: #262e39;   /* 选中悬停 */
 
   --c-neutral-600: #545c65;   /* 元信息 */
   --c-neutral-500: #7a828b;   /* 次要文字 */
@@ -147,9 +155,31 @@
   /* ---- 圆角：**只有 3 档** ----
      之前界面里同时有 0/2/3/4/6/10/12px 六种尺度，
      每个控件被单独调过、互不参照，整体就没有"一套"的感觉。 */
-  --r-sm: 3px;   /* 按钮、标签、输入框、行内代码 */
-  --r-md: 4px;   /* 面板、卡片、浮层、气泡 */
-  --r-full: 50%; /* 圆形图标按钮 */
+  /* ---- 圆角：**按 DSH 的层级补全** ----
+     实测 DSH 的圆角是：xs=4 sm=8 md=12 lg=16 xl=20 panel=28（6 级）
+
+     我们之前只有 3px 和 4px 两档——**比 DSH 小 3~4 倍**。
+     这是界面看着"生硬"的主要原因：所有东西都是方角感。
+
+     现在补成 5 档，但**不照抄 DSH 的数值**——
+     我们是暗色指挥台风格，比 DSH 的明亮界面更适合小一点的圆角。
+     取值原则：每一档都能看出和相邻档的差别。 */
+  --r-xs: 3px;    /* 标签、行内代码、小徽章 */
+  --r-sm: 4px;    /* 按钮、输入框、下拉 */
+  --r-md: 6px;    /* 面板、卡片、气泡 */
+  --r-lg: 10px;   /* 浮层、模态、输入框容器 */
+  --r-xl: 14px;   /* 大面板、空态插画容器 */
+  --r-full: 50%;  /* 圆形图标按钮 */
+
+  /* ---- 动效时长：**统一成 3 档** ----
+     DSH 用 0.1 / 0.2 / 0.3 秒三档。
+     我们之前散在各处写死（6 处 transition），没有统一节奏。 */
+  --dur-fast: 0.1s;    /* 悬停、按下 */
+  --dur-base: 0.2s;    /* 展开、淡入 */
+  --dur-slow: 0.3s;    /* 面板滑入 */
+
+  /* 缓动曲线：DSH 用同一条，我们照搬语义（先快后慢） */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ---- 旧的圆角 token：**已废弃，只为兼容保留** ----
      界面里曾同时存在两套 token（--radius-sm=2px 和 --r-sm=3px），
@@ -224,7 +254,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: var(--g-1);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 /* ============================================================
@@ -1390,7 +1420,7 @@ button.small {
   justify-content: flex-end;
   margin-top: 4px;
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .message:hover .bubble-footer,
@@ -1539,7 +1569,7 @@ button.small {
   right: 0;
   z-index: 30;
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   padding: var(--g-3) var(--g-4);
   background: var(--bg-elevated);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
@@ -2117,7 +2147,8 @@ button.small {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: var(--g-2);  height: var(--h-lg);
+  gap: var(--g-2);
+  height: var(--h-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -2158,7 +2189,7 @@ button.small {
   padding: 0;
   border: none;
   opacity: 0;
-  transition: width 0.12s ease, opacity 0.12s ease;
+  transition: width var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
 }
 
 /* 鼠标移到工作区标题行才展开搜索框 */
@@ -2327,7 +2358,7 @@ button.small {
 }
 
 .composer-box {
-  transition: border-color 0.1s ease;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
 .composer-box:focus-within {
@@ -2363,7 +2394,8 @@ button.small {
 .composer-chip {
   /* 统一到 --h-sm / --fs-sm：之前是 19px 高、font 11px、padding 1px 8px，
      和旁边的"+"按钮（21px / 15px / 2px 8px）对不齐。
-     规范见 docs/control-spec.md。 */  height: var(--h-sm);
+     规范见 docs/control-spec.md。 */
+  height: var(--h-sm);
   font-size: var(--fs-sm);
   color: var(--text-muted);
   border: 1px solid var(--border-strong);
@@ -2381,7 +2413,8 @@ button.small {
 }
 
 .send-btn {
-  width: 26px;  height: var(--h-md);
+  width: 26px;
+  height: var(--h-md);
   padding: 0;
   display: grid;
   place-items: center;
@@ -2510,7 +2543,7 @@ button.small {
 }
 
 .bubble {
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   padding: var(--g-2) var(--g-3);
   font-size: var(--fs-md);
   line-height: 1.5;
@@ -2548,7 +2581,7 @@ button.small {
   position: relative;
   background: var(--bg-input);
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   padding: 6px 10px 4px;
 }
 
@@ -2708,7 +2741,8 @@ body.is-resizing {
 .icon-btn {
   background: transparent;
   color: var(--text-dim);
-  width: 22px;  height: var(--h-sm);
+  width: 22px;
+  height: var(--h-sm);
   border-radius: var(--r-md);
 }
 
@@ -3114,7 +3148,8 @@ body.is-resizing {
 
 .folder-toggle {
   flex: none;
-  width: 18px;  height: var(--h-md);
+  width: 18px;
+  height: var(--h-md);
   padding: 0;
   display: grid;
   place-items: center;
@@ -3132,7 +3167,7 @@ body.is-resizing {
 .folder-icon {
   display: inline-block;
   font-size: var(--fs-xs);
-  transition: transform 0.12s ease;
+  transition: transform var(--dur-fast) var(--ease);
 }
 
 /* 收起时箭头转向右 */
@@ -3797,7 +3832,8 @@ body.is-resizing {
      但**高度和内边距必须和旁边的 chip 一致**，否则底部对不齐。 */
   font-size: var(--fs-lg);
   line-height: 1;
-  padding: 0 var(--g-2);  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  height: var(--h-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4116,10 +4152,10 @@ body.is-resizing {
   padding: 12px 14px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-xl);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.12s ease;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
 .onboarding-card:hover {

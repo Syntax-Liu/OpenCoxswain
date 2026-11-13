@@ -166,3 +166,59 @@ describe('改造前后颜色一致', () => {
     });
   }
 });
+
+describe('**圆角按 DSH 的层级补全**', () => {
+  // 实测 DSH：xs=4 sm=8 md=12 lg=16 xl=20 panel=28（6 级）
+  // 我们之前只有 3px / 4px 两档，比 DSH 小 3~4 倍——
+  // 这是界面看着"生硬"的主要原因。
+  it('至少 5 档圆角', () => {
+    const sizes = ['--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-xl'];
+    for (const n of sizes) assert.ok(token(n), `缺少 ${n}`);
+  });
+
+  it('**档位严格递增**', () => {
+    const values = ['--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-xl'].map((n) =>
+      parseFloat(token(n) ?? '0'),
+    );
+    for (let i = 1; i < values.length; i += 1) {
+      assert.ok(values[i]! > values[i - 1]!, `圆角档位没有递增: ${values.join(',')}`);
+    }
+  });
+
+  it('最大档不小于 10px（之前最大才 4px，太方）', () => {
+    assert.ok(parseFloat(token('--r-xl') ?? '0') >= 10);
+  });
+});
+
+describe('**动效时长统一成 3 档**', () => {
+  it('三档都在', () => {
+    for (const n of ['--dur-fast', '--dur-base', '--dur-slow']) {
+      assert.ok(token(n), `缺少 ${n}`);
+    }
+  });
+
+  it('档位递增', () => {
+    const v = ['--dur-fast', '--dur-base', '--dur-slow'].map((n) => parseFloat(token(n) ?? '0'));
+    assert.ok(v[1]! > v[0]!);
+    assert.ok(v[2]! > v[1]!);
+  });
+
+  it('**没有硬编码的 transition 时长**', () => {
+    // 之前散落 6 处 0.12s / 0.1s，没有统一节奏
+    const hard = css.match(/transition:[^;]*\d+\.\d+s/g) ?? [];
+    assert.equal(hard.length, 0, `还有硬编码时长: ${hard.slice(0, 3).join(' | ')}`);
+  });
+});
+
+describe('中性色阶足够密', () => {
+  it('**暗色端至少 8 档**（DSH 有 22 级，我们原来只有 4 级）', () => {
+    const dark = css.match(/--c-neutral-(?:1000|950|900|880|850|820|800|780|750|700|650):/g) ?? [];
+    assert.ok(dark.length >= 8, `暗色档位只有 ${dark.length} 个`);
+  });
+
+  it('新增档位不破坏原有色值', () => {
+    assert.equal(token('--c-neutral-950'), '#0a0c0f');
+    assert.equal(token('--c-neutral-850'), '#11151a');
+    assert.equal(token('--c-neutral-800'), '#171c23');
+  });
+});
