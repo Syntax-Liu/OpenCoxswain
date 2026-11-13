@@ -742,6 +742,13 @@ export function App(): JSX.Element {
     };
   })();
 
+  /** executorId → Agent 名字；审批面板靠它标出"是谁要执行"。 */
+  const agentLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of state.executors) map.set(e.id, e.label);
+    return map;
+  }, [state.executors]);
+
   const needsSetup = settings !== null && !settings.configured;
   if (needsSetup) {
     return (
@@ -807,6 +814,8 @@ export function App(): JSX.Element {
         <UpdateBanner api={api} />
         <ApprovalPanel
           approvals={approvals}
+          // 多个 Agent 同时请求审批时，靠这个区分"是谁要干"
+          agentLabels={agentLabels}
           onApprove={(id, reason) => void handleApprove(id, reason)}
           onReject={(id, reason) => void handleReject(id, reason)}
         />

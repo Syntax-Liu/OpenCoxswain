@@ -4,6 +4,14 @@ import type { ApprovalDto } from '../api.js';
 
 export interface ApprovalPanelProps {
   readonly approvals: readonly ApprovalDto[];
+  /**
+   * executorId → Agent 名字。
+   *
+   * **多个 Agent 会同时请求审批**。不标出是哪个 Agent 的话，
+   * 用户看到三条"删除文件"完全分不清谁要删——这正是 Codex 那边
+   * 并行会话"被重复审批提示搞到不可用"的根源。
+   */
+  readonly agentLabels?: ReadonlyMap<string, string>;
   readonly onApprove: (id: string, reason: string) => void;
   readonly onReject: (id: string, reason: string) => void;
 }
@@ -38,6 +46,7 @@ export function ApprovalPanel(props: ApprovalPanelProps): JSX.Element | null {
           <ApprovalItem
             key={item.id}
             approval={item}
+            agentLabel={props.agentLabels?.get(item.executorId) ?? null}
             onApprove={(reason) => props.onApprove(item.id, reason)}
             onReject={(reason) => props.onReject(item.id, reason)}
           />
@@ -49,10 +58,13 @@ export function ApprovalPanel(props: ApprovalPanelProps): JSX.Element | null {
 
 function ApprovalItem({
   approval,
+  agentLabel,
   onApprove,
   onReject,
 }: {
   approval: ApprovalDto;
+  /** 是哪个 Agent 要执行这个动作；查不到时为 null。 */
+  agentLabel: string | null;
   onApprove: (reason: string) => void;
   onReject: (reason: string) => void;
 }): JSX.Element {
@@ -64,6 +76,13 @@ function ApprovalItem({
 
   return (
     <li className="approval-item">
+      {/* 先说是谁要干，再说什么事——多个 Agent 同时请求时这是唯一的区分依据 */}
+      <div className="approval-who">
+        <span className="approval-agent" title={agentLabel ?? '未知 Agent'}>
+          {agentLabel ?? '（未知 Agent）'}
+        </span>
+        <span className="muted small">想执行这个动作</span>
+      </div>
       <div className="approval-row">
         <span className={`approval-category ${approval.category}`}>
           {CATEGORY_LABEL[approval.category] ?? approval.category}

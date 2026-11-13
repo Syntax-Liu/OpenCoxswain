@@ -4427,3 +4427,21 @@ body.is-resizing {
 .trace-filter-btn.active .trace-filter-count {
   color: var(--accent);
 }
+
+/* 审批项：先说是谁要执行，再说什么动作 */
+.approval-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.approval-agent {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+}
