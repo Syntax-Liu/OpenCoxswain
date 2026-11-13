@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 
 import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/loop.js';
 import { applyEdit } from './edit.js';
+import { judgeFailure, parseFailures, renderFailureReport } from './testJudge.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { McpTool } from '../mcp/client.js';
 import { findSymbol, listSymbols, renderSymbolResult } from '../codeintel/symbols.js';
@@ -404,10 +405,35 @@ function assertInScope(writeScope: readonly string[], relative: string): void {
 export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHost {
   const { rootPath } = options;
   const maxOutput = options.maxOutputChars ?? 4000;
+  /**
+   * 本次派活里被写过的文件。
+   *
+   * 用途：判断测试失败时区分"测试文件被改过"还是"没改过"。
+   * 改过的测试失败 → 可能是测试自己写错了；
+   * 没改过的测试失败 → 更可能是实现有问题。
+   */
+  const changedFiles: string[] = [];
+
+  /** 把失败列表渲染成带判断结论的文本；没有失败时返回空串。 */
+  const categorize = (failures: ReturnType<typeof parseFailures>): string => {
+    if (failures.length === 0) return '';
+    return (
+      '\n\n---\n' +
+      renderFailureReport(
+        failures,
+        failures.map((f) => judgeFailure(f, { changedFiles })),
+      ).slice(0, 3000)
+    );
+  };
 
   return {
     definitions: () => executorTools({ mcpTools: options.mcpTools ?? [] }),
     async execute({ name, args }) {
+      // 记下写过的文件（工具失败时也记——它可能已经部分写入）
+      if (name === 'write_file' || name === 'edit_file') {
+        const p = String(args.path ?? '');
+        if (p && !changedFiles.includes(p)) changedFiles.push(p);
+      }
       // ---- 记账：执行前落 pending ----
       // 读类工具没有副作用，begin 会返回 row=null，后续结算自动跳过。
       let pending: Awaited<ReturnType<SideEffectLedger['begin']>> | null = null;
@@ -682,13 +708,49 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
                 windowsHide: true,
               });
               const out = `${stdout}\n${stderr}`.trim();
-              return { ok: true, content: trimCommandOutput(out, maxOutput) || '（命令无输出）' };
+
+              // **退出码 0 不代表测试通过**。
+              //
+              // 命令里有管道时（`pnpm test 2>&1 | head`），退出码是管道末端
+              // 那条命令的——失败被吞掉了。模型实际用命令时经常带管道。
+              //
+              // 所以成功分支也要扫一眼输出里有没有失败特征。
+              const looksFailed =
+                /\u2716\s+failing tests:/.test(out) ||
+                /^ℹ fail [1-9]/m.test(out) ||
+                /\d+ failing/.test(out);
+
+              if (looksFailed) {
+                const failures = parseFailures(out);
+                const judged = categorize(failures);
+                return {
+                  ok: false,
+                  content:
+                    `命令成功退出了，**但输出里有测试失败**（多半是管道吞掉了退出码）：\n` +
+                    `${trimCommandOutput(out, maxOutput)}${judged}`,
+                };
+              }
+
+              const failures = parseFailures(out);
+              return {
+                ok: true,
+                content: trimCommandOutput(out, maxOutput) || '（命令无输出）',
+              };
             } catch (error) {
               const err = error as { stdout?: string; stderr?: string; message?: string };
               const detail = `${err.stdout ?? ''}\n${err.stderr ?? ''}`.trim() || err.message || '';
+
+              // **测试失败自动分类**。
+              //
+              // 不加这一步，模型面对 "ℹ fail 1" 只能瞎猜：重跑、改实现、改测试。
+              // 改测试是最危险的——把一个真 bug 变成"测试通过"。
+              // 所以这里替它做分类，并且**说明判断依据**，而不是只给结论。
               return {
                 ok: false,
-                content: `命令失败：${trimCommandOutput(detail, maxOutput)}`,
+                content:
+                  `命令失败：${trimCommandOutput(detail, maxOutput)}` +
+                  // 分析结果单独截断，不能挤掉原始输出
+                  categorize(parseFailures(detail)),
               };
             }
           }

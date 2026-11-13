@@ -84,6 +84,28 @@ describe('命令识别', () => {
   it('句柄重定向不算写文件', () => {
     assert.equal(isWriteCommand('pnpm test 2>&1'), false);
   });
+
+  it('**`2>&1 | 管道` 不算写**', () => {
+    // `2>&1 |` 曾被 `>|` 规则误判成强制覆盖写，
+    // 导致只读任务里跑 `pnpm test 2>&1 | head` 直接被拦掉。
+    assert.equal(isWriteCommand('node --test x.js 2>&1 | head -30'), false);
+    assert.equal(isWriteCommand('git log 2>&1 | findstr abc'), false);
+  });
+
+  it('**git 的读操作不算写**', () => {
+    // 曾经把 'git' 整个列进写命令，只读任务连 `git status` 都做不了。
+    assert.equal(isWriteCommand('git status'), false);
+    assert.equal(isWriteCommand('git log --oneline'), false);
+    assert.equal(isWriteCommand('git diff HEAD'), false);
+  });
+
+  it('**git 的写操作照样拦**', () => {
+    assert.equal(isWriteCommand('git checkout main'), true);
+    assert.equal(isWriteCommand('git reset --hard'), true);
+    assert.equal(isWriteCommand('git clean -fd'), true);
+    assert.equal(isWriteCommand('git push'), true);
+    assert.equal(isWriteCommand('git commit -m x'), true);
+  });
 });
 
 describe('项目内判断', () => {

@@ -65,7 +65,8 @@ const WRITE_COMMANDS = new Set([
   'rm', 'mv', 'cp', 'mkdir', 'rmdir', 'touch', 'chmod', 'chown',
   'ln', 'dd', 'truncate', 'shred', 'tee',
   // 版本控制里会改工作区的
-  'git',
+  // 版本控制：**不能整个把 git 列进来**。git status / log / diff 都是纯读，
+  // 只读任务里最常用的恰恰是它们。会改工作区的子命令在 isWriteCommand 里单独判。
 ]);
 
 /** 看起来就像项目外的路径（绝对路径 / 盘符 / 上级引用）。 */
@@ -123,7 +124,20 @@ export function isWriteCommand(command: string): boolean {
   // 匹配 `>`、`>>`、`>|`，但排除 `2>&1` 这种句柄复制：
   // 那种是 `>&` 后面跟数字，不是写文件。
   if (/(?<![0-9])>{1,2}(?!&|>)/.test(command)) return true;
-  if (/>\|/.test(command)) return true;
+  // `>|` 是强制覆盖写；但 `2>&1 | head` 里的 `>|` 是"复制句柄 + 管道"，**不是写**。
+  // 只认前面既不是 `&` 也不是数字的 `>|`。
+  // 这个 bug 曾让 `pnpm test 2>&1 | head` 被当成写操作直接拦掉。
+  if (/(?<![&0-9])>\|/.test(command)) return true;
+
+  // git 子命令分开看：status/log/diff 是读，checkout/reset 是写。
+  // 把 git 整个当写命令，会让只读任务连 `git status` 都做不了。
+  if (
+    /\bgit\s+(?:checkout|reset|clean|restore|stash|merge|rebase|pull|fetch|commit|push|add|rm|mv|apply|cherry-pick|revert|switch|init|clone)\b/i.test(
+      command,
+    )
+  ) {
+    return true;
+  }
 
   // 逐个分句检查：`a && b` 里 b 是写命令也要算
   for (const segment of command.split(/&&|\|\||;|\|/)) {
