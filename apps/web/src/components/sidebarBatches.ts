@@ -31,33 +31,47 @@ export interface SidebarGroupInfo {
 /**
  * 给一组会话算出批次位置。
  *
- * 输入是**侧栏里显示的顺序**（已按 project 过滤），输出与输入一一对应。
+ * 输入是**侧栏里显示的顺序**，输出与输入一一对应。
+ *
+ * ## 关键：显示顺序是倒序（最新在上）
  *
  * 判定规则和对话流的批次线一致：按 `createdAt` 排序后，
  * 相邻两个间隔 ≤ BATCH_WINDOW_MS 就归为一批。
+ *
+ * 但**位置标签要按显示顺序给**——侧栏最新的在上面，
+ * 所以时间上最后那个反而是显示的第一个（`first`）。
+ * 早期实现按时间顺序贴标签，结果整组的圆点位置全错。
  */
 export function computeBatchPositions(executors: readonly ExecutorDto[]): SidebarGroupInfo[] {
   if (executors.length === 0) return [];
 
-  // 按创建时间排——侧栏的显示顺序可能不是时间序，判定要按时间
-  const sorted = [...executors].sort((a, b) => a.createdAt - b.createdAt);
+  // 按创建时间排——判定要按时间，不能跟着显示顺序
+  const byTime = [...executors].sort((a, b) => a.createdAt - b.createdAt);
 
   // 先算出每个会话所属的批次编号
   const batchOf = new Map<string, number>();
   let batchId = 0;
-  for (let i = 0; i < sorted.length; i += 1) {
+  for (let i = 0; i < byTime.length; i += 1) {
     if (i > 0) {
-      const gap = sorted[i]!.createdAt - sorted[i - 1]!.createdAt;
+      const gap = byTime[i]!.createdAt - byTime[i - 1]!.createdAt;
       if (gap > BATCH_WINDOW_MS) batchId += 1;
     }
-    batchOf.set(sorted[i]!.id, batchId);
+    batchOf.set(byTime[i]!.id, batchId);
   }
 
   // 统计每批的大小
   const sizeOf = new Map<number, number>();
   for (const id of batchOf.values()) sizeOf.set(id, (sizeOf.get(id) ?? 0) + 1);
 
-  // 按传入顺序输出
+  // 每批在**显示顺序**里的成员位置
+  const membersOf = new Map<number, string[]>();
+  for (const e of executors) {
+    const id = batchOf.get(e.id) ?? 0;
+    const list = membersOf.get(id) ?? [];
+    list.push(e.id);
+    membersOf.set(id, list);
+  }
+
   return executors.map((executor) => {
     const id = batchOf.get(executor.id) ?? 0;
     const size = sizeOf.get(id) ?? 1;
@@ -65,8 +79,8 @@ export function computeBatchPositions(executors: readonly ExecutorDto[]): Sideba
     // 只有 1 个的"批次"不画装饰——强调"批"反而制造噪音
     if (size < 2) return { position: 'none', batchSize: 1 };
 
-    const members = sorted.filter((e) => batchOf.get(e.id) === id);
-    const index = members.findIndex((e) => e.id === executor.id);
+    const members = membersOf.get(id) ?? [];
+    const index = members.indexOf(executor.id);
 
     let position: BatchPosition = 'middle';
     if (index === 0) position = 'first';

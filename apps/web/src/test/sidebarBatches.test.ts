@@ -82,13 +82,32 @@ describe('多批', () => {
 });
 
 describe('顺序无关', () => {
-  it('**输入不是时间序也能正确判定**', () => {
-    // b 比 a 早，但传进来的顺序是 a、b
+  it('**位置标签跟着显示顺序，不跟时间顺序**', () => {
+    // 传进来的顺序是 b、a（b 较新）
     const r = computeBatchPositions([agent('b', 2000), agent('a', 1000)]);
-    // 按时间 a 是 first，b 是 last；输出顺序跟着输入
     assert.equal(r[0]?.batchSize, 2);
     assert.equal(r[1]?.batchSize, 2);
-    assert.equal(r[0]?.position, 'last', 'b 在时间上是最后一个');
-    assert.equal(r[1]?.position, 'first', 'a 在时间上是第一个');
+    // 显示的第一个（b）画上方起始线，显示的第二个（a）画结束线
+    assert.equal(r[0]?.position, 'first');
+    assert.equal(r[1]?.position, 'last');
+  });
+
+  it('**侧栏的倒序输入：显示的第一个应该是 first**', () => {
+    // 侧栏按创建时间降序显示：新的在上
+    const newest = agent('new', 2000);
+    const oldest = agent('old', 1000);
+
+    const r = computeBatchPositions([newest, oldest]);
+    // 显示顺序是 new 在上、old 在下
+    assert.equal(r[0]?.position, 'first', '显示的第一个必须标 first（画上方起始线）');
+    assert.equal(r[1]?.position, 'last', '显示的最后一个必须标 last（画下方结束线）');
+  });
+
+  it('**倒序时三个会话的中间那个是 middle**', () => {
+    const r = computeBatchPositions([agent('c', 3000), agent('b', 2000), agent('a', 1000)]);
+    assert.deepEqual(
+      r.map((x) => x.position),
+      ['first', 'middle', 'last'],
+    );
   });
 });
