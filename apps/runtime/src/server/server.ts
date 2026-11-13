@@ -34,6 +34,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Orchestrator, RuntimeEvent } from '../orchestrator.js';
+import { cleanLabel } from '../orchestrator/label.js';
 import { findProject, handoff, projectBrief } from '../global/assistant.js';
 import { isInternalSource, type Store } from '../store/store.js';
 import { approveAction, rejectAction } from '../security/approval.js';
@@ -591,7 +592,14 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       if (method === 'GET' && !action) {
         return reply(200, {
           project,
-          executors: store.listExecutors({ projectId }),
+          // **侧栏显示的是这个 label**，而历史数据里的 label 常常带着
+          // 工具名和文件名（"用 write_file 把 xxx.txt 改成…"）。
+          // 这里在出口清理一遍：只影响显示，不改数据库；
+          // 清不成句的会保留原文。
+          executors: store.listExecutors({ projectId }).map((e) => ({
+            ...e,
+            label: cleanLabel(e.label),
+          })),
           reports: store.listReports({ projectId }),
           lastSeq: bus.lastSeq,
         });

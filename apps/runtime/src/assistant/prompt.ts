@@ -104,7 +104,22 @@ export function assistantTools(): ToolDefinition[] {
         additionalProperties: false,
         required: ['label', 'goal'],
         properties: {
-          label: { type: 'string', description: '一句话说清这个 Agent要做什么，用于汇报时标识它' },
+          label: {
+            type: 'string',
+            description:
+              // **侧栏显示的就是这一行**，所以它必须读起来像"在干什么"，
+              // 而不是"用了哪个工具、动了哪个文件"。
+              //
+              // 真实坏例（占历史数据的 56%）：
+              //   "用 write_file 把 undo-test.txt 改为「改过了」"
+              //   "统计根目录 .txt 数量并写入 dep-a.txt"
+              // 用户关心的是意图，工具名和文件名是实现细节——
+              // 那些在任务详情的轨迹里，不该占着侧栏。
+              '一句话说清这个 Agent 要达成什么（**写意图，不写实现**）。' +
+              '禁止出现：工具名（write_file / edit_file / run_command 等）、' +
+              '文件路径或扩展名、"用…把…改成…"这种操作描述。' +
+              '好例："修正测试失败的断言"；坏例："用 edit_file 改 undo-test.txt"。',
+          },
           goal: {
             type: 'string',
             description: '完整目标与验收标准，要能让Agent独立理解（它看不到你和用户的对话）',
