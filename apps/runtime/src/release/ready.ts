@@ -86,14 +86,21 @@ export function evaluateRelease(facts: ReleaseFacts): ReleaseVerdict {
   const checks: ReleaseCheck[] = [];
 
   // ---- 1. 测试必须全过 ----
+  //
+  // **测试数为 0 要判失败**，不能判通过。
+  // 真实踩过：命令没跑起来（找不到 pnpm），输出里一条测试汇总都没有，
+  // 结果这个检查显示"✓ 0 个测试全过"——比不检查更糟。
+  const total = facts.tests.passed + facts.tests.failed;
   checks.push({
     id: 'tests',
     label: '测试全过',
-    status: facts.tests.failed > 0 ? 'fail' : 'pass',
+    status: facts.tests.failed > 0 || total === 0 ? 'fail' : 'pass',
     detail:
-      facts.tests.failed > 0
-        ? `${facts.tests.failed} 个测试失败（共 ${facts.tests.passed + facts.tests.failed}）`
-        : `${facts.tests.passed} 个测试全过`,
+      total === 0
+        ? '没有跑出任何测试结果——测试命令可能失败了，不能当通过'
+        : facts.tests.failed > 0
+          ? `${facts.tests.failed} 个测试失败（共 ${total}）`
+          : `${facts.tests.passed} 个测试全过`,
   });
 
   // ---- 2. 改了业务代码就要有对应测试 ----

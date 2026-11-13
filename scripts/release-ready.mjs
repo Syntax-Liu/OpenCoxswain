@@ -29,13 +29,17 @@ const { evaluateRelease, renderVerdict } = await import(
 
 /** 跑一次测试，取通过/失败数。 */
 async function runTests() {
+  // Windows 上 pnpm 是 .cmd，必须经过 shell。
+  // shell:true 会让 node 打 DEP0190 警告，用 NODE_OPTIONS 压掉，
+  // 否则警告会混进 stdout 干扰下面解析。
+  const options = {
+    cwd: process.cwd(),
+    shell: true,
+    maxBuffer: 32 * 1024 * 1024,
+    env: { ...process.env, NODE_NO_WARNINGS: '1' },
+  };
   try {
-    // 用 --test-reporter 让输出稳定，只关心汇总
-    const { stdout } = await exec('pnpm', ['test'], {
-      cwd: process.cwd(),
-      shell: true,
-      maxBuffer: 32 * 1024 * 1024,
-    });
+    const { stdout } = await exec('pnpm test', [], options);
     return summarize(stdout);
   } catch (error) {
     // 有测试失败时 pnpm 会非零退出，但输出还在

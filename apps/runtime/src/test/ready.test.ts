@@ -65,6 +65,16 @@ describe('能不能发', () => {
   });
 });
 
+describe('**测试数 0 必须判失败**', () => {
+  it('一个测试都没跑出来 → 不能发', () => {
+    // 真实踩过：pnpm 调用失败，输出里没有汇总行，
+    // 结果显示"✓ 0 个测试全过"——比不检查更糟。
+    const v = evaluateRelease(facts({ tests: { passed: 0, failed: 0 } }));
+    assert.equal(v.ready, false);
+    assert.match(v.blockers.join(' '), /没有跑出任何测试结果/);
+  });
+});
+
 describe('**一次列出所有问题**', () => {
   it('不修一个报一个', () => {
     const v = evaluateRelease(
