@@ -4496,3 +4496,33 @@ body.is-resizing {
   flex: none;
   font-size: var(--fs-sm);
 }
+
+/* 状态栏：标签和数值分开，读起来是"轮次 225"而不是裸数字 */
+.status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-2);
+}
+
+.status-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--border-strong);
+  margin: 0 var(--g-1);
+}
+
+.status-label {
+  color: var(--text-dim);
+}
+
+.status-value {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--g-1);
+  cursor: help;
+}

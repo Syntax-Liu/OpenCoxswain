@@ -10,7 +10,8 @@ import { AttachmentStrip } from './AttachmentStrip.js';
 import { attachmentsToText, imageParts, useAttachments } from './attachments.js';
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
-import { describeContext, formatTokens, progressBar } from './contextUsage.js';
+import { describeContext, formatTokens } from './contextUsage.js';
+import { buildStatus } from './statusMetrics.js';
 import { describeWait } from './waitStatus.js';
 import { composerHint } from './composerHint.js';
 import { Onboarding } from './Onboarding.js';
@@ -95,6 +96,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
   const [tab, setTab] = useState<'chat' | 'trace'>('chat');
   /** 上下文预警横幅是否已被用户关掉。 */
   const [dismissedBanner, setDismissedBanner] = useState(false);
+
   // 附件：拖入 / 粘贴 / 选择
   const attachments = useAttachments();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -168,6 +170,26 @@ export function Conversation(props: ConversationProps): JSX.Element {
       recentlyCompacted,
     });
   }, [props.messages, props.traceMessages]);
+
+  /** 状态栏的三组指标：工作量 / 性能 / 上下文。 */
+  const statusGroups = useMemo(
+    () =>
+      buildStatus({
+        turns: props.stats?.turns ?? 0,
+        steps: props.stats?.steps ?? 0,
+        ...(props.stats?.tokensPerSecond !== undefined
+          ? { tokensPerSecond: props.stats.tokensPerSecond }
+          : {}),
+        ...(props.stats?.totalTokens !== undefined
+          ? { totalTokens: props.stats.totalTokens }
+          : {}),
+        ...(props.stats?.cacheHit !== undefined ? { cacheHit: props.stats.cacheHit } : {}),
+        contextRatio: contextUsage.ratio,
+        contextUsed: formatTokens(contextUsage.used),
+        contextLimit: formatTokens(contextUsage.limit),
+      }),
+    [props.stats, contextUsage],
+  );
 
   /**
    * 等待状态：从开始思考的那一刻计时。
@@ -488,34 +510,28 @@ export function Conversation(props: ConversationProps): JSX.Element {
         </div>
       )}
 
-      {/* 底部状态栏照 DSH：一行汇总当前项目的运行指标 */}
+      {/* 底部状态栏：**每个数字都有标签和口径**。
+          之前是一排裸数字（225 轮 · 319 步 / 173 tok/s / 2.196M tok /
+          缓存命中 91% / 39%），用户读不出任何结论，也不知道哪个能动作。
+
+          现在分三组：工作量 → 性能 → 上下文。
+          调试类指标（缓存命中）默认不显示——用户看了无法行动。 */}
       <footer className="status-bar">
-        <span className="status-item">
-          <span className="status-icon" aria-hidden>⟳</span>
-          {props.stats?.turns ?? 0} 轮 · {props.stats?.steps ?? 0} 步
-        </span>
-        <span className="status-item">
-          <span className="status-icon" aria-hidden>⚡</span>
-          {props.stats?.tokensPerSecond ?? '—'} tok/s
-        </span>
-        <span className="status-item">
-          <span className="status-icon" aria-hidden>Σ</span>
-          {props.stats?.totalTokens ?? '—'} tok
-        </span>
-        <span className="status-item">
-          <span className="status-icon" aria-hidden>⚡</span>
-          缓存命中 {props.stats?.cacheHit ?? '—'}
-        </span>
-        {/* 上下文用量：接近上限或压缩过时变色并给出说明 */}
-        <span
-          className={`status-item context-usage level-${contextUsage.level}`}
-          title={contextUsage.message ?? `上下文约 ${formatTokens(contextUsage.used)} / ${formatTokens(contextUsage.limit)}`}
-        >
-          <span className="status-icon" aria-hidden>
-            {progressBar(contextUsage.ratio)}
+        {statusGroups.map((group, groupIndex) => (
+          <span key={group.id} className="status-group">
+            {groupIndex > 0 && <span className="status-sep" aria-hidden />}
+            {group.metrics.map((metric) => (
+              <span
+                key={metric.id}
+                className={`status-item${metric.id === 'context' ? ` level-${contextUsage.level}` : ''}`}
+                title={metric.detail}
+              >
+                <span className="status-label">{metric.label}</span>
+                <span className="status-value">{metric.value}</span>
+              </span>
+            ))}
           </span>
-          {Math.round(contextUsage.ratio * 100)}%
-        </span>
+        ))}
       </footer>
     </div>
   );
