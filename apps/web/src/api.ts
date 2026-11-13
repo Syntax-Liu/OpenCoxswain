@@ -67,6 +67,13 @@ export interface RunMetricsDto {
   readonly tokensOut: number;
   readonly cachedTokens: number | null;
   readonly durationMs: number;
+  /**
+   * 模型调用累计耗时。`tok/s` 要用它算——用 durationMs 算出来的是
+   * 任务整体吞吐，含工具执行时间，会明显偏低。
+   *
+   * 老数据没有这个字段。
+   */
+  readonly modelMs?: number | null;
   readonly contextTokens: number | null;
 }
 

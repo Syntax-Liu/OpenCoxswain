@@ -45,6 +45,15 @@ export type LoopEvent =
       readonly tokensOut: number;
       /** 缓存命中的输入 token；模型未报告时为 undefined（不是 0）。 */
       readonly cachedTokens?: number;
+      /**
+       * **这一轮模型调用本身花了多少毫秒**。
+       *
+       * 为什么单独记：`tok/s` 应该是"模型输出速度"，
+       * 而整个任务的墙钟时间里有一大半是在跑工具、等审批。
+       * 用任务总时长算出的是"整体吞吐"，不是模型速度——
+       * 那个数字看起来像"模型很快"，实际包含了工具耗时，是误导。
+       */
+      readonly modelMs?: number;
     }
   | { readonly type: 'error'; readonly message: string; readonly retryable: boolean }
   | {
@@ -126,6 +135,9 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
     }
 
     let response;
+    // 只计模型调用本身的时间——不含工具执行、不含排队。
+    // tok/s 要反映"模型多快"，不是"这个任务整体多快"。
+    const modelStartedAt = Date.now();
     try {
       response = await llm.chat({
         messages,
@@ -140,6 +152,7 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
       yield { type: 'error', message: `调用模型失败：${message}`, retryable };
       return;
     }
+    const modelMs = Date.now() - modelStartedAt;
 
     if (response.tokensIn || response.tokensOut) {
       yield {
@@ -147,6 +160,7 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
         tokensIn: response.tokensIn,
         tokensOut: response.tokensOut,
         ...(response.cachedTokens !== undefined ? { cachedTokens: response.cachedTokens } : {}),
+        modelMs,
       };
     }
 

@@ -822,6 +822,8 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
   let tokensIn = 0;
   let tokensOut = 0;
   let cachedTokens: number | null = null;
+  // 只累加等模型的时间——tok/s 要用它才算得准。
+  let modelMs = 0;
   let contextTokens: number | null = null;
 
   for await (const event of runLoop({
@@ -847,6 +849,7 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
       if (event.cachedTokens !== undefined && event.cachedTokens !== null) {
         cachedTokens = (cachedTokens ?? 0) + event.cachedTokens;
       }
+      if (typeof event.modelMs === 'number') modelMs += event.modelMs;
       // 每轮都回调一次，让上层能立刻做止损判断。
       options.onProgressMetrics?.({ tokensIn, tokensOut });
     }
@@ -863,6 +866,7 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
     tokensOut,
     cachedTokens,
     durationMs: Date.now() - startedAt,
+    modelMs: modelMs > 0 ? modelMs : null,
     contextTokens,
   };
   options.onMetrics?.(metrics);

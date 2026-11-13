@@ -682,6 +682,7 @@ export function App(): JSX.Element {
     let tokensOut = 0;
     let cached = 0;
     let durationMs = 0;
+    let modelMs = 0;
     for (const agent of agents) {
       // metrics 可能还为空（刚建的 Agent 没跑过）
       const m = agent.metrics;
@@ -692,8 +693,13 @@ export function App(): JSX.Element {
       tokensOut += m.tokensOut;
       cached += m.cachedTokens ?? 0;
       durationMs += m.durationMs;
+      // 只累加等模型的时间：tok/s 要的是"模型多快"，不是"任务整体多快"
+      modelMs += m.modelMs ?? 0;
     }
-    const rate = durationMs > 0 ? Math.round((tokensOut / durationMs) * 1000) : null;
+
+    // 优先用 modelMs；老数据没有就用 durationMs（会偏低，但至少有数）
+    const denominator = modelMs > 0 ? modelMs : durationMs;
+    const rate = denominator > 0 ? Math.round((tokensOut / denominator) * 1000) : null;
     const total = tokensIn + tokensOut;
     return {
       turns,

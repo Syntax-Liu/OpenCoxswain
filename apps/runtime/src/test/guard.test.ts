@@ -122,6 +122,22 @@ describe('运行指标', () => {
     assert.equal(tokensPerSecond({ ...EMPTY_METRICS, tokensOut: 100, durationMs: 0 }), null);
   });
 
+  it('**有 modelMs 时优先用它**（才反映模型速度）', () => {
+    // 整个任务 10 秒，但模型只用了 2 秒 → 应该是 500 tok/s，不是 100
+    const rate = tokensPerSecond({
+      ...EMPTY_METRICS,
+      tokensOut: 1000,
+      durationMs: 10_000,
+      modelMs: 2_000,
+    });
+    assert.equal(rate, 500, '用任务总时长会算成 100，那是被工具耗时稀释的数');
+  });
+
+  it('没有 modelMs 的老数据退回 durationMs', () => {
+    const rate = tokensPerSecond({ ...EMPTY_METRICS, tokensOut: 1000, durationMs: 2000 });
+    assert.equal(rate, 500);
+  });
+
   it('缓存命中率：没数据时为 null，不是 0', () => {
     assert.equal(cacheHitRate({ ...EMPTY_METRICS, tokensIn: 100, cachedTokens: null }), null);
     assert.equal(cacheHitRate({ ...EMPTY_METRICS, tokensIn: 100, cachedTokens: 60 }), 0.6);

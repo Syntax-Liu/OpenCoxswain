@@ -54,7 +54,7 @@ import {
   type SearchableMessage,
 } from '../search/fulltext.js';
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -115,6 +115,8 @@ CREATE TABLE IF NOT EXISTS executor (
   cached_tokens INTEGER,
   duration_ms INTEGER NOT NULL DEFAULT 0,
   context_tokens INTEGER,
+  -- v9：模型调用累计耗时。tok/s 要用它，不能用整任务耗时。
+  model_ms INTEGER,
   criteria TEXT,
   policy TEXT,
   acceptance TEXT,
@@ -260,6 +262,11 @@ export class SqliteStore implements Store {
       // 老库补列，老数据为 NULL（没有附件），不影响回放。
       if (version < 8 && !this.hasColumn('message', 'images')) {
         this.db.exec('ALTER TABLE message ADD COLUMN images TEXT;');
+      }
+      // v8 → v9：executor 表新增 model_ms（模型调用累计耗时）。
+      // tok/s 要用它算才对——老数据为 NULL，退回用 duration_ms。
+      if (version < 9 && !this.hasColumn('executor', 'model_ms')) {
+        this.db.exec('ALTER TABLE executor ADD COLUMN model_ms INTEGER;');
       }
       this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
       // v3 → v4 只是新增 approval 表，SCHEMA 里的 CREATE IF NOT EXISTS 已覆盖，
@@ -523,8 +530,8 @@ export class SqliteStore implements Store {
     this.db
       .prepare(
         `INSERT INTO executor (id, project_id, session_id, label, goal, access, write_scope, status, summary, blocked_reason,
-           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, context_tokens, criteria, policy, acceptance, created_at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, model_ms, context_tokens, criteria, policy, acceptance, created_at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            status = excluded.status,
            summary = excluded.summary,
@@ -535,6 +542,7 @@ export class SqliteStore implements Store {
            tokens_out = excluded.tokens_out,
            cached_tokens = excluded.cached_tokens,
            duration_ms = excluded.duration_ms,
+           model_ms = excluded.model_ms,
            context_tokens = excluded.context_tokens,
            acceptance = excluded.acceptance,
            ended_at = excluded.ended_at`,
@@ -556,6 +564,7 @@ export class SqliteStore implements Store {
         row.metrics.tokensOut,
         row.metrics.cachedTokens,
         row.metrics.durationMs,
+        row.metrics.modelMs ?? null,
         row.metrics.contextTokens,
         JSON.stringify(row.criteria),
         row.policy,
@@ -954,6 +963,7 @@ function toExecutor(raw: Row): ExecutorRow {
       tokensOut: Number(raw.tokens_out ?? 0),
       cachedTokens: raw.cached_tokens === null || raw.cached_tokens === undefined ? null : Number(raw.cached_tokens),
       durationMs: Number(raw.duration_ms ?? 0),
+      modelMs: raw.model_ms === null || raw.model_ms === undefined ? null : Number(raw.model_ms),
       contextTokens:
         raw.context_tokens === null || raw.context_tokens === undefined ? null : Number(raw.context_tokens),
     },

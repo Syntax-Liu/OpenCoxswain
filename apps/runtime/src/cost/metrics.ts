@@ -27,8 +27,18 @@ export interface RunMetrics {
   readonly tokensOut: number;
   /** 缓存命中的输入 token；模型未报告时为 null（不是 0）。 */
   readonly cachedTokens: number | null;
-  /** 实际耗时（毫秒）。 */
+  /** 实际耗时（毫秒）。**整个任务**，含工具执行与等待。 */
   readonly durationMs: number;
+  /**
+   * 模型调用累计耗时（毫秒）。
+   *
+   * 和 `durationMs` 的区别：这个只算等模型的时间，不含跑工具。
+   * `tok/s` 必须用它算——用 `durationMs` 算出来的是"任务整体吞吐"，
+   * 标成 tok/s 会让人以为是模型速度，实际被工具耗时严重稀释。
+   *
+   * 老数据没有这个字段，为 null 或省略。
+   */
+  readonly modelMs?: number | null;
   /** 最后一轮的上下文占用（prompt tokens）；未报告时 null。 */
   readonly contextTokens: number | null;
 }
@@ -47,10 +57,20 @@ export function totalTokens(m: Pick<RunMetrics, 'tokensIn' | 'tokensOut'>): numb
   return m.tokensIn + m.tokensOut;
 }
 
-/** 吞吐：输出 token / 秒。耗时为 0 时返回 null（不编数字）。 */
+/**
+ * 吞吐：输出 token / 秒。
+ *
+ * **优先用 `modelMs`**（只算等模型的时间）。用它才算得出"模型多快"。
+ *
+ * 只有在没有 modelMs 的老数据上才退回 durationMs——那时算出来的是
+ * "任务整体吞吐"，含工具执行时间，会明显偏低。但总比不显示好。
+ *
+ * 耗时为 0 时返回 null（不编数字）。
+ */
 export function tokensPerSecond(m: RunMetrics): number | null {
-  if (m.durationMs <= 0 || m.tokensOut <= 0) return null;
-  return m.tokensOut / (m.durationMs / 1000);
+  const ms = m.modelMs && m.modelMs > 0 ? m.modelMs : m.durationMs;
+  if (ms <= 0 || m.tokensOut <= 0) return null;
+  return m.tokensOut / (ms / 1000);
 }
 
 /**
