@@ -75,6 +75,29 @@ async function main() {
 
   console.log(`发布 ${tag}`);
 
+  // 0. **发布前自检**：判据不满足就停下。
+  //
+  // 之前"能不能发"是凭感觉的。这一轮有 6 个 bug 是"测试全绿但功能不工作"，
+  // 所以把判据固化成代码，卡在这里。
+  {
+    let output;
+    try {
+      output = execFileSync(process.execPath, [path.join(ROOT, 'scripts/release-ready.mjs')], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch (error) {
+      output = String(error.stdout ?? '');
+      // 退出码非 0 = 不能发。把结论打出来再中止。
+      for (const line of output.trim().split('\n').slice(1)) console.log('  ' + line);
+      console.error('\n发布前自检未通过，已中止。修完上面列出的问题再发。');
+      process.exit(1);
+    }
+    for (const line of output.trim().split('\n').slice(1)) console.log('  ' + line);
+  }
+
   // 1. 确认产物齐全
   for (const name of [installer, sigFile, manifest]) {
     const info = await stat(path.join(NSIS, name)).catch(() => null);
