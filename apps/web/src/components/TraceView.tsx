@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { MessageDto } from '../api.js';
+import { TRACE_FILTERS, countByFilter, filterTrace, type TraceFilter } from './traceFilter.js';
 import { buildTrace, describeSpan, timelineSegments } from './trace.js';
 
 /**
@@ -26,16 +27,16 @@ export interface TraceViewProps {
 export function TraceView(props: TraceViewProps): JSX.Element {
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  /** 筛子：全部 / 只看失败 / 只看写操作。 */
+  const [filter, setFilter] = useState<TraceFilter>('all');
 
   const trace = useMemo(() => buildTrace(props.messages), [props.messages]);
+  const counts = useMemo(() => countByFilter(trace.entries), [trace.entries]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return trace.entries;
-    return trace.entries.filter(
-      (e) => e.title.toLowerCase().includes(q) || e.detail.toLowerCase().includes(q),
-    );
-  }, [trace.entries, query]);
+  const filtered = useMemo(
+    () => filterTrace(trace.entries, filter, query),
+    [trace.entries, filter, query],
+  );
 
   const segments = timelineSegments(trace);
 
@@ -70,6 +71,22 @@ export function TraceView(props: TraceViewProps): JSX.Element {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="搜索轨迹"
         />
+      </div>
+
+      {/* 筛子：几十上百条记录里，先缩小范围再找 */}
+      <div className="trace-filters" role="group" aria-label="筛选轨迹">
+        {TRACE_FILTERS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={`trace-filter-btn${filter === option.id ? ' active' : ''}`}
+            aria-pressed={filter === option.id}
+            onClick={() => setFilter(option.id)}
+          >
+            {option.label}
+            <span className="trace-filter-count">{counts[option.id]}</span>
+          </button>
+        ))}
       </div>
 
       {/* 时间轴：每段一次调用，按类型着色 */}

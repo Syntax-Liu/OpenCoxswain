@@ -4387,3 +4387,43 @@ body.is-resizing {
 .effects-list li.undone .eff-state {
   color: var(--accent);
 }
+
+/* 轨迹筛子：几十上百条记录里先缩小范围 */
+.trace-filters {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0 4px;
+  flex-wrap: wrap;
+}
+
+.trace-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.trace-filter-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.trace-filter-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.trace-filter-count {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-filter-btn.active .trace-filter-count {
+  color: var(--accent);
+}
