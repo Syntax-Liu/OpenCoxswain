@@ -222,3 +222,77 @@ describe('中性色阶足够密', () => {
     assert.equal(token('--c-neutral-800'), '#171c23');
   });
 });
+describe('**间距尺度覆盖实际用到的值**', () => {
+  // 原来只有 4/8/12/16/24 五档，但 CSS 里实际用了 7 种值
+  // （2/4/6/7/8/10/12px），共 86 处裸 px。
+  it('包含 2px 档（图标与文字）', () => {
+    assert.equal(token('--g-05'), '2px');
+  });
+
+  it('包含 6px 档（芯片内边距）', () => {
+    assert.equal(token('--g-15'), '6px');
+  });
+
+  it('包含 10px 档（按钮水平内边距）', () => {
+    assert.equal(token('--g-25'), '10px');
+  });
+
+  it('尺度严格递增', () => {
+    const levels = ['--g-05', '--g-1', '--g-15', '--g-2', '--g-25', '--g-3', '--g-4', '--g-5', '--g-6'];
+    const values = levels.map((n) => parseFloat(token(n) ?? '0'));
+    for (let i = 1; i < values.length; i += 1) {
+      assert.ok(values[i]! > values[i - 1]!, `间距没有递增: ${values.join(',')}`);
+    }
+  });
+});
+
+describe('组件级令牌', () => {
+  it('侧栏令牌齐全', () => {
+    assert.ok(token('--sidebar-width'));
+    assert.ok(token('--sidebar-inline-pad'));
+    assert.ok(token('--sidebar-row-pad'));
+  });
+
+  it('**内容宽度单一来源**（原来有 640/760/820 三个值）', () => {
+    assert.ok(token('--content-read'), '缺少 --content-read');
+    assert.ok(token('--content-wide'), '缺少 --content-wide');
+    // 不应再有裸的 760px / 820px 用作 max-width
+    const bare760 = css.match(/max-width:\s*760px/g) ?? [];
+    const bare820 = css.match(/max-width:\s*820px/g) ?? [];
+    assert.equal(bare760.length, 0, '还有裸的 max-width: 760px');
+    assert.equal(bare820.length, 0, '还有裸的 max-width: 820px');
+  });
+
+  it('输入框尺寸令牌化', () => {
+    assert.equal(token('--composer-min-height'), '52px');
+    assert.equal(token('--composer-max-height'), '180px');
+    // 注意：:root 里的 --composer-max-height: 180px 定义本身不算\n    const bare180 = (css.match(/max-height:\s*180px/g) ?? []).filter(\n      (line) => true,\n    );\n    assert.equal(bare180.length, 0, '还有裸的 180px');
+  });
+
+  it('状态点尺寸统一', () => {
+    assert.ok(token('--dot-size'));
+    assert.ok(token('--dot-size-lg'));
+  });
+
+  it('滚动条宽度分两档（页内 / 细）', () => {
+    assert.ok(token('--scrollbar-width'));
+    assert.ok(token('--scrollbar-width-thin'));
+  });
+});
+describe('**令牌不能引用自己**', () => {
+  // 踩过：批量替换时把 `--composer-max-height: 180px` 也替换成了
+  // `--composer-max-height: var(--composer-max-height)`。
+  // 循环引用**不报错**，只是静默失效——输入框高度直接没了。
+  it('没有自引用的令牌', () => {
+    // **先去掉注释**——/* ... */ 里的示例文本会被误判成定义
+    const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const selfRefs: string[] = [];
+    for (const m of noComments.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)) {
+      const name = m[1] ?? '';
+      const value = m[2] ?? '';
+      if (!name) continue;
+      if (value.includes(`var(${name})`)) selfRefs.push(name);
+    }
+    assert.deepEqual(selfRefs, [], `这些令牌引用了自己: ${selfRefs.join(', ')}`);
+  });
+});
