@@ -10,6 +10,8 @@ export interface ExecutorChatProps {
   readonly executor: ExecutorDto;
   readonly messages: readonly MessageDto[];
   readonly effects: readonly SideEffectDto[];
+  /** 撤销一次文件写入。 */
+  readonly onUndo?: (effectId: string) => void;
   readonly loading: boolean;
   readonly onSend: (text: string) => void;
   readonly onCancel: () => void;
@@ -78,7 +80,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
             <div className="blocked md-body">{renderMarkdown(props.executor.blockedReason)}</div>
           )}
           <AcceptanceBlock executor={props.executor} />
-          <EffectsBlock effects={props.effects} />
+          <EffectsBlock effects={props.effects} onUndo={props.onUndo} />
         </section>
 
         {props.loading && <p className="muted small">正在读取执行记录…</p>}
@@ -132,7 +134,13 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
  * 只列**有副作用**的动作（读写文件、执行命令、对外发送），
  * 读文件之类的纯查询不进台账——否则清单会被噪音淹没。
  */
-function EffectsBlock({ effects }: { effects: readonly SideEffectDto[] }): JSX.Element | null {
+function EffectsBlock({
+  effects,
+  onUndo,
+}: {
+  effects: readonly SideEffectDto[];
+  onUndo?: (effectId: string) => void;
+}): JSX.Element | null {
   if (effects.length === 0) return null;
 
   const label: Record<SideEffectDto['kind'], string> = {
@@ -147,7 +155,17 @@ function EffectsBlock({ effects }: { effects: readonly SideEffectDto[] }): JSX.E
     succeeded: '已执行',
     failed: '失败',
     rejected: '被拒绝（未执行）',
+    undone: '已撤销',
   };
+
+  /**
+   * 能不能撤销。
+   *
+   * **只有文件写入可以**——跑过的命令撤不了、发出去的请求收不回。
+   * 这里和运行时侧的 `isUndoable` 保持一致，不给出会失败的按钮。
+   */
+  const canUndo = (e: SideEffectDto): boolean =>
+    e.kind === 'fs.write' && e.reversible && e.state === 'succeeded';
 
   return (
     <div className="effects">
@@ -162,6 +180,18 @@ function EffectsBlock({ effects }: { effects: readonly SideEffectDto[] }): JSX.E
             <span className="eff-state">
               {stateLabel[e.state]}
               {!e.reversible && <span className="eff-irrev">不可撤销</span>}
+              {/* 可撤销的给一个按钮——之前只标了"不可撤销"，
+                  能撤的反而没有任何入口 */}
+              {canUndo(e) && onUndo && (
+                <button
+                  type="button"
+                  className="link eff-undo"
+                  title="把这个文件恢复到这次改动之前"
+                  onClick={() => onUndo(e.id)}
+                >
+                  撤销
+                </button>
+              )}
             </span>
           </li>
         ))}

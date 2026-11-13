@@ -200,7 +200,7 @@ export interface SideEffectDto {
   readonly executorId: string;
   readonly kind: 'fs.write' | 'fs.delete' | 'proc.exec' | 'net.send';
   readonly target: string;
-  readonly state: 'pending' | 'succeeded' | 'failed' | 'rejected';
+  readonly state: 'pending' | 'succeeded' | 'failed' | 'rejected' | 'undone';
   readonly reversible: boolean;
   readonly tool: string;
   readonly args: string;
@@ -403,6 +403,14 @@ export class ApiClient {
   archiveProject(projectId: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/archive`, {
       method: 'DELETE',
+    });
+  }
+
+  /** 撤销一次文件写入。只有文件写入可撤销。 */
+  undoEffect(effectId: string, projectId: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/side-effects/${encodeURIComponent(effectId)}/undo`, {
+      method: 'POST',
+      body: { projectId },
     });
   }
 

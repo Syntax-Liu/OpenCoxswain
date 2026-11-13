@@ -534,6 +534,37 @@ export function App(): JSX.Element {
     [api, state.projects, view, refreshProjects, setError],
   );
 
+  /**
+   * 撤销一次文件写入。
+   *
+   * 需要二次确认：撤销会**改文件内容**，误点一下就把 Agent 的改动抹了。
+   * 确认文案要说清楚"改的是哪个文件"。
+   */
+  const handleUndoEffect = useCallback(
+    async (effectId: string, projectId: string) => {
+      const effect = effects.find((e) => e.id === effectId);
+      const target = effect?.target ?? '这个文件';
+
+      const ok = window.confirm(
+        `把「${target}」恢复到 Agent 改动之前？\n\n` +
+          '· 会覆盖 Agent 写入的内容\n' +
+          '· 如果之后你又手工改过这个文件，撤销会被拒绝（不会覆盖你的修改）',
+      );
+      if (!ok) return;
+
+      try {
+        const result = await api.undoEffect(effectId, projectId);
+        setError(result.message);
+        // 重新拉一遍这个 Agent 的详情，让台账状态变成"已撤销"
+        await refreshProject(projectId);
+        if (view?.kind === 'executor') await openExecutor(projectId, view.executorId);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : '撤销失败');
+      }
+    },
+    [api, effects, refreshProject, openExecutor, view, setError],
+  );
+
   /** 删除一条会话。正在跑的会被服务端拒绝，这里把原因显示出来。 */
   const handleDeleteExecutor = useCallback(
     async (projectId: string, executorId: string) => {
@@ -833,6 +864,7 @@ export function App(): JSX.Element {
             onSend={(text) => void handleSendToExecutor(text)}
             onCancel={() => void api.cancelExecutor(view.executorId).catch(() => {})}
             onBack={() => void openAssistant(view.projectId)}
+            onUndo={(effectId) => void handleUndoEffect(effectId, view.projectId)}
           />
         )}
 

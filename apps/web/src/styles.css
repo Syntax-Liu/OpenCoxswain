@@ -4366,3 +4366,24 @@ body.is-resizing {
 .thread-list li.batch-last::after {
   bottom: calc(50% - 2px);
 }
+
+/* 撤销按钮：放在状态标签后面，不抢视觉 */
+.eff-undo {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.eff-undo:hover {
+  text-decoration: underline;
+}
+
+/* 已撤销：划掉目标路径，表明这条已经处理过 */
+.effects-list li.undone .eff-target {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+
+.effects-list li.undone .eff-state {
+  color: var(--accent);
+}
