@@ -248,6 +248,11 @@ button.link.danger {
 .nav-item {
   display: flex;
   align-items: center;
+  /* **必须是 flex-start**。
+     `text-align: left` 只影响块级文字，对 flex 子项无效——
+     漏了这一行，内容会被按钮默认的 `justify-content: center` 居中，
+     Supervisor / 添加项目 就比「新会话」缩进一大截。 */
+  justify-content: flex-start;
   height: var(--h-md);
   gap: var(--g-1);
   background: transparent;
@@ -343,6 +348,8 @@ button.link.danger {
 .thread-item {
   display: flex;
   align-items: center;
+  /* 同上：flex 子项靠左，否则被按钮默认的 center 居中 */
+  justify-content: flex-start;
   height: var(--h-sm);
   width: 100%;
   background: transparent;
@@ -1428,11 +1435,23 @@ button.small {
 /* ---------- ����ģ�� ---------- */
 
 .template-picker {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  /* **浮在输入框上方**，不要挤进工具栏那一行。
+     之前它是一个普通的 flex 子项，塞进 .composer-bar 里——
+     行高只有 22px，而面板有几百像素高，于是直接盖住了输入框。
+     用户截图里"用模板这一块完全重叠"就是这个原因。 */
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
   padding: var(--g-3) var(--g-4);
-  margin-bottom: 8px;
-  background: var(--bg-panel);
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  /* 模板多的时候自己滚，不要撑破浮层 */
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
 }
 
 .template-head {
@@ -2431,6 +2450,8 @@ button.small {
 }
 
 .composer-box {
+  /* 模板浮层相对这个盒子定位（浮在它上方） */
+  position: relative;
   background: var(--bg-input);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
@@ -3146,6 +3167,8 @@ body.is-resizing {
   width: 100%;
   display: flex;
   align-items: center;
+  /* 同 .nav-item：flex 子项必须明确靠左 */
+  justify-content: flex-start;
   gap: 8px;
   padding: 6px 16px;
   background: transparent;

@@ -107,3 +107,50 @@ describe('基础按钮层', () => {
     assert.match(d, /height:\s*var\(--h-md\)/);
   });
 });
+
+describe('**侧栏与设置页必须左对齐**', () => {
+  // 踩过两次：`.nav-item` 有 `display: flex` + `text-align: left`，
+  // 但漏了 `justify-content`，flex 子项就被按钮默认值居中，
+  // 于是 Supervisor / 添加项目 比「新会话」缩进一大截。
+  // `text-align` 对 flex 子项无效——这是个很容易漏的点。
+  const flexLeftRules = [
+    '.nav-item',
+    '.thread-item',
+    '.settings-nav-item',
+    '.new-session',
+  ];
+
+  for (const sel of flexLeftRules) {
+    it(`${sel} 有 justify-content: flex-start`, () => {
+      const re = new RegExp(`\\${sel}\\s*\\{([^}]*)\\}`, 'g');
+      let found = false;
+      let m;
+      while ((m = re.exec(css)) !== null) {
+        const body = m[1] ?? '';
+        if (!body.includes('display: flex')) continue;
+        found = true;
+        assert.match(body, /justify-content:\s*flex-start/, `${sel} 缺 justify-content: flex-start`);
+      }
+      assert.ok(found, `找不到 ${sel} 的 flex 规则`);
+    });
+  }
+});
+
+describe('**模板面板是浮层，不挤进工具栏**', () => {
+  it('position: absolute（不是普通 flex 子项）', () => {
+    // 之前它是 .composer-bar 里的普通子项，行高 22px 却有几像素高，
+    // 直接盖住输入框——用户截图"用模板这一块完全重叠"就是这个。
+    const m = /\.template-picker\s*\{([^}]*)\}/.exec(css);
+    assert.ok(m, '找不到 .template-picker');
+    assert.match(m[1] ?? '', /position:\s*absolute/);
+  });
+
+  it('浮在输入框上方', () => {
+    const m = /\.template-picker\s*\{([^}]*)\}/.exec(css);
+    assert.match(m?.[1] ?? '', /bottom:\s*calc\(100%/);
+  });
+
+  it('父级 .composer-box 有 position: relative', () => {
+    assert.match(css, /\.composer-box\s*\{[^}]*position:\s*relative/);
+  });
+});
