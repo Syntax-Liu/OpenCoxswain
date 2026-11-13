@@ -23,6 +23,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [research.md](research.md) | **三轮合并**：能力面 6 项 + 交互 5 项 + 多 Agent 2 项 |
+| [self-evolution.md](self-evolution.md) | **距自进化还差多少**：半自动/全自动的逐条核对 |
 | [guidance-dsh-superagent.md](guidance-dsh-superagent.md) | DSH 团队的设计原则（作为指导方案之一） |
 
 > 调研的结论都直接改成了代码，看"查了什么、修了什么"看 `research.md`。

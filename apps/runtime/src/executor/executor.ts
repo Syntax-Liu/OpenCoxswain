@@ -278,6 +278,42 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
   return [...baseTools, ...mcpTools];
 }
 
+/**
+ * 命令输出截断：**保留开头和结尾，优先保留失败信息**。
+ *
+ * ## 为什么不能简单 slice
+ *
+ * 全量测试输出实测 34685 字符，而工具输出上限是 4000。
+ * `slice(0, 4000)` 只保留前 11%——而**测试失败的摘要通常在末尾**。
+ *
+ * 结果是 Agent 看到一堆通过的测试，失败的那条被截掉了。
+ * 它不是"判断能力弱"，是根本没看到该判断的东西。
+ *
+ * ## 策略
+ *
+ * 1. 输出本来就够短 → 原样返回
+ * 2. 太长 → 头 30% + 尾 70%（尾部信息密度更高：错误、失败摘要、退出码）
+ * 3. 中间被省掉的部分明确标注，并告诉 Agent 怎么拿到完整输出
+ */
+export function trimCommandOutput(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+
+  // 尾部给更多空间：错误和失败摘要都在后面
+  const headLen = Math.floor(limit * 0.3);
+  const tailLen = limit - headLen;
+  const omitted = text.length - limit;
+
+  const head = text.slice(0, headLen);
+  const tail = text.slice(-tailLen);
+
+  return (
+    `${head}\n\n` +
+    `……（中间省略 ${omitted} 字符）……\n\n` +
+    `${tail}\n\n` +
+    '（输出太长已截断。要看完整输出：把命令的输出重定向到文件，再用 read_file 读它。）'
+  );
+}
+
 export interface ExecutorToolHostOptions {
   readonly rootPath: string;
   readonly writeScope: readonly string[];
@@ -646,11 +682,14 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
                 windowsHide: true,
               });
               const out = `${stdout}\n${stderr}`.trim();
-              return { ok: true, content: out.slice(0, maxOutput) || '（命令无输出）' };
+              return { ok: true, content: trimCommandOutput(out, maxOutput) || '（命令无输出）' };
             } catch (error) {
               const err = error as { stdout?: string; stderr?: string; message?: string };
               const detail = `${err.stdout ?? ''}\n${err.stderr ?? ''}`.trim() || err.message || '';
-              return { ok: false, content: `命令失败：${detail.slice(0, maxOutput)}` };
+              return {
+                ok: false,
+                content: `命令失败：${trimCommandOutput(detail, maxOutput)}`,
+              };
             }
           }
           default:
