@@ -114,21 +114,29 @@ async function currentVersion() {
 /**
  * 上一个**已发布**的版本。
  *
- * 用 git tag：这个仓库的版本 tag 已经补齐（v0.15.0–v0.50.3 共 67 个），
+ * 用 git tag：这个仓库的版本 tag 已补齐（v0.15.0–v0.50.3 共 67 个），
  * tag 是"哪一版对应哪次提交"的唯一权威记录。
  *
- * 曾经不可靠是因为 tag 只到 v0.14.0（36 个版本走 GitHub Release 没打 tag）。
- * 已于 2026-11-13 从提交信息里批量补回，现在可信。
+ * **不能用 `HEAD~1`**：版本号常常在更早的提交里就 bump 了，
+ * 拿上一次提交比会得出"版本号没变"的错误结论。
+ * 也不能用 `latest.json`：发布流程里它会被重新生成成当前版本。
  *
  * 拿不到时返回 null，判据会明确说"无法确认"而不是默认通过。
  */
 async function previousVersion() {
   try {
-    // 排除当前 HEAD 上的 tag——那说明还没发新版
-    const { stdout } = await exec('git', ['describe', '--tags', '--abbrev=0', 'HEAD~1'], {
-      cwd: process.cwd(),
-    });
-    return stdout.trim().replace(/^v/, '');
+    // 列出所有版本 tag，按版本号倒序
+    const { stdout } = await exec('git', ['tag', '--sort=-v:refname']);
+    const tags = stdout
+      .split('\n')
+      .map((t) => t.trim())
+      .filter((t) => /^v\d+\.\d+\.\d+$/.test(t));
+
+    // **如果当前版本已经有 tag，说明这一版发过了** —— 那不是"上一个版本"
+    const current = await currentVersion();
+    const withoutCurrent = tags.filter((t) => t !== `v${current}`);
+    const latest = withoutCurrent[0];
+    return latest ? latest.replace(/^v/, '') : null;
   } catch {
     return null;
   }
@@ -155,6 +163,16 @@ async function newTodos(prevTag) {
   }
 }
 
+/** 当前版本是否已经发布过（有同名 tag）。 */
+async function isAlreadyReleased(version) {
+  try {
+    const { stdout } = await exec('git', ['tag', '--list', `v${version}`]);
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // ---- 收集事实 ----
 
 const tests = await runTests();
@@ -169,6 +187,7 @@ const facts = {
   hasUncommitted: !(await isClean()),
   version,
   previousVersion: prev,
+  versionAlreadyReleased: await isAlreadyReleased(version),
   newTodos: await newTodos(changed.tag),
 };
 

@@ -66,6 +66,14 @@ describe('能不能发', () => {
     assert.match(v.summary, /提醒/);
   });
 
+  it('**这个版本已经发过了 → 不能重复发**', () => {
+    const v = evaluateRelease(
+      facts({ version: '1.0.0', previousVersion: '0.9.0', versionAlreadyReleased: true }),
+    );
+    assert.equal(v.ready, false);
+    assert.match(v.blockers.join(' '), /已经发布过了/);
+  });
+
   it('新增 TODO 只是提醒，不拦发布', () => {
     const v = evaluateRelease(facts({ newTodos: 2 }));
     assert.equal(v.ready, true);

@@ -59,8 +59,10 @@ export interface ReleaseFacts {
   readonly hasUncommitted: boolean;
   /** 当前版本号。 */
   readonly version: string;
-  /** 上一个已发布版本号（没有则为 null）。 */
+  /** 上一个**已发布**的版本号（还没有任何发布则为 null）。 */
   readonly previousVersion: string | null;
+  /** **当前版本是否已经发布过**（仓库里已有这个 tag）。 */
+  readonly versionAlreadyReleased?: boolean;
   /** 新增的 TODO/FIXME 数量。 */
   readonly newTodos: number;
 }
@@ -131,22 +133,32 @@ export function evaluateRelease(facts: ReleaseFacts): ReleaseVerdict {
       : '没有未提交的改动',
   });
 
-  // ---- 4. 版本号必须变 ----
+  // ---- 4. 版本号必须是新的 ----
   //
-  // **拿不到上一个版本时判 warn，不是 pass**。
-  // 判 pass 等于"没检查也放行"，比不检查更糟——
-  // 用户会以为检查过了。
+  // 两层判断：
+  // a) 这个版本**已经发布过**（仓库里有同名 tag）→ 不能重复发
+  // b) 拿不到上一个版本 → warn，不能静默放行
+  //
+  // 判 pass 等于"没检查也放行"，比不检查更糟——用户会以为检查过了。
+  const alreadyReleased = facts.versionAlreadyReleased === true;
   const versionChanged = facts.previousVersion !== null && facts.version !== facts.previousVersion;
+
   checks.push({
     id: 'version',
-    label: '版本号已更新',
-    status:
-      facts.previousVersion === null ? 'warn' : versionChanged ? 'pass' : 'fail',
-    detail:
-      facts.previousVersion === null
+    label: '版本号是新版本',
+    status: alreadyReleased
+      ? 'fail'
+      : facts.previousVersion === null
+        ? 'warn'
+        : versionChanged
+          ? 'pass'
+          : 'fail',
+    detail: alreadyReleased
+      ? `${facts.version} 已经发布过了——先 bump 版本号再发`
+      : facts.previousVersion === null
         ? `查不到上一个发布版本，无法确认 ${facts.version} 是新版本——发之前自己确认一下`
         : versionChanged
-          ? `${facts.previousVersion} → ${facts.version}`
+          ? `上一个发布版本 ${facts.previousVersion}，当前 ${facts.version}`
           : `版本号还是 ${facts.version}，没有更新`,
   });
 
