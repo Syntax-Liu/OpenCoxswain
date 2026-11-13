@@ -3,7 +3,7 @@
 > **状态：待确认方向**
 >
 > 本文是设计方案，不是执行规范。确认方向后，可执行的部分并入
-> [`ui-spec.md`](ui-spec.md)。
+> [`ui-spec.md`](../ui-spec.md)。
 >
 > 写于 2026-11-12。配套视觉样本：[`design-exploration.html`](design-exploration.html)
 

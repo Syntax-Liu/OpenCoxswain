@@ -1,108 +1,99 @@
 # 文档索引
 
-## 从这里开始
+> **先看这三份**：项目全貌 → [project-status.md](project-status.md)，
+> 现在做到哪 → [status.md](status.md)，命名规则 → [glossary.md](glossary.md)。
+> 其余的按需要查。
 
-| 想知道什么 | 看哪份 |
+---
+
+## 一、项目本身
+
+| 文档 | 内容 |
 | --- | --- |
-| **下一步做什么** | [`roadmap.md`](roadmap.md) ← **最新** |
-| **命令能做什么** | [sandbox.md](sandbox.md) ← 命令沙箱（非进程隔离） |
-| **怎么找代码** | [code-navigation.md](code-navigation.md) ← 符号查找（非完整 LSP） |
-| **怎么接自己的工具** | [mcp.md](mcp.md) ← MCP 接入 |
-| **怎么写技能** | [skills.md](skills.md) ← 按需加载的工作知识 |
-| **我们差在哪** | [competitor-gap.md](competitor-gap.md) ← **竞品调研：7 个子系统的差距** |
-| **快捷键** | [shortcuts.md](shortcuts.md) ← Ctrl+K 命令面板等 |
-| **怎么发文件** | [ttachments.md](attachments.md) ← 拖入 / 粘贴 / 图片降级 |
-| **指导原则** | [guidance-dsh-superagent.md](guidance-dsh-superagent.md) ← **DSH 团队设计原则（指导方案之一）** |
-| **多 Agent 怎么坏** | [multi-agent-research.md](multi-agent-research.md) ← **调研第三轮** |
-| **交互怎么做** | [interaction-research.md](interaction-research.md) ← **交互调研（第二轮）** |
-| **做完了吗** | [status-2026-11-12.md](status-2026-11-12.md) ← **收尾状态与待验证项** |
-| **接下来做什么** | [usability-plan.md](usability-plan.md) ← **易用性方案（下一步）** |
-| **界面往哪走** | [design-direction.md](design-direction.md) ← **视觉方向方案（待确认）** |
-| **改界面之前** | [ui-spec.md](ui-spec.md) ← **界面规范，唯一标准** |
-| **术语怎么叫** | [glossary.md](glossary.md) ← **命名的唯一权威来源** |
-| **完整了解项目** | [`project-status.md`](project-status.md) ← **全景快照：功能、结构、数据、API、决策、踩坑记录** |
-| **架构是怎么定的** | [`architecture.md`](architecture.md)：能力边界、为什么现在不做插件框架 |
-| **怎么发版** | [`release.md`](release.md)：自动更新、签名密钥、SmartScreen |
-| **想自己定制** | [`extensions.md`](extensions.md)：丢个 JS 文件就能改行为 |
-| **竞品格局与差异化定位** | [`competitor-verdict.md`](competitor-verdict.md) ← **权威**（判定谁是真竞品）<br>[`market-scan.md`](market-scan.md)（原始扫描记录） |
-| **开源共建该怎么走** | [`open-source-plan.md`](open-source-plan.md)（不盈利前提下的可参与性规划） |
-| 当前能做什么、怎么跑 | [`../README.md`](../README.md) |
-| 为什么这样设计（四角色） | [`self-developed-plan.md`](self-developed-plan.md) |
-| 具体实现细节 | [`../apps/runtime/README.md`](../apps/runtime/README.md)、[`../apps/web/README.md`](../apps/web/README.md) |
-| 怎么出安装包 | [`../BUILD.md`](../BUILD.md) |
+| [project-status.md](project-status.md) | **完整快照**：四层结构、功能清单、项目结构、数据模型、API 全清单 |
+| [status.md](status.md) | **状态与下一步**：做完了什么、还没做什么、能不能收尾 |
+| [architecture.md](architecture.md) | 架构：能力边界与"万物皆插件"的路线 |
+| [self-developed-plan.md](self-developed-plan.md) | 自研方案原始设计（四层：User / Supervisor / Assistant / Agent） |
+| [glossary.md](glossary.md) | **命名唯一权威**：代码、文档、界面、提交信息一律以此为准 |
 
-## 当前方向（2026-11-11 二次修订）：**自研整套软件**
+---
 
-**产品最终形态是完全自研的四层结构软件，不依赖任何外部 Agent 框架（dsh / TRAE 等）。**
+## 二、调研
 
-```
-A User ──┬─→ B Supervisor   跨项目统筹：全局视图、冲突检测、优先级、跨项目记忆
-         ├─→ C Assistant   一项目一常驻会话，项目的主人（主推入口）
-         └─→ D Agent     一事一 Agent，直接改代码，可追问
-```
+| 文档 | 内容 |
+| --- | --- |
+| [research.md](research.md) | **三轮合并**：能力面 6 项 + 交互 5 项 + 多 Agent 2 项 |
+| [guidance-dsh-superagent.md](guidance-dsh-superagent.md) | DSH 团队的设计原则（作为指导方案之一） |
 
-### 代码现状
+> 调研的结论都直接改成了代码，看"查了什么、修了什么"看 `research.md`。
 
-| 路径 | 角色 | 状态 |
+---
+
+## 三、功能说明（每个都有边界声明）
+
+| 文档 | 内容 | 边界 |
 | --- | --- | --- |
-| **`apps/runtime`** | **自研运行时（产品本体）** | ✅ C 常驻 + D 并行（区分只读/读写）+ 先完成先报 + 写域互斥 + 连发不打断 + Agent 可续聊 + SQLite 持久化与重启恢复 + HTTP/SSE + 本地 Markdown 记忆层 + **运行指标与用量止损** + **危险动作审批**。**305 条测试** |
-| **`apps/web`** | **工作台界面** | ✅ 左侧导航（文件夹 = C，条目 = D）+ 单页主区；D 轨迹查看与续聊、B 路由界面、Markdown 渲染、**运行指标展示**。**38 条测试** |
-| **`apps/shell`** | **桌面壳** | ✅ Tauri 2：拉起运行时、加载其界面、退出按进程树清理、日志落盘。安装包 23.6 MB，自带 Node |
-| `packages/dsh-bao` | dsh 插件 | 🔒 **已冻结**为设计参考，不再演进 |
-| `apps/daemon`、`apps/desktop` | 自研 daemon + 工作台 + Tauri 壳 | legacy，按需抽取 |
-| `packages/{shared,core,adapters,memory,plugin-api}` | 自研内核与业务包 | legacy，按需抽取复用 |
+| [sandbox.md](sandbox.md) | 命令沙箱 | 静态检查，**非进程隔离** |
+| [code-navigation.md](code-navigation.md) | 代码导航 | 词法级，**非真 LSP** |
+| [attachments.md](attachments.md) | 附件（拖入/粘贴/选择） | 只做图片和文本文件 |
+| [undo.md](undo.md) | 撤销 | **只做文件写入** |
+| [skills.md](skills.md) | 技能（SKILL.md） | 按需加载 |
+| [mcp.md](mcp.md) | MCP 接入 | 只做 stdio 传输 |
+| [extensions.md](extensions.md) | 扩展口 | 不是插件系统 |
 
-### 怎么跑起来
+---
 
-```bash
-# 终端 1：运行时 + HTTP/SSE + 界面静态文件（同源，一个端口）
-node apps/runtime/dist/cli.js --serve --static apps/web/dist
-# 打开 http://127.0.0.1:47900/
+## 四、界面
 
-# 终端 2：界面开发服务器（热更新）
-pnpm --filter @opencoxswain/web dev     # http://127.0.0.1:5180
+| 文档 | 内容 |
+| --- | --- |
+| [ui-spec.md](ui-spec.md) | **界面唯一标准**：改界面之前先读它 |
+| [shortcuts.md](shortcuts.md) | 键盘快捷键 |
 
-# 桌面安装包
-双击 build-app.cmd
-```
+---
 
-详细说明见 [`apps/runtime/README.md`](../apps/runtime/README.md)、[`apps/web/README.md`](../apps/web/README.md)、[`apps/shell/README.md`](../apps/shell/README.md)、[`BUILD.md`](../BUILD.md)。
+## 五、方案记录（已完成）
 
-### 为什么路线又变了
+| 文档 | 内容 |
+| --- | --- |
+| [usability-plan.md](usability-plan.md) | 易用性 9 项（v0.29–v0.34 已完成） |
+| [roadmap.md](roadmap.md) | 后续方向与已知技术债 |
 
-前一版（2026-11-11 上午）把方向定为"做 dsh 插件"。用户随后明确：**dsh 只作开发期验证，最终产品必须自研整套**。
+---
 
-关键核查结论：legacy `packages/adapters/builtin.ts` **已经是一个完整的 LLM tool-calling 循环**，所以"用 dsh 验证 Agent 行为"是多余的——直接基于内置循环自研更快，也避免两套抽象并行漂移。
+## 六、工程
 
-### 权威文档
+| 文档 | 内容 |
+| --- | --- |
+| [release.md](release.md) | 发布与自动更新（签名、NSIS、latest.json） |
+| [open-source-plan.md](open-source-plan.md) | 开源共建方向 |
+| [dsh-api-findings.md](dsh-api-findings.md) | DSH API 实证摘录（设计参考） |
+| [plugin-architecture.md](plugin-architecture.md) | 插件架构（P1 方向，未实施） |
 
-| 文档 | 作用 | 时效性 |
-| --- | --- | --- |
-| [`roadmap.md`](roadmap.md) | **后续发展方向**：已完成的、待做的、优先级与验收标准 | ✅ 最新 |
-| [`project-status.md`](project-status.md) | **项目全景**：四层结构、功能清单、代码结构、数据模型、API、决策记录、踩坑史 | ✅ 最新 |
-| [`architecture.md`](architecture.md) | **架构决策**：能力边界、四道防线、何时才上插件框架 | ✅ 最新 |
-| [`release.md`](release.md) | **发布与自动更新**：签名密钥保管、发版流程、SmartScreen | ✅ 最新 |
-| [`extensions.md`](extensions.md) | **扩展口**：geek 自定义点、能做什么不能做什么 | ✅ 最新 |
-| [`self-developed-plan.md`](self-developed-plan.md) | 四角色定义、三条流程、连发机制、分阶段规划 | ⚠️ 设计原则有效，实现细节已按自研调整（见文内状态标注） |
-| [`verify/p0-findings.md`](verify/p0-findings.md) | 四个关键假设的实测结论 | ⚠️ 基于 dsh 类型定义；**行为事实仍成立**，但 dsh 已不再作为依赖 |
-| [`trae-bao-reference.md`](trae-bao-reference.md) | TRAE 宝官方文档调研摘录（产品参照） | ✅ 仍有效 |
+---
 
-### 已拍板的决策（2026-11-11）
+## 七、历史归档 `archive/`
 
-| # | 决策 | 结论 |
-| --- | --- | --- |
-| **D0** | 产品最终形态 | **自研整套软件**，不依赖 dsh |
-| **D1** | B 与 C 之间是否互通 | B 可替用户把**原话**转交给 C，绝不代 C 汇报。B 只有三个能力 |
-| **D2** | C 是否允许同时跑多个 D | 允许并行，默认上限 **5**，写域互斥必须同时上线 |
-| **D3** | 用户直连 D 后 C 是否知道 | **C 知道** |
-| **D4** | C 的汇报节奏 | **谁先完成先报谁**，同一批同时完成合并成一条 |
-| **D5** | 关掉软件后 C 的记忆 | **完整恢复**会话 |
+**这些已过时，仅作记录保留。不要按它们做决定。**
 
-## 历史路线（已封存，仍可查阅）
+| 文档 | 为什么归档 |
+| --- | --- |
+| `plan.md` | 早期实施计划，已被自研方案取代 |
+| `trae-bao-plan.md` / `trae-bao-reference.md` | 对标 TRAE 宝的方案，路线已改为自研 |
+| `super-agent-adoption.md` / `market-scan.md` / `competitor-verdict.md` | 早期调研，结论已并入 `research.md` |
+| `feasibility-critique-response.md` | 对可行性质疑的回应，已过时 |
+| `master-worker-ux.md` | 主从双 Agent UX 分析，已并入实际设计 |
+| `questionnaire-v2.md` / `questionnaire-final.md` | 需求验证问卷，未实际发放 |
+| `spike-opencode.md` | OpenCode 接入验证，路线已改自研 |
+| `dsh-bao-m0.md` | DSH 宝 M0 冻结记录 |
+| `design-direction.md` | 设计方向探索过程，结论已在 `ui-spec.md` |
+| `status-2026-11-12.md` | v0.34 时的收尾快照，已被 `status.md` 取代 |
 
-| 文档 | 内容 | 状态 |
-| --- | --- | --- |
-| [`dsh-api-findings.md`](dsh-api-findings.md) | dsh 0.2.2-rc.1 各包 README 原文摘录 | 证据库，仍有效 |
-| [`dsh-bao-m0.md`](dsh-bao-m0.md) | dsh 插件 M0 说明 | 已冻结 |
-| [`trae-bao-plan.md`](trae-bao-plan.md) | 对标 TRAE 宝的 dsh 插件方案 | 已封存 |
-| [`prd/`](prd/) · [`plan.md`](plan.md) · [`plugin-architecture.md`](plugin-architecture.md) · [`super-agent-adoption.md`](super-agent-adoption.md) · [`master-worker-ux.md`](master-worker-ux.md) · [`feasibility-critique-response.md`](feasibility-critique-response.md) · [`questionnaire-*.md`](questionnaire-v2.md) · [`spike-opencode.md`](spike-opencode.md) | 完全自研阶段（v0.1.0 → v0.36.2）的设计与取舍 | 历史档案，可抽取复用 |
+---
+
+## 写文档的约定
+
+1. **每个功能文档必须写清边界**——"做不到什么"比"能做什么"更重要
+2. **不新增文档**，先问能不能并进现有的
+3. **过时就归档**，不要留在主目录里误导人
+4. 文档里的数字（测试数、版本号）**改了代码要同步**

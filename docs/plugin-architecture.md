@@ -267,7 +267,7 @@ P1 只加载内置 UI 插件；P2 在 Tauri 中增加从插件目录加载前端
 
 已完成（v0.3.0）：
 
-1. OpenCode Windows spike 完结，结论与替代路线见 [spike-opencode.md](spike-opencode.md)。
+1. OpenCode Windows spike 完结，结论与替代路线见 [archive/spike-opencode.md](archive/spike-opencode.md)。
 2. `runtime.opencode` 插件接入桌面版 CLI；与 `runtime.mock` 走同一个注册契约，无内建分支。
 3. `planner.llm` 替换 `planner.static`：有 Key 走 OpenAI 兼容端点，无 Key / 超时 / 解析失败回退同一静态引擎；`PlannerService.plan` 允许异步。
 4. 新增配置项 `defaultRuntime`、`defaultModel`、`opencodeBin`；`pnpm test`、`pnpm e2e`、`pnpm e2e:opencode` 均通过。

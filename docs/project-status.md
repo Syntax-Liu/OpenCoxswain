@@ -1,7 +1,7 @@
-# OpenCoxswain 项目现状（v0.14.0）
+# OpenCoxswain 项目现状（v0.48.1）
 
 > 本文档是**当前状态的完整快照**，覆盖项目的方方面面。
-> 写于 2026-11-12，对应版本 `v0.14.0`（commit `059726d`）。
+> 写于 2026-11-12，**2026-11-13 更新到 v0.48.1**。
 >
 > 如果你只想快速上手，看 [README](../README.md)；
 > 想继续开发，看 [roadmap](roadmap.md) 和 [architecture](architecture.md)；
@@ -61,13 +61,13 @@
 ### 规模
 
 ```
-apps/runtime   67 文件  16034 行   产品本体（含 src/test）
-apps/web       25 文件   5392 行   工作台界面（含 styles.css 与 src/test）
-apps/shell      4 文件    993 行   Tauri 桌面壳（src-tauri 的 4 个 .rs）
+apps/runtime   98 文件  23858 行   产品本体（含 src/test）
+apps/web       65 文件  14535 行   工作台界面（含 styles.css 与 src/test）
+apps/shell      3 文件    993 行   Tauri 桌面壳（src-tauri 的 .rs）
 packages/core  23 文件   2015 行   legacy 内核（部分复用）
 ────────────────────────────────────
-测试          343 条（运行时 305 + 界面 38）
-提交          73 个
+测试          843 条（运行时 584 + 界面 259）
+提交          119 个
 ```
 
 > 行数口径：按换行符计的文件总行数（含空行与注释，与 `wc -l` 一致）；文件数 = 各目录 `src` 下的源文件数（含 `src/test`）。
@@ -700,7 +700,7 @@ node scripts/version.mjs bump major    # 0.14.0 → 1.0.0（不兼容）
 ```bash
 pnpm install
 pnpm build            # 编译运行时 + 界面
-pnpm test             # 343 条测试
+pnpm test             # 843 条测试
 pnpm app:build        # 出安装包
 ```
 
@@ -737,9 +737,9 @@ node --use-system-ca scripts/publish-release.mjs             # 真正发布
 
 ```
 https://github.com/Syntax-Liu/OpenCoxswain/releases
-  v0.14.0  ← 最新
-  v0.13.0
-  v0.12.0
+  v0.48.1  ← 最新
+  v0.48.0
+  v0.47.0
 ```
 
 **仓库是私有的**，所以：

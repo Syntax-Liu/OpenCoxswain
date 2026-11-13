@@ -1,6 +1,6 @@
 # 对标「TRAE 宝」的 DeepSeek Harness 落地方案
 
-> ⚠️ **本文已封存（2026-11-11）。当前权威方案是 [`self-developed-plan.md`](self-developed-plan.md)。**
+> ⚠️ **本文已封存（2026-11-11）。当前权威方案是 [`self-developed-plan.md`](../self-developed-plan.md)。**
 >
 > 封存原因：本文把"项目助理"实现为**一次性子代理**（`startActivation` 派活、结算即结束），
 > 用户天然只与全局助理对话。这与修订后的**四层结构**冲突——项目助理 C 应当是**常驻于项目的根 Agent**，
@@ -8,7 +8,7 @@
 
 > 目标：在 DeepSeek Harness（下称 dsh）之上，做一个"一句话派活、多项目并行、成果统一汇总"的项目推进助理。
 > 对标对象：字节 TRAE 于 2026-10-29 上线的「TRAE 宝」。
-> 核实基线：本机已安装的 DeepSeek Harness **0.2.2-rc.1**（上游 `deepseek-ai/deepseek-harness`，MIT，Developer Preview）。本文所有引用 API 的段落都已按该版本的实际 README 与运行时代码核对，原文摘录见 [`dsh-api-findings.md`](dsh-api-findings.md)。
+> 核实基线：本机已安装的 DeepSeek Harness **0.2.2-rc.1**（上游 `deepseek-ai/deepseek-harness`，MIT，Developer Preview）。本文所有引用 API 的段落都已按该版本的实际 README 与运行时代码核对，原文摘录见 [`dsh-api-findings.md`](../dsh-api-findings.md)。
 > 本文所有"能做"的结论都标注了证据级别，**不接受"理论上可以"**。
 >
 > **路线变更（2026-11-11）**：本项目原定"产品完全自研"（见 `prd/`、`plan.md`、`plugin-architecture.md` 等历史档案），现改为**先做 dsh 插件，再做完全体自研**。`apps/daemon` 与 `apps/desktop` 转为 legacy，不删、不再演进。

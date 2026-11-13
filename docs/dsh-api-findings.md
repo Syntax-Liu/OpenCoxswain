@@ -1,7 +1,11 @@
 # dsh API 实证摘录（0.2.2-rc.1）
 
-> 摘录自本机安装的 DeepSeek Harness C:\Program Files\DeepSeekHarness\resources\app.asar 内各包 README.md。
-> 只摘与 docs/trae-bao-plan.md 各项断言直接相关的段落，原文引自上游，未改写。
+> 摘录自本机安装的 DeepSeek Harness `C:\Program Files\DeepSeekHarness\resources\app.asar`
+> 内各包 README.md。原文引自上游，**未改写**。
+>
+> ⚠️ 文中的相对链接（如 `README.zh.md`、`../tool-subagent/README.md`）是
+> **上游 README 自带的**，指向 DSH 源码目录，在这里点不开是正常的。
+> 保留原文是为了可追溯。
 
 ## subagent
 
