@@ -457,7 +457,7 @@ export class MemoryStore implements Store {
     return [...this.executors.values()]
       .filter((e) => (filter.projectId ? e.projectId === filter.projectId : true))
       .filter((e) => (filter.status ? filter.status.includes(e.status) : true))
-      .sort((a, b) => a.createdAt - b.createdAt);
+      .sort((a, b) => b.createdAt - a.createdAt);
   }
 
   costSince(projectId: string, since: number): CostLedger {

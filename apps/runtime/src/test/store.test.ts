@@ -188,6 +188,54 @@ for (const [label, factory] of await storeFactories()) {
       await store.close();
     });
 
+    it('**会话按创建时间倒序**（最新的排最前）', async () => {
+      const store = await factory();
+      // 用独有的路径：SQLite 后端的 factory 可能复用同一个库文件，
+      // 和前面测试用同一个 root_path 会撞唯一索引。
+      await store.putProject({ ...project(), id: 'prj_order', rootPath: 'd:/work/order-test' });
+
+      for (const [id, at] of [
+        ['e_old', 1000],
+        ['e_mid', 2000],
+        ['e_new', 3000],
+      ] as const) {
+        await store.putExecutor({
+          id,
+          projectId: 'prj_order',
+          sessionId: `s_${id}`,
+          label: id,
+          goal: 'g',
+          access: 'readwrite',
+          writeScope: [],
+          status: 'done',
+          summary: '',
+          blockedReason: null,
+          metrics: {
+            turns: 0,
+            steps: 0,
+            tokensIn: 0,
+            tokensOut: 0,
+            cachedTokens: null,
+            durationMs: 0,
+            contextTokens: null,
+          },
+          criteria: [],
+          policy: 'auto',
+          acceptance: null,
+          createdAt: at,
+          endedAt: at + 1,
+        } as never);
+      }
+
+      const list = store.listExecutors({ projectId: 'prj_order' });
+      // 侧栏里用户最关心刚派出去的那个，必须排最前
+      assert.deepEqual(
+        list.map((e) => e.id),
+        ['e_new', 'e_mid', 'e_old'],
+      );
+      await store.close();
+    });
+
     it('Agent：只读访问形态也能往返', async () => {
       const store = await factory();
       await store.putExecutor({

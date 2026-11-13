@@ -617,7 +617,11 @@ export class SqliteStore implements Store {
       where.push(`status IN (${filter.status.map(() => '?').join(',')})`);
       params.push(...filter.status);
     }
-    const sql = `SELECT * FROM executor${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at ASC`;
+    // **最新的排最前**。
+    //
+    // 侧栏里用户最关心的是"我刚派出去的那个"，按创建时间正序会把它埋到
+    // 列表底部。倒序才符合直觉——和所有聊天软件的会话列表一致。
+    const sql = `SELECT * FROM executor${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC`;
     const rows = this.db.prepare(sql).all(...params) as Row[];
     return rows.map(toExecutor);
   }
