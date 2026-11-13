@@ -154,3 +154,36 @@ describe('**模板面板是浮层，不挤进工具栏**', () => {
     assert.match(css, /\.composer-box\s*\{[^}]*position:\s*relative/);
   });
 });
+describe('**滚动条符合规范**', () => {
+  it('宽度用令牌，不写死', () => {
+    const m = /::-webkit-scrollbar\s*\{([^}]*)\}/.exec(css);
+    assert.ok(m, '找不到 ::-webkit-scrollbar');
+    assert.match(m[1] ?? '', /width:\s*var\(--scrollbar-width\)/);
+    assert.doesNotMatch(m[1] ?? '', /width:\s*\d+px/, '不该写死像素宽度');
+  });
+
+  it('thumb 有圆角（方角在暗色背景上很扎眼）', () => {
+    const m = /::-webkit-scrollbar-thumb\s*\{([^}]*)\}/.exec(css);
+    assert.match(m?.[1] ?? '', /border-radius:/);
+  });
+
+  it('thumb 颜色走令牌，不写死十六进制', () => {
+    const m = /::-webkit-scrollbar-thumb\s*\{([^}]*)\}/.exec(css);
+    assert.doesNotMatch(m?.[1] ?? '', /background:\s*#[0-9a-f]{3,6}/i, '颜色不该写死');
+  });
+
+  it('**不许同时用 scrollbar-width 和 ::-webkit-scrollbar**', () => {
+    // 踩过：`.sidebar, .workspace-tree { scrollbar-width: thin }` 让
+    // `.workspace-tree::-webkit-scrollbar { width: 5px }` 完全失效，
+    // 侧栏滚动条一直是 10px。
+    // 原因：设置了标准 scrollbar-width 后，Chromium 会忽略 webkit 伪元素的宽度。
+    const hits = css.match(/^\s*scrollbar-width:\s*(?!auto)[\w-]+;/gm) ?? [];
+    assert.deepEqual(hits, [], `不该设置 scrollbar-width（会和 webkit 伪元素冲突）: ${hits.join(' ')}`);
+  });
+
+  it('侧栏列表用更细的档位', () => {
+    assert.match(css, /\.workspace-tree::-webkit-scrollbar/);
+    const m = /\.workspace-tree::-webkit-scrollbar[^{]*\{([^}]*)\}/.exec(css);
+    assert.match(m?.[1] ?? '', /var\(--scrollbar-width-thin\)/);
+  });
+});

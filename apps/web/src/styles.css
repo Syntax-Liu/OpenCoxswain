@@ -1727,9 +1727,18 @@ button.small {
 
 /* ---- 滚动条：细而低调 ---- */
 
+/* ---------- 滚动条 ----------
+   **必须和令牌对齐**，否则非全屏/缩放时会出现又粗又方的滚动条。
+
+   之前是：width: 10px + 颜色硬编码 #4a4a4a + 没有圆角。
+   问题在于 10px 是写死的——窗口一变窄（非全屏），
+   滚动条占比就变得很显眼，而且方角在暗色背景上很扎眼。
+
+   DSH 的做法：6px 宽（会话列表 5px），thumb 用圆角，轨道透明。 */
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
 }
 
 ::-webkit-scrollbar-track {
@@ -1737,14 +1746,30 @@ button.small {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4a4a4a;
+  /* 颜色走令牌，不写死 */
+  background: var(--color-border-strong);
   border: 2px solid transparent;
   background-clip: content-box;
+  border-radius: var(--r-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5a5a5a;
+  background: var(--c-neutral-600);
   background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 窄的地方（侧栏列表）用更细的 */
+/* 窄的地方（侧栏列表）用更细的。
+   **必须直接写 .workspace-tree**——后代选择器 `.sidebar ::-webkit-scrollbar`
+   在 Chromium 上对伪元素不可靠，实测不生效。 */
+.workspace-tree::-webkit-scrollbar,
+.thread-list::-webkit-scrollbar {
+  width: var(--scrollbar-width-thin);
+  height: var(--scrollbar-width-thin);
 }
 
 /* ---------- 消息角色标签（VS Code / DSH 风格） ---------- */
@@ -1863,11 +1888,18 @@ button.small {
   font-size: inherit;
 }
 
-/* 滚动条占位对齐侧栏宽度 */
-.sidebar,
-.workspace-tree {
-  scrollbar-width: thin;
-}
+/* 滚动条占位对齐侧栏宽度
+   ------------------------------------------------------------
+   **这里不能写 `scrollbar-width: thin`。**
+
+   踩过：加了这条之后，侧栏滚动条一直是 10px，改
+   `.workspace-tree::-webkit-scrollbar { width: 5px }` 完全无效。
+
+   原因：一旦设置了标准的 `scrollbar-width`，Chromium 就会
+   **忽略所有 `::-webkit-scrollbar` 的宽度设置**，改用自己定义的
+   thin 宽度（约 10px）。两套机制互斥。
+
+   我们的宽度由上面 `::-webkit-scrollbar` 统一控制（8px / 5px）。 */
 
 /* 记忆条不能无限增高：内容多了自己滚动，不去挤消息区 */
 .memory-review {
