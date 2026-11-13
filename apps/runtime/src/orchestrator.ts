@@ -951,6 +951,20 @@ export class Orchestrator extends EventEmitter {
         executor,
         reason: queueReason,
       } as RuntimeEvent);
+
+      // **写域冲突要回灌给 Assistant**。
+      //
+      // 之前只排队，不告诉它——它以为派出去就完事了。
+      // 实测发现：Assistant 其实有"别让两个 Agent 改同一个文件"的自觉，
+      // 但那是它自己判断的，系统没有兜底。
+      //
+      // 这里把系统侧的结论告诉它：撞了哪条写域、和谁撞的。
+      // 它下一轮就能决定是等、还是换个做法。
+      if (conflict.conflicts) {
+        void this.notifyWriteConflict(project, executor, conflict).catch(() => {
+          /* 通知失败不影响排队 —— 事实已落库 */
+        });
+      }
     }
 
     // 后台跑，不阻塞 C。
@@ -1528,6 +1542,37 @@ export class Orchestrator extends EventEmitter {
     await this.store.putReport(report);
     this.emit('runtime', { type: 'report', projectId: input.projectId, report } as RuntimeEvent);
     return report;
+  }
+
+  /**
+   * 告诉 Assistant：新派的 Agent 和正在跑的撞了写域，已经排队。
+   *
+   * **只报事实，不指挥它怎么做**。它可能想等、想改派、想换个做法——
+   * 那是它的判断。系统只保证它**知道这件事**。
+   *
+   * 为什么需要这条：写域互斥只在真的创建了两个 Agent 时才生效。
+   * 如果 Assistant 判断失误派重了，系统会排队，但之前**不会告警**——
+   * 表现为"任务莫名很慢"，而没人知道原因。
+   */
+  private async notifyWriteConflict(
+    project: ProjectRow,
+    waiting: ExecutorRow,
+    conflict: { withTaskId?: string; reason?: string },
+  ): Promise<void> {
+    const blocking = conflict.withTaskId ? this.store.getExecutor(conflict.withTaskId) : undefined;
+
+    const body =
+      `新派的 Agent「${waiting.label}」和正在跑的` +
+      (blocking ? `「${blocking.label}」` : '另一个 Agent') +
+      '撞了写域，已排队等它跑完。\n' +
+      `原因：${conflict.reason ?? '写域冲突'}`;
+
+    await this.userSays(
+      project.id,
+      `${INTERNAL_NOTICE_PREFIX}\n${body}\n\n` +
+        '这不一定需要处理。但如果两件事本来就该并行，考虑换个做法（比如合并成一个任务，或者声明不同的写域）。',
+      { source: 'executor', internal: true },
+    );
   }
 
   /**

@@ -80,6 +80,18 @@ describe('只读任务不参与写域互斥（回归：曾逐条串行）', () =
     assert.equal(gate.stats().running, 1);
   });
 
+  it('**写域冲突时 check 给出可用于通知的具体信息**', async () => {
+    // 冲突只有排队、没有告警的话，表现是"任务莫名很慢"，没人知道原因。
+    // 所以 check 必须能说清：和**谁**撞了、撞在**哪**。
+    const gate = new Gate(5);
+    await gate.acquire('w1', rw(['race-a.txt']));
+
+    const conflict = gate.check('w2', rw(['race-a.txt']));
+    assert.equal(conflict.conflicts, true);
+    assert.equal(conflict.withTaskId, 'w1', '要能说出被谁挡住');
+    assert.match(conflict.reason ?? '', /race-a\.txt/, '要能说出撞在哪个写域');
+  });
+
   it('未声明写域的写任务仍与他人串行', async () => {
     const gate = new Gate(5);
     await gate.acquire('w1', rw(['src/auth']));
