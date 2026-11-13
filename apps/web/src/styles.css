@@ -18,36 +18,130 @@
            功能色全部低饱和；高亮只留给"当前/进行中"。
      ============================================================ */
 
+  /* ============================================================
+     三层令牌（照 DSH 的结构）
+     ------------------------------------------------------------
+
+     DSH 的令牌分三层（从它打包产物里的变量名可以直接看出来）：
+
+       --dsw-static-blue-400       原始色板：只有色相和明度，没有含义
+       --dsw-alias-label-primary   语义别名：说"这是正文"，不说"这是白"
+       --dsh-menu-anchor           组件变量：只服务于一个组件
+
+     我们之前是**一层**：`--accent: #e0a04a` 既是色值又是含义。
+     后果是改主题只能全改，而"橙色滥用"这类问题也没法从结构上拦住
+     —— 因为没有"这是什么颜色"和"这是什么意思"的两级区分。
+
+     现在照这个结构重排：
+
+       --c-*      原始层：色板。**只在这里出现十六进制颜色**
+       --color-*  语义层：含义 → 色板
+       --accent / --text 等旧名保留为**别名**，指向语义层
+
+     旧名保留的原因：445 处引用，一次性全改风险高。
+     有了别名，新旧可以共存，以后再逐批把旧名迁到语义名上。
+     ============================================================ */
+
+  /* ---- 第一层：原始色板 ----
+     **只有这一层允许写十六进制颜色。**
+     语义层和组件层一律用 var() 引用这里。 */
+
+  /* 中性（冷蓝灰）：暗色主题的主体。只变明度，不偏色。 */
+  --c-neutral-950: #0a0c0f;   /* 最深：画布 */
+  --c-neutral-900: #0d1013;   /* 侧栏 */
+  --c-neutral-880: #0e1216;   /* 输入框（比画布深，表达凹陷） */
+  --c-neutral-850: #11151a;   /* 面板 */
+  --c-neutral-800: #171c23;   /* 抬起的元素 */
+  --c-neutral-750: #1a2028;   /* 悬停 */
+  --c-neutral-700: #1f262f;   /* 选中 */
+
+  --c-neutral-600: #545c65;   /* 元信息 */
+  --c-neutral-500: #7a828b;   /* 次要文字 */
+  --c-neutral-300: #c4cbd3;   /* 正文 */
+  --c-neutral-100: #e8eaed;   /* 标题、关键值 */
+
+  /* 琥珀：唯一的高亮色相 */
+  --c-amber-600: #6b4f22;
+  --c-amber-500: #c98b4b;
+  --c-amber-400: #e0a04a;
+  --c-amber-300: #eab366;
+
+  /* 功能色（低饱和，不与琥珀抢注意力） */
+  --c-green-500: #5a8f7b;
+  --c-red-500: #b85450;
+  --c-blue-500: #5a7d99;
+
+  /* 边框：白色低透明度，靠背景透出来 */
+  --c-overlay-06: rgba(255, 255, 255, 0.06);
+  --c-overlay-11: rgba(255, 255, 255, 0.11);
+
+  /* ---- 第二层：语义别名 ----
+     这一层说"这块是什么用途"，不写具体颜色。
+     想换主题只改第一层；想改语义只改这一层。 */
+
+  /* 表面：数字越大，离用户越近（越浅） */
+  --color-surface-canvas: var(--c-neutral-950);
+  --color-surface-sidebar: var(--c-neutral-900);
+  --color-surface-sunken: var(--c-neutral-880);
+  --color-surface-panel: var(--c-neutral-850);
+  --color-surface-raised: var(--c-neutral-800);
+  --color-surface-hover: var(--c-neutral-750);
+  --color-surface-selected: var(--c-neutral-700);
+
+  /* 文字 */
+  --color-label-primary: var(--c-neutral-300);
+  --color-label-strong: var(--c-neutral-100);
+  --color-label-secondary: var(--c-neutral-500);
+  --color-label-tertiary: var(--c-neutral-600);
+
+  /* 边框 */
+  --color-border-subtle: var(--c-overlay-06);
+  --color-border-strong: var(--c-overlay-11);
+  --color-border-focus: var(--c-amber-400);
+
+  /* 状态：**琥珀只表示"需要你操作"**（见 semanticColor.ts） */
+  --color-action: var(--c-amber-400);
+  --color-action-hover: var(--c-amber-300);
+  --color-action-dim: var(--c-amber-600);
+  --color-warn: var(--c-amber-500);
+  --color-success: var(--c-green-500);
+  --color-danger: var(--c-red-500);
+  --color-info: var(--c-blue-500);
+
+  /* ---- 第三层：旧名别名 ----
+     445 处引用，一次全改风险太高。
+     这里把旧名指到语义层，新代码应直接用 `--color-*`。 */
+
   /* ---- 背景层次：由深到浅，只变明度 ---- */
-  --bg: #0a0c0f;            /* 画布 */
-  --bg-sidebar: #0d1013;    /* 侧栏：比画布略深，靠边框区分 */
-  --bg-panel: #11151a;      /* 面板 */
-  --bg-elevated: #171c23;   /* 抬起的元素（卡片、气泡） */
-  --bg-input: #0e1216;      /* 输入框：比画布更深，表达"凹陷" */
-  --bg-hover: #1a2028;
-  --bg-active: #1f262f;
+  --bg: var(--color-surface-canvas);            /* 画布 */
+  --bg-sidebar: var(--color-surface-sidebar);    /* 侧栏 */
+  --bg-panel: var(--color-surface-panel);        /* 面板 */
+  --bg-elevated: var(--color-surface-raised);    /* 抬起的元素 */
+  --bg-input: var(--color-surface-sunken);       /* 输入框（凹陷） */
+  --bg-hover: var(--color-surface-hover);
+  --bg-active: var(--color-surface-selected);
 
   /* ---- 边框：低透明度，几乎看不见但有结构 ---- */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.11);
-  --border-focus: #e0a04a;
+  --border: var(--color-border-subtle);
+  --border-strong: var(--color-border-strong);
+  --border-focus: var(--color-border-focus);
 
   /* ---- 文字四级 ---- */
-  --text: #c4cbd3;          /* 正文 */
-  --text-strong: #e8eaed;   /* 标题、关键值 */
-  --text-muted: #7a828b;    /* 次要 */
-  --text-dim: #545c65;      /* 元信息、禁用 */
+  --text: var(--color-label-primary);
+  --text-strong: var(--color-label-strong);
+  --text-muted: var(--color-label-secondary);
+  --text-dim: var(--color-label-tertiary);
 
   /* ---- 功能色：低饱和 + 只有一个高亮 ---- */
-  --accent: #e0a04a;        /* 琥珀：进行中、当前、主操作 */
-  --accent-hover: #eab366;
-  --accent-dim: #6b4f22;    /* 琥珀的低亮度版本 */
-  --ok: #5a8f7b;            /* 暗青绿：完成 */
-  --warn: #c98b4b;          /* 需要留意 */
-  --danger: #b85450;        /* 需要你介入、破坏性操作 */
+  --accent: var(--color-action);
+  --accent-hover: var(--color-action-hover);
+  --accent-dim: var(--color-action-dim);
+  --ok: var(--color-success);
+  --warn: var(--color-warn);
+  --danger: var(--color-danger);
   /* 中性信息：排队中、进度。**不抢琥珀的语义**——
      琥珀只留给"需要你操作"。 */
-  --info: #5a7d99;
+  --info: var(--color-info);
 
   /* ---- 尺寸 ---- */
   /* ---- 圆角：**只有 3 档** ----
