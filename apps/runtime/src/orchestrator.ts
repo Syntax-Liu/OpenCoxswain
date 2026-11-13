@@ -20,6 +20,7 @@ import { stat as fsStat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { auditSpawnClaims, correctionText } from './assistant/spawnClaim.js';
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
 import { decideSession, detectUserIntent } from './orchestrator/sessionPolicy.js';
 import { INTERNAL_SOURCE_PREFIX } from './store/store.js';
@@ -221,6 +222,13 @@ export class Orchestrator extends EventEmitter {
   private mcp: McpManager | null = null;
   /** 文件快照（撤销用）。 */
   private readonly snapshots: SnapshotStore;
+  /**
+   * 本轮真实创建的 Agent id（按 Assistant 会话分）。
+   *
+   * 用途：核对 Assistant 有没有"预告派活"——
+   * 它可能说"已派出 exe_xxx"但没调工具。只有这里记的 id 才算真的。
+   */
+  private readonly turnSpawnLog = new WeakMap<AssistantSession, string[]>();
   private readonly extensions: ExecutorToolHostOptions['extensions'] | undefined;
   private disposed = false;
 
@@ -629,6 +637,16 @@ export class Orchestrator extends EventEmitter {
     }
     const toolHost = this.createAssistantToolHost(project, assistant);
 
+    /**
+     * 本轮**真实创建**的 Agent id。
+     *
+     * 用于核对 Assistant 有没有"预告派活"：
+     * 它可能说"已派出 exe_xxx"但没调工具。
+     * 这里只记工具真的返回的 id。
+     */
+    const spawnedThisTurn: string[] = [];
+    this.turnSpawnLog.set(assistant, spawnedThisTurn);
+
     let finalText = '';
     for await (const event of runLoop({
       llm: this.llm,
@@ -657,6 +675,22 @@ export class Orchestrator extends EventEmitter {
     }
 
     await assistant.recordAssistant(finalText);
+
+    // **核对"已派出"的说法**。
+    //
+    // 实测踩过：Assistant 声称"已派出 exe_xxx"，但它没有调用 spawn_executor，
+    // 数据库里查不到那个 Agent。用户以为活派了，实际什么都没跑。
+    //
+    // 提示词里已经写了"不许预告派活"，但软约束不够——
+    // 这里在运行时补一道硬检查：说了但没派的，追加一条更正。
+    const audit = auditSpawnClaims(finalText, spawnedThisTurn);
+    if (audit.wrong) {
+      this.emit('runtime', {
+        type: 'assistant_text',
+        projectId: project.id,
+        text: correctionText(audit.phantomIds),
+      } as RuntimeEvent);
+    }
   }
 
   /** Assistant 的工具执行宿主。 */
@@ -697,6 +731,8 @@ export class Orchestrator extends EventEmitter {
                 // 取最近一条真实用户消息（内部通知不算）。
                 userText: this.latestUserText(project.id),
               });
+              // 记下真实创建的 id——本轮结束时核对"已派出"的说法
+              this.turnSpawnLog.get(assistant)?.push(result.executor.id);
               return {
                 ok: true,
                 content: [
