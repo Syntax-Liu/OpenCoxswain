@@ -21,6 +21,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
+import { decideSession, detectUserIntent } from './orchestrator/sessionPolicy.js';
+import { INTERNAL_SOURCE_PREFIX } from './store/store.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
@@ -163,6 +165,13 @@ export interface SpawnInput {
   readonly criteria?: readonly Criterion[];
   /** 验收策略，默认 unverified_only。 */
   readonly policy?: AcceptancePolicy;
+  /**
+   * 用户这次说的话。
+   *
+   * 用来识别"开新会话 / 接着上次"这类明确要求。
+   * 不给的话只能按策略自动判断。
+   */
+  readonly userText?: string;
 }
 
 export interface SpawnResult {
@@ -684,6 +693,9 @@ export class Orchestrator extends EventEmitter {
                 ...(typeof args.policy === 'string'
                   ? { policy: args.policy as AcceptancePolicy }
                   : {}),
+                // 用户原文：用来识别"开新会话 / 接着上次"这类明确要求。
+                // 取最近一条真实用户消息（内部通知不算）。
+                userText: this.latestUserText(project.id),
               });
               return {
                 ok: true,
@@ -817,6 +829,77 @@ export class Orchestrator extends EventEmitter {
    *
    * @returns admitted=false 表示在排队（写域相交或达并发上限）。
    */
+  /**
+   * 取最近一条**真实用户消息**的文本。
+   *
+   * 用途：识别"开新会话 / 接着上次"这类明确要求。
+   * 内部通知（`internal`）不算——那是系统自己说的话。
+   */
+  private latestUserText(projectId: string): string {
+    const project = this.store.getProject(projectId);
+    if (!project) return '';
+    const messages = this.store.messages(project.assistantSessionId);
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]!;
+      if (m.role !== 'user') continue;
+      // 内部通知的来源以 `internal:` 开头，那是系统自己说的话
+      if (m.source.startsWith(INTERNAL_SOURCE_PREFIX)) continue;
+      return m.content;
+    }
+    return '';
+  }
+
+  /**
+   * 为一次新派活决定用哪个会话。
+   *
+   * ## 为什么需要
+   *
+   * 原来每个 Agent 都开全新会话（`newId('d')`），实测 12 个 Agent
+   * 用了 12 个不同会话——**提示缓存完全无法命中**，
+   * 模型每次都要重新处理系统提示和工具定义。
+   *
+   * ## 策略在 sessionPolicy.ts
+   *
+   * 用户明确要求优先；没有的话看冷却时间、会话长度、任务相关性。
+   * 这里只负责从库里收集候选，判断交过去。
+   */
+  private chooseSession(
+    project: ProjectRow,
+    goal: string,
+    userText: string,
+  ): { sessionId: string; reason: string; reused: boolean } {
+    // 候选：同项目里跑成功的 Agent 会话，最近的优先
+    const candidates = this.store
+      .listExecutors({ projectId: project.id })
+      .filter((e) => e.sessionId && e.status === 'done')
+      .slice(0, 5)
+      .map((e) => {
+        const messages = this.store.messages(e.sessionId);
+        const tokens = messages.reduce((n, m) => n + Math.ceil(m.content.length / 2.5), 0);
+        return {
+          sessionId: e.sessionId,
+          messageCount: messages.length,
+          tokens,
+          lastActiveAt: e.endedAt ?? e.createdAt,
+          lastGoal: e.goal,
+          succeeded: e.status === 'done',
+        };
+      });
+
+    const decision = decideSession({
+      candidates,
+      goal,
+      userWants: detectUserIntent(userText),
+      now: Date.now(),
+    });
+
+    return {
+      sessionId: decision.sessionId ?? newId('d'),
+      reason: decision.reason,
+      reused: decision.choice === 'reuse',
+    };
+  }
+
   async spawn(projectId: string, input: SpawnInput): Promise<SpawnResult> {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`项目 ${projectId} 不存在`);
@@ -896,10 +979,15 @@ export class Orchestrator extends EventEmitter {
     }
 
     const now = Date.now();
+
+    // **会话复用**：能在旧会话上接着干就接着干，让提示缓存命中。
+    // 判断逻辑在 sessionPolicy.ts；这里只拿结果。
+    const session = this.chooseSession(project, input.goal.trim(), input.userText ?? '');
+
     const executor: ExecutorRow = {
       id: newId('exe'),
       projectId,
-      sessionId: newId('d'),
+      sessionId: session.sessionId,
       label: input.label.trim(),
       goal: input.goal.trim(),
       access: effectiveAccess,
