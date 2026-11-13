@@ -15,7 +15,7 @@
  *
  * 这个脚本把判据固化成代码，**不靠人记**。
  */
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -193,12 +193,34 @@ const facts = {
 
 const verdict = evaluateRelease(facts);
 
+/**
+ * 工程健康检查：能发现"测试通过但构建会挂"的问题。
+ *
+ * 2026-11-13 归档 legacy 时踩过：typecheck 过、测试全过，
+ * 但 `tauri build` 因为图标路径指向已归档目录而失败。
+ * 那次发布卡了两个版本才修好——这类问题应该在发布前拦住。
+ */
+let healthOk = true;
+let healthOutput = '';
+try {
+  healthOutput = execFileSync(
+    process.execPath,
+    [path.join(process.cwd(), 'scripts/health-check.mjs')],
+    { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] },
+  );
+} catch (error) {
+  healthOk = false;
+  healthOutput = String(error.stdout ?? '');
+}
+
 if (json) {
-  console.log(JSON.stringify({ facts, verdict }, null, 2));
+  console.log(JSON.stringify({ facts, verdict, healthOk }, null, 2));
 } else {
   console.log('\n发布前自检\n');
   console.log(renderVerdict(verdict));
+  console.log('\n工程健康:');
+  for (const line of healthOutput.trim().split('\n').slice(1)) console.log('  ' + line.trim());
   console.log('');
 }
 
-process.exit(verdict.ready ? 0 : 1);
+process.exit(verdict.ready && healthOk ? 0 : 1);
