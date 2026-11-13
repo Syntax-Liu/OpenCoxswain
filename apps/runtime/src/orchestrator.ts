@@ -1509,6 +1509,31 @@ export class Orchestrator extends EventEmitter {
   }
 
   /**
+   * 把一条待决策标记为已处理。
+   *
+   * **不删除、不隐藏**——用户可能要回头查"当时我是怎么决定的"。
+   * 只是从"等你决定"的待办里移走。
+   *
+   * 这是决策级介入的唯一出口：除了这里和危险动作审批，
+   * 其它任何地方都不该打断用户。
+   */
+  async acknowledgeReport(reportId: string): Promise<{ ok: boolean; message: string }> {
+    const report = this.store.getReport(reportId);
+    if (!report) return { ok: false, message: '找不到这条汇报' };
+    if (report.ackedAt !== null) return { ok: true, message: '这条已经处理过了' };
+
+    const updated: ReportRow = { ...report, ackedAt: Date.now() };
+    await this.store.putReport(updated);
+    this.emit('runtime', {
+      type: 'report',
+      projectId: report.projectId,
+      report: updated,
+    } as RuntimeEvent);
+
+    return { ok: true, message: '已标记为处理' };
+  }
+
+  /**
    * 提炼候选记忆。
    *
    * **候选不生效**：它们只是躺在候选表里等你过一眼。

@@ -40,6 +40,7 @@ import {
 } from './state.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Conversation } from './components/Conversation.js';
+import { DecisionPanel } from './components/DecisionPanel.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
 import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
@@ -565,6 +566,23 @@ export function App(): JSX.Element {
     [api, effects, refreshProject, openExecutor, view, setError],
   );
 
+  /**
+   * 标记一条待决策为已处理。
+   *
+   * **不删除记录**——用户可能回头查"当时我是怎么决定的"。
+   * 只是从"等你决定"的待办里移走。
+   */
+  const handleAcknowledge = useCallback(
+    async (reportId: string) => {
+      try {
+        await api.acknowledgeReport(reportId);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : '标记失败');
+      }
+    },
+    [api],
+  );
+
   /** 删除一条会话。正在跑的会被服务端拒绝，这里把原因显示出来。 */
   const handleDeleteExecutor = useCallback(
     async (projectId: string, executorId: string) => {
@@ -824,7 +842,19 @@ export function App(): JSX.Element {
         )}
 
         {view?.kind === 'assistant' && currentProject && (
-          <Conversation
+          <>
+            {/* 待决策面板放在对话上方：这是唯一需要用户动脑的地方，
+                不该让他从几十条消息里自己认出来 */}
+            <DecisionPanel
+              reports={state.reports}
+              onFocusDecision={(id, body) => {
+                void handleAcknowledge(id);
+                // 问题正文填进输入框，用户接着回答就行（还能改）
+                setDraftSeed({ text: `针对「${body.slice(0, 60)}…」\n我的决定是：`, at: Date.now() });
+              }}
+              onDismiss={(id) => void handleAcknowledge(id)}
+            />
+            <Conversation
             api={api}
             project={currentProject as ProjectDto}
             // 草稿按视图分开：同一项目里对 Assistant 和对 Agent 说的话互不干扰
@@ -862,6 +892,7 @@ export function App(): JSX.Element {
             onSend={(text) => void handleSendToAssistant(text)}
             onStop={() => void handleStop()}
           />
+          </>
         )}
 
         {view?.kind === 'executor' && currentExecutor && (

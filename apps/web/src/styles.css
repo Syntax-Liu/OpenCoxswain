@@ -4445,3 +4445,70 @@ body.is-resizing {
   font-size: 12px;
   font-weight: 500;
 }
+
+/* 待决策面板：唯一需要用户动脑的地方，必须显眼 */
+.decision-panel {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 4px;
+}
+
+.decision-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.decision-icon {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.decision-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.decision-item {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.decision-item:first-child {
+  border-top: none;
+}
+
+.decision-summary {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.decision-summary:hover {
+  color: var(--accent);
+}
+
+.decision-body {
+  margin: 8px 0 4px;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.decision-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}

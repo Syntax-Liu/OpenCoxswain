@@ -508,6 +508,18 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
+    // ---- 待决策：标记已处理 ------------------------------------------------
+    //
+    // 只改 acked_at，不删记录——用户可能回头查"当时我是怎么决定的"。
+    {
+      const ackMatch = /^\/api\/reports\/([^/]+)\/ack$/.exec(url.pathname);
+      if (method === 'POST' && ackMatch) {
+        const reportId = decodeURIComponent(ackMatch[1]!);
+        const result = await orchestrator.acknowledgeReport(reportId);
+        return result.ok ? reply(200, { ok: true, message: result.message }) : deny(404, result.message);
+      }
+    }
+
     // ---- 移除项目（归档，不删磁盘文件）-----------------------------------
     //
     // 用 DELETE /api/projects/:id/archive。

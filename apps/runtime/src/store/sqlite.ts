@@ -677,6 +677,13 @@ export class SqliteStore implements Store {
   // 汇报
   // -------------------------------------------------------------------------
 
+  /**
+   * 存一条汇报。
+   *
+   * **冲突时只允许改 `acked_at`**——汇报是历史事实，正文和提出时间不该被改写。
+   * 早期版本只写了 `acked_at` 这一项，看起来正好，但没写清"为什么只有它"；
+   * 这里补上注释，防止后人加字段时误以为可以随便改。
+   */
   async putReport(row: ReportRow): Promise<void> {
     this.db
       .prepare(
@@ -694,6 +701,11 @@ export class SqliteStore implements Store {
         row.at,
         row.ackedAt,
       );
+  }
+
+  getReport(id: string): ReportRow | undefined {
+    const raw = this.db.prepare('SELECT * FROM report WHERE id = ?').get(id) as Row | undefined;
+    return raw ? toReport(raw) : undefined;
   }
 
   listReports(filter: { projectId?: string; needsUser?: boolean } = {}): ReportRow[] {

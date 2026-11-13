@@ -276,6 +276,7 @@ export interface Store {
 
   // 汇报
   putReport(row: ReportRow): Promise<void>;
+  getReport(id: string): ReportRow | undefined;
   listReports(filter?: { projectId?: string; needsUser?: boolean }): ReportRow[];
 
   // 审批
@@ -489,6 +490,9 @@ export class MemoryStore implements Store {
 
   async putReport(row: ReportRow): Promise<void> {
     this.reports.set(row.id, row);
+  }
+  getReport(id: string): ReportRow | undefined {
+    return this.reports.get(id);
   }
   listReports(filter: { projectId?: string; needsUser?: boolean } = {}): ReportRow[] {
     return [...this.reports.values()]

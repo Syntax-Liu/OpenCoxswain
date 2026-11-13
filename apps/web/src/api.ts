@@ -408,8 +408,16 @@ export class ApiClient {
     });
   }
 
-  /** 撤销一次文件写入。只有文件写入可撤销。 */
-  undoEffect(effectId: string, projectId: string): Promise<{ ok: boolean; message: string }> {
+  /**
+   * 把一条待决策标记为已处理。
+   *
+   * **不是删除**——记录留着，用户能回头查当时怎么决定的。
+   */
+  acknowledgeReport(reportId: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/reports/${encodeURIComponent(reportId)}/ack`, { method: 'POST' });
+  }
+
+  /** 撤销一次文件写入。只有文件写入可撤销。 */  undoEffect(effectId: string, projectId: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/side-effects/${encodeURIComponent(effectId)}/undo`, {
       method: 'POST',
       body: { projectId },
