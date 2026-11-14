@@ -1,13 +1,24 @@
 import { useState } from 'react';
 
+import { IconCheck, IconCopy, IconEdit, IconRetry } from './icons.js';
 import { actionsFor, type MessageRole } from './messageCapabilities.js';
 
 /**
- * 消息操作：复制、重发。
+ * 消息操作：重试、编辑、重发、复制。
  *
- * 这两个是天天用得到但一直没做的功能。
- * 复制用于把 Assistant 的结论贴到别处；重发用于"同一句话再来一次"——
- * 之前只能手动选中复制，很别扭。
+ * ## 为什么是圆形图标按钮
+ *
+ * 用户指着 DSH 的截图说：
+ * > 编辑重发复制，我让你参考 DSH，你看不见吗？
+ *
+ * DSH 那一排是**小的圆形图标按钮**，紧贴消息内容下方左侧，平时就显示。
+ * 之前做成文字链（"编辑""重发""复制"），又长又占地方。
+ *
+ * ## 为什么没有点赞/点踩
+ *
+ * DSH 的点赞会发到官方服务器。我们**没有这个后端**——
+ * 运行时里没有任何 feedback 接口，做出来的只能是图标变个颜色。
+ * 装饰性的假功能比没有功能更糟：用户会以为反馈被记录了。
  */
 
 /**
@@ -65,25 +76,47 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
   return (
     <span className="msg-actions">
       {available.canRetry && props.onRetry && (
-        <button type="button" className="link" title="让它重新回答一次" onClick={props.onRetry}>
-          重试
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="重新回答"
+          aria-label="重新回答"
+          onClick={props.onRetry}
+        >
+          <IconRetry size={14} />
         </button>
       )}
+
       {available.canEdit && props.onEdit && (
-        <button type="button" className="link" title="改一下再发" onClick={props.onEdit}>
-          编辑
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="编辑后重发"
+          aria-label="编辑后重发"
+          onClick={props.onEdit}
+        >
+          <IconEdit size={14} />
         </button>
       )}
+
       {available.canResend && props.onResend && (
-        <button type="button" className="link" title="原样再发一次" onClick={props.onResend}>
-          重发
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="原样重发"
+          aria-label="原样重发"
+          onClick={props.onResend}
+        >
+          <IconRetry size={14} />
         </button>
       )}
+
       {available.canCopy && (
         <button
           type="button"
-          className="link"
-          title="复制这条消息"
+          className={`msg-action-btn${copied ? ' done' : ''}`}
+          title={copied ? '已复制' : '复制'}
+          aria-label={copied ? '已复制' : '复制'}
           onClick={async () => {
             const ok = await copyText(props.content);
             if (ok) {
@@ -92,7 +125,7 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
             }
           }}
         >
-          {copied ? '已复制' : '复制'}
+          {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
         </button>
       )}
     </span>

@@ -58,26 +58,29 @@ describe('**问题1：打开会话必须在底部**', () => {
 });
 
 describe('**问题2：消息操作按钮不能占位**', () => {
-  it('.bubble-footer 是绝对定位', () => {
-    const body = rule('.bubble-footer');
-    assert.match(body, /position:\s*absolute/, '占位的根源是它在文档流里');
+  // 最终方案（v0.93）：照 DSH 做成 26×26 的圆形图标按钮，**常显**。
+  //
+  // 中间走过两条弯路：
+  //   1. 文字链 + opacity:0 —— 只隐藏视觉，高度还在，所以每条消息下面空一行
+  //   2. 绝对定位 + 悬停浮现 —— 不占位了，但形态还是文字，不像 DSH
+
+  it('按钮是 26×26 的方形图标按钮', () => {
+    const body = rule('.msg-action-btn');
+    assert.match(body, /width:\s*26px/);
+    assert.match(body, /height:\s*26px/);
   });
 
-  it('平时不吃鼠标事件', () => {
-    assert.match(rule('.bubble-footer'), /pointer-events:\s*none/);
+  it('**常显，不靠 opacity:0 隐藏**', () => {
+    // 用 opacity:0 隐藏是"占位"的根源——高度还在
+    assert.doesNotMatch(rule('.bubble-footer'), /opacity:\s*0;/);
   });
 
-  it('悬停时可点', () => {
-    const m = /\.message:hover \.bubble-footer[\s\S]{0,200}?\{([^}]*)\}/.exec(cleanCss);
-    assert.match(m?.[1] ?? '', /pointer-events:\s*auto/);
-  });
-
-  it('.message 是定位上下文', () => {
+  it('.message 是定位上下文（留给需要浮层的场景）', () => {
     assert.match(rule('.message'), /position:\s*relative/);
   });
 
-  it('不再用 margin-top 撑开空间', () => {
-    assert.doesNotMatch(rule('.bubble-footer'), /margin-top:\s*4px/);
+  it('和内容之间只有很小的间距', () => {
+    assert.match(rule('.bubble-footer'), /margin-top:\s*var\(--g-1\)/);
   });
 });
 

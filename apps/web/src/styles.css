@@ -1481,53 +1481,8 @@ button.small {
   color: var(--accent);
 }
 
-.bubble-footer {
-  /* **绝对定位，不占文档流**。
-     之前是普通元素 + opacity: 0——只隐藏了视觉，高度还在，
-     于是每条消息下方都留着一行空白（用户指出的问题）。
-     现在脱离文档流：平时完全不占空间，悬停时浮现在气泡下方。 */
-  position: absolute;
-  left: 0;
-  bottom: -22px;
-  display: flex;
-  justify-content: flex-start;
-  z-index: 2;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-fast) var(--ease);
-}
 
-.message:hover .bubble-footer,
-.message:focus-within .bubble-footer {
-  opacity: 1;
-  /* 平时 pointer-events: none，悬停时才可点 */
-  pointer-events: auto;
-}
-.msg-actions {
-  display: inline-flex;
-  gap: var(--g-25);
-}
 
-.msg-actions .link {
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  height: auto;}
-
-.jump-bottom {
-  position: absolute;
-  bottom: 96px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 6px 14px;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  z-index: 5;
-}
 
 .jump-bottom:hover {
   border-color: var(--accent-dim);
@@ -5216,7 +5171,8 @@ body.is-resizing {
 .welcome-brand svg {
   color: var(--color-action);
   position: relative;
-  top: 3px;
+  /* 图标再下移 1px：实测图形中线比标题文字中线高 1.01px */
+  top: 4px;
   flex: none;
 }
 
@@ -5289,4 +5245,63 @@ body.is-resizing {
 .composer-hint-inline {
   font-size: var(--fs-sm);
   color: var(--color-action);
+}
+
+
+/* ---------- 消息操作按钮（照 DSH） ----------
+   DSH 是一排小的圆形图标按钮，紧贴内容下方左侧，常显。
+   之前做成文字链（编辑/重发/复制），又长又不是 DSH 的样子。 */
+.bubble-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--g-05);
+  margin-top: var(--g-1);
+  /* 常显，不靠悬停——DSH 就是这样 */
+  opacity: 1;
+}
+
+/* 用户消息的操作按钮右对齐 */
+.message.user .bubble-footer {
+  justify-content: flex-end;
+}
+
+.msg-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-05);
+}
+
+.msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-tertiary);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.msg-action-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+/* 复制成功：短暂变绿 */
+.msg-action-btn.done {
+  color: var(--color-success);
+}
+
+/* 已投票：高亮 */
+.msg-action-btn.voted {
+  color: var(--color-action);
+}
+
+.msg-action-btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
 }

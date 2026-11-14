@@ -221,3 +221,55 @@ export function IconBrand({ size = 16, className }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/** 复制：两张叠起来的纸。 */
+export function IconCopy({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+    </svg>
+  );
+}
+
+/** 已复制：对勾。 */
+export function IconCheck({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M3 8.5 6.5 12l6.5-7.5" />
+    </svg>
+  );
+}
+
+/** 重试/重发：环形箭头。 */
+export function IconRetry({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+      <path d="M13.75 2.5v3.25H10.5" />
+    </svg>
+  );
+}
+
+/** 编辑：铅笔。 */
+export function IconEdit({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M11.5 2.5 13.5 4.5 6 12H4V10z" />
+      <path d="M10 4l2 2" />
+    </svg>
+  );
+}
+
+
+
+/** 更多：三个点。 */
+export function IconMore({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <circle cx="3.5" cy="8" r="1" />
+      <circle cx="8" cy="8" r="1" />
+      <circle cx="12.5" cy="8" r="1" />
+    </svg>
+  );
+}

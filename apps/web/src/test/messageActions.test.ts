@@ -1,96 +1,97 @@
 /**
- * 消息操作测试。
+ * 消息操作按钮的形态（照 DSH）。
  *
- * 核心约束：**不同角色能做的操作不一样**。
- * 给用户消息加"重试"、给它加"编辑"，都是错的——
- * 那会让人以为可以改别人的话。
+ * 用户指着 DSH 截图说：
+ * > 编辑重发复制，我让你参考 DSH，你看不见吗？
+ *
+ * DSH 是一排**小的圆形图标按钮**（复制 / 点赞 / 点踩），
+ * 紧贴消息内容下方左侧，**常显**。
+ *
+ * 我前两次都做错了：
+ *   1. 文字链（编辑 / 重发 / 复制）—— 又长又不是 DSH 的样子
+ *   2. 绝对定位 + 悬停才显示 —— 不占位了，但形态还是文字
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-import { actionsFor, editableText } from '../components/messageCapabilities.js';
+const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
+const actions = readFileSync(new URL('../../src/components/MessageActions.tsx', import.meta.url), 'utf8');
+const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');
 
-describe('Assistant 消息', () => {
-  it('可以重试', () => {
-    assert.equal(actionsFor({ role: 'assistant', content: '答案' }).canRetry, true);
+function rule(selector: string): string {
+  const all = [...cleanCss.matchAll(new RegExp(`^\\${selector}\\s*\\{([^}]*)\\}`, 'gm'))];
+  return all.length > 0 ? (all[all.length - 1]![1] ?? '') : '';
+}
+
+describe('**操作按钮是图标，不是文字**', () => {
+  it('用 .msg-action-btn 而不是文字链 .link', () => {
+    assert.match(actions, /className="msg-action-btn"/);
+    assert.doesNotMatch(actions, /className="link"/, '不该再用文字链');
   });
 
-  it('**不能编辑**（那是它说的话，不是用户说的）', () => {
-    assert.equal(actionsFor({ role: 'assistant', content: '答案' }).canEdit, false);
+  it('按钮里是 SVG 图标', () => {
+    for (const icon of ['IconCopy', 'IconCheck', 'IconRetry', 'IconEdit']) {
+      assert.match(icons, new RegExp(`export function ${icon}\\(`), `缺 ${icon}`);
+    }
+    assert.match(actions, /<IconCopy/);
+    assert.match(actions, /<IconRetry/);
   });
 
-  it('可以复制', () => {
-    assert.equal(actionsFor({ role: 'assistant', content: '答案' }).canCopy, true);
+  it('不再渲染"编辑""重发""复制"这些文字', () => {
+    // 文字只该出现在 title / aria-label 里
+    const jsxText = actions.replace(/title="[^"]*"/g, '').replace(/aria-label="[^"]*"/g, '');
+    assert.doesNotMatch(jsxText, />\s*编辑\s*</);
+    assert.doesNotMatch(jsxText, />\s*重发\s*</);
+    assert.doesNotMatch(jsxText, />\s*复制\s*</);
   });
 
-  it('空内容不能复制', () => {
-    assert.equal(actionsFor({ role: 'assistant', content: '   ' }).canCopy, false);
-  });
-});
-
-describe('用户消息', () => {
-  it('可以编辑', () => {
-    assert.equal(actionsFor({ role: 'user', content: '问题' }).canEdit, true);
+  it('有复制成功后的对勾反馈', () => {
+    assert.match(actions, /copied \? <IconCheck/);
   });
 
-  it('可以重发', () => {
-    assert.equal(actionsFor({ role: 'user', content: '问题' }).canResend, true);
-  });
-
-  it('**不能重试**（重试是"让它重新回答"，只对回答有意义）', () => {
-    assert.equal(actionsFor({ role: 'user', content: '问题' }).canRetry, false);
-  });
-});
-
-describe('内部通知', () => {
-  const internal = { role: 'user' as const, content: '【执行者结算】...', source: 'internal:executor' };
-
-  it('**什么操作都没有，除了复制**', () => {
-    const a = actionsFor(internal);
-    assert.equal(a.canRetry, false);
-    assert.equal(a.canEdit, false);
-    assert.equal(a.canResend, false);
-    assert.equal(a.canCopy, true);
-  });
-
-  it('识别 internal: 前缀', () => {
-    assert.equal(actionsFor({ role: 'assistant', content: 'x', source: 'internal:agent' }).canRetry, false);
-  });
-
-  it('普通 source 不受影响', () => {
-    assert.equal(actionsFor({ role: 'assistant', content: 'x', source: 'assistant' }).canRetry, true);
+  it('**没有点赞/点踩**（没有后端可接收，纯装饰）', () => {
+    assert.doesNotMatch(actions, /IconThumbUp|IconThumbDown/);
+    assert.doesNotMatch(actions, /aria-pressed/);
   });
 });
 
-describe('其它角色', () => {
-  it('system / tool 消息不提供重试与编辑', () => {
-    for (const role of ['system', 'tool'] as const) {
-      const a = actionsFor({ role, content: '内容' });
-      assert.equal(a.canRetry, false);
-      assert.equal(a.canEdit, false);
-      assert.equal(a.canCopy, true);
+describe('**按钮尺寸和布局照 DSH**', () => {
+  it('26×26 的方形按钮', () => {
+    const body = rule('.msg-action-btn');
+    assert.match(body, /width:\s*26px/);
+    assert.match(body, /height:\s*26px/);
+  });
+
+  it('**常显，不靠悬停**', () => {
+    const body = rule('.bubble-footer');
+    assert.doesNotMatch(body, /opacity:\s*0;/, 'DSH 的按钮是一直显示的');
+    assert.match(body, /opacity:\s*1/);
+  });
+
+  it('不用绝对定位（DSH 是正常文档流，但不占额外行高）', () => {
+    const body = rule('.bubble-footer');
+    assert.match(body, /margin-top:\s*var\(--g-1\)/, '用很小的上边距贴合内容');
+  });
+
+  it('间距紧凑（0.5px 级）', () => {
+    assert.match(rule('.msg-actions'), /gap:\s*var\(--g-05\)/);
+  });
+
+  it('用户消息的按钮右对齐', () => {
+    assert.match(cleanCss, /\.message\.user \.bubble-footer[\s\S]{0,80}justify-content:\s*flex-end/);
+  });
+});
+
+describe('按钮可访问性', () => {
+  it('每个按钮都有 aria-label', () => {
+    const btns = [...actions.matchAll(/<button[\s\S]*?>/g)];
+    assert.ok(btns.length >= 4);
+    for (const b of btns) {
+      assert.match(b[0], /aria-label=/, `这个按钮缺 aria-label：${b[0].slice(0, 60)}`);
     }
   });
-});
 
-describe('编辑时去掉附件内容', () => {
-  it('**只留用户自己打的字**', () => {
-    const content =
-      '看一下这个接口\n\n【附件：api.ts】\n```\nexport function f() {}\n```';
-    assert.equal(editableText(content), '看一下这个接口');
-  });
 
-  it('多个附件也都能去掉', () => {
-    const content = '解释这两个\n\n【附件：a.ts】\n```\na\n```\n\n【附件：b.ts】\n```\nb\n```';
-    assert.equal(editableText(content), '解释这两个');
-  });
-
-  it('没有附件时原样返回', () => {
-    assert.equal(editableText('就是一句话'), '就是一句话');
-  });
-
-  it('只剩附件时退回原文（总比空着好）', () => {
-    const content = '【附件：x.ts】\n```\nx\n```';
-    assert.ok(editableText(content).length > 0);
-  });
 });
