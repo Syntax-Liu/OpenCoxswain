@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
-import { IconAddProject, IconNewChat, IconSupervisor } from './icons.js';
+import { IconAddProject, IconChevron, IconNewChat, IconSupervisor } from './icons.js';
 import { computeBatchPositions } from './sidebarBatches.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
@@ -301,8 +301,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                   aria-expanded={!collapsed}
                   onClick={() => toggleCollapse(project.id)}
                 >
-                  <span className={`folder-icon${collapsed ? ' collapsed' : ''}`} aria-hidden>
-                    ▾
+                  <span className={`folder-icon${collapsed ? ' collapsed' : ''}`}>
+                    <IconChevron size={12} direction="down" />
                   </span>
                 </button>
                 <button

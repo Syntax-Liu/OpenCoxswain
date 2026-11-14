@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient, UpdateCheckDto } from '../api.js';
+import { IconDownload } from './icons.js';
 
 /**
  * 更新提示条。
@@ -38,7 +39,7 @@ export function UpdateBanner({
 
   return (
     <div className="update-banner" role="status">
-      <span className="update-icon">↑</span>
+      <span className="update-icon">`n        <IconDownload size={14} />`n      </span>
       <span>
         有新版本 <strong>{check.version}</strong>
         <span className="muted small">（当前 {check.currentVersion}）</span>

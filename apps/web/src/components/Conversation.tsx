@@ -11,7 +11,7 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens } from './contextUsage.js';
-import { IconSidebar } from './icons.js';
+import { IconChevron, IconPlus, IconSend, IconSidebar } from './icons.js';
 import { buildStatus } from './statusMetrics.js';
 import { describeWait } from './waitStatus.js';
 import { composerHint } from './composerHint.js';
@@ -381,7 +381,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
       {!scroll.atBottom && (
         <button type="button" className="jump-bottom" onClick={scroll.scrollToBottom}>
           {scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
-          <span aria-hidden> ↓</span>
+          <IconChevron size={12} direction="down" />
         </button>
       )}
 
@@ -463,7 +463,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
                 title="添加附件（也可以直接拖入或粘贴）"
                 onClick={() => fileInput.current?.click()}
               >
-                ＋
+                <IconPlus size={14} />
               </button>
               <input
                 ref={fileInput}
@@ -494,7 +494,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
               aria-label="发送"
               title="发送（Enter）"
             >
-              ↑
+              <IconSend size={16} />
             </button>
           </div>
         </div>

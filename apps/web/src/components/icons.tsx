@@ -110,3 +110,83 @@ export function IconClose({ size = 16, className }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/* ---------- 设置页图标 ---------- */
+
+/** 模型：一个立方体（表示"模型"这种抽象结构）。 */
+export function IconModel({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M8 1.75 14 5v6l-6 3.25L2 11V5z" />
+      <path d="M2 5l6 3.25L14 5M8 8.25v6" />
+    </svg>
+  );
+}
+
+/** 权限审批：一面盾牌。 */
+export function IconShield({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M8 1.75 13.5 4v4.5c0 3-2.3 5-5.5 5.75-3.2-.75-5.5-2.75-5.5-5.75V4z" />
+      <path d="M5.75 8.25 7.25 9.75l3-3" />
+    </svg>
+  );
+}
+
+/** 对话与记忆：两个重叠的气泡。 */
+export function IconMemory({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M2 3.5h8.5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6L3.5 13v-2.5H2a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z" />
+      <path d="M12.5 5.5h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-.5V15L10.5 12.5H9" />
+    </svg>
+  );
+}
+
+/** 通用：滑块（表示"可调节的设置"）。 */
+export function IconSettings({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M2 4.5h4M9 4.5h5M2 11.5h7M12 11.5h2" />
+      <circle cx="7.5" cy="4.5" r="1.5" />
+      <circle cx="10.5" cy="11.5" r="1.5" />
+    </svg>
+  );
+}
+
+/** 手机通道：手机。 */
+export function IconPhone({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <rect x="4" y="1.75" width="8" height="12.5" rx="1.5" />
+      <path d="M7 12h2" />
+    </svg>
+  );
+}
+
+/** 下载/更新：向下箭头 + 底托。 */
+export function IconDownload({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M8 2v7.5M4.75 6.5 8 9.75l3.25-3.25M2.5 12.5h11" />
+    </svg>
+  );
+}
+
+/** 加号（附件）。 */
+export function IconPlus({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M8 3.5v9M3.5 8h9" />
+    </svg>
+  );
+}
+
+/** 发送：向上箭头。 */
+export function IconSend({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M8 13V3.5M4.5 7 8 3.5 11.5 7" />
+    </svg>
+  );
+}

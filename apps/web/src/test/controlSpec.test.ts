@@ -330,3 +330,57 @@ describe('**右栏关掉后还能重新打开**', () => {
     assert.ok(m, '收起时应该 display: none，只设宽度 0 会留下左边框');
   });
 });
+describe('**不许再用字符图标**', () => {
+  // 字符图标（⊕ ◎ ⊞ ◫ ◈ ⚿ ◇ ⚙ ⇄ ＋ ↑ ✕ ▾）在不同字体下
+  // 粗细/大小/基线都不一致，一排里对不齐。全部改成 SVG。
+  const components = [
+    'Sidebar.tsx',
+    'Conversation.tsx',
+    'RightRail.tsx',
+    'SettingsPage.tsx',
+    'UpdateBanner.tsx',
+    'icons.tsx',
+  ];
+
+  it('这些文件里没有字符图标', () => {
+    // 常见被当图标用的符号区段。**排除 2018-201D（引号）和 2192（→，文字里常用）**
+    const iconChars = /[\u2190-\u2191\u2193-\u21FF\u2300-\u23FF\u25A0-\u25FF\u2600-\u27BF\u2B00-\u2BFF]/g;
+    const offenders: string[] = [];
+
+    for (const name of components) {
+      const text = readFileSync(new URL(`../../src/components/${name}`, import.meta.url), 'utf8');
+      // 去掉注释和字符串字面量里的说明文字，只查 JSX 里直接渲染的内容
+      const stripped = text
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '')
+        .replace(/'[^'\n]*'/g, "''")
+        .replace(/"[^"\n]*"/g, '""')
+        .replace(/`[^`]*`/g, '``');
+      const hits = stripped.match(iconChars) ?? [];
+      // SettingsPage 的「← 返回应用」是**按钮文字**，不是图标，允许
+      const allowed = name === 'SettingsPage.tsx' ? ['\u2190'] : [];
+      const bad = hits.filter((h) => !allowed.includes(h));
+      if (bad.length > 0) offenders.push(`${name}: ${[...new Set(bad)].join(' ')}`);
+    }
+
+    assert.deepEqual(offenders, [], `还有字符图标：\n${offenders.join('\n')}`);
+  });
+
+  it('图标统一规格：16 视口 / stroke 1.5 / 线帽圆', () => {
+    const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');
+    assert.match(icons, /viewBox: '0 0 16 16'/);
+    assert.match(icons, /strokeWidth: 1\.5/);
+    assert.match(icons, /strokeLinecap: 'round'/);
+    assert.match(icons, /strokeLinejoin: 'round'/);
+  });
+
+  it('图标颜色继承 currentColor', () => {
+    const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');
+    assert.match(icons, /stroke: 'currentColor'/);
+  });
+
+  it('图标对读屏器隐藏', () => {
+    const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');
+    assert.match(icons, /'aria-hidden': true/);
+  });
+});

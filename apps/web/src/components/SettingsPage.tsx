@@ -4,6 +4,13 @@ import type { ApiClient, ModelConfigDto, ProjectDto, SettingsStatus } from '../a
 import { ImSettings } from './ImSettings.js';
 import { CloseBehaviorSettings } from './CloseBehaviorSettings.js';
 import { FontScaleSetting } from './FontScaleSetting.js';
+import {
+  IconMemory,
+  IconModel,
+  IconPhone,
+  IconSettings,
+  IconShield,
+} from './icons.js';
 import { ThemeSetting } from './ThemeSetting.js';
 import { shortcutHelp } from '../shortcuts.js';
 import { PermissionSettingsPanel } from './PermissionSettingsPanel.js';
@@ -37,15 +44,16 @@ export type SettingsSection =
 interface SectionMeta {
   readonly id: SettingsSection;
   readonly label: string;
-  readonly icon: string;
+  /** 图标是**组件**，不是字符——字符在不同字体下粗细/基线都不一样。 */
+  readonly icon: (props: { size?: number; className?: string }) => JSX.Element;
 }
 
 const SECTIONS: readonly SectionMeta[] = [
-  { id: 'models', label: '模型', icon: '◈' },
-  { id: 'permission', label: '权限审批', icon: '⚿' },
-  { id: 'memory', label: '对话与记忆', icon: '◇' },
-  { id: 'general', label: '通用', icon: '⚙' },
-  { id: 'im', label: '手机通道', icon: '⇄' },
+  { id: 'models', label: '模型', icon: IconModel },
+  { id: 'permission', label: '权限审批', icon: IconShield },
+  { id: 'memory', label: '对话与记忆', icon: IconMemory },
+  { id: 'general', label: '通用', icon: IconSettings },
+  { id: 'im', label: '手机通道', icon: IconPhone },
 ];
 
 export interface SettingsPageProps {
@@ -78,8 +86,8 @@ export function SettingsPage(props: SettingsPageProps): JSX.Element {
               className={`settings-nav-item${section === s.id ? ' active' : ''}`}
               onClick={() => setSection(s.id)}
             >
-              <span className="settings-nav-icon" aria-hidden>
-                {s.icon}
+              <span className="settings-nav-icon">
+                <s.icon size={16} />
               </span>
               {s.label}
             </button>

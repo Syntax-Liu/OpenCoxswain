@@ -25,6 +25,8 @@
  */
 import { type ReactNode, useState } from 'react';
 
+import { IconChevron, IconClose } from './icons.js';
+
 export interface RightRailProps {
   /** 待决策面板（传 null 表示没有）。 */
   readonly decisions?: ReactNode;
@@ -54,8 +56,8 @@ function Section(props: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="rail-caret" aria-hidden>
-          {open ? '▾' : '▸'}
+        <span className="rail-caret">
+          <IconChevron size={12} direction={open ? 'down' : 'right'} />
         </span>
         <span className="rail-title">{props.title}</span>
         {props.badge !== undefined && props.badge > 0 && (
@@ -74,7 +76,7 @@ export function RightRail(props: RightRailProps): JSX.Element {
         <span className="rail-label">开始</span>
         {props.onClose && (
           <button type="button" className="rail-close" onClick={props.onClose} title="收起侧边栏">
-            ✕
+            <IconClose size={14} />
           </button>
         )}
       </div>
