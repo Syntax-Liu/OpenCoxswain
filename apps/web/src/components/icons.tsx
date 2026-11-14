@@ -67,14 +67,17 @@ export function IconNewChat({ size = 16, className }: IconProps): JSX.Element {
 export function IconSupervisor({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size, className)}>
+      {/* **整体下移 1.62**：实测这一组图形的绘制中线在 y=6.38，
+          比视口中心 8 高 1.62px，视觉上就是"图标偏上"。
+          所以这里所有 y 坐标统一 +1.62，让绘制范围居中。 */}
       {/* 中心节点 */}
-      <circle cx="8" cy="8" r="2" />
+      <circle cx="8" cy="9.62" r="2" />
       {/* 三条连线 */}
-      <path d="M8 6 8 3.5M6.3 6.9 4.2 9.5M9.7 6.9l2.1 2.6" />
+      <path d="M8 7.62 8 5.12M6.3 8.52 4.2 11.12M9.7 8.52l2.1 2.6" />
       {/* 三个外围节点 */}
-      <circle cx="8" cy="2.25" r="1.25" />
-      <circle cx="3.25" cy="10.5" r="1.25" />
-      <circle cx="12.75" cy="10.5" r="1.25" />
+      <circle cx="8" cy="3.87" r="1.25" />
+      <circle cx="3.25" cy="12.12" r="1.25" />
+      <circle cx="12.75" cy="12.12" r="1.25" />
     </svg>
   );
 }
@@ -152,8 +155,9 @@ export function IconShield({ size = 16, className }: IconProps): JSX.Element {
 export function IconMemory({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size, className)}>
-      <path d="M2 3.5h8.5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6L3.5 13v-2.5H2a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z" />
-      <path d="M12.5 5.5h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-.5V15L10.5 12.5H9" />
+      {/* **整体上移 1.25**：实测绘制中线在 y=9.25，比视口中心低 1.25px。 */}
+      <path d="M2 2.25h8.5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6L3.5 11.75v-2.5H2a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z" />
+      <path d="M12.5 4.25h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-.5v2.5L10.5 11.25H9" />
     </svg>
   );
 }
@@ -183,7 +187,8 @@ export function IconPhone({ size = 16, className }: IconProps): JSX.Element {
 export function IconDownload({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size, className)}>
-      <path d="M8 2v7.5M4.75 6.5 8 9.75l3.25-3.25M2.5 12.5h11" />
+      {/* **下移 0.75**：实测绘制中线在 y=7.25，略偏高。 */}
+      <path d="M8 2.75v7.5M4.75 7.25 8 10.5l3.25-3.25M2.5 13.25h11" />
     </svg>
   );
 }

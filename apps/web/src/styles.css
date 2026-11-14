@@ -678,6 +678,8 @@ button.link.danger {
   display: flex;
   flex-direction: column;
   max-width: 100%;
+  /* 作为 .bubble-footer（绝对定位的操作按钮）的定位上下文 */
+  position: relative;
   min-width: 0;
   gap: var(--g-05);
 }
@@ -1480,18 +1482,27 @@ button.small {
 }
 
 .bubble-footer {
+  /* **绝对定位，不占文档流**。
+     之前是普通元素 + opacity: 0——只隐藏了视觉，高度还在，
+     于是每条消息下方都留着一行空白（用户指出的问题）。
+     现在脱离文档流：平时完全不占空间，悬停时浮现在气泡下方。 */
+  position: absolute;
+  left: 0;
+  bottom: -22px;
   display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
+  justify-content: flex-start;
+  z-index: 2;
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--dur-fast) var(--ease);
 }
 
 .message:hover .bubble-footer,
 .message:focus-within .bubble-footer {
   opacity: 1;
+  /* 平时 pointer-events: none，悬停时才可点 */
+  pointer-events: auto;
 }
-
 .msg-actions {
   display: inline-flex;
   gap: var(--g-25);

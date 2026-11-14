@@ -23,7 +23,14 @@ export interface AutoScroll {
   readonly scrollToBottom: () => void;
 }
 
-export function useAutoScroll(dependency: number): AutoScroll {
+/**
+ * @param dependency 消息条数。变化时决定是否跟随滚动。
+ * @param identity   会话身份（项目 + 会话 id）。
+ *   **变化时强制滚到底部**——用户切到一个会话，期望看到最新内容，
+ *   而不是停在顶部。之前只监听条数，切换两个消息数相同的会话时
+ *   就完全不会滚动（用户反馈"每次打开 Assistant 都在最顶部"）。
+ */
+export function useAutoScroll(dependency: number, identity?: string): AutoScroll {
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
@@ -80,6 +87,31 @@ export function useAutoScroll(dependency: number): AutoScroll {
       setUnread((n) => n + delta);
     }
   }, [dependency]);
+
+  // **会话切换：立刻到底。**
+  //
+  // 双重 rAF 是因为切过来时消息还没完成布局（字体、Markdown 表格、
+  // 图片高度都要算），当场滚会落在中间。
+  useEffect(() => {
+    if (identity === undefined) return;
+    atBottomRef.current = true;
+    setAtBottom(true);
+    setUnread(0);
+    const el = ref.current;
+    if (!el) return;
+    // 立刻滚一次（多数情况够用）
+    el.scrollTop = el.scrollHeight;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+      });
+    });
+    // 再补一次：字体/图片加载完之后高度会变
+    const t = setTimeout(() => {
+      if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+    }, 120);
+    return () => clearTimeout(t);
+  }, [identity]);
 
   return { ref, atBottom, unread, scrollToBottom };
 }

@@ -133,7 +133,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
     (m) => (m.role === 'user' || m.role === 'assistant') && !m.internal,
   );
 
-  const scroll = useAutoScroll(visible.length);
+  // 会话身份：切项目/切会话时强制滚到底部。
+  const scrollIdentity = `${props.project.id}:${props.draftKey}`;
+  const scroll = useAutoScroll(visible.length, scrollIdentity);
 
   const submit = (): void => {
     const text = draft.trim();

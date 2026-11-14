@@ -1,6 +1,6 @@
 [package]
 name = "opencoxswain"
-version = "0.91.1"
+version = "0.92.0"
 description = "OpenCoxswain 舵手"
 authors = ["OpenCoxswain"]
 edition = "2021"

@@ -1,6 +1,6 @@
 {
   "name": "@opencoxswain/web",
-  "version": "0.91.1",
+  "version": "0.92.0",
   "private": true,
   "description": "OpenCoxswain 工作台：项目 → 对 C 说话 → 看 D 进展",
   "license": "Apache-2.0",
