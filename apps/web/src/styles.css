@@ -4658,6 +4658,14 @@ body.is-resizing {
   border: 1px solid var(--border-strong);
   border-left: 2px solid var(--accent);
   border-radius: var(--r-md);
+  /* **高度有上限，展开也不许挤掉消息区**。
+     实测原来占 240px（主区 27%），展开后能到 400px 以上，
+     消息区被压到 370px——一个 2 万像素的对话只剩 370px 可视。
+
+     超过就自己滚：这是提示面板，不该和正文抢空间。 */
+  flex: 0 0 auto;
+  max-height: 32vh;
+  overflow-y: auto;
 }
 
 .decision-head {
@@ -4679,8 +4687,16 @@ body.is-resizing {
 }
 
 .decision-item {
-  padding: 6px 0;
+  padding: var(--g-1) 0;
   border-top: 1px solid var(--border);
+  /* **面板是提示，不是正文。**
+     实测原来每条 54px 高、字号 14px 与消息正文一样大，
+     整块占主区 240px（27% 高度）——比消息还抢眼。
+
+     缩小到 fs-sm + 更紧的行高：让"这里是待办"读得清，
+     但不跟正在处理的对话抢注意力。 */
+  font-size: var(--fs-sm);
+  line-height: 1.45;
 }
 
 .decision-item:first-child {

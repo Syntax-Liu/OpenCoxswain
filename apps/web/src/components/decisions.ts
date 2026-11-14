@@ -83,8 +83,49 @@ export function pendingDecisions(reports: readonly ReportDto[]): PendingDecision
  */
 export function summarizeDecision(body: string, limit = 80): string {
   const plain = stripMarkdown(body);
+
+  // **先找决策句，再考虑长度**。
+  //
+  // 一开始写成了"短报告直接返回"——但 78 字的报告也可能
+  // 通篇是背景、只有最后一句是问题。那条分支会让它整篇显示。
+  const decisionPart = findDecisionSentence(plain);
+  if (decisionPart) {
+    return decisionPart.length <= limit ? decisionPart : decisionPart.slice(0, limit - 1) + '…';
+  }
+
+  // 没有决策句才按长度处理
   if (plain.length <= limit) return plain;
   return plain.slice(0, limit - 1) + '…';
+}
+
+/**
+ * 从长报告里找出"要用户决定"的那一句。
+ *
+ * 判据来自实际数据：这类报告通常在结尾有一个小标题
+ * （"需要你决定什么""需要你拍板"），后面跟着真正的问题。
+ */
+function findDecisionSentence(plain: string): string | null {
+  // 小标题形式："需要你决定什么" / "需要你拍板" / "请你确认" 后面跟内容。
+  //
+  // **注意不能依赖换行**——stripMarkdown 会把整篇压成一行。
+  // 所以用"小标题 + 冒号/空格 + 后续内容"，后面内容以句号或问号收尾。
+  const heading = /需要你(?:决定|拍板|确认|选择)(?:什么|一下)?[\s：:]*([^。]{6,200}?[？?。])/.exec(plain);
+  if (heading?.[1]) {
+    const t = heading[1].trim();
+    if (t.length > 4) return t;
+  }
+
+  // 问句：取最后一个问号结尾的片段
+  const qs = plain.match(/[^。！？\s][^。！？]{4,}[？?]/g);
+  if (qs && qs.length > 0) {
+    return qs[qs.length - 1]!.trim();
+  }
+
+  // "要不要 / 是否继续"
+  const choice = /(?:要不要|是否(?:继续|需要)|请选择)[^。]{0,80}/.exec(plain);
+  if (choice) return choice[0].trim();
+
+  return null;
 }
 
 /** 把 Markdown 正文压成一行纯文本。 */

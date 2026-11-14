@@ -184,3 +184,34 @@ describe('标题', () => {
     assert.equal(decisionPanelTitle(0), '');
   });
 });
+
+describe('**摘要要取"要你决定"那句话，不是开头的背景**', () => {
+  // 实测报告 485~1482 字，前 80 字往往是背景：
+  //   "结论：advmath 是一个 LaTeX 讲义项目。"
+  // 真正的决策点在后文。直接截开头，面板里读不出"要我干什么"。
+
+  it('从"需要你决定什么"小标题后取内容', () => {
+    const body =
+      '**结论**：advmath 是一个用 LaTeX 排版的讲义项目。\n\n' +
+      '**做了什么**\n- 只读遍历根目录，读了 main.tex\n\n' +
+      '**需要你决定什么**\n这个结果够不够你的测试目的？';
+    const s = summarizeDecision(body);
+    assert.match(s, /够不够|测试目的/, `摘要取错了: ${s}`);
+    assert.doesNotMatch(s, /LaTeX 排版/, '不该取开头的背景');
+  });
+
+  it('没有小标题时取最后一个问句', () => {
+    const body = '结论：查清了。背景很长很长很长。\n\n要不要现在就开始改？';
+    assert.match(summarizeDecision(body), /要不要/);
+  });
+
+  it('短报告直接返回', () => {
+    const body = '选 A 还是 B？';
+    assert.equal(summarizeDecision(body), '选 A 还是 B？');
+  });
+
+  it('找不到决策句时退回开头', () => {
+    const body = '这是一段很长的纯描述文字没有任何问句也没有小标题'.repeat(3);
+    assert.ok(summarizeDecision(body).length <= 80);
+  });
+});
