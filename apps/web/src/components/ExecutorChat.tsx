@@ -147,7 +147,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           <div className="composer-bar">
             <div className="composer-left">
               {/* 权限随时可调（照 DSH） */}
-              {props.api && <PermissionPicker api={props.api} />}
+              {props.api && <PermissionPicker api={props.api} projectId={props.executor.projectId} />}
               <MetricsLine executor={props.executor} />
             </div>
             <button type="button" className="primary small" onClick={submit} disabled={busy || !draft.trim()}>

@@ -54,6 +54,7 @@ import {
   LEVEL_LABEL,
   MemoryPermissionStore,
   allowsWrite,
+  levelForProject,
   needsApproval,
   type PermissionStoreLike,
 } from './settings/permission.js';
@@ -1987,14 +1988,43 @@ export class Orchestrator extends EventEmitter {
     return this.modelStore.storageMode();
   }
 
-  /** 当前权限档位。 */
-  async permissionSettings(): Promise<{ level: PermissionLevel }> {
-    return this.permissionStore.load();
+  /**
+   * 权限设置。
+   *
+   * @param projectId 传项目 id 时额外返回这个项目**实际生效**的档位。
+   */
+  async permissionSettings(
+    projectId?: string | null,
+  ): Promise<{ level: PermissionLevel; projects: Readonly<Record<string, PermissionLevel>>; effective: PermissionLevel }> {
+    const s = await this.permissionStore.load();
+    return {
+      level: s.level,
+      projects: s.projects,
+      effective: levelForProject(s, projectId),
+    };
   }
 
-  /** 改权限档位（立即生效，下次危险动作按新档位判断）。 */
-  async setPermissionLevel(level: PermissionLevel): Promise<void> {
-    await this.permissionStore.save({ level });
+  /**
+   * 改权限档位（立即生效）。
+   *
+   * **按项目隔离**：传 projectId 只改那个项目，其他项目不受影响；
+   * 不传则改全局默认（新项目的初始值）。
+   */
+  async setPermissionLevel(level: PermissionLevel, projectId?: string | null): Promise<void> {
+    const s = await this.permissionStore.load();
+    if (!projectId) {
+      await this.permissionStore.save({ level, projects: s.projects });
+      return;
+    }
+    await this.permissionStore.save({
+      level: s.level,
+      projects: { ...s.projects, [projectId]: level },
+    });
+  }
+
+  /** 当前**生效**的权限档位（按项目解析）。 */
+  effectivePermission(projectId?: string | null): Promise<PermissionLevel> {
+    return this.permissionStore.load().then((s) => levelForProject(s, projectId));
   }
 
   async closeSettings(): Promise<CloseSettings> {

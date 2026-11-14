@@ -548,15 +548,29 @@ export class ApiClient {
   }
 
   /** 权限档位。 */
-  permissions(): Promise<{
-    settings: { level: string };
+  permissions(projectId?: string): Promise<{
+    settings: {
+      level: string;
+      projects: Readonly<Record<string, string>>;
+      /** 传了 projectId 时，这个项目**实际生效**的档位。 */
+      effective: string;
+    };
     levels: readonly PermissionLevelDto[];
   }> {
-    return this.request('/api/permissions');
+    const q = projectId ? `?project=${encodeURIComponent(projectId)}` : '';
+    return this.request(`/api/permissions${q}`);
   }
 
-  setPermissionLevel(level: string): Promise<{ ok: boolean }> {
-    return this.request('/api/permissions', { method: 'POST', body: { level } });
+  /**
+   * 改权限档位。
+   *
+   * **传 projectId 只改那个项目**，其他项目不受影响；不传改全局默认。
+   */
+  setPermissionLevel(level: string, projectId?: string | null): Promise<{ ok: boolean }> {
+    return this.request('/api/permissions', {
+      method: 'POST',
+      body: projectId ? { level, projectId } : { level },
+    });
   }
 
   /** 关闭行为设置。 */

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient, ImStatusDto, ProjectDto } from '../api.js';
+import { Select } from './Select.js';
 
 export interface ImSettingsProps {
   readonly api: ApiClient;
@@ -95,14 +96,15 @@ export function ImSettings(props: ImSettingsProps): JSX.Element {
 
       <label className="field">
         <span>绑定项目</span>
-        <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-          <option value="">（未选择）</option>
-          {props.projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={projectId}
+          options={[
+            { value: '', label: '（未选择）' },
+            ...props.projects.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+          onChange={setProjectId}
+          ariaLabel="绑定项目"
+        />
       </label>
 
       {status && status.chatIds.length === 0 && status.hasToken && (

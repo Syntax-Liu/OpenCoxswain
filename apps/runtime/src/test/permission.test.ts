@@ -103,7 +103,7 @@ describe('持久化', () => {
   it('存进去再读出来', async () => {
     const file = path.join(await tmp(), 'perm.json');
     const store = new PermissionStore(file);
-    await store.save({ level: 'auto' });
+    await store.save({ level: 'auto', projects: {} });
     assert.equal((await store.load()).level, 'auto');
   });
 
@@ -117,7 +117,7 @@ describe('端到端：档位影响派活', () => {
   it('**仅可查看档下派活自动变成只读 Agent**', async () => {
     const store = new MemoryStore();
     const permissions = new MemoryPermissionStore();
-    await permissions.save({ level: 'readonly' });
+    await permissions.save({ level: 'readonly', projects: {} });
     const runtime = new Orchestrator({
       store,
       llm: new MockLlmClient(() => ({ text: 'ok' })),
@@ -140,7 +140,7 @@ describe('端到端：档位影响派活', () => {
   it('手动审批档下保持原样', async () => {
     const store = new MemoryStore();
     const permissions = new MemoryPermissionStore();
-    await permissions.save({ level: 'manual' });
+    await permissions.save({ level: 'manual', projects: {} });
     const runtime = new Orchestrator({
       store,
       llm: new MockLlmClient(() => ({ text: 'ok' })),

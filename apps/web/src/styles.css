@@ -5594,3 +5594,124 @@ body.is-resizing {
   font-size: var(--fs-sm);
   color: var(--color-label-tertiary);
 }
+
+/* ---------- 统一的下拉选择器 ----------
+   用户反馈：「这个白块是什么鬼？把所有控件整合到一起」。
+   那三个白块是浏览器原生 <select>——弹出层和高亮色由操作系统决定，
+   和深色界面完全割裂。这里自己画一个，和项目选择器、权限选择器
+   共用同一套视觉语言。 */
+.ui-select {
+  position: relative;
+  width: 100%;
+}
+
+.ui-select-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--g-2);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-sm);
+  color: var(--color-label-primary);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-select-btn:hover:not(:disabled) {
+  border-color: var(--color-border-divider);
+}
+
+.ui-select-btn.open {
+  border-color: var(--color-action);
+}
+
+.ui-select-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ui-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-select-value.placeholder {
+  color: var(--color-label-tertiary);
+}
+
+.ui-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--g-1);
+  list-style: none;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.ui-select-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--g-2);
+  width: 100%;
+  height: auto;
+  min-height: 30px;
+  padding: var(--g-15) var(--g-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-primary);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-select-item.focused {
+  background: var(--color-surface-hover);
+}
+
+.ui-select-item.active {
+  color: var(--color-action);
+}
+
+.ui-select-check {
+  flex: none;
+  width: 14px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ui-select-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ui-select-item-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-select-item-hint {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--color-label-tertiary);
+}

@@ -344,8 +344,10 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
     // ---- 权限档位 ----
     if (url.pathname === '/api/permissions') {
+      // **按项目解析**：?project=xxx 时返回那个项目实际生效的档位
+      const projectId = url.searchParams.get('project');
       if (method === 'GET') {
-        const settings = await orchestrator.permissionSettings();
+        const settings = await orchestrator.permissionSettings(projectId);
         return reply(200, {
           settings,
           levels: PERMISSION_LEVELS.map((id) => ({
@@ -358,8 +360,10 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       if (method === 'POST') {
         const body = await readJson(req);
         const level = parseLevel(body.level);
-        await orchestrator.setPermissionLevel(level);
-        return reply(200, { ok: true, settings: { level } });
+        // 带 projectId 就只改那个项目
+        const targetProject = typeof body.projectId === 'string' ? body.projectId : projectId;
+        await orchestrator.setPermissionLevel(level, targetProject ?? null);
+        return reply(200, { ok: true });
       }
     }
 

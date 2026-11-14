@@ -24,6 +24,13 @@ import { IconCheck, IconChevron, IconShield } from './icons.js';
 
 export interface PermissionPickerProps {
   readonly api: ApiClient;
+  /**
+   * **哪个项目的权限**。
+   *
+   * 用户要求：每个项目独立设置，改一个不影响其他项目。
+   * 不传就等于没进项目（用全局默认）。
+   */
+  readonly projectId?: string;
   /** 权限变了之后通知外层（有些操作要重新拉状态）。 */
   readonly onChange?: (level: string) => void;
 }
@@ -40,12 +47,12 @@ export function PermissionPicker(props: PermissionPickerProps): JSX.Element | nu
   useEffect(() => {
     let alive = true;
     props.api
-      .permissions()
+      .permissions(props.projectId)
       .then((r) => {
         if (!alive) return;
         setLevels(r.levels);
-        // 接口返回的是 { settings: { level }, levels }，不是 current
-        setCurrent(r.settings.level);
+        // 接口返回 settings.effective = 这个项目实际生效的档位
+        setCurrent(r.settings.effective ?? r.settings.level);
       })
       .catch(() => {
         /* 拉不到就只显示"权限"两个字，不报错 */
@@ -53,9 +60,9 @@ export function PermissionPicker(props: PermissionPickerProps): JSX.Element | nu
     return () => {
       alive = false;
     };
-    // api 是稳定引用
+    // 项目变了要重新拉——每个项目的档位不同
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [props.projectId]);
 
   // 点外面关掉
   useEffect(() => {
@@ -76,7 +83,7 @@ export function PermissionPicker(props: PermissionPickerProps): JSX.Element | nu
     setBusy(true);
     setError(null);
     try {
-      await props.api.setPermissionLevel(id);
+      await props.api.setPermissionLevel(id, props.projectId);
       setCurrent(id);
       setOpen(false);
       props.onChange?.(id);

@@ -9,11 +9,10 @@ import {
   IconModel,
   IconPhone,
   IconSettings,
-  IconShield,
+
 } from './icons.js';
 import { ThemeSetting } from './ThemeSetting.js';
 import { shortcutHelp } from '../shortcuts.js';
-import { PermissionSettingsPanel } from './PermissionSettingsPanel.js';
 import { ModelSettingsPanel } from './ModelSettingsPanel.js';
 
 /**
@@ -36,7 +35,7 @@ import { ModelSettingsPanel } from './ModelSettingsPanel.js';
 
 export type SettingsSection =
   | 'models'
-  | 'permission'
+
   | 'memory'
   | 'general'
   | 'im';
@@ -50,7 +49,6 @@ interface SectionMeta {
 
 const SECTIONS: readonly SectionMeta[] = [
   { id: 'models', label: '模型', icon: IconModel },
-  { id: 'permission', label: '权限审批', icon: IconShield },
   { id: 'memory', label: '对话与记忆', icon: IconMemory },
   { id: 'general', label: '通用', icon: IconSettings },
   { id: 'im', label: '手机通道', icon: IconPhone },
@@ -98,8 +96,7 @@ export function SettingsPage(props: SettingsPageProps): JSX.Element {
           {section === 'models' && (
             <ModelSettingsPanel api={props.api} status={props.status} onSaved={props.onSaved} />
           )}
-          {section === 'permission' && <PermissionSettingsPanel api={props.api} />}
-          {section === 'memory' && <MemorySection api={props.api} projects={props.projects} />}
+            {section === 'memory' && <MemorySection api={props.api} projects={props.projects} />}
           {section === 'general' && <GeneralSection api={props.api} status={props.status} />}
           {section === 'im' && (
             <section className="settings-block">

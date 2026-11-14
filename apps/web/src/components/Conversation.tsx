@@ -498,7 +498,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           <div className="composer-bar">
             <div className="composer-left">
               {/* **权限随时可调**（照 DSH）：不用去设置页来回切 */}
-              <PermissionPicker api={props.api} />
+              <PermissionPicker api={props.api} projectId={props.project.id} />
               {/* 选择文件：拖入和粘贴之外的第三条路，
                   也是唯一对不习惯拖拽的用户友好的入口 */}
               <button

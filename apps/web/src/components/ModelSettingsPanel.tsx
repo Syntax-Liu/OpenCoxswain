@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { Select } from './Select.js';
 import type { ApiClient, ModelConfigDto, ModelParamsDto, SettingsStatus } from '../api.js';
 
 /**
@@ -207,22 +208,16 @@ export function ModelSettingsPanel(props: {
 
               <label className="field">
                 <span>思考强度</span>
-                <select
+                <Select
                   value={selected.params.reasoningEffort ?? ''}
-                  onChange={(e) =>
+                  options={[{ value: '', label: '默认' }, { value: 'low', label: '低' }, { value: 'medium', label: '中' }, { value: 'high', label: '高' }]}
+                  onChange={(v) =>
                     updateParam({
-                      reasoningEffort:
-                        e.target.value === ''
-                          ? undefined
-                          : (e.target.value as 'low' | 'medium' | 'high'),
+                      reasoningEffort: v === '' ? undefined : (v as 'low' | 'medium' | 'high'),
                     })
                   }
-                >
-                  <option value="">默认</option>
-                  <option value="low">低</option>
-                  <option value="medium">中</option>
-                  <option value="high">高</option>
-                </select>
+                  ariaLabel="思考强度"
+                />
               </label>
 
               <div className="field-row">
@@ -319,20 +314,18 @@ export function ModelSettingsPanel(props: {
           <label key={key} className="role-row">
             <span className="role-name">{label}</span>
             <span className="role-hint muted small">{hint}</span>
-            <select
-              value={roles[key] ?? ''}
-              onChange={(e) => {
-                setRoles((prev) => ({ ...prev, [key]: e.target.value || null }));
-                setSaved(false);
-              }}
-            >
-              <option value="">（默认配置）</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name || m.id}
-                </option>
-              ))}
-            </select>
+            <Select
+                value={roles[key] ?? ''}
+                options={[
+                  { value: '', label: '（默认配置）' },
+                  ...models.map((mm) => ({ value: mm.id, label: mm.name || mm.id })),
+                ]}
+                onChange={(v) => {
+                  setRoles((prev) => ({ ...prev, [key]: v || null }));
+                  setSaved(false);
+                }}
+                ariaLabel="绑定模型"
+              />
           </label>
         ))}
       </div>
