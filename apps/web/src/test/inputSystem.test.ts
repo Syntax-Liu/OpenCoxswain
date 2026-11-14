@@ -24,9 +24,11 @@ function rule(selector: string): string {
 }
 
 describe('**输入框有统一契约**', () => {
-  it('.input 存在且用语义令牌', () => {
-    const body = rule('.input');
-    assert.ok(body.length > 0, '缺少 .input');
+  it('基础样式作用于全局 input / select', () => {
+    // 关键事实：36 处 <input> 都没有 className，靠全局选择器定样式。
+    // 因此基础规则必须是 `input {` 而不是 `.input {`——后者对它们无效。
+    const body = rule('input');
+    assert.ok(body.length > 0, '缺少全局 input 规则');
     assert.match(body, /background:\s*var\(--color-surface-sunken\)/);
     assert.match(body, /border:\s*1px solid var\(--color-border-strong\)/);
     assert.match(body, /border-radius:\s*var\(--r-sm\)/);
@@ -38,17 +40,18 @@ describe('**输入框有统一契约**', () => {
   });
 
   it('**焦点用 outline，不改边框**（改边框会撑动布局）', () => {
-    assert.match(cleanCss, /^\.input:focus,/m);
-    const focusBlock = cleanCss.slice(
-      cleanCss.indexOf('.input:focus,'),
-      cleanCss.indexOf('.input:focus,') + 200,
-    );
+    // 焦点规则同样作用于全局 input
+    assert.match(cleanCss, /^input:focus,/m);
+    const idx = cleanCss.indexOf('input:focus,');
+    const focusBlock = cleanCss.slice(idx, idx + 260);
     assert.match(focusBlock, /outline:\s*2px solid var\(--color-border-focus\)/);
     assert.match(focusBlock, /outline-offset:\s*-1px/);
   });
 
   it('禁用态有视觉区分', () => {
-    assert.match(rule('.input:disabled'), /opacity:/);
+    const idx = cleanCss.indexOf('input:disabled');
+    assert.ok(idx > 0, '缺少 input:disabled');
+    assert.match(cleanCss.slice(idx, idx + 120), /opacity:/);
   });
 });
 

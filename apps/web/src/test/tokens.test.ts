@@ -137,8 +137,14 @@ describe('**只有原始层出现十六进制颜色**', () => {
   });
 });
 
-describe('改造前后颜色一致', () => {
-  // 这些是改造前 :root 里的原始值，逐一核对
+describe('颜色值锁定（防止意外改动）', () => {
+  // 这些是原始层的实际值，逐一核对。
+  //
+  // 用途：改色应当是**有意识的决定**，不能因为重构/批量替换而悄悄变掉。
+  // 若确实需要改色（例如对比度不达标），改这里 + 说明理由 + 跑 audit-theme-contrast。
+  //
+  // 2026-11-14：neutral-500 / neutral-600 / red-500 因 WCAG 对比度不达标
+  // （详见 docs/ui-consistency-plan.md §14）做过明度调整。
   const expected: Record<string, string> = {
     '--c-neutral-950': '#0a0c0f',
     '--c-neutral-900': '#0d1013',
@@ -147,8 +153,8 @@ describe('改造前后颜色一致', () => {
     '--c-neutral-800': '#171c23',
     '--c-neutral-750': '#1a2028',
     '--c-neutral-700': '#1f262f',
-    '--c-neutral-600': '#545c65',
-    '--c-neutral-500': '#7a828b',
+    '--c-neutral-600': '#626971', // 对比度修正（原 #545c65，2.52:1 → 3.0）
+    '--c-neutral-500': '#7d858d', // 对比度修正（原 #7a828b，4.40:1 → 4.5）
     '--c-neutral-300': '#c4cbd3',
     '--c-neutral-100': '#e8eaed',
     '--c-amber-600': '#6b4f22',
@@ -156,12 +162,12 @@ describe('改造前后颜色一致', () => {
     '--c-amber-400': '#e0a04a',
     '--c-amber-300': '#eab366',
     '--c-green-500': '#5a8f7b',
-    '--c-red-500': '#b85450',
+    '--c-red-500': '#c26c69', // 对比度修正（原 #b85450，3.60:1 → 4.5）
     '--c-blue-500': '#5a7d99',
   };
 
   for (const [name, hex] of Object.entries(expected)) {
-    it(`${name} = ${hex}（与改造前一致）`, () => {
+    it(`${name} = ${hex}`, () => {
       assert.equal((token(name) ?? '').toLowerCase(), hex.toLowerCase());
     });
   }

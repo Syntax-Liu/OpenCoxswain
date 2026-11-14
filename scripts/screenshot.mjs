@@ -52,7 +52,7 @@ try {
   await send('Emulation.setDeviceMetricsOverride', {
     width: 1440, height: 900, deviceScaleFactor: 2, mobile: false,
   });
-  await send('Page.navigate', { url: 'http://127.0.0.1:47900/' });
+  await send('Page.navigate', { url: process.env.OCX_URL ?? 'http://127.0.0.1:47900/' });
   await sleep(7000);
 
   // 关掉引导，进第一个项目

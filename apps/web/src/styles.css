@@ -63,8 +63,8 @@
   --c-neutral-700: #1f262f;   /* 选中 */
   --c-neutral-650: #262e39;   /* 选中悬停 */
 
-  --c-neutral-600: #545c65;   /* 元信息 */
-  --c-neutral-500: #7a828b;   /* 次要文字 */
+  --c-neutral-600: #626971;   /* 元信息（2.52→3.0） */
+  --c-neutral-500: #7d858d;   /* 次要文字（4.40→4.5，raised 底上达标） */
   --c-neutral-300: #c4cbd3;   /* 正文 */
   --c-neutral-100: #e8eaed;   /* 标题、关键值 */
 
@@ -76,7 +76,7 @@
 
   /* 功能色（低饱和，不与琥珀抢注意力） */
   --c-green-500: #5a8f7b;
-  --c-red-500: #b85450;
+  --c-red-500: #c26c69;
   --c-blue-500: #5a7d99;
 
   /* 边框：白色低透明度，靠背景透出来 */
@@ -89,6 +89,27 @@
   --c-scrim-50: rgba(0, 0, 0, 0.5);
   --c-scrim-55: rgba(0, 0, 0, 0.55);
   --c-danger-15: rgba(184, 84, 80, 0.15);
+  --c-warn-35: rgba(107, 82, 22, 0.35);
+  --c-info-35: rgba(29, 58, 82, 0.35);
+
+  /* 代码高亮：沿用 VS Code 暗色配色，换主题时只需改这里 */
+  --c-code-bg: #2d2d2d;
+  --c-code-fg: #ce9178;
+  --c-code-block: #1a1a1a;
+  --c-code-inline: #0b0d12;
+
+  /* 轨迹分色：用户 / 助理 / 工具三条泳道，颜色本身是信息 */
+  --c-trace-user: #4a7fb5;
+  --c-trace-assistant: #7a5aa8;
+  --c-trace-tool: #3f6b52;
+
+  /* 窗口关闭按钮的悬停红（Windows 标准色） */
+  --c-window-close: #c42b1c;
+
+  /* 彩色底上的文字：danger/selected 底上的纯白 */
+  --c-on-accent: #ffffff;
+  /* 压暗的琥珀底（浅色主题）上的文字 */
+  --c-on-accent-light: #ffffff;
 
   /* ---- 第二层：语义别名 ----
      这一层说"这块是什么用途"，不写具体颜色。
@@ -118,6 +139,18 @@
   /* 遮罩与阴影：阴影用 rgba 在黑底上才自然；浅色主题里换成更淡的值 */
   --color-scrim: var(--c-scrim-50);
   --color-danger-dim: var(--c-danger-15);
+  --color-on-accent: var(--c-on-accent);
+  /* 主按钮（琥珀底）上的文字：深色主题用近黑，对比度最高 */
+  --color-on-action: var(--c-neutral-1000);
+  --color-warn-dim: var(--c-warn-35);
+  --color-info-dim: var(--c-info-35);
+  --color-code-bg: var(--c-code-bg);
+  --color-code-fg: var(--c-code-fg);
+  --color-code-block: var(--c-code-block);
+  --color-code-inline: var(--c-code-inline);
+  --color-trace-user: var(--c-trace-user);
+  --color-trace-assistant: var(--c-trace-assistant);
+  --color-trace-tool: var(--c-trace-tool);
   --color-scrim-strong: var(--c-scrim-55);
   --shadow-popover: 0 4px 12px var(--c-scrim-45);
   --shadow-menu: 0 8px 24px var(--c-scrim-55);
@@ -390,7 +423,7 @@ button.wide {
    4. 焦点一律 outline，不靠改 border-color（改边框会撑动布局）。
    ============================================================ */
 
-.input {
+input {
   background: var(--color-surface-sunken);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--r-sm);
@@ -401,22 +434,27 @@ button.wide {
   transition: border-color var(--dur-fast) var(--ease);
 }
 
-.input::placeholder {
+input::placeholder,
+select::placeholder {
   color: var(--color-label-tertiary);
 }
 
-.input:hover:not(:disabled) {
+input:hover:not(:disabled),
+select:hover:not(:disabled) {
   border-color: var(--color-border-divider);
 }
 
-.input:focus,
-.input:focus-visible {
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: -1px;
   border-color: transparent;
 }
 
-.input:disabled {
+input:disabled,
+select:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -493,7 +531,7 @@ button.wide {
 /* ---- 变体 ---- */
 .btn--primary {
   background: var(--color-action);
-  color: var(--c-neutral-1000);
+  color: var(--color-on-action);
 }
 
 .btn--primary:hover:not(:disabled) {
@@ -584,587 +622,6 @@ button.wide {
   width: var(--h-md);
 }
 
-/* ============================================================
-   按钮组件契约（4 变体 × 3 尺寸）
-   ------------------------------------------------------------
-   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
-   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
-   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
-
-   规则（新代码必须遵守）：
-   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
-   2. 不为新用途再造一个「.xxx-btn」类；
-   3. 变体只允许 4 个：primary / secondary / ghost / danger；
-   4. 尺寸只允许 3 个：sm / md / lg；
-   5. 颜色一律走语义令牌，不写裸色值。
-   ============================================================ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-1);
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-
-/* ---- 尺寸 ---- */
-.btn--sm {
-  height: var(--h-sm);
-  padding: 0 var(--g-2);
-  font-size: var(--fs-sm);
-}
-
-.btn--md {
-  height: var(--h-md);
-  padding: 0 var(--g-3);
-  font-size: var(--fs-md);
-}
-
-.btn--lg {
-  height: var(--h-lg);
-  padding: 0 var(--g-4);
-  font-size: var(--fs-md);
-}
-
-/* ---- 变体 ---- */
-.btn--primary {
-  background: var(--color-action);
-  color: var(--c-neutral-1000);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-action-hover);
-}
-
-.btn--secondary {
-  background: transparent;
-  border-color: var(--color-border-strong);
-  color: var(--color-label-primary);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-.btn--ghost {
-  background: transparent;
-  color: var(--color-label-secondary);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
-}
-
-.btn--danger {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
-.btn--pill {
-  border-radius: var(--r-full);
-}
-
-/* ---- 统一五态 ---- */
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 纯图标按钮：方形，不带水平内边距。宽度跟随高度档位。 */
-.btn--icon {
-  padding: 0;
-  width: var(--h-sm);
-}
-
-/* 方形 26px：消息操作按钮、上下文菜单里的图标项 */
-.btn--icon-md {
-  padding: 0;
-  width: var(--h-md);
-}
-
-/* ============================================================
-   按钮组件契约（4 变体 × 3 尺寸）
-   ------------------------------------------------------------
-   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
-   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
-   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
-
-   规则（新代码必须遵守）：
-   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
-   2. 不为新用途再造一个「.xxx-btn」类；
-   3. 变体只允许 4 个：primary / secondary / ghost / danger；
-   4. 尺寸只允许 3 个：sm / md / lg；
-   5. 颜色一律走语义令牌，不写裸色值。
-   ============================================================ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-1);
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-
-/* ---- 尺寸 ---- */
-.btn--sm {
-  height: var(--h-sm);
-  padding: 0 var(--g-2);
-  font-size: var(--fs-sm);
-}
-
-.btn--md {
-  height: var(--h-md);
-  padding: 0 var(--g-3);
-  font-size: var(--fs-md);
-}
-
-.btn--lg {
-  height: var(--h-lg);
-  padding: 0 var(--g-4);
-  font-size: var(--fs-md);
-}
-
-/* ---- 变体 ---- */
-.btn--primary {
-  background: var(--color-action);
-  color: var(--c-neutral-1000);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-action-hover);
-}
-
-.btn--secondary {
-  background: transparent;
-  border-color: var(--color-border-strong);
-  color: var(--color-label-primary);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-.btn--ghost {
-  background: transparent;
-  color: var(--color-label-secondary);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
-}
-
-.btn--danger {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
-.btn--pill {
-  border-radius: var(--r-full);
-}
-
-/* ---- 统一五态 ---- */
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 纯图标按钮：方形成，不带水平内边距 */
-.btn--icon {
-  padding: 0;
-  width: var(--h-sm);
-}
-
-/* ============================================================
-   按钮组件契约（4 变体 × 3 尺寸）
-   ------------------------------------------------------------
-   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
-   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
-   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
-
-   规则（新代码必须遵守）：
-   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
-   2. 不为新用途再造一个「.xxx-btn」类；
-   3. 变体只允许 4 个：primary / secondary / ghost / danger；
-   4. 尺寸只允许 3 个：sm / md / lg；
-   5. 颜色一律走语义令牌，不写裸色值。
-   ============================================================ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-1);
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-
-/* ---- 尺寸 ---- */
-.btn--sm {
-  height: var(--h-sm);
-  padding: 0 var(--g-2);
-  font-size: var(--fs-sm);
-}
-
-.btn--md {
-  height: var(--h-md);
-  padding: 0 var(--g-3);
-  font-size: var(--fs-md);
-}
-
-.btn--lg {
-  height: var(--h-lg);
-  padding: 0 var(--g-4);
-  font-size: var(--fs-md);
-}
-
-/* ---- 变体 ---- */
-.btn--primary {
-  background: var(--color-action);
-  color: var(--c-neutral-1000);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-action-hover);
-}
-
-.btn--secondary {
-  background: transparent;
-  border-color: var(--color-border-strong);
-  color: var(--color-label-primary);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-.btn--ghost {
-  background: transparent;
-  color: var(--color-label-secondary);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
-}
-
-.btn--danger {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
-.btn--pill {
-  border-radius: var(--r-full);
-}
-
-/* ---- 统一五态 ---- */
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 纯图标按钮：方形成，不带水平内边距 */
-.btn--icon {
-  padding: 0;
-  width: var(--h-sm);
-}
-
-/* ============================================================
-   按钮组件契约（4 变体 × 3 尺寸）
-   ------------------------------------------------------------
-   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
-   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
-   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
-
-   规则（新代码必须遵守）：
-   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
-   2. 不为新用途再造一个「.xxx-btn」类；
-   3. 变体只允许 4 个：primary / secondary / ghost / danger；
-   4. 尺寸只允许 3 个：sm / md / lg；
-   5. 颜色一律走语义令牌，不写裸色值。
-   ============================================================ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-1);
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-
-/* ---- 尺寸 ---- */
-.btn--sm {
-  height: var(--h-sm);
-  padding: 0 var(--g-2);
-  font-size: var(--fs-sm);
-}
-
-.btn--md {
-  height: var(--h-md);
-  padding: 0 var(--g-3);
-  font-size: var(--fs-md);
-}
-
-.btn--lg {
-  height: var(--h-lg);
-  padding: 0 var(--g-4);
-  font-size: var(--fs-md);
-}
-
-/* ---- 变体 ---- */
-.btn--primary {
-  background: var(--color-action);
-  color: var(--c-neutral-1000);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-action-hover);
-}
-
-.btn--secondary {
-  background: transparent;
-  border-color: var(--color-border-strong);
-  color: var(--color-label-primary);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-.btn--ghost {
-  background: transparent;
-  color: var(--color-label-secondary);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
-}
-
-.btn--danger {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
-.btn--pill {
-  border-radius: var(--r-full);
-}
-
-/* ---- 统一五态 ---- */
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 纯图标按钮：方形成，不带水平内边距 */
-.btn--icon {
-  padding: 0;
-  width: var(--h-sm);
-}
-
-/* ============================================================
-   按钮组件契约（4 变体 × 3 尺寸）
-   ------------------------------------------------------------
-   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
-   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
-   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
-
-   规则（新代码必须遵守）：
-   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
-   2. 不为新用途再造一个「.xxx-btn」类；
-   3. 变体只允许 4 个：primary / secondary / ghost / danger；
-   4. 尺寸只允许 3 个：sm / md / lg；
-   5. 颜色一律走语义令牌，不写裸色值。
-   ============================================================ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-1);
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-
-/* ---- 尺寸 ---- */
-.btn--sm {
-  height: var(--h-sm);
-  padding: 0 var(--g-2);
-  font-size: var(--fs-sm);
-}
-
-.btn--md {
-  height: var(--h-md);
-  padding: 0 var(--g-3);
-  font-size: var(--fs-md);
-}
-
-.btn--lg {
-  height: var(--h-lg);
-  padding: 0 var(--g-4);
-  font-size: var(--fs-md);
-}
-
-/* ---- 变体 ---- */
-.btn--primary {
-  background: var(--color-action);
-  color: var(--c-neutral-1000);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-action-hover);
-}
-
-.btn--secondary {
-  background: transparent;
-  border-color: var(--color-border-strong);
-  color: var(--color-label-primary);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-.btn--ghost {
-  background: transparent;
-  color: var(--color-label-secondary);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
-}
-
-.btn--danger {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
-.btn--pill {
-  border-radius: var(--r-full);
-}
-
-/* ---- 统一五态 ---- */
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 纯图标按钮：方形成，不带水平内边距 */
-.btn--icon {
-  padding: 0;
-  width: var(--h-sm);
-}
-
 .muted {
   color: var(--text-muted);
 }
@@ -1188,7 +645,7 @@ button.wide {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #000;
+  border-left: 1px solid var(--color-border-divider);
 }
 
 /* ---------- 侧边栏 ---------- */
@@ -1665,7 +1122,7 @@ button.wide {
 
 .notice {
   border: 1px solid var(--color-warn);
-  background: #241d0d;
+  background: var(--color-warn-dim);
   color: var(--warn);
   border-radius: var(--r-sm);
   padding: 8px 10px;
@@ -1716,7 +1173,7 @@ button.wide {
 }
 
 .md-code {
-  background: #0b0d12;
+  background: var(--color-code-inline);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 8px 10px;
@@ -1867,9 +1324,9 @@ button.wide {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  background: #2b2027;
+  background: var(--color-danger-dim);
   border: 1px solid var(--color-danger);
-  color: #ffd9d9;
+  color: var(--color-danger);
   padding: 9px 14px;
   border-radius: var(--r-sm);
   display: flex;
@@ -1904,7 +1361,7 @@ button.wide {
 
 .approval-banner {
   border-bottom: 1px solid var(--color-warn);
-  background: #1f1a0e;
+  background: var(--color-warn-dim);
   padding: 10px 24px;
   max-height: 42vh;
   overflow-y: auto;
@@ -1933,7 +1390,7 @@ button.wide {
 }
 
 .approval-item {
-  border: 1px solid #4a3a12;
+  border: 1px solid var(--color-warn);
   border-radius: var(--r-sm);
   padding: 9px 11px;
   background: var(--bg-panel);
@@ -2273,8 +1730,8 @@ button.small {
   align-items: center;
   gap: 9px;
   flex-wrap: wrap;
-  background: #10202e;
-  border-bottom: 1px solid #1d3a52;
+  background: var(--color-info-dim);
+  border-bottom: 1px solid var(--color-info);
   font-size: var(--fs-md);
   flex: 0 0 auto;
   padding: var(--g-2) var(--g-4);
@@ -2319,7 +1776,7 @@ button.small {
   border-radius: var(--r-lg);
   padding: var(--g-3) var(--g-4);
   background: var(--bg-elevated);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-menu);
   /* 模板多的时候自己滚，不要撑破浮层 */
   max-height: min(60vh, 420px);
   overflow-y: auto;
@@ -2365,7 +1822,7 @@ button.small {
 
 .template-card.active {
   border-color: var(--accent);
-  background: #13202b;
+  background: var(--color-info-dim);
 }
 
 .template-icon { font-size: var(--fs-lg); }
@@ -2525,21 +1982,21 @@ button.small {
 }
 
 .md-body tr:nth-child(even) td {
-  background: #1a1a1a;
+  background: var(--color-code-block);
 }
 
 /* 行内代码：VS Code 的深色小方块 */
 .md-body code {
   font-family: var(--font-mono);
   font-size: 0.92em;
-  background: #2d2d2d;
+  background: var(--color-code-bg);
   padding: 1px 4px;
   border-radius: var(--r-sm);
-  color: #ce9178;
+  color: var(--color-code-fg);
 }
 
 .md-body pre {
-  background: #1a1a1a;
+  background: var(--color-code-block);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   padding: 8px 10px;
@@ -2745,7 +2202,7 @@ button.small {
 
 .win-close:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-on-accent);
 }
 
 /* 主区不再占满高度：标题栏占了 30px */
@@ -2776,7 +2233,7 @@ button.small {
 
 .ctx-menu button:hover {
   background: var(--color-surface-selected);
-  color: #fff;
+  color: var(--color-on-accent);
 }
 
 .ctx-sep {
@@ -3442,15 +2899,15 @@ body.is-resizing {
 }
 
 .trace-seg.user {
-  background: #4a7fb5;
+  background: var(--color-trace-user);
 }
 
 .trace-seg.assistant {
-  background: #7a5aa8;
+  background: var(--color-trace-assistant);
 }
 
 .trace-seg.tool {
-  background: #3f6b52;
+  background: var(--color-trace-tool);
 }
 
 /* 明细列表 */
@@ -3488,15 +2945,15 @@ body.is-resizing {
 }
 
 .trace-row.tool .trace-dot {
-  background: #3f6b52;
+  background: var(--color-trace-tool);
 }
 
 .trace-row.assistant .trace-dot {
-  background: #7a5aa8;
+  background: var(--color-trace-assistant);
 }
 
 .trace-row.user .trace-dot {
-  background: #4a7fb5;
+  background: var(--color-trace-user);
 }
 
 .trace-label {
@@ -3545,7 +3002,7 @@ body.is-resizing {
   flex-basis: 100%;
   margin: 4px 0 6px 60px;
   padding: 8px 10px;
-  background: #1a1a1a;
+  background: var(--color-code-block);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text);
@@ -4439,7 +3896,7 @@ body.is-resizing {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
-  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 -6px 24px var(--c-scrim-45);
   z-index: 50;
 }
 
@@ -5435,25 +4892,28 @@ body.is-resizing {
   --c-neutral-700: #cfd3d6;   /* 选中 */
   --c-neutral-650: #c2c7cc;
 
-  --c-neutral-600: #adb2b8;   /* 元信息 */
-  --c-neutral-500: #81858c;   /* 次要文字（DSH 实测） */
+  --c-neutral-600: #83878c;   /* 元信息（1.80→3.0） */
+  --c-neutral-500: #676a70;   /* 次要文字（3.13→4.5） */
   --c-neutral-300: #43454a;   /* 正文（暗色里的 #c4cbd3 反过来） */
   --c-neutral-100: #0f1115;   /* 标题（DSH 实测） */
 
   /* 琥珀：亮色下要更深才看得清 */
   --c-amber-600: #b57615;
-  --c-amber-500: #dd8629;
-  --c-amber-400: #c67a12;
+  --c-amber-500: #c07524;
+  --c-amber-400: #be7511;
   --c-amber-300: #a8620a;
 
   /* 功能色：亮色下压暗 */
-  --c-green-500: #1f7a4d;
+  --c-green-500: #1d7248;
   --c-red-500: #b3211c;
   --c-blue-500: #2563eb;
 
   /* 边框：亮色下用黑色低透明度（和 DSH 一致） */
   --c-overlay-06: rgba(0, 0, 0, 0.07);
   --c-overlay-11: rgba(0, 0, 0, 0.13);
+
+  /* 浅色主题下琥珀被压暗，主按钮文字改用白色 */
+  --color-on-action: var(--c-on-accent-light);
 }
 
 /* 亮色下的阴影：DSH 的卡片有柔和投影，暗色下不需要 */
@@ -5503,7 +4963,7 @@ body.is-resizing {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--r-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px var(--c-scrim-45);
 }
 
 .project-picker-item {
@@ -5706,7 +5166,7 @@ body.is-resizing {
 
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-strong);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px var(--c-scrim-45);
   color: var(--color-label-secondary);
   font-size: var(--fs-xs);
   cursor: pointer;
@@ -5749,7 +5209,7 @@ body.is-resizing {
   border: 1px solid var(--color-border-strong);
   border-left: 3px solid var(--color-success);
   border-radius: var(--r-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px var(--c-scrim-45);
   font-size: var(--fs-sm);
   color: var(--color-label-primary);
   animation: notice-in var(--dur-slow) var(--ease);
