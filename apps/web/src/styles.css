@@ -1484,9 +1484,6 @@ button.small {
 
 
 
-.jump-bottom:hover {
-  border-color: var(--accent-dim);
-}
 
 .memory-tabs {
   display: flex;
@@ -5304,4 +5301,56 @@ body.is-resizing {
 .msg-action-btn:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 1px;
+}
+
+
+/* ---------- 回到底部（照 DSH / TRAE / WorkBuddy） ----------
+   三家都是一个**圆形按钮 + 向下箭头**，悬浮在内容区底部居中。
+   之前这里是一条横贯全宽的白色长条——因为主样式被误删，
+   退化成通用 button 样式后宽度撑满父容器。 */
+.jump-bottom {
+  position: absolute;
+  /* 内容区底部居中偏上一点，不压住输入框 */
+  left: 50%;
+  bottom: var(--g-3);
+  transform: translateX(-50%);
+  z-index: 5;
+
+  /* 圆形：默认 32×32，有未读数字时靠 padding 撑宽 */
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border-radius: var(--r-full);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+
+  /* 有未读时靠 padding 撑宽，高度不变 */
+
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: var(--color-label-secondary);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.jump-bottom:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+  border-color: var(--color-border-strong);
+}
+
+.jump-bottom:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* 有未读数字时左右加点内边距，形成胶囊 */
+.jump-bottom.has-unread {
+  padding: 0 var(--g-25);
 }

@@ -410,9 +410,14 @@ export function Conversation(props: ConversationProps): JSX.Element {
       </div>
 
       {!scroll.atBottom && (
-        <button type="button" className="jump-bottom" onClick={scroll.scrollToBottom}>
-          {scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
-          <IconChevron size={12} direction="down" />
+        <button
+          type="button"
+          className={`jump-bottom${scroll.unread > 0 ? ' has-unread' : ''}`}
+          onClick={scroll.scrollToBottom}
+          title={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
+          aria-label={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
+        >
+          {scroll.unread > 0 ? <span>{scroll.unread}</span> : <IconChevron size={14} direction="down" />}
         </button>
       )}
 
