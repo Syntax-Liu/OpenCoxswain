@@ -683,8 +683,8 @@ button.link.danger {
 }
 
 .message.user {
-  align-self: stretch;
-  flex-direction: column;
+  /* 用户消息右对齐、气泡按内容宽度收窄 */
+  align-items: flex-end;
 }
 
 .avatar {
@@ -699,8 +699,15 @@ button.link.danger {
 }
 
 .message.user .bubble {
-  border-left: 2px solid var(--accent);
-  padding-left: 10px;
+  background: var(--color-surface-raised);
+  border-radius: var(--r-md);
+  padding: var(--g-2) var(--g-3);
+  color: var(--text-strong);
+  /* **不要左侧竖线**：琥珀是"需要你操作"的语义色，
+     用户自己说的话不是待办。 */
+  border-left: none;
+  /* 70% 而不是 78%：更宽时一眼读不完一行 */
+  max-width: 70%;
 }
 
 .bubble strong {
@@ -2639,18 +2646,9 @@ button.small {
   word-break: break-word;
 }
 
-.message.user .bubble {
-  background: var(--color-surface-raised);
-}
 
 /* 用户消息：灰底气泡，右对齐（DSH 的样子） */
-.message.user {
 
-}
-
-.message.user .bubble {
-  color: var(--text-strong);
-}
 
 /* 消息之间的间距：DSH 更松 */
 .messages {
@@ -2879,24 +2877,7 @@ body.is-resizing {
 /* "歪"的原因：给用户消息留了一条 2px 的 border-left 竖线（早期 VS Code 式设计），
    它把气泡整体往右推了 2px，看起来就是歪的，而且和右侧气泡并存很怪。 */
 /* 用户消息右对齐、气泡按内容宽度收窄 */
-.message.user {
-  align-items: flex-end;
-}
 
-.message.user .bubble {
-  background: var(--bg-elevated);
-  border-radius: var(--r-md);
-  padding: var(--g-2) var(--g-3);
-  /* **用户气泡不要左侧竖线**。
-     早期 VS Code 式设计给它加了一条 2px 琥珀竖线，
-     后来改成"有底色的气泡"之后那条线是多余的：
-     而且琥珀是"需要你操作"的语义色，用户自己说的话不是待办。
-     （之前靠后面一条 `border-left: none` 抵消，那条被清理掉后
-      竖线又露出来了。） */
-  border-left: none;
-  /* 70% 而不是 78%：更宽时一眼读不完一行，眼睛要横跨整屏 */
-  max-width: 70%;
-}
 
 /* Assistant 的消息靠左、铺满可用宽度（不是气泡） */
 .message.assistant {

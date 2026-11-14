@@ -187,3 +187,46 @@ describe('**滚动条符合规范**', () => {
     assert.match(m?.[1] ?? '', /var\(--scrollbar-width-thin\)/);
   });
 });
+describe('**消息气泡的规则不许重复**', () => {
+  // 踩过：`.message.assistant .bubble` 同时有 5 条规则互相覆盖，
+  // 改哪一条都可能被后面的盖掉。排查花了很久。
+  const selectors = [
+    '.message.assistant .bubble',
+    '.message.user .bubble',
+    '.message.assistant',
+    '.message.user',
+  ];
+
+  for (const sel of selectors) {
+    it(`${sel} 只有一条规则`, () => {
+      const re = new RegExp(`^\\${sel}\\s*\\{`, 'gm');
+      const count = (css.match(re) ?? []).length;
+      assert.ok(count <= 1, `${sel} 有 ${count} 条规则，会互相覆盖`);
+    });
+  }
+
+  it('Assistant 气泡有左侧边界（不是完全透明）', () => {
+    const m = /^\.message\.assistant \.bubble\s*\{([^}]*)\}/m.exec(css);
+    assert.ok(m, '找不到规则');
+    assert.match(m[1] ?? '', /border-left:/, '缺少左侧竖线，会变成"旁白"');
+  });
+
+  it('**用户气泡没有左侧竖线**（琥珀是"需要操作"的语义色）', () => {
+    const m = /^\.message\.user \.bubble\s*\{([^}]*)\}/m.exec(css);
+    assert.ok(m, '找不到规则');
+    assert.match(m[1] ?? '', /border-left:\s*none/, '用户说的话不是待办，不该有竖线');
+  });
+});
+
+describe('**决策面板的操作按钮悬停才显示**', () => {
+  it('默认 opacity: 0', () => {
+    const m = /^\.decision-actions\s*\{([^}]*)\}/m.exec(css);
+    assert.ok(m, '找不到 .decision-actions');
+    assert.match(m[1] ?? '', /opacity:\s*0/, '8 个按钮常驻会占掉半个面板');
+  });
+
+  it('悬停和键盘聚焦时都显示', () => {
+    assert.match(css, /\.decision-item:hover\s+\.decision-actions/);
+    assert.match(css, /\.decision-item:focus-within\s+\.decision-actions/);
+  });
+});
