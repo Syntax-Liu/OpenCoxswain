@@ -21,6 +21,7 @@ import { promisify } from 'node:util';
 import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/loop.js';
 import { applyEdit } from './edit.js';
 import { diffStat, unifiedDiff } from './diff.js';
+import { matchGlob } from './glob.js';
 import { judgeFailure, parseFailures, renderFailureReport } from './testJudge.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { McpTool } from '../mcp/client.js';
@@ -196,14 +197,28 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
     },
     {
       name: 'search_files',
-      description: '在项目内按文件名或内容片段搜索。',
+      description:
+        '在项目内搜文件或文件内容，**返回每一处匹配的行号和内容**。' +
+        '\n- 只给 query：按文件名片段或内容片段搜' +
+        '\n- regex: true：把 query 当正则' +
+        '\n- glob：只搜路径匹配的文件，如 src/**/*.ts' +
+        '\n- context：每个匹配行前后带几行（默认 0）',
       parameters: {
         type: 'object',
         additionalProperties: false,
         required: ['query'],
         properties: {
-          query: { type: 'string', description: '要搜索的文本' },
+          query: { type: 'string', description: '要搜索的文本或正则' },
           path: { type: 'string', description: '搜索范围，缺省为项目根' },
+          regex: { type: 'boolean', description: '把 query 当正则（默认 false）' },
+          glob: {
+            type: 'string',
+            description: '只搜路径匹配这个 glob 的文件，如 src/**/*.ts',
+          },
+          context: {
+            type: 'integer',
+            description: '每个匹配行前后带几行上下文（默认 0，最多 5）',
+          },
         },
       },
     },
@@ -678,7 +693,12 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
           case 'search_files': {
             const query = String(args.query ?? '');
             const target = resolveInside(rootPath, String(args.path ?? '.'));
-            const hits = await searchTree(target, query, 50);
+            const hits = await searchTree(target, query, {
+              regex: args.regex === true,
+              ...(typeof args.glob === 'string' && args.glob ? { glob: args.glob } : {}),
+              context: typeof args.context === 'number' ? args.context : 0,
+              limit: 200,
+            });
             return { ok: true, content: hits.join('\n') || '没有命中' };
           }
           case 'run_command': {
@@ -839,8 +859,41 @@ export function detectMutatingCommand(command: string): string | null {
   return null;
 }
 
-async function searchTree(root: string, query: string, limit: number): Promise<string[]> {  const hits: string[] = [];
-  const skip = new Set(['node_modules', '.git', 'dist', '.opencoxswain']);
+/**
+ * 在目录树里搜文件内容。
+ *
+ * 返回形如 `path:line: 内容` 的行；文件名命中则只给 `path`。
+ * 上下文行用 `line-:` / `line+:` 标记。
+ */
+async function searchTree(
+  root: string,
+  query: string,
+  options: { regex?: boolean; glob?: string; context?: number; limit?: number } = {},
+): Promise<string[]> {
+  const hits: string[] = [];
+  const limit = options.limit ?? 200;
+  const contextLines = Math.max(0, Math.min(5, options.context ?? 0));
+  const skip = new Set(['node_modules', '.git', 'dist', '.opencoxswain', 'target']);
+
+  // 构造匹配器：正则写错时退回字面匹配，不让一条坏正则废掉整个工具
+  let matcher: (line: string) => boolean;
+  if (options.regex) {
+    try {
+      const re = new RegExp(query, 'i');
+      matcher = (line) => re.test(line);
+    } catch {
+      const lower = query.toLowerCase();
+      matcher = (line) => line.toLowerCase().includes(lower);
+    }
+  } else {
+    const lower = query.toLowerCase();
+    matcher = (line) => line.toLowerCase().includes(lower);
+  }
+
+  const globPattern = options.glob;
+  const acceptPath = (rel: string): boolean =>
+    globPattern ? matchGlob(rel, globPattern) : true;
+
   async function walk(dir: string): Promise<void> {
     if (hits.length >= limit) return;
     let entries;
@@ -855,25 +908,45 @@ async function searchTree(root: string, query: string, limit: number): Promise<s
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(full);
-      } else {
-        const rel = path.relative(root, full).replace(/\\/g, '/');
-        if (rel.includes(query)) {
-          hits.push(rel);
-          continue;
+        continue;
+      }
+
+      const rel = path.relative(root, full).replace(/\\/g, '/');
+
+      // 文件名命中（只在没指定 regex/glob 时——找文件名时那两者反而碍事）
+      if (!options.regex && !globPattern && rel.toLowerCase().includes(query.toLowerCase())) {
+        hits.push(rel);
+        if (hits.length >= limit) return;
+      }
+
+      if (!acceptPath(rel)) continue;
+
+      // 内容匹配：只扫小的文本文件
+      try {
+        const info = await stat(full);
+        if (info.size > 512 * 1024) continue;
+        const content = await readFile(full, 'utf8');
+        // 二进制文件通常含 NUL
+        if (content.includes('\u0000')) continue;
+        const rows = content.split('\n');
+
+        for (let i = 0; i < rows.length && hits.length < limit; i += 1) {
+          if (!matcher(rows[i] ?? '')) continue;
+          hits.push(`${rel}:${i + 1}: ${(rows[i] ?? "").trim().slice(0, 200)}`);
+
+          for (let k = 1; k <= contextLines && hits.length < limit; k += 1) {
+            const before = rows[i - k];
+            const after = rows[i + k];
+            if (before !== undefined) hits.push(`${rel}:${i - k + 1}-: ${before.trim().slice(0, 200)}`);
+            if (after !== undefined) hits.push(`${rel}:${i + k + 1}+: ${after.trim().slice(0, 200)}`);
+          }
         }
-        // 只对小的文本文件查内容，避免扫二进制。
-        try {
-          const info = await stat(full);
-          if (info.size > 512 * 1024) continue;
-          const content = await readFile(full, 'utf8');
-          const line = content.split('\n').findIndex((l) => l.includes(query));
-          if (line >= 0) hits.push(`${rel}:${line + 1}`);
-        } catch {
-          // 非文本文件忽略
-        }
+      } catch {
+        // 非文本文件忽略
       }
     }
   }
+
   await walk(root);
   return hits;
 }
