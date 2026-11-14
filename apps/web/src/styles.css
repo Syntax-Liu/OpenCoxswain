@@ -425,7 +425,7 @@ button.link.danger {
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   min-height: 0;
-  padding: 6px 0;
+  padding: var(--g-2) 0;
   gap: 0;
   width: 280px;
 }
@@ -434,8 +434,8 @@ button.link.danger {
   display: flex;
   flex-direction: column;
   /* 两个导航项之间留 4px，否则和下方的"工作区"标题挤成一坨 */
-  gap: var(--g-1);
-  padding-bottom: var(--g-2);
+  gap: var(--g-15);
+  padding-bottom: var(--g-3);
   border-bottom: 1px solid var(--border);
 }
 
@@ -504,8 +504,9 @@ button.link.danger {
   text-align: left;
   border-radius: 0;
   font-size: var(--fs-md);
-  line-height: 20px;
-  height: 20px;
+  line-height: 34px;
+  height: 34px;
+  margin-top: var(--g-3);
 }
 
 .project-folder:hover {
@@ -545,7 +546,7 @@ button.link.danger {
   align-items: center;
   /* 同上：flex 子项靠左，否则被按钮默认的 center 居中 */
   justify-content: flex-start;
-  height: 20px var(--h-sm);
+  height: 32px;
   width: 100%;
   background: transparent;
   border: none;
@@ -554,7 +555,7 @@ button.link.danger {
   /* 右内边距留给状态标签，左内边距和项目名对齐（12px + 图标宽度） */
   padding: 0 var(--g-3) 0 28px;
   border-radius: 0;
-  font-size: var(--fs-md) var(--fs-sm);
+  font-size: var(--fs-sm);
 }
 
 .thread-item:hover {
@@ -671,6 +672,8 @@ button.link.danger {
 .messages {
   display: flex;
   flex-direction: column;
+  gap: var(--g-4);
+  padding: var(--g-4);
 }
 
 .hint-card {
@@ -708,6 +711,7 @@ button.link.danger {
   border: none;
   min-width: 0;
   color: var(--text);
+  padding: var(--g-25) var(--g-3);
 }
 
 .message.user .bubble {
@@ -763,6 +767,7 @@ button.link.danger {
 
 .composer {
   flex: none;
+  padding: var(--g-2) var(--g-5) var(--g-3);
 }
 
 .composer textarea {
@@ -2470,6 +2475,7 @@ button.small {
 
 .composer-box {
   transition: border-color var(--dur-fast) var(--ease);
+  padding: var(--g-2) var(--g-3) var(--g-1);
 }
 
 .composer-box:focus-within {
@@ -2656,7 +2662,7 @@ button.small {
    我们密度更高，需要明确的块边界。 */
 .bubble {
   border-radius: var(--r-lg);
-  padding: var(--g-2) var(--g-3);
+  padding: var(--g-25) var(--g-3);
   font-size: var(--fs-md);
   line-height: 1.625; /* DSH 正文是 16/26 = 1.625 */
   white-space: pre-wrap;
@@ -2669,8 +2675,8 @@ button.small {
 
 /* 消息之间的间距：DSH 更松 */
 .messages {
-  gap: 14px;
-  padding: var(--g-3) var(--g-4);
+  gap: var(--g-4);
+  padding: var(--g-4);
 }
 
 /* **内容少时贴底，不要顶在上方留一大片空白**
