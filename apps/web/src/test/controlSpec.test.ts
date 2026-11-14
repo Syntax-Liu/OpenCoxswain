@@ -336,7 +336,8 @@ describe('**右栏关掉后还能重新打开**', () => {
 
   it('收起时整块隐藏（不留 1px 边框）', () => {
     assert.match(app, /rail-slot/);
-    const m = /className="rail-slot"[^>]*style=\{\{[^}]*display:\s*railCollapsed\s*\?\s*'none'/.exec(app);
+    // 收起时或没有内容时都整块隐藏（空面板不占位，照 DSH）
+    const m = /className="rail-slot"[^>]*display:\s*railCollapsed\s*\|\|\s*!hasRailContent\s*\?\s*'none'/.exec(app);
     assert.ok(m, '收起时应该 display: none，只设宽度 0 会留下左边框');
   });
 });

@@ -83,8 +83,22 @@ export function App(): JSX.Element {
   const [view, setView] = useState<View | null>(null);
   const [showOpen, setShowOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  /**
+   * 成功操作的轻量提示。
+   *
+   * **和 error 分开**：成功提示不该显示成红色警告卡片，
+   * 用户会以为出事了。之前移除项目就是把成功文案塞进 setError。
+   */
+  const [notice, setNotice] = useState<string | null>(null);
   /** 当前错误的分类结果（null 表示没有错误）。 */
   const errorInfo = state.error ? classifyError(state.error) : null;
+
+  // 成功提示 4 秒后自动消失（错误不自动消失——错误是事实，用户自己关）
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
   /** 侧栏折叠（Ctrl+B）。独立于宽度——折叠不是把宽度设成 0。 */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   /** 命令面板（Ctrl+K）。 */
@@ -590,7 +604,8 @@ export function App(): JSX.Element {
         if (view && view.kind !== 'global' && view.kind !== 'new' && 'projectId' in view && view.projectId === projectId) {
           setView({ kind: 'global' });
         }
-        setError(result.message);
+        // 这是**成功**提示，不是错误
+        setNotice(result.message);
       } catch (error) {
         // 409（有 Agent 在跑）会走到这里，把原因原样展示
         setError(error instanceof Error ? error.message : '移除失败');
@@ -731,6 +746,16 @@ export function App(): JSX.Element {
     (view && view.kind !== 'global' && view.kind !== 'new'
       ? state.projects.find((p) => p.id === view.projectId)
       : state.projects.find((p) => p.id === state.currentProjectId)) ?? null;
+
+  /**
+   * 右栏有没有内容。
+   *
+   * 没有待决策、也不在项目对话里时，右栏**整块不渲染**——
+   * 照 DSH：空的面板不占位，主区自动铺满。
+   */
+  const hasRailContent =
+    state.reports.some((r) => r.needsUser && !r.ackedAt) ||
+    (view?.kind === 'assistant' && currentProject !== null);
 
   const currentExecutor: ExecutorDto | null =
     view?.kind === 'executor'
@@ -908,7 +933,13 @@ export function App(): JSX.Element {
           onReject={(id, reason) => void handleReject(id, reason)}
         />
         {view?.kind === 'global' && (
-          <GlobalAssistant api={api} projects={state.projects} onOpenAssistant={(id) => void openAssistant(id)} />
+          <GlobalAssistant
+            api={api}
+            projects={state.projects}
+            onOpenAssistant={(id) => void openAssistant(id)}
+            railOpen={!railCollapsed}
+            onToggleRail={() => setRailCollapsed((v) => !v)}
+          />
         )}
 
         {/* 新会话：还没选项目。选了才进对应的 Assistant。 */}
@@ -917,6 +948,8 @@ export function App(): JSX.Element {
             projects={state.projects}
             onPick={(id) => void openAssistant(id)}
             onCreate={() => setShowOpen(true)}
+            railOpen={!railCollapsed}
+            onToggleRail={() => setRailCollapsed((v) => !v)}
           />
         )}
 
@@ -985,7 +1018,7 @@ export function App(): JSX.Element {
           用户要求"像 DSH 那样"，把这些从顶部挪到右边——
           顶部面板占的是垂直空间，会直接压扁对话区。 */}
       {/* 收起时整块隐藏：只把宽度设 0 的话，左边框还会留 1px 竖线 */}
-      <div className="rail-slot" style={{ display: railCollapsed ? 'none' : undefined }}>
+        <div className="rail-slot" style={{ display: railCollapsed || !hasRailContent ? 'none' : undefined }}>
       <RightRail
         onClose={() => setRailCollapsed(true)}
         decisionCount={
@@ -1049,6 +1082,21 @@ export function App(): JSX.Element {
             }));
           }}
         />
+      )}
+
+      {/* 成功操作的轻量提示：绿色、自动消失，**不是**错误卡片 */}
+      {notice && (
+        <div className="notice-card" role="status">
+          <span className="notice-card-text">{notice}</span>
+          <button
+            type="button"
+            className="notice-card-close"
+            onClick={() => setNotice(null)}
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
       )}
 
       {errorInfo && (

@@ -174,7 +174,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           className={`nav-item${props.view.kind === 'new' ? ' active' : ''}`}
           onClick={props.onNewSession}
         >
-          <IconNewChat size={16} className="nav-icon" />
+          <IconNewChat size={20} className="nav-icon" />
           新会话
         </button>
         <button
@@ -182,7 +182,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           className={`nav-item${props.view.kind === 'global' ? ' active' : ''}`}
           onClick={props.onOpenGlobal}
         >
-          <IconSupervisor size={16} className="nav-icon" />
+          <IconSupervisor size={20} className="nav-icon" />
           Supervisor
         </button>
         {/* **「添加项目」已移除**：它和「新会话」绑的是同一个 onOpenProject，

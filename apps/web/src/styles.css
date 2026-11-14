@@ -466,12 +466,15 @@ button.link.danger {
 }
 
 .nav-icon {
-  width: 16px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  height: 16px;
+  /* **20px 不是 16px**：16px 视口里图形只占 12px 左右，
+     旁边 16px 的字，图标只占文字高度的 51%~60%，
+     视觉重心往左上飘——这就是用户反复说"图标偏上"的真正原因。
+     放大到 20px 后图形约 15px，占比到 70%+，和文字分量匹配。 */
+  width: 20px;
+  height: 20px;
   flex: none;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .workspace-head {
@@ -4617,8 +4620,9 @@ body.is-resizing {
   min-width: 0;
   min-height: 0;
   background: var(--color-surface-sidebar);
-  /* 左边界线：和主区分开 */
-  border-left: 1px solid var(--color-border-subtle);
+  /* 分隔线用 strong 档：之前 subtle 几乎看不见，
+     用户反馈「右侧边栏和中间的界限不明显」。 */
+  border-left: 1px solid var(--color-border-strong);
   overflow: hidden;
 }
 
@@ -5354,4 +5358,64 @@ body.is-resizing {
 /* 有未读数字时左右加点内边距，形成胶囊 */
 .jump-bottom.has-unread {
   padding: 0 var(--g-25);
+}
+
+
+/* ---------- 成功提示（轻量，和错误卡片区分） ----------
+   错误卡片是红色、不自动消失（错误是事实）。
+   成功提示是绿色、4 秒自动消失——用户不需要手动关掉一个"做成了"。
+   之前移除项目的成功文案被塞进 error 通道，显示成"出错了"。 */
+.notice-card {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+  max-width: 520px;
+  padding: var(--g-2) var(--g-3);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-left: 3px solid var(--color-success);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: var(--fs-sm);
+  color: var(--color-label-primary);
+  animation: notice-in var(--dur-slow) var(--ease);
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.notice-card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice-card-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notice-card-close:hover {
+  color: var(--color-label-primary);
 }

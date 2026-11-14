@@ -18,10 +18,14 @@
 import { useState } from 'react';
 
 import type { ProjectDto } from '../api.js';
-import { IconBrand } from './icons.js';
+import { IconBrand, IconSidebar } from './icons.js';
 import { ProjectPicker } from './ProjectPicker.js';
 
 export interface NewSessionProps {
+  /** 右侧边栏是否展开（和主对话保持一致）。 */
+  readonly railOpen?: boolean;
+  /** 切换右侧边栏。 */
+  readonly onToggleRail?: () => void;
   readonly projects: readonly ProjectDto[];
   /** 选中项目后进入它的 Assistant。 */
   readonly onPick: (projectId: string) => void;
@@ -41,6 +45,25 @@ export function NewSession(props: NewSessionProps): JSX.Element {
 
   return (
     <div className="conversation">
+      <header className="conversation-header">
+        <div className="header-main">
+          <h2>新会话</h2>
+        </div>
+        {props.onToggleRail && (
+          <div className="header-side">
+            <button
+              type="button"
+              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              onClick={props.onToggleRail}
+              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
+              aria-pressed={props.railOpen}
+            >
+              <IconSidebar size={16} />
+            </button>
+          </div>
+        )}
+      </header>
+
       <div className="messages">
         <div className="welcome">
           <div className="welcome-brand">

@@ -1,9 +1,13 @@
 import { useState } from 'react';
 
 import type { ApiClient, ProjectDto } from '../api.js';
-import { IconSupervisor } from './icons.js';
+import { IconSidebar, IconSupervisor } from './icons.js';
 
 export interface GlobalAssistantProps {
+  /** 右侧边栏是否展开（和主对话保持一致）。 */
+  readonly railOpen?: boolean;
+  /** 切换右侧边栏。 */
+  readonly onToggleRail?: () => void;
   readonly api: ApiClient;
   readonly projects: readonly ProjectDto[];
   readonly onOpenAssistant: (projectId: string) => void;
@@ -65,6 +69,20 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
           <h2>Supervisor</h2>
           <p className="muted small">只在多个项目之间迷路时用。我负责指路，不替Assistant干活。</p>
         </div>
+        {/* 侧边栏开关：和主对话一样常驻在标题行最右边 */}
+        {props.onToggleRail && (
+          <div className="header-side">
+            <button
+              type="button"
+              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              onClick={props.onToggleRail}
+              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
+              aria-pressed={props.railOpen}
+            >
+              <IconSidebar size={16} />
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="messages">

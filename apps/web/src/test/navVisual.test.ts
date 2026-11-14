@@ -57,8 +57,8 @@ describe('**导航项要够醒目**', () => {
   it('**图标不被压缩**（之前渲染成 14×16）', () => {
     const r = rule('.nav-icon');
     assert.match(r, /flex:\s*none/);
-    assert.match(r, /width:\s*16px/);
-    assert.match(r, /height:\s*16px/);
+    assert.match(r, /width:\s*20px/);
+    assert.match(r, /height:\s*20px/);
   });
 });
 
@@ -90,7 +90,7 @@ describe('**分层：导航项 16px，项目/会话 14px**', () => {
 describe('icon 与文字对齐', () => {
   it('nav-icon 有明确尺寸（不靠继承）', () => {
     const r = rule('.nav-icon');
-    assert.match(r, /width:\s*16px/);
-    assert.match(r, /height:\s*16px/);
+    assert.match(r, /width:\s*20px/);
+    assert.match(r, /height:\s*20px/);
   });
 });
