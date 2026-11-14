@@ -634,7 +634,8 @@ export function App(): JSX.Element {
 
       try {
         const result = await api.undoEffect(effectId, projectId);
-        setError(result.message);
+        // **成功走 notice**，不是 error——之前这里把成功文案当错误显示
+        setNotice(result.message);
         // 重新拉一遍这个 Agent 的详情，让台账状态变成"已撤销"
         await refreshProject(projectId);
         if (view?.kind === 'executor') await openExecutor(projectId, view.executorId);
@@ -643,6 +644,40 @@ export function App(): JSX.Element {
       }
     },
     [api, effects, refreshProject, openExecutor, view, setError],
+  );
+
+  /**
+   * 整轮回滚：把这一轮 Agent 改过的文件全部恢复。
+   *
+   * 和单条撤销的区别：**不用点 N 次**。
+   * 保护逻辑一样——后来被手工改过的文件会被跳过。
+   */
+  const handleRollbackAll = useCallback(
+    async (projectId: string, executorId: string) => {
+      const ok = window.confirm(
+        '把这一轮 Agent 改过的文件全部恢复到改动之前？\n\n' +
+          '· 会覆盖 Agent 写入的内容\n' +
+          '· 之后你手工改过的文件会被跳过（不会覆盖你的修改）\n' +
+          '· 跑过的命令撤不了，只回滚文件',
+      );
+      if (!ok) return;
+
+      try {
+        const { checkpoints } = await api.checkpoints(executorId, projectId);
+        const latest = checkpoints[checkpoints.length - 1];
+        if (!latest) {
+          setNotice('这一轮没有可回滚的文件改动。');
+          return;
+        }
+        const result = await api.rollbackCheckpoint(executorId, latest.id, projectId);
+        setNotice(result.message);
+        await refreshProject(projectId);
+        if (view?.kind === 'executor') await openExecutor(projectId, view.executorId);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : '回滚失败');
+      }
+    },
+    [api, refreshProject, openExecutor, view, setError],
   );
 
   /**
@@ -1018,6 +1053,7 @@ export function App(): JSX.Element {
             onCancel={() => void api.cancelExecutor(view.executorId).catch(() => {})}
             onBack={() => void openAssistant(view.projectId)}
             onUndo={(effectId) => void handleUndoEffect(effectId, view.projectId)}
+            onRollbackAll={() => void handleRollbackAll(view.projectId, view.executorId)}
             railOpen={!railCollapsed}
             onToggleRail={() => setRailCollapsed((v) => !v)}
             api={api}

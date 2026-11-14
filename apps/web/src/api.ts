@@ -196,6 +196,20 @@ export interface ApprovalDto {
   readonly expiresAt: number;
 }
 
+/**
+ * 检查点：一轮 Agent 工作里的连续文件改动。
+ *
+ * 用于「整轮回滚」——不用一个个点撤销。
+ */
+export interface CheckpointDto {
+  readonly id: string;
+  readonly executorId: string;
+  readonly from: number;
+  readonly to: number;
+  readonly files: readonly string[];
+  readonly reversibleCount: number;
+}
+
 export interface SideEffectDto {
   readonly id: string;
   readonly projectId: string;
@@ -422,6 +436,28 @@ export class ApiClient {
       method: 'POST',
       body: { projectId },
     });
+  }
+
+  /**
+   * 列出某个 Agent 的检查点。
+   *
+   * 检查点 = 一轮里连续的一批文件改动，可整体回滚。
+   */
+  checkpoints(executorId: string, projectId?: string): Promise<{ checkpoints: CheckpointDto[] }> {
+    const q = projectId ? `?project=${encodeURIComponent(projectId)}` : '';
+    return this.request(`/api/executors/${encodeURIComponent(executorId)}/checkpoints${q}`);
+  }
+
+  /** 回滚一个检查点：把这一轮改过的文件整批恢复。 */
+  rollbackCheckpoint(
+    executorId: string,
+    checkpointId: string,
+    projectId?: string,
+  ): Promise<{ ok: boolean; message: string; restored: string[]; skipped: { path: string; reason: string }[] }> {
+    return this.request(
+      `/api/executors/${encodeURIComponent(executorId)}/checkpoints/${encodeURIComponent(checkpointId)}/rollback`,
+      { method: 'POST', body: projectId ? { projectId } : {} },
+    );
   }
 
   /** 全文搜索消息内容。 */

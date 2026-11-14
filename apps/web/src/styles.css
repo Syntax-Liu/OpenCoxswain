@@ -5763,3 +5763,26 @@ body.is-resizing {
   position: relative;
   top: 3px;
 }
+
+/* ---------- 副作用清单的头部（带整轮回滚） ----------
+   用户点一次退回这一轮所有文件改动，不用逐个点撤销。 */
+.effects-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  margin-bottom: var(--g-1);
+}
+
+.eff-rollback-all {
+  font-size: var(--fs-xs);
+  color: var(--color-warn);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.eff-rollback-all:hover {
+  text-decoration: underline;
+}

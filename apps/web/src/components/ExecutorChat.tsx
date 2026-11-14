@@ -14,6 +14,8 @@ export interface ExecutorChatProps {
   readonly effects: readonly SideEffectDto[];
   /** 撤销一次文件写入。 */
   readonly onUndo?: (effectId: string) => void;
+  /** 整轮回滚：把这一轮改过的文件一起退回去。 */
+  readonly onRollbackAll?: () => void;
   readonly loading: boolean;
   readonly onSend: (text: string) => void;
   readonly onCancel: () => void;
@@ -102,7 +104,11 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
             <div className="blocked md-body">{renderMarkdown(props.executor.blockedReason)}</div>
           )}
           <AcceptanceBlock executor={props.executor} />
-          <EffectsBlock effects={props.effects} onUndo={props.onUndo} />
+          <EffectsBlock
+          effects={props.effects}
+          onUndo={props.onUndo}
+          {...(props.onRollbackAll ? { onRollbackAll: props.onRollbackAll } : {})}
+        />
         </section>
 
         {props.loading && <p className="muted small">正在读取执行记录…</p>}
@@ -169,9 +175,12 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
 function EffectsBlock({
   effects,
   onUndo,
+  onRollbackAll,
 }: {
   effects: readonly SideEffectDto[];
   onUndo?: (effectId: string) => void;
+  /** **整轮回滚**：把这一轮改过的文件一起退回去。 */
+  onRollbackAll?: () => void;
 }): JSX.Element | null {
   if (effects.length === 0) return null;
 
@@ -201,7 +210,21 @@ function EffectsBlock({
 
   return (
     <div className="effects">
-      <p className="muted small">改动了什么（{effects.length} 项）</p>
+      <div className="effects-head">
+        <span className="muted small">改动了什么（{effects.length} 项）</span>
+        {/* 整轮回滚：一次退回这一轮所有文件改动，不用点 N 次撤销。
+            **只有 2 个以上可撤销文件时才显示**——一个文件的话单条撤销更快。 */}
+        {onRollbackAll && effects.filter(canUndo).length > 1 && (
+          <button
+            type="button"
+            className="link eff-rollback-all"
+            title="把这一轮改过的文件全部恢复到改动前"
+            onClick={onRollbackAll}
+          >
+            全部回滚
+          </button>
+        )}
+      </div>
       <ul className="effects-list">
         {effects.map((e) => (
           <li key={e.id} className={e.state}>
