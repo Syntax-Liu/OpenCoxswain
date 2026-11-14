@@ -23,6 +23,13 @@ import type { ApiClient } from '../api.js';
 
 export interface ConversationProps {
   readonly project: ProjectDto;
+  /**
+   * 项目选择器（照 DSH）。
+   *
+   * 用户指出"新会话"和"添加项目"作用完全一样。DSH 的做法是：
+   * 新建项目不再是顶部导航项，而是**新会话输入框旁边的选择器**里的一个动作。
+   */
+  readonly projectPicker?: React.ReactNode;
   readonly messages: readonly MessageDto[];
   readonly thinking: boolean;
   /** 记忆候选审阅区（可折叠），放在顶部。 */
@@ -426,6 +433,9 @@ export function Conversation(props: ConversationProps): JSX.Element {
         )}
 
         <div className="composer-box">
+          {props.projectPicker && (
+            <div className="composer-picker-row">{props.projectPicker}</div>
+          )}
           <AttachmentStrip attachments={attachments.attachments} onRemove={attachments.remove} />
 
           <textarea

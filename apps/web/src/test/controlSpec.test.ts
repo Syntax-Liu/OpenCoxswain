@@ -384,3 +384,62 @@ describe('**不许再用字符图标**', () => {
     assert.match(icons, /'aria-hidden': true/);
   });
 });
+describe('**「新会话」和「添加项目」不再重复**', () => {
+  // 用户指出：这两个作用完全一样——两处都绑同一个 onOpenProject，
+  // 点了都是弹"打开项目"对话框。
+  //
+  // DSH 的分工：新建/打开项目不再是顶部导航项，
+  // 而是新会话输入框旁边的一个选择动作（📁 项目名 ▾）。
+  const sidebar = readFileSync(new URL('../../src/components/Sidebar.tsx', import.meta.url), 'utf8');
+  const conv = readFileSync(new URL('../../src/components/Conversation.tsx', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+
+  it('**侧栏里没有「添加项目」按钮了**', () => {
+    // 注释里提到过这个词（说明移除了），要排除注释再查
+    const code = sidebar.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    assert.doesNotMatch(code, /添加项目/, '侧栏不该再有"添加项目"按钮');
+  });
+
+  it('侧栏只剩「新会话」和「Supervisor」两个导航项', () => {
+    // 「新会话」用 new-session 类；nav-item 只剩 Supervisor（className 是模板字符串）
+    assert.match(sidebar, /nav-item\$\{props\.view\.kind === 'global'/, '应该还有 Supervisor 导航项');
+    assert.doesNotMatch(
+      sidebar,
+      /<button type="button" className="nav-item" onClick/,
+      '不该有第二个普通 nav-item',
+    );
+  });
+
+  it('**项目选择器在输入区**', () => {
+    assert.match(conv, /projectPicker/, 'Conversation 要接收 projectPicker');
+    assert.match(conv, /composer-picker-row/, '要渲染在选择器行里');
+  });
+
+  it('App 把 ProjectPicker 传给 Conversation', () => {
+    assert.match(app, /projectPicker=\{/);
+    assert.match(app, /<ProjectPicker/);
+  });
+
+  it('选择器里有"打开或新建项目"的入口', () => {
+    const picker = readFileSync(new URL('../../src/components/ProjectPicker.tsx', import.meta.url), 'utf8');
+    assert.match(picker, /打开或新建项目/);
+  });
+});
+
+describe('Supervisor 图标和图标库风格统一', () => {
+  const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');
+
+  it('**不再是"圆 + 四向射线"**（那看起来像靶心）', () => {
+    const m = /export function IconSupervisor[\s\S]*?\n\}/.exec(icons);
+    assert.ok(m, '找不到 IconSupervisor');
+    assert.doesNotMatch(m[0], /M8 1\.5v1\.5M8 13v1\.5/, '还是旧的准星样式');
+  });
+
+  it('用中心节点 + 连线表达"统筹调度"', () => {
+    const m = /export function IconSupervisor[\s\S]*?\n\}/.exec(icons);
+    const body = m?.[0] ?? '';
+    const circles = (body.match(/<circle/g) ?? []).length;
+    assert.ok(circles >= 3, `应该有中心 + 外围共 4 个圆，实际 ${circles}`);
+    assert.match(body, /<path d="M8 6/, '缺少连线');
+  });
+});

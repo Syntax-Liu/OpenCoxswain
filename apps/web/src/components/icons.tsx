@@ -54,12 +54,27 @@ export function IconNewChat({ size = 16, className }: IconProps): JSX.Element {
   );
 }
 
-/** Supervisor：指挥台的"领航"符号——一个圆 + 四个方向的短射线。 */
+/**
+ * Supervisor：**统筹调度**。
+ *
+ * 之前是"圆 + 四向短射线"，看起来像靶心/准星，
+ * 和旁边圆角矩形的图标风格不搭（用户反馈"重新设计，符合统一标准"）。
+ *
+ * 改成：中心一个节点，三条线连到外围三个节点——
+ * 表达"一个协调者调度多个执行者"，正是 Supervisor 的职责。
+ * 全部用圆 + 直线，和图标库其它图标同一套笔触。
+ */
 export function IconSupervisor({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size, className)}>
-      <circle cx="8" cy="8" r="3.25" />
-      <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5" />
+      {/* 中心节点 */}
+      <circle cx="8" cy="8" r="2" />
+      {/* 三条连线 */}
+      <path d="M8 6 8 3.5M6.3 6.9 4.2 9.5M9.7 6.9l2.1 2.6" />
+      {/* 三个外围节点 */}
+      <circle cx="8" cy="2.25" r="1.25" />
+      <circle cx="3.25" cy="10.5" r="1.25" />
+      <circle cx="12.75" cy="10.5" r="1.25" />
     </svg>
   );
 }

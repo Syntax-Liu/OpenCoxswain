@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
-import { IconAddProject, IconChevron, IconNewChat, IconSupervisor } from './icons.js';
+import { IconChevron, IconNewChat, IconSupervisor } from './icons.js';
 import { computeBatchPositions } from './sidebarBatches.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
@@ -168,10 +168,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           <IconSupervisor size={16} className="nav-icon" />
           Supervisor
         </button>
-        <button type="button" className="nav-item" onClick={props.onOpenProject}>
-          <IconAddProject size={16} className="nav-icon" />
-          添加项目
-        </button>
+        {/* **「添加项目」已移除**：它和「新会话」绑的是同一个 onOpenProject，
+            点下去完全一样。现在"打开/新建项目"挪到新会话输入框旁的项目选择器里。 */}
       </nav>
 
       {/* 工作区标题行。

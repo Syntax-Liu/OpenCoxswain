@@ -42,6 +42,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { Conversation } from './components/Conversation.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
 import { RightRail } from './components/RightRail.js';
+import { ProjectPicker } from './components/ProjectPicker.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
 import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
@@ -917,6 +918,14 @@ export function App(): JSX.Element {
             thinking={state.thinking}
             railOpen={!railCollapsed}
             onToggleRail={() => setRailCollapsed((v) => !v)}
+            projectPicker={
+              <ProjectPicker
+                projects={state.projects}
+                currentId={currentProject?.id}
+                onPick={(id) => void openAssistant(id)}
+                onCreate={() => setShowOpen(true)}
+              />
+            }
             templatePicker={
               <TemplatePicker
                 api={api}

@@ -5259,3 +5259,113 @@ body.is-resizing {
   border-color: var(--color-action);
   color: var(--color-action);
 }
+
+/* ---------- 新会话的项目选择器（照 DSH） ----------
+   用户指出「新会话」和「添加项目」作用完全一样。
+   DSH 的做法：新建/打开项目不再是顶部导航项，
+   而是新会话输入框旁边的一个选择动作。 */
+.composer-picker-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--g-1);
+}
+
+.project-picker {
+  position: relative;
+}
+
+.project-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-15);
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.project-picker-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.project-picker-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 菜单：浮在选择器下方 */
+.project-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--g-1);
+  list-style: none;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.project-picker-item {
+  display: flex;
+  align-items: center;
+  gap: var(--g-15);
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--g-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-primary);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-picker-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.project-picker-item.active {
+  background: var(--color-surface-selected);
+}
+
+.project-picker-item-name {
+  flex: none;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-picker-item-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.project-picker-sep {
+  height: 1px;
+  margin: var(--g-1) 0;
+  background: var(--color-border-subtle);
+}
+
+.project-picker-create {
+  color: var(--color-action);
+}
