@@ -1,0 +1,175 @@
+{
+  "rootW": 280,
+  "items": [
+    {
+      "left": 129,
+      "top": 60,
+      "h": 22,
+      "font": "14px",
+      "weight": "500",
+      "color": "rgb(15, 17, 21)",
+      "lh": "22px",
+      "txt": "新会话"
+    },
+    {
+      "left": 42,
+      "top": 107,
+      "h": 22,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "22px",
+      "txt": "插件"
+    },
+    {
+      "left": 42,
+      "top": 145,
+      "h": 22,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "22px",
+      "txt": "自动化任务"
+    },
+    {
+      "left": 42,
+      "top": 183,
+      "h": 22,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "22px",
+      "txt": "更多"
+    },
+    {
+      "left": 19,
+      "top": 230,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(129, 133, 140)",
+      "lh": "20px",
+      "txt": "工作区"
+    },
+    {
+      "left": 42,
+      "top": 269,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "学者星系"
+    },
+    {
+      "left": 42,
+      "top": 304,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "修正星图报告与网页"
+    },
+    {
+      "left": 231,
+      "top": 306,
+      "h": 16,
+      "font": "10px",
+      "weight": "400",
+      "color": "rgb(129, 133, 140)",
+      "lh": "16px",
+      "txt": "21小时"
+    },
+    {
+      "left": 42,
+      "top": 341,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "OpenCoxswain"
+    },
+    {
+      "left": 42,
+      "top": 376,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "了解项目功能与用途"
+    },
+    {
+      "left": 243,
+      "top": 378,
+      "h": 16,
+      "font": "10px",
+      "weight": "400",
+      "color": "rgb(129, 133, 140)",
+      "lh": "16px",
+      "txt": "刚刚"
+    },
+    {
+      "left": 42,
+      "top": 410,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "下载DeepSeek开源Super-Agent"
+    },
+    {
+      "left": 42,
+      "top": 444,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "安装VibeCoding热门技能到DSH"
+    },
+    {
+      "left": 42,
+      "top": 478,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "OpenCoxswain 计划方向调整"
+    },
+    {
+      "left": 42,
+      "top": 515,
+      "h": 20,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "20px",
+      "txt": "默认工作区"
+    },
+    {
+      "left": 48,
+      "top": 985,
+      "h": 19,
+      "font": "14px",
+      "weight": "400",
+      "color": "rgb(15, 17, 21)",
+      "lh": "normal",
+      "txt": "桃花坞里柳边风"
+    },
+    {
+      "left": 227,
+      "top": 985,
+      "h": 18,
+      "font": "12px",
+      "weight": "500",
+      "color": "rgb(65, 118, 230)",
+      "lh": "18px",
+      "txt": "新版本"
+    }
+  ]
+}

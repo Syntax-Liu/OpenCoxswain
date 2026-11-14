@@ -417,6 +417,7 @@ button.link.danger {
   min-height: 0;
   padding: 6px 0;
   gap: 0;
+  width: 280px;
 }
 
 .nav-main {
@@ -436,7 +437,7 @@ button.link.danger {
      漏了这一行，内容会被按钮默认的 `justify-content: center` 居中，
      Supervisor / 添加项目 就比「新会话」缩进一大截。 */
   justify-content: flex-start;
-  height: var(--h-md);
+  height: 22px var(--h-md);
   gap: var(--g-1);
   background: transparent;
   border: none;
@@ -494,6 +495,7 @@ button.link.danger {
   border-radius: 0;
   font-size: var(--fs-md);
   line-height: 20px;
+  height: 20px;
 }
 
 .project-folder:hover {
@@ -533,7 +535,7 @@ button.link.danger {
   align-items: center;
   /* 同上：flex 子项靠左，否则被按钮默认的 center 居中 */
   justify-content: flex-start;
-  height: var(--h-sm);
+  height: 20px var(--h-sm);
   width: 100%;
   background: transparent;
   border: none;
@@ -542,7 +544,7 @@ button.link.danger {
   /* 右内边距留给状态标签，左内边距和项目名对齐（12px + 图标宽度） */
   padding: 0 var(--g-3) 0 28px;
   border-radius: 0;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md) var(--fs-sm);
 }
 
 .thread-item:hover {
@@ -5020,4 +5022,52 @@ body.is-resizing {
 .nav-item:hover svg,
 .nav-item.active svg {
   color: var(--color-label-primary);
+}
+
+/* ============================================================
+   侧栏层级：项目和会话怎么区分（照 DSH 实测）
+   ------------------------------------------------------------
+   DSH 的数据：
+     项目「学者星系」        缩进 42  高 20  字号 14  字重 400
+     会话「修正星图报告与网页」 缩进 42  高 20  字号 14  字重 400
+
+   **两者行高、字号、缩进完全一样。** 靠三件事区分：
+
+   1. 项目下面有一段留白（分组间距）
+   2. 左侧有折叠箭头
+   3. 鼠标悬停时的底色范围不同
+
+   我们之前是"项目 26px / 会话 22px / 会话字号小一号"——
+   靠**大小**区分，反而更乱：字号小一号的会话看不清，
+   而行高差 4px 不足以形成"这是一个分组"的感觉。
+
+   现在按 DSH 做：一样高、一样大，靠留白分组。
+   ============================================================ */
+
+/* 项目之间留白：这是"分组"的唯一视觉信号 */
+.project-folder {
+  margin-top: var(--g-2);
+}
+
+/* 第一个项目不要额外留白（上方已经有"工作区"标题的分隔） */
+.project-folder:first-of-type {
+  margin-top: 0;
+}
+
+/* 项目名加粗一点，和下面的会话拉开层次 */
+.project-folder .folder-name-btn {
+  font-weight: 500;
+}
+
+/* 会话：左侧留出"挂在项目下"的视觉暗示——
+   用一条和项目图标对齐的细线，而不是把文字缩进很多。
+   （DSH 用 42px 的统一缩进，我们的项目名左侧有箭头，
+     所以会话退到箭头右边即可） */
+.thread-item {
+  padding-left: var(--g-5);
+}
+
+/* 会话悬停：整行变色，让"这是一行可点的东西"更明确 */
+.thread-item:hover {
+  background: var(--color-surface-hover);
 }
