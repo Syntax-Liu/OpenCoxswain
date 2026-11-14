@@ -513,6 +513,39 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
+    // ---- 检查点：整轮回滚 ----------------------------------------------
+    //
+    // 单次撤销是一个副作用回滚一个文件；检查点是「这一轮 Agent 改的
+    // 那几个文件一起退回去」。数据不新存——台账里已有 executorId 和
+    // createdAt，检查点只是一个时间窗。
+    {
+      const listMatch = /^\/api\/executors\/([^/]+)\/checkpoints$/.exec(url.pathname);
+      if (method === 'GET' && listMatch) {
+        const executorId = decodeURIComponent(listMatch[1]!);
+        const forProject = url.searchParams.get('project');
+        const list = orchestrator.checkpointsForExecutor(
+          executorId,
+          forProject ?? undefined,
+        );
+        return reply(200, { checkpoints: list });
+      }
+
+      const rollbackMatch =
+        /^\/api\/executors\/([^/]+)\/checkpoints\/([^/]+)\/rollback$/.exec(url.pathname);
+      if (method === 'POST' && rollbackMatch) {
+        const executorId = decodeURIComponent(rollbackMatch[1]!);
+        const checkpointId = decodeURIComponent(rollbackMatch[2]!);
+        const body: Record<string, unknown> = await readJson(req).catch(() => ({}));
+        const projectId = str(body.projectId);
+        const result = await orchestrator.rollbackCheckpoint({
+          executorId,
+          checkpointId,
+          ...(projectId ? { projectId } : {}),
+        });
+        return result.ok ? reply(200, result) : deny(409, result.message);
+      }
+    }
+
     // ---- 使用报告 --------------------------------------------------------
     //
     // 回答"我自己是怎么用这个产品的"。

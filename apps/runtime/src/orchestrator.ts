@@ -67,6 +67,7 @@ import { buildUsageReport, type UsageStats } from './insights/usage.js';
 import { needsUserDecision } from './orchestrator/decisionRules.js';
 import { FileSnapshotStore, type SnapshotStore } from './security/snapshot.js';
 import { isUndoable, undoFileWrite } from './security/undo.js';
+import { buildCheckpoints, rollbackCheckpoint, type Checkpoint } from './security/checkpoint.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -1616,6 +1617,71 @@ export class Orchestrator extends EventEmitter {
     }
 
     return { ok: result.ok, message: result.message };
+  }
+
+  /**
+   * 取某个执行器的检查点列表。
+   *
+   * 检查点 = 时间窗内的一批文件改动，用于"整轮回滚"。
+   * 不新开存储——台账里已经有 executorId 和 createdAt。
+   */
+  checkpointsForExecutor(executorId: string, projectId?: string): Checkpoint[] {
+    const rows = this.store.listSideEffects({
+      ...(projectId ? { projectId } : {}),
+    });
+    return buildCheckpoints(rows, { executorId });
+  }
+
+  /**
+   * 回滚一个检查点：把这一轮改过的文件整批恢复。
+   *
+   * **不覆盖用户后来手工改过的文件**——那个保护在 rollbackCheckpoint 里。
+   */
+  async rollbackCheckpoint(input: {
+    executorId: string;
+    checkpointId: string;
+    projectId?: string;
+  }): Promise<{ ok: boolean; message: string; restored: string[]; skipped: { path: string; reason: string }[] }> {
+    const rows = this.store.listSideEffects({
+      ...(input.projectId ? { projectId: input.projectId } : {}),
+    });
+    const list = buildCheckpoints(rows, { executorId: input.executorId });
+    const cp = list.find((x) => x.id === input.checkpointId);
+    if (!cp) return { ok: false, message: '找不到这个检查点', restored: [], skipped: [] };
+
+    const first = rows.find((r) => r.executorId === input.executorId);
+    if (!first) return { ok: false, message: '找不到这个执行器的记录', restored: [], skipped: [] };
+    const project = this.store.getProject(first.projectId);
+    if (!project) return { ok: false, message: '项目已不在工作区，无法回滚', restored: [], skipped: [] };
+
+    const outcome = await rollbackCheckpoint({
+      snapshot: this.snapshots,
+      rootPath: project.rootPath,
+      rows,
+      checkpoint: cp,
+    });
+
+    for (const file of outcome.restored) {
+      const hit = rows.find(
+        (r) =>
+          r.executorId === input.executorId &&
+          r.kind === 'fs.write' &&
+          r.target === file &&
+          r.createdAt >= cp.from &&
+          r.createdAt <= cp.to &&
+          r.state === 'succeeded',
+      );
+      if (hit) {
+        await this.store.putSideEffect({ ...hit, state: 'undone', note: outcome.message, settledAt: Date.now() });
+      }
+    }
+
+    return {
+      ok: outcome.restored.length > 0,
+      message: outcome.message,
+      restored: [...outcome.restored],
+      skipped: outcome.skipped.map((s) => ({ ...s })),
+    };
   }
 
   async cancel(executorId: string, projectId?: string): Promise<{ ok: boolean; content: string }> {
