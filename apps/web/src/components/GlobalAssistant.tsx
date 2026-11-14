@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { ApiClient, ProjectDto } from '../api.js';
+import { IconSupervisor } from './icons.js';
 
 export interface GlobalAssistantProps {
   readonly api: ApiClient;
@@ -67,14 +68,27 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
       </header>
 
       <div className="messages">
-        <div className="hint-card">
-          <p>说一句你想推进的事，我帮你找对Assistant：</p>
-          <ul>
-            {props.projects.slice(0, 4).map((p) => (
-              <li key={p.id}>{p.name}</li>
-            ))}
-            {props.projects.length === 0 && <li>（还没有项目）</li>}
-          </ul>
+        {/* **和主对话的空状态统一**：之前这里是一块 hint-card，
+            在别的页面（主对话）已经是居中的欢迎页，两处不一致。 */}
+        <div className="welcome">
+          <div className="welcome-brand">
+            <IconSupervisor size={28} />
+            <h1>Supervisor</h1>
+          </div>
+          <p className="welcome-sub">
+            说一句想推进的事，我告诉你该找哪个项目。
+            我只指路，不替 Assistant 干活。
+          </p>
+          <div className="welcome-examples">
+            <span>当前项目：</span>
+            {props.projects.length === 0 ? (
+              <span>还没有项目</span>
+            ) : (
+              props.projects.slice(0, 4).map((p2) => (
+                <span key={p2.id} className="welcome-example-pill">{p2.name}</span>
+              ))
+            )}
+          </div>
         </div>
 
         {result && (
@@ -151,22 +165,28 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
       </div>
 
       <div className="composer">
-        <textarea
-          value={query}
-          placeholder="比如：把文档那件事推进一下"
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void ask();
-            }
-          }}
-          rows={3}
-        />
-        <div className="composer-actions">
-          <button type="button" className="primary" onClick={() => void ask()} disabled={busy || !query.trim()}>
-            帮我找
-          </button>
+        {/* **和主对话用同一套结构**（.composer-box + .composer-bar）。
+            之前这里是 `.composer > textarea`，少了 box 这一层，
+            所以输入框是一条裸线，和主对话、Agent 页都不一样。 */}
+        <div className="composer-box">
+          <textarea
+            value={query}
+            placeholder="比如：把文档那件事推进一下"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void ask();
+              }
+            }}
+            rows={3}
+          />
+          <div className="composer-bar">
+            <div className="composer-left" />
+            <button type="button" className="primary small" onClick={() => void ask()} disabled={busy || !query.trim()}>
+              帮我找
+            </button>
+          </div>
         </div>
       </div>
     </div>

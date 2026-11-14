@@ -205,3 +205,14 @@ export function IconSend({ size = 16, className }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/** 品牌标记：舵手（一个简化的舵轮）。 */
+export function IconBrand({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)} strokeWidth={1.4}>
+      <circle cx="8" cy="8" r="5.5" />
+      <circle cx="8" cy="8" r="1.75" />
+      <path d="M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3" />
+    </svg>
+  );
+}

@@ -5369,3 +5369,85 @@ body.is-resizing {
 .project-picker-create {
   color: var(--color-action);
 }
+
+/* ---------- 空会话欢迎页（照 DSH） ----------
+   之前是左上角一块 hint-card（"直接说要做什么…"），
+   看起来像"出错了的占位块"。改成居中的欢迎页。
+   注意：.messages 是 flex 列 + 第一个子元素 margin-top:auto，
+   所以这里要撑满并居中。 */
+.welcome {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-3);
+  margin: auto;
+  padding: var(--g-6) var(--g-4);
+  text-align: center;
+}
+
+.welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+  color: var(--color-label-strong);
+}
+
+.welcome-brand svg {
+  color: var(--color-action);
+}
+
+.welcome-brand h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--color-label-strong);
+}
+
+.welcome-sub {
+  margin: 0;
+  max-width: 460px;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--color-label-tertiary);
+}
+
+.welcome-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-2);
+  margin-top: var(--g-2);
+  font-size: var(--fs-sm);
+  color: var(--color-label-tertiary);
+}
+
+.welcome-example {
+  height: var(--h-sm);
+  padding: 0 var(--g-3);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-full);
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.welcome-example:hover {
+  border-color: var(--color-action);
+  color: var(--color-action);
+}
+
+/* Supervisor 欢迎页里的项目名：只读的胶囊，不是按钮 */
+.welcome-example-pill {
+  display: inline-flex;
+  align-items: center;
+  height: var(--h-sm);
+  padding: 0 var(--g-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-full);
+  color: var(--color-label-secondary);
+}

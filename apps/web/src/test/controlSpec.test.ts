@@ -38,9 +38,19 @@ describe('**字号只有 4 档**', () => {
 
   it('font-size 只允许 token 或 4 个档位值', () => {
     const hardcoded = [...css.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
-    const allowed = new Set([11, 12, 13, 15]);
+    // 正文四档：11/12/13/15（配合 --font-scale）。24 是**展示型大标题**，
+    // 只允许用在欢迎页 h1 上——标题要有分量感，不该跟着字号缩放变。
+    const allowed = new Set([11, 12, 13, 15, 24]);
     const bad = hardcoded.filter((n) => !allowed.has(n));
     assert.deepEqual(bad, [], `这些字号不在规范内: ${bad.join(',')}px`);
+
+    // 24 只许用在欢迎页标题上
+    const bigUses = [...css.matchAll(/([^{}]+)\\{[^}]*font-size:\\s*24px/g)].map((m) =>
+      (m[1] ?? '').trim(),
+    );
+    for (const sel of bigUses) {
+      assert.match(sel, /welcome-brand h1/, `24px 只允许用在欢迎页标题，实际: ${sel}`);
+    }
   });
 });
 

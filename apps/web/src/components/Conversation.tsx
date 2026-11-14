@@ -11,7 +11,7 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens } from './contextUsage.js';
-import { IconChevron, IconPlus, IconSend, IconSidebar } from './icons.js';
+import { IconBrand, IconChevron, IconPlus, IconSend, IconSidebar } from './icons.js';
 import { buildStatus } from './statusMetrics.js';
 import { describeWait } from './waitStatus.js';
 import { composerHint } from './composerHint.js';
@@ -307,14 +307,36 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
           <div className="messages" ref={scroll.ref}>
         {visible.length === 0 && (
-          <div className="hint-card">
-            <p>直接说要做什么，我可以同时派多个 Agent：</p>
-            <ul>
-              <li>把登录页重构成组件</li>
-              <li>查一下导出为什么卡住（只读排查）</li>
-              <li>给这个功能补测试</li>
-            </ul>
-            <p className="muted small">可以连续发多条，不会打断我。</p>
+          /* **空会话是欢迎页，不是一块提示卡。**
+             之前是左上角一个小卡片（"直接说要做什么…"），
+             看起来像"出错了的占位块"，而不是"欢迎使用"。
+             照 DSH：居中大标语 + 输入框在下，安静、有份量。 */
+          <div className="welcome">
+            <div className="welcome-brand">
+              <IconBrand size={28} />
+              <h1>从这里开始</h1>
+            </div>
+            <p className="welcome-sub">
+              说一句想做的事，我会拆给 Agent 去干；也可以连续发，不会打断。
+            </p>
+            <div className="welcome-examples">
+              <span>试试：</span>
+              <button type="button" className="welcome-example" onClick={() => {
+                updateDraft('查一下这个项目的目录结构（只读）');
+              }}>
+                查一下项目结构（只读）
+              </button>
+              <button type="button" className="welcome-example" onClick={() => {
+                updateDraft('给最近改动的功能补测试');
+              }}>
+                给最近改动的功能补测试
+              </button>
+              <button type="button" className="welcome-example" onClick={() => {
+                updateDraft('把这段逻辑重构成组件');
+              }}>
+                重构一段逻辑
+              </button>
+            </div>
           </div>
         )}
 
