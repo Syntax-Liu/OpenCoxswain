@@ -103,3 +103,67 @@ describe('边界', () => {
     assert.equal(typeof r.wasCleaned, 'boolean');
   });
 });
+
+describe('**连续调用结果必须一致**（正则 lastIndex 污染）', () => {
+  // 踩过：FILE_PATTERN 带 g 标志，test() 会记住 lastIndex。
+  // 单独调用是对的，批量调用时第二次从上次结束位置开始匹配，
+  // 造成"同样输入、不同结果"。实测统计脚本 34/36 条都判错了。
+  it('同一条连续调用 5 次，结果相同', () => {
+    const s = '把 notes.md 整个覆盖为指定两行内容';
+    const results = Array.from({ length: 5 }, () => hasImplementationDetail(s));
+    assert.deepEqual(results, [true, true, true, true, true]);
+  });
+
+  it('交替调用不同字符串也不串', () => {
+    const a = '把 notes.md 覆盖';
+    const b = '修正测试失败的断言';
+    for (let i = 0; i < 3; i += 1) {
+      assert.equal(hasImplementationDetail(a), true, `第 ${i + 1} 轮 a`);
+      assert.equal(hasImplementationDetail(b), false, `第 ${i + 1} 轮 b`);
+    }
+  });
+});
+
+describe('**清理率**（判据不能过严）', () => {
+  // 判据过严时实测 36 条里只有 3 条能清理。
+  // 这些是"去掉文件名后仍然可读"的，必须能清理。
+  const shouldClean = [
+    ['把 notes.md 整个覆盖为指定两行内容', '把整个覆盖为指定两行内容'],
+    ['核查 notes.md 现状与残留临时文件', '核查现状与残留临时文件'],
+    ['分析 README/main.tex 结构（任务5，只读）', '分析结构（任务5，只读）'],
+  ];
+
+  for (const [input, expect] of shouldClean) {
+    it(`能清理: ${String(input).slice(0, 24)}`, () => {
+      const r = displayLabel(String(input));
+      assert.equal(r.wasCleaned, true, '应该能清理');
+      assert.equal(r.text, expect);
+    });
+  }
+
+  // 这些清出来是残句，必须保留原文
+  const shouldFallback = [
+    '把 target.txt 的内容改成「已被 Agent 修改」',   // "把的内容改成"
+    '用 write_file 把根目录 conflict-test.txt 写成「A」', // "根目录写成"
+  ];
+
+  for (const input of shouldFallback) {
+    it(`保留原文: ${input.slice(0, 24)}`, () => {
+      const r = displayLabel(input);
+      assert.equal(r.wasCleaned, false, `不该清理成: ${r.text}`);
+      assert.equal(r.text, input);
+    });
+  }
+});
+
+describe('空格处理', () => {
+  it('中文之间的多余空格去掉', () => {
+    const r = displayLabel('统计 chapters 目录下每个 .tex 文件的行数');
+    assert.ok(!/统计\s+chapters目录/.test(r.text), `残留空格: ${r.text}`);
+  });
+
+  it('中英文之间保留一个空格', () => {
+    const r = displayLabel('分析 README/main.tex 结构');
+    assert.match(r.text, /分析\s*结构|分析结构/);
+  });
+});
