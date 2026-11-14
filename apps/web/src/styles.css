@@ -5177,8 +5177,9 @@ body.is-resizing {
 .welcome-brand svg {
   color: var(--color-action);
   position: relative;
-  /* 图标再下移 1px：实测图形中线比标题文字中线高 1.01px */
-  top: 4px;
+  /* 图标 36px（原来 28px）。基线下沉量按字号比例算，换字号不用重调。
+     实测：0.18em 偏上 5.1px，0.38em 偏上 1.9px，补到 0.45em。 */
+  top: 0.45em;
   flex: none;
 }
 

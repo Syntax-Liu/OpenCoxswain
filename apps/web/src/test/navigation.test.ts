@@ -55,7 +55,8 @@ describe('**欢迎页图标和文字对齐**', () => {
     // 可能有多条同名规则，取所有含 top 的那条
     const all = [...css.matchAll(/\.welcome-brand svg \{([^}]*)\}/g)].map((m) => m[1] ?? '');
     assert.ok(all.length > 0, '找不到 .welcome-brand svg');
-    const withTop = all.filter((b) => /top:\s*\dpx/.test(b));
+    // top 用相对单位（em），换字号不用重调
+  const withTop = all.filter((b) => /top:\s*[\d.]+(px|em)/.test(b));
     assert.ok(withTop.length > 0, '需要微调让视觉中线重合');
   });
 });

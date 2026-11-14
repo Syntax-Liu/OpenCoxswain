@@ -67,7 +67,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
       <div className="messages">
         <div className="welcome">
           <div className="welcome-brand">
-            <IconBrand size={28} />
+            <IconBrand size={36} />
             <h1>新会话</h1>
           </div>
           <p className="welcome-sub">

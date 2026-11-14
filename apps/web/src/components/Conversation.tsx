@@ -316,7 +316,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
              照 DSH：居中大标语 + 输入框在下，安静、有份量。 */
           <div className="welcome">
             <div className="welcome-brand">
-              <IconBrand size={28} />
+              <IconBrand size={36} />
               <h1>从这里开始</h1>
             </div>
             <p className="welcome-sub">
