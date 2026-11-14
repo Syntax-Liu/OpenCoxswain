@@ -753,9 +753,19 @@ export function App(): JSX.Element {
    * 没有待决策、也不在项目对话里时，右栏**整块不渲染**——
    * 照 DSH：空的面板不占位，主区自动铺满。
    */
+  /**
+   * **是不是项目内页面**（Assistant 或 Agent）。
+   *
+   * 之前右栏和待决策都只判断 `assistant`，于是 Agent 页的右栏
+   * 整块不渲染——用户看到的差别就是"Assistant 有分隔线，Agent 没有"。
+   * 统一成一个判断，以后加页面类型只改这里。
+   */
+  const inProject = currentProject !== null &&
+    (view?.kind === 'assistant' || view?.kind === 'executor');
+
   const hasRailContent =
     state.reports.some((r) => r.needsUser && !r.ackedAt) ||
-    (view?.kind === 'assistant' && currentProject !== null);
+    inProject;
 
   const currentExecutor: ExecutorDto | null =
     view?.kind === 'executor'
@@ -1037,7 +1047,7 @@ export function App(): JSX.Element {
           state.reports.filter((r) => r.needsUser && !r.ackedAt).length
         }
         decisions={
-          view?.kind === 'assistant' && currentProject ? (
+          inProject ? (
             <DecisionPanel
               reports={state.reports}
               onFocusDecision={(id, body) => {
