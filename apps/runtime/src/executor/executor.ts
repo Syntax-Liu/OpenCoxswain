@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 
 import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/loop.js';
 import { applyEdit } from './edit.js';
+import { diffStat, unifiedDiff } from './diff.js';
 import { judgeFailure, parseFailures, renderFailureReport } from './testJudge.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { McpTool } from '../mcp/client.js';
@@ -609,13 +610,23 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             const applied = applyEdit(original, oldText, newText, args.replace_all === true);
             if (!applied.ok) return { ok: false, content: applied.error };
 
+          // **算 diff**：dry_run 时不写，只返回预览
+          const change = unifiedDiff(original, applied.content, { path: relative });
+          const dry = args.dry_run === true;
+
+          if (!dry) {
             await writeFile(target, applied.content, 'utf8');
-            return {
-              ok: true,
-              content:
-                `已修改 ${relative}${applied.summary}` +
-                (laterSnapshotNote ? `\n（注意：${laterSnapshotNote}）` : ''),
-            };
+          }
+
+          return {
+            ok: true,
+            content:
+              (dry
+                ? `【预演，未写入】${relative} ${diffStat(change)}`
+                : `已修改 ${relative}${applied.summary}`) +
+              (laterSnapshotNote && !dry ? `\n（注意：${laterSnapshotNote}）` : '') +
+              (change.text ? `\n\n${change.text}` : ''),
+          };
           }
           case 'write_file': {
             if (options.readonlyTask) {
@@ -629,14 +640,32 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             const relative = String(args.path ?? '');
             assertInScope(options.writeScope, relative);
             const target = resolveInside(rootPath, relative);
+          const next = String(args.content ?? '');
+
+          // 读旧内容（新文件就是空串），算 diff
+          let previous = '';
+          try {
+            previous = await readFile(target, 'utf8');
+          } catch {
+            // 新文件
+          }
+          const change = unifiedDiff(previous, next, { path: relative });
+          const dry = args.dry_run === true;
+
+          if (!dry) {
             await mkdir(path.dirname(target), { recursive: true });
-            await writeFile(target, String(args.content ?? ''), 'utf8');
-            return {
-              ok: true,
-              content:
-                `已写入 ${relative}（${String(args.content ?? '').length} 字）` +
-                (laterSnapshotNote ? `\n（注意：${laterSnapshotNote}）` : ''),
-            };
+            await writeFile(target, next, 'utf8');
+          }
+
+          return {
+            ok: true,
+            content:
+              (dry
+                ? `【预演，未写入】${relative} ${diffStat(change)}`
+                : `已写入 ${relative}（${next.length} 字）`) +
+              (laterSnapshotNote && !dry ? `\n（注意：${laterSnapshotNote}）` : '') +
+              (change.text ? `\n\n${change.text}` : ''),
+          };
           }
           case 'list_dir': {
             const target = resolveInside(rootPath, String(args.path ?? '.'));
