@@ -41,7 +41,7 @@ import {
 import { Sidebar } from './components/Sidebar.js';
 import { Conversation } from './components/Conversation.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
-import { RightRail } from './components/RightRail.js';
+import { RailEmptyState, RightRail } from './components/RightRail.js';
 import { ProjectPicker } from './components/ProjectPicker.js';
 import { NewSession } from './components/NewSession.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
@@ -1008,6 +1008,9 @@ export function App(): JSX.Element {
             onCancel={() => void api.cancelExecutor(view.executorId).catch(() => {})}
             onBack={() => void openAssistant(view.projectId)}
             onUndo={(effectId) => void handleUndoEffect(effectId, view.projectId)}
+            railOpen={!railCollapsed}
+            onToggleRail={() => setRailCollapsed((v) => !v)}
+            api={api}
           />
         )}
 
@@ -1021,6 +1024,15 @@ export function App(): JSX.Element {
         <div className="rail-slot" style={{ display: railCollapsed || !hasRailContent ? 'none' : undefined }}>
       <RightRail
         onClose={() => setRailCollapsed(true)}
+        emptyState={
+          <RailEmptyState
+            onOpenFolder={currentProject ? () => {
+              // 在资源管理器里打开项目目录
+              void navigator.clipboard?.writeText(currentProject.displayPath);
+            } : undefined}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        }
         decisionCount={
           state.reports.filter((r) => r.needsUser && !r.ackedAt).length
         }

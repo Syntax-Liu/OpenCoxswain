@@ -25,7 +25,7 @@
  */
 import { type ReactNode, useState } from 'react';
 
-import { IconChevron, IconClose } from './icons.js';
+import { IconBrand, IconChevron, IconClose, IconFolder, IconPlus, IconSettings } from './icons.js';
 
 export interface RightRailProps {
   /** 待决策面板（传 null 表示没有）。 */
@@ -34,6 +34,8 @@ export interface RightRailProps {
   readonly files?: ReactNode;
   /** 快捷操作区。 */
   readonly actions?: ReactNode;
+  /** 没有任何内容时显示的东西（照 DSH 的四张功能卡片）。 */
+  readonly emptyState?: ReactNode;
   /** 关闭右栏。 */
   readonly onClose?: () => void;
   /** 决策条数，显示在标题上。 */
@@ -82,6 +84,9 @@ export function RightRail(props: RightRailProps): JSX.Element {
       </div>
 
       <div className="rail-scroll">
+        {/* **没有内容时显示功能卡片**（照 DSH）：
+            之前是留一片空白，用户以为坏了。 */}
+        {!props.decisions && !props.files && !props.actions && props.emptyState}
         {props.decisions && (
           <Section title="待决策" badge={props.decisionCount} defaultOpen>
             {props.decisions}
@@ -99,5 +104,76 @@ export function RightRail(props: RightRailProps): JSX.Element {
         )}
       </div>
     </aside>
+  );
+}
+
+
+/**
+ * 右栏空状态：四张功能卡片（照 DSH）。
+ *
+ * 只在"没有任何可显示的内容"时出现——比如新会话页、
+ * Supervisor 页、或者对话里暂时没有待决策事项。
+ */
+export function RailEmptyState(props: {
+  /** 打开工作区文件面板。 */
+  readonly onOpenFiles?: () => void;
+  /** 在系统文件管理器里打开项目目录。 */
+  readonly onOpenFolder?: () => void;
+  /** 在外部浏览器打开（有 URL 时才有意义）。 */
+  readonly onOpenBrowser?: () => void;
+  /** 打开设置。 */
+  readonly onOpenSettings?: () => void;
+}): JSX.Element {
+  const cards = [
+    props.onOpenFiles && {
+      key: 'files',
+      icon: <IconFolder size={16} />,
+      title: '工作区文件',
+      hint: '浏览会话工作区的文件',
+      onClick: props.onOpenFiles,
+    },
+    props.onOpenFolder && {
+      key: 'terminal',
+      icon: <IconPlus size={16} />,
+      title: '打开项目目录',
+      hint: '在资源管理器里查看这个项目',
+      onClick: props.onOpenFolder,
+    },
+    props.onOpenBrowser && {
+      key: 'browser',
+      icon: <IconBrand size={16} />,
+      title: '在浏览器中打开',
+      hint: '用系统默认浏览器打开',
+      onClick: props.onOpenBrowser,
+    },
+    props.onOpenSettings && {
+      key: 'more',
+      icon: <IconSettings size={16} />,
+      title: '更多工具',
+      hint: '设置、模型、权限',
+      onClick: props.onOpenSettings,
+    },
+  ].filter(Boolean) as Array<{
+    key: string;
+    icon: JSX.Element;
+    title: string;
+    hint: string;
+    onClick: () => void;
+  }>;
+
+  if (cards.length === 0) return <p className="rail-empty-text">这里暂时没有内容。</p>;
+
+  return (
+    <div className="rail-empty">
+      {cards.map((card) => (
+        <button key={card.key} type="button" className="rail-empty-card" onClick={card.onClick}>
+          <span className="rail-empty-icon">{card.icon}</span>
+          <span className="rail-empty-body">
+            <span className="rail-empty-title">{card.title}</span>
+            <span className="rail-empty-hint">{card.hint}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }

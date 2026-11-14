@@ -82,6 +82,8 @@
   /* 边框：白色低透明度，靠背景透出来 */
   --c-overlay-06: rgba(255, 255, 255, 0.06);
   --c-overlay-11: rgba(255, 255, 255, 0.11);
+  /* 结构分隔线专用：11% 太淡，看不出来主区和侧栏是两块 */
+  --c-overlay-20: rgba(255, 255, 255, 0.2);
 
   /* ---- 第二层：语义别名 ----
      这一层说"这块是什么用途"，不写具体颜色。
@@ -105,6 +107,8 @@
   /* 边框 */
   --color-border-subtle: var(--c-overlay-06);
   --color-border-strong: var(--c-overlay-11);
+  /** **结构分隔线**：主区和侧栏之间那种一眼要看得出的界线。 */
+  --color-border-divider: var(--c-overlay-20);
   --color-border-focus: var(--c-amber-400);
 
   /* 状态：**琥珀只表示"需要你操作"**（见 semanticColor.ts） */
@@ -427,7 +431,8 @@ button.link.danger {
   display: flex;
   flex-direction: column;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  /* 和右栏一致：用 divider 档，保证一眼看出左边栏的边界 */
+  border-right: 1px solid var(--color-border-divider);
   min-height: 0;
   padding: var(--g-2) 0;
   gap: 0;
@@ -1715,11 +1720,10 @@ button.small {
 }
 
 ::-webkit-scrollbar-thumb {
-  /* 颜色走令牌，不写死 */
+  /* **长方形，不是胶囊**：之前用 --r-full（50%）是圆角药丸，
+     用户反馈"很丑"。改成 2px 小圆角，看起来是规整的条。 */
   background: var(--color-border-strong);
-  border: 2px solid transparent;
-  background-clip: content-box;
-  border-radius: var(--r-full);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -4622,7 +4626,8 @@ body.is-resizing {
   background: var(--color-surface-sidebar);
   /* 分隔线用 strong 档：之前 subtle 几乎看不见，
      用户反馈「右侧边栏和中间的界限不明显」。 */
-  border-left: 1px solid var(--color-border-strong);
+  /* 用 divider 档（20%），strong（11%）在深色背景上几乎看不见 */
+  border-left: 1px solid var(--color-border-divider);
   overflow: hidden;
 }
 
@@ -5418,4 +5423,174 @@ body.is-resizing {
 
 .notice-card-close:hover {
   color: var(--color-label-primary);
+}
+
+
+/* ---------- 输入框里的权限选择器（照 DSH） ----------
+   DSH 输入框左下角有一个「⊙ 完全权限 ⌄」，点开是四档。
+   之前只能进设置页改，再切回来，很别扭。 */
+.perm-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.perm-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-05);
+  color: var(--color-label-secondary);
+}
+
+.perm-picker-btn:hover {
+  color: var(--color-label-primary);
+}
+
+.perm-picker-label {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+/* 菜单向上弹（输入框在底部，向下会超出屏幕） */
+.perm-picker-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 260px;
+  margin: 0;
+  padding: var(--g-1);
+  list-style: none;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.perm-picker-item {
+  /* **必须覆盖通用 button 的固定高度**，否则文字挤在一起 */
+  height: auto;
+  min-height: 40px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--g-2);
+  width: 100%;
+  padding: var(--g-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.perm-picker-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.perm-picker-item.active {
+  background: var(--color-surface-selected);
+}
+
+.perm-picker-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.perm-picker-check {
+  flex: none;
+  width: 14px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-action);
+}
+
+.perm-picker-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.perm-picker-item-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.perm-picker-item-hint {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--color-label-tertiary);
+}
+
+.perm-picker-error {
+  font-size: var(--fs-xs);
+  color: var(--color-danger);
+}
+
+/* ---------- 右栏空状态：功能卡片（照 DSH） ----------
+   DSH 在右栏没有内容时显示：工作区文件 / 新建终端 / 浏览器 / 更多工具。
+   我们对应：工作区文件 / 打开项目目录 / 在浏览器打开 / 更多工具。 */
+.rail-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+  padding: var(--g-3);
+}
+
+.rail-empty-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--g-2);
+  padding: var(--g-3);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-md);
+  color: var(--color-label-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.rail-empty-card:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+
+.rail-empty-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-label-secondary);
+}
+
+.rail-empty-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rail-empty-title {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.rail-empty-hint {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--color-label-tertiary);
+}
+
+.rail-empty-text {
+  margin: 0;
+  padding: var(--g-3);
+  font-size: var(--fs-sm);
+  color: var(--color-label-tertiary);
 }

@@ -59,7 +59,9 @@ describe('**圆角只有 3 档**', () => {
     const hardcoded = [...css.matchAll(/border-radius:\s*([^;]+);/g)]
       .map((m) => (m[1] ?? '').trim())
       .filter((v) => /^\d/.test(v) || v === '50%');
-    const allowed = new Set(['0', '50%']);
+    // **2px 是滚动条专用的**：长方形滚动条要小圆角，
+    // 50% 会变成胶囊（用户明确说"很丑"）。
+    const allowed = new Set(['0', '50%', '2px']);
     const bad = hardcoded.filter((v) => !allowed.has(v) && !v.startsWith('var('));
     assert.deepEqual(bad, [], `这些圆角不在规范内: ${bad.join(', ')}`);
   });

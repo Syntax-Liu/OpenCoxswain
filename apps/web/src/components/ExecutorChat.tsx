@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { ExecutorDto, MessageDto, SideEffectDto } from '../api.js';
+import type { ApiClient, ExecutorDto, MessageDto, SideEffectDto } from '../api.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { cacheHitRate, formatDuration, formatPercent, formatRate, formatTokens, summarize } from '../metrics.js';
 import { renderMarkdown } from './Markdown.js';
 import { clearDraft, draftKey as draftKeyFor, loadDraft, saveDraft } from '../drafts.js';
+import { IconSidebar } from './icons.js';
+import { PermissionPicker } from './PermissionPicker.js';
 
 export interface ExecutorChatProps {
   readonly executor: ExecutorDto;
@@ -16,6 +18,12 @@ export interface ExecutorChatProps {
   readonly onSend: (text: string) => void;
   readonly onCancel: () => void;
   readonly onBack: () => void;
+  /** 右侧边栏是否展开（和其他页面一致）。 */
+  readonly railOpen?: boolean;
+  /** 切换右侧边栏。 */
+  readonly onToggleRail?: () => void;
+  /** 权限选择器用的 api。 */
+  readonly api?: ApiClient;
 }
 
 /**
@@ -69,6 +77,20 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           <button type="button" className="ghost" onClick={props.onCancel}>
             取消
           </button>
+        )}
+        {/* 侧边栏开关：和主对话 / Supervisor / 新会话保持一致 */}
+        {props.onToggleRail && (
+          <div className="header-side">
+            <button
+              type="button"
+              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              onClick={props.onToggleRail}
+              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
+              aria-pressed={props.railOpen}
+            >
+              <IconSidebar size={16} />
+            </button>
+          </div>
         )}
       </header>
 
@@ -124,6 +146,8 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           />
           <div className="composer-bar">
             <div className="composer-left">
+              {/* 权限随时可调（照 DSH） */}
+              {props.api && <PermissionPicker api={props.api} />}
               <MetricsLine executor={props.executor} />
             </div>
             <button type="button" className="primary small" onClick={submit} disabled={busy || !draft.trim()}>
