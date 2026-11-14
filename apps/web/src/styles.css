@@ -5715,3 +5715,25 @@ body.is-resizing {
   line-height: 1.4;
   color: var(--color-label-tertiary);
 }
+
+
+/* ---------- 右栏外壳 ----------
+   **之前这里没有样式，导致分隔线只在顶部画了 82px 高的一小段。**
+
+   实测：.rail 的 h=82，而容器高 1000——高度塌陷成了内容高度，
+   所以 border-left 只画了 82px，用户看到的就是"一条线都没有"。
+
+   修：外壳撑满 grid 行高，内部 .rail 再撑满外壳。 */
+.rail-slot {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  align-self: stretch;
+}
+
+.rail-slot > .rail {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
