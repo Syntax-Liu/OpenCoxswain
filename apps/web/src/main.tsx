@@ -8,6 +8,7 @@ import {
   applyFontScale,
   parseFontScale,
 } from './components/fontScale.js';
+import { THEME_STORAGE_KEY, applyTheme, parseTheme } from './components/theme.js';
 import './styles.css';
 
 const root = document.getElementById('root');
@@ -18,6 +19,13 @@ try {
   applyFontScale(parseFontScale(localStorage.getItem(FONT_SCALE_STORAGE_KEY)));
 } catch {
   applyFontScale(DEFAULT_FONT_SCALE);
+}
+
+// 主题同样在首帧之前应用，避免先画一遍暗色再切成亮色。
+try {
+  applyTheme(parseTheme(localStorage.getItem(THEME_STORAGE_KEY)));
+} catch {
+  applyTheme(parseTheme(null));
 }
 
 createRoot(root).render(

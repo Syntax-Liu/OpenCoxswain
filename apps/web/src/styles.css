@@ -164,11 +164,11 @@
      现在补成 5 档，但**不照抄 DSH 的数值**——
      我们是暗色指挥台风格，比 DSH 的明亮界面更适合小一点的圆角。
      取值原则：每一档都能看出和相邻档的差别。 */
-  --r-xs: 3px;    /* 标签、行内代码、小徽章 */
-  --r-sm: 4px;    /* 按钮、输入框、下拉 */
-  --r-md: 6px;    /* 面板、卡片、气泡 */
-  --r-lg: 10px;   /* 浮层、模态、输入框容器 */
-  --r-xl: 14px;   /* 大面板、空态插画容器 */
+  --r-xs: 4px;     /* 标签、行内代码、小徽章（DSH xs） */
+  --r-sm: 8px;     /* 按钮、输入框、下拉（DSH sm） */
+  --r-md: 12px;    /* 面板、卡片、气泡（DSH md） */
+  --r-lg: 16px;    /* 浮层、模态、输入框容器（DSH lg） */
+  --r-xl: 20px;    /* 大面板、空态插画容器（DSH xl） */
   --r-full: 50%;  /* 圆形图标按钮 */
 
   /* ---- 动效时长：**统一成 3 档** ----
@@ -447,13 +447,13 @@ button.link.danger {
      漏了这一行，内容会被按钮默认的 `justify-content: center` 居中，
      Supervisor / 添加项目 就比「新会话」缩进一大截。 */
   justify-content: flex-start;
-  height: 22px var(--h-md);
-  gap: var(--g-1);
+  height: 22px;
+  gap: var(--g-15);
   background: transparent;
   border: none;
   color: var(--text);
   text-align: left;
-  padding: 0 var(--g-3);
+  padding: 0 var(--g-25);
   border-radius: 0;
 }
 
@@ -2229,7 +2229,7 @@ button.small {
 
 /* 侧栏顶部导航和"添加项目"更像命令面板里的条目 */
 .nav-item {
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm); /* 和新会话统一 */
 }
 
 /* ============================================================
@@ -2249,22 +2249,27 @@ button.small {
 }
 
 .new-session {
+  /* **不要框**：和下面三个导航项统一成一样的行。
+     之前它有边框 + 底色 + 32px 高，下面三项是 22px 无框，
+     看起来像"一个按钮 + 三个菜单"，不是一组。 */
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: var(--g-2);
-  height: var(--h-lg);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  color: var(--text-strong);
-  font-size: var(--fs-md);
+  gap: var(--g-15);
+  height: 22px;
+  padding: 0 var(--g-25);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-primary);
+  font-size: var(--fs-sm);
   font-weight: 500;
+  cursor: pointer;
 }
 
 .new-session:hover {
-  background: var(--bg-hover);
+  background: var(--color-surface-hover);
 }
 
 /* ---------- 工作区标题行：文字 + 搜索/筛选/新建（DSH） ---------- */
@@ -5167,4 +5172,90 @@ body.is-resizing {
 .md-body p:last-child,
 .bubble p:last-child {
   margin-bottom: 0;
+}
+
+
+/* ============================================================
+   亮色主题（照 DSH 实测色板）
+   ------------------------------------------------------------
+   用户要求：「做一个亮色主题」+「圆角照搬吧，当前的风格并不好看」。
+
+   **结构上很干净**：语义层（--color-*）全部引用原始色板（--c-*），
+   所以只要覆盖原始色板，整个界面就跟着变——不用碰 7000 行里的任何规则。
+
+   DSH 亮色的实测值：
+     背景     #ffffff / #f9fafb（侧栏）
+     面板     #f1f3f5
+     正文     #0f1115
+     次要文字  #81858c
+     边框     rgba(0,0,0,0.06) / rgba(0,0,0,0.11)
+     链接     #4176e6
+
+   切换方式：<html data-theme="light">
+   ============================================================ */
+
+:root[data-theme='light'] {
+  /* 中性色：DSH 的 neutral-bluish 色阶，亮色端 */
+  --c-neutral-1000: #0f1115;  /* 最深：正文文字 */
+  --c-neutral-950: #ffffff;   /* 画布 */
+  --c-neutral-900: #f9fafb;   /* 侧栏（DSH 实测） */
+  --c-neutral-880: #f5f7fa;   /* 输入框（凹陷感） */
+  --c-neutral-850: #f1f3f5;   /* 面板 */
+  --c-neutral-820: #ebeef2;   /* 面板与抬起之间 */
+  --c-neutral-800: #e9ecf2;   /* 抬起的元素 */
+  --c-neutral-780: #e5eaf0;
+  --c-neutral-750: #e1e5ee;   /* 悬停 */
+  --c-neutral-700: #cfd3d6;   /* 选中 */
+  --c-neutral-650: #c2c7cc;
+
+  --c-neutral-600: #adb2b8;   /* 元信息 */
+  --c-neutral-500: #81858c;   /* 次要文字（DSH 实测） */
+  --c-neutral-300: #43454a;   /* 正文（暗色里的 #c4cbd3 反过来） */
+  --c-neutral-100: #0f1115;   /* 标题（DSH 实测） */
+
+  /* 琥珀：亮色下要更深才看得清 */
+  --c-amber-600: #b57615;
+  --c-amber-500: #dd8629;
+  --c-amber-400: #c67a12;
+  --c-amber-300: #a8620a;
+
+  /* 功能色：亮色下压暗 */
+  --c-green-500: #1f7a4d;
+  --c-red-500: #b3211c;
+  --c-blue-500: #2563eb;
+
+  /* 边框：亮色下用黑色低透明度（和 DSH 一致） */
+  --c-overlay-06: rgba(0, 0, 0, 0.07);
+  --c-overlay-11: rgba(0, 0, 0, 0.13);
+}
+
+/* 亮色下的阴影：DSH 的卡片有柔和投影，暗色下不需要 */
+:root[data-theme='light'] .template-picker {
+  box-shadow: 0 8px 24px rgba(15, 17, 21, 0.12);
+}
+
+/* ---------- 主题切换按钮 ---------- */
+.theme-row {
+  display: flex;
+  gap: var(--g-2);
+}
+
+.theme-btn {
+  height: var(--h-sm);
+  padding: 0 var(--g-3);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-sm);
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.theme-btn:hover {
+  color: var(--color-label-primary);
+}
+
+.theme-btn.active {
+  border-color: var(--color-action);
+  color: var(--color-action);
 }

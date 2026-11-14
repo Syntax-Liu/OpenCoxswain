@@ -104,24 +104,32 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
       </div>
 
       <div className="composer">
-        <textarea
-          value={draft}
-          placeholder={busy ? 'Agent还在跑，等它结束再追问…' : '继续追问这个 Agent（它会带着原有上下文继续）'}
-          disabled={busy}
-          onChange={(e) => updateDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={3}
-        />
-        <div className="composer-actions">
-          <MetricsLine executor={props.executor} />
-          <button type="button" className="primary" onClick={submit} disabled={busy || !draft.trim()}>
-            发送
-          </button>
+        {/* **和主对话用同一套结构**。
+            之前这里直接是 `.composer > textarea`，少了 `.composer-box` 这一层，
+            所以 Agent 页的输入框是一条裸线，而主对话是有边框圆角的盒子。
+            两个页面的对话框看起来是两种东西。 */}
+        <div className="composer-box">
+          <textarea
+            value={draft}
+            placeholder={busy ? 'Agent还在跑，等它结束再追问…' : '继续追问这个 Agent（它会带着原有上下文继续）'}
+            disabled={busy}
+            onChange={(e) => updateDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={3}
+          />
+          <div className="composer-bar">
+            <div className="composer-left">
+              <MetricsLine executor={props.executor} />
+            </div>
+            <button type="button" className="primary small" onClick={submit} disabled={busy || !draft.trim()}>
+              发送
+            </button>
+          </div>
         </div>
       </div>
     </div>
