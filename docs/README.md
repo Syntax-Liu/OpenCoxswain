@@ -13,6 +13,7 @@
 | [project-status.md](project-status.md) | **完整快照**：四层结构、功能清单、项目结构、数据模型、API 全清单 |
 | [status.md](status.md) | **状态与下一步**：做完了什么、还没做什么、能不能收尾 |
 | [architecture.md](architecture.md) | 架构：能力边界与"万物皆插件"的路线 |
+| [ui-design-spec.md](ui-design-spec.md) | **界面设计规范**：三栏布局、三层令牌、组件与交互约定、改界面前检查清单 |
 | [self-developed-plan.md](self-developed-plan.md) | 自研方案原始设计（四层：User / Supervisor / Assistant / Agent） |
 | [glossary.md](glossary.md) | **命名唯一权威**：代码、文档、界面、提交信息一律以此为准 |
 
