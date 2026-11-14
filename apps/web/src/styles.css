@@ -5178,8 +5178,9 @@ body.is-resizing {
   color: var(--color-action);
   position: relative;
   /* 图标 36px（原来 28px）。基线下沉量按字号比例算，换字号不用重调。
-     实测：0.18em 偏上 5.1px，0.38em 偏上 1.9px，补到 0.45em。 */
-  top: 0.45em;
+     实测（逐像素扫描字形绘制范围）：0.45em 时图标中线比文字中线高 2.0px，
+     所以补到 0.527em。 */
+  top: 0.528em;
   flex: none;
 }
 
