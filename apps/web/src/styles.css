@@ -4955,3 +4955,40 @@ body.is-resizing {
 .rail .decision-actions {
   flex-wrap: wrap;
 }
+
+/* ---------- 侧边栏开关（常驻标题行最右边） ----------
+   用户反馈：「目前关闭之后就不知道在哪里打开了」。
+   右栏原来只能从内部的 ✕ 关掉，关掉后没有入口再打开。
+
+   DSH 的做法：固定位置放一个按钮，展开时高亮、收起时灰。
+   位置不变，永远找得到。 */
+.header-side {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+}
+
+.rail-toggle {
+  flex: none;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rail-toggle:hover {
+  color: var(--color-label-primary);
+  background: var(--color-surface-hover);
+}
+
+/* 展开时高亮：告诉用户"右栏现在是开着的" */
+.rail-toggle.active {
+  color: var(--color-label-primary);
+  border-color: var(--color-border-strong);
+}

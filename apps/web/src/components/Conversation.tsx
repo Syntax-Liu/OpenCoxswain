@@ -52,6 +52,16 @@ export interface ConversationProps {
    */
   readonly onSend: (text: string, images?: readonly { type: 'image'; dataUrl: string; name: string }[]) => void;
   readonly onStop: () => void;
+  /**
+   * 右侧栏的开关。
+   *
+   * 用户反馈：「目前关闭之后就不知道在哪里打开了，参考 DSH 吧」。
+   *
+   * DSH 在对话区标题行**最右边**放一个常驻按钮：展开时是高亮的分栏图标，
+   * 关闭时是灰的。位置固定，收起来也永远看得见。
+   */
+  readonly railOpen?: boolean;
+  readonly onToggleRail?: () => void;
   /** 草稿键：不同视图各自一份。 */
   readonly draftKey: string;
   /** API 客户端（@ 引用要查文件列表）。 */
@@ -239,6 +249,22 @@ export function Conversation(props: ConversationProps): JSX.Element {
           <span className="muted small" title={props.project.displayPath}>
             {props.project.displayPath}
           </span>
+          {/* **侧边栏开关：常驻在标题行最右边**。
+              之前右栏只能从里面的 ✕ 关掉，关掉后没有任何入口再打开。
+              DSH 的做法就是这个位置放一个固定按钮，
+              展开时高亮、收起时灰——位置不变，永远找得到。 */}
+          {props.onToggleRail && (
+            <button
+              type="button"
+              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              onClick={props.onToggleRail}
+              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
+              aria-pressed={props.railOpen}
+            >
+              {/* 分栏图标：左边实心块表示"有侧栏" */}
+              <span aria-hidden>◫</span>
+            </button>
+          )}
         </div>
       </header>
 

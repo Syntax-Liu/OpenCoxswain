@@ -915,6 +915,8 @@ export function App(): JSX.Element {
               if (currentProject) setView({ kind: 'executor', projectId: currentProject.id, executorId: id });
             }}
             thinking={state.thinking}
+            railOpen={!railCollapsed}
+            onToggleRail={() => setRailCollapsed((v) => !v)}
             templatePicker={
               <TemplatePicker
                 api={api}
@@ -951,6 +953,8 @@ export function App(): JSX.Element {
       {/* **右侧栏**：待决策、工作区文件、快捷操作。
           用户要求"像 DSH 那样"，把这些从顶部挪到右边——
           顶部面板占的是垂直空间，会直接压扁对话区。 */}
+      {/* 收起时整块隐藏：只把宽度设 0 的话，左边框还会留 1px 竖线 */}
+      <div className="rail-slot" style={{ display: railCollapsed ? 'none' : undefined }}>
       <RightRail
         onClose={() => setRailCollapsed(true)}
         decisionCount={
@@ -970,6 +974,7 @@ export function App(): JSX.Element {
           ) : null
         }
       />
+      </div>
 
       {showOpen && (
         <OpenProjectDialog

@@ -286,3 +286,47 @@ describe('右栏样式', () => {
     assert.match(m?.[1] ?? '', /background:\s*var\(--color-action\)/);
   });
 });
+
+describe('**右栏关掉后还能重新打开**', () => {
+  // 用户反馈：「目前关闭之后就不知道在哪里打开了，参考 DSH 吧，
+  // 图二的右上角最右边的那个按钮，就是展开侧边栏」
+  //
+  // 原来右栏只能从内部的 ✕ 关掉，关掉后没有任何入口再打开。
+  // DSH 的做法：对话标题行最右边放一个**常驻**按钮。
+  const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+  const conv = readFileSync(new URL('../../src/components/Conversation.tsx', import.meta.url), 'utf8');
+
+  it('Conversation 有 railOpen / onToggleRail', () => {
+    assert.match(conv, /railOpen\?:/);
+    assert.match(conv, /onToggleRail\?:/);
+  });
+
+  it('开关按钮渲染在 header-side 里', () => {
+    const idx = conv.indexOf('className="header-side"');
+    assert.ok(idx > 0, '找不到 header-side');
+    const block = conv.slice(idx, idx + 800);
+    assert.match(block, /rail-toggle/, '开关应该在标题行右侧');
+  });
+
+  it('**开关的状态和右栏联动**', () => {
+    assert.match(app, /railOpen=\{[^}]*railCollapsed/);
+    assert.match(app, /onToggleRail=\{\(\)\s*=>\s*setRailCollapsed/);
+  });
+
+  it('展开时按钮高亮', () => {
+    assert.match(conv, /rail-toggle\$\{[^}]*active/);
+  });
+
+  it('按钮有 aria-pressed 和 title（可访问）', () => {
+    const idx = conv.indexOf('rail-toggle');
+    const block = conv.slice(idx, idx + 400);
+    assert.match(block, /aria-pressed=/, '缺少 aria-pressed');
+    assert.match(block, /title=/, '缺少 title');
+  });
+
+  it('收起时整块隐藏（不留 1px 边框）', () => {
+    assert.match(app, /rail-slot/);
+    const m = /className="rail-slot"[^>]*style=\{\{[^}]*display:\s*railCollapsed\s*\?\s*'none'/.exec(app);
+    assert.ok(m, '收起时应该 display: none，只设宽度 0 会留下左边框');
+  });
+});
