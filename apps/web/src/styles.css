@@ -4992,3 +4992,32 @@ body.is-resizing {
   color: var(--color-label-primary);
   border-color: var(--color-border-strong);
 }
+
+/* ---------- 图标（SVG） ----------
+   字符图标（⊕ ◎ ⊞ ◫）在不同字体下粗细/大小/基线都不一致，
+   一排里对不齐，也没法统一笔画粗细。
+
+   SVG 图标统一：
+   - 尺寸由组件的 size 属性控制
+   - 颜色继承 currentColor（由外层文字色决定）
+   - 不允许被压缩 */
+.new-session svg,
+.nav-icon,
+.rail-toggle svg {
+  flex: none;
+  vertical-align: middle;
+}
+
+/* 图标和文字之间统一 6px——之前字符图标靠空格挤开，间距不匀 */
+.new-session {
+  gap: var(--g-15);
+}
+
+.nav-item svg {
+  color: var(--color-label-tertiary);
+}
+
+.nav-item:hover svg,
+.nav-item.active svg {
+  color: var(--color-label-primary);
+}

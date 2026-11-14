@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
+import { IconAddProject, IconNewChat, IconSupervisor } from './icons.js';
 import { computeBatchPositions } from './sidebarBatches.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
@@ -153,7 +154,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       {/* 顶部：新会话（DSH 的大按钮） */}
       <div className="sidebar-top">
         <button type="button" className="new-session" onClick={props.onOpenProject}>
-          <span aria-hidden>⊕</span> 新会话
+          <IconNewChat size={16} />
+          新会话
         </button>
       </div>
 
@@ -163,11 +165,11 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           className={`nav-item${props.view.kind === 'global' ? ' active' : ''}`}
           onClick={props.onOpenGlobal}
         >
-          <span className="nav-icon" aria-hidden>◎</span>
+          <IconSupervisor size={16} className="nav-icon" />
           Supervisor
         </button>
         <button type="button" className="nav-item" onClick={props.onOpenProject}>
-          <span className="nav-icon" aria-hidden>⊞</span>
+          <IconAddProject size={16} className="nav-icon" />
           添加项目
         </button>
       </nav>

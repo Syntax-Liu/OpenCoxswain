@@ -11,6 +11,7 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens } from './contextUsage.js';
+import { IconSidebar } from './icons.js';
 import { buildStatus } from './statusMetrics.js';
 import { describeWait } from './waitStatus.js';
 import { composerHint } from './composerHint.js';
@@ -261,8 +262,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
               title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
               aria-pressed={props.railOpen}
             >
-              {/* 分栏图标：左边实心块表示"有侧栏" */}
-              <span aria-hidden>◫</span>
+              <IconSidebar size={16} />
             </button>
           )}
         </div>
