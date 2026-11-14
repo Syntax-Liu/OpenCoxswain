@@ -22,6 +22,8 @@ import { errorText, runLoop, type LoopEvent, type ToolHost } from '../session/lo
 import { applyEdit } from './edit.js';
 import { diffStat, unifiedDiff } from './diff.js';
 import { matchGlob } from './glob.js';
+import { readUrl, webSearch, type SearchConfig } from './web.js';
+import { runSubagent } from './subagent.js';
 import { judgeFailure, parseFailures, renderFailureReport } from './testJudge.js';
 import { loadSkill, renderCatalog, type SkillSummary } from '../skills/index.js';
 import type { McpTool } from '../mcp/client.js';
@@ -223,6 +225,37 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
       },
     },
     {
+      name: 'read_url',
+      description:
+        '抓取一个网页并返回**纯文本内容**（已去掉 HTML 标签）。' +
+        '\n用于读文档、看 API 说明、查在线资料。' +
+        '\n只支持 http/https；内容过长会截断。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['url'],
+        properties: {
+          url: { type: 'string', description: '要抓取的网址（http 或 https）' },
+        },
+      },
+    },
+    {
+      name: 'web_search',
+      description:
+        '联网搜索，返回若干条结果（标题 + 链接 + 摘要）。' +
+        '\n**需要用户在设置里配置搜索服务**；没配时会明确告诉你不可用。' +
+        '\n搜到链接后，用 read_url 读具体内容。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: '搜索关键词' },
+          count: { type: 'integer', description: '返回几条（默认 5，最多 10）' },
+        },
+      },
+    },
+    {
       name: 'run_command',
       description:
         '在项目根目录执行一条 shell 命令（有超时）。用于跑测试、构建、git、查文件等。' +
@@ -265,6 +298,28 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
         required: ['path'],
         properties: {
           path: { type: 'string', description: '相对项目根的路径' },
+        },
+      },
+    },
+    {
+      name: 'spawn_subagent',
+      description:
+        '派一个**子 Agent**去做一件可以独立完成的小事，**等它返回结果**。' +
+        '\n\n和派 Agent 不同：子 Agent 是**为了当前这个任务**临时拆出来的分头活，' +
+        '不建会话、不进侧栏、你看不到它的中间过程——只拿回它的结论。' +
+        '\n\n什么时候用：需要同时查几处、或某个子问题很啰嗦但结论很短。' +
+        '\n什么时候别用：子任务和你自己的任务强耦合，派出去反而要多解释一遍。' +
+        '\n\n注意：子 Agent 默认**只读**，不能改文件。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['task'],
+        properties: {
+          task: { type: 'string', description: '子任务是什么，说清楚要什么结论' },
+          context: {
+            type: 'string',
+            description: '它需要知道的背景（它看不到你和用户的对话）',
+          },
         },
       },
     },
@@ -345,6 +400,29 @@ export interface ExecutorToolHostOptions {
    * 沙箱放行的项目外目录。默认一条都没有——写操作只能落在项目内。
    */
   readonly allowOutside?: readonly string[];
+  /**
+   * 联网搜索的配置。
+   *
+   * 没配时 `web_search` 会明确返回"不可用"——
+   * 不能让模型以为搜过了。
+   */
+  readonly search?: SearchConfig | null;
+
+  /**
+   * 当前嵌套深度。父 Agent 不传（视为 0），子 Agent 传 1、2……
+   * 超过上限时 `spawn_subagent` 会拒绝。
+   */
+  readonly subagentDepth?: number;
+
+  /**
+   * 模型客户端。**只有要支持子 Agent 时才传**——
+   * 不传的话 `spawn_subagent` 明确拒绝，而不是假装派出去了。
+   */
+  readonly llm?: LlmClient;
+
+  /** 中止信号：子 Agent 跟着父 Agent 一起停。 */
+  readonly signal?: AbortSignal;
+
   /** MCP 工具（名字已带服务器前缀）。调用时转发给对应服务器。 */
   readonly mcpTools?: readonly McpTool[];
   /** MCP 调用入口；提供后 mcpTools 里的工具才能真正执行。 */
@@ -700,6 +778,48 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
               limit: 200,
             });
             return { ok: true, content: hits.join('\n') || '没有命中' };
+          }
+          case 'spawn_subagent': {
+            // **子 Agent 需要 llm 才能跑**。没配就如实拒绝，
+            // 不能让模型以为派出去了。
+            if (!options.llm) {
+              return {
+                ok: false,
+                content: '当前环境不支持派子 Agent（没有可用的模型客户端）。请自己完成这个子任务。',
+              };
+            }
+
+            const depth = (options.subagentDepth ?? 0) + 1;
+            const result = await runSubagent({
+              llm: options.llm,
+              // **子 Agent 用同样的工具集，但去掉 spawn_subagent 自己**
+              // ——用 depth + 1 建一个新 host，嵌套上限在 runSubagent 里挡
+              toolHost: createExecutorToolHost({
+                ...options,
+                subagentDepth: depth,
+              }),
+              task: String(args.task ?? ''),
+              ...(typeof args.context === 'string' ? { context: args.context } : {}),
+              signal: options.signal ?? new AbortController().signal,
+              depth,
+            });
+
+            return {
+              ok: result.ok,
+              content: result.ok
+                ? `子 Agent 的结论（${result.steps} 步）：\n${result.content}`
+                : result.content,
+            };
+          }
+          case 'read_url': {            const url = String(args.url ?? '');
+            const r = await readUrl(url);
+            return { ok: r.ok, content: r.content };
+          }
+          case 'web_search': {
+            const query = String(args.query ?? '');
+            const count = typeof args.count === 'number' ? Math.min(10, Math.max(1, args.count)) : 5;
+            const r = await webSearch(query, options.search ?? null, { count });
+            return { ok: r.ok, content: r.content };
           }
           case 'run_command': {
             const command = String(args.command ?? '');
