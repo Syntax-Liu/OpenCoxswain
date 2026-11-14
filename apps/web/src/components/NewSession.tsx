@@ -1,0 +1,101 @@
+/**
+ * 新会话页：**还没有选项目**。
+ *
+ * ## 为什么需要
+ *
+ * 用户原话：
+ * > "新会话"和"添加项目"这两个的作用是一样的，只保留"新会话"，
+ * > 然后在对话框附近选择项目
+ *
+ * 以前点「新会话」直接跳第一个项目的 Assistant，用户没法选。
+ * 现在进这个页面：选项目是**决定下一步做什么**，而不是"打开某个项目"。
+ *
+ * ## 和主对话的关系
+ *
+ * 结构照主对话（`.composer > .composer-box > textarea + .composer-bar`），
+ * 只是输入框上面多一个项目选择器，选完才进真正的对话。
+ */
+import { useState } from 'react';
+
+import type { ProjectDto } from '../api.js';
+import { IconBrand } from './icons.js';
+import { ProjectPicker } from './ProjectPicker.js';
+
+export interface NewSessionProps {
+  readonly projects: readonly ProjectDto[];
+  /** 选中项目后进入它的 Assistant。 */
+  readonly onPick: (projectId: string) => void;
+  /** 打开或新建项目。 */
+  readonly onCreate: () => void;
+}
+
+export function NewSession(props: NewSessionProps): JSX.Element {
+  const [draft, setDraft] = useState('');
+  const [hint, setHint] = useState(false);
+
+  const submit = (): void => {
+    // 没选项目时，点发送只是提示——不能"发到一个不存在的项目"
+    if (!draft.trim()) return;
+    setHint(true);
+  };
+
+  return (
+    <div className="conversation">
+      <div className="messages">
+        <div className="welcome">
+          <div className="welcome-brand">
+            <IconBrand size={28} />
+            <h1>新会话</h1>
+          </div>
+          <p className="welcome-sub">
+            先选一个项目，再说你想做什么。项目决定我在哪个目录里干活。
+          </p>
+        </div>
+      </div>
+
+      <div className="composer">
+        <div className="composer-box">
+          <div className="composer-picker-row">
+            <ProjectPicker
+              projects={props.projects}
+              onPick={props.onPick}
+              onCreate={props.onCreate}
+            />
+          </div>
+
+          <textarea
+            value={draft}
+            placeholder="选好项目后，在这里说要做什么"
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (hint) setHint(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={2}
+          />
+
+          <div className="composer-bar">
+            <div className="composer-left">
+              {hint && <span className="composer-hint-inline">先在上面选一个项目</span>}
+            </div>
+            <button
+              type="button"
+              className="send-btn"
+              onClick={submit}
+              disabled={!draft.trim()}
+              aria-label="发送"
+              title="发送（Enter）"
+            >
+              ↑
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

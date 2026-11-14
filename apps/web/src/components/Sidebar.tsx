@@ -25,6 +25,15 @@ export interface SidebarProps {
   readonly onOpenAssistant: (projectId: string) => void;
   readonly onOpenExecutor: (projectId: string, executorId: string) => void;
   readonly onOpenGlobal: () => void;
+  /**
+   * 新建会话。
+   *
+   * **和以前不同**：以前它绑的是 onOpenProject（弹"打开项目"对话框），
+   * 和「添加项目」完全重复。现在它进空会话页，
+   * 在那里用输入框旁的选择器选项目。
+   */
+  readonly onNewSession: () => void;
+  /** 顶部标题行的"新建项目"小按钮。 */
   readonly onOpenProject: () => void;
   readonly onOpenSettings: () => void;
   /** 删除一条会话（Agent）。 */
@@ -151,15 +160,17 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
   return (
     <aside className="sidebar" style={{ width }}>
-      {/* 顶部：新会话（DSH 的大按钮） */}
-      <div className="sidebar-top">
-        <button type="button" className="new-session" onClick={props.onOpenProject}>
-          <IconNewChat size={16} />
+      {/* **「新会话」和「Supervisor」结构完全相同**。
+          原来「新会话」在 .sidebar-top 里（自带 padding），
+          「Supervisor」在 .nav-main 里——两者的盒子位置、内边距都不一样，
+          看起来就有框/没框、缩进也不齐。
+
+          现在两个都是 .nav-item，只有图标和文字不同。 */}
+      <nav className="nav-main">
+        <button type="button" className="nav-item" onClick={props.onNewSession}>
+          <IconNewChat size={16} className="nav-icon" />
           新会话
         </button>
-      </div>
-
-      <nav className="nav-main">
         <button
           type="button"
           className={`nav-item${props.view.kind === 'global' ? ' active' : ''}`}

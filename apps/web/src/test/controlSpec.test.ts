@@ -410,14 +410,10 @@ describe('**「新会话」和「添加项目」不再重复**', () => {
     assert.doesNotMatch(code, /添加项目/, '侧栏不该再有"添加项目"按钮');
   });
 
-  it('侧栏只剩「新会话」和「Supervisor」两个导航项', () => {
-    // 「新会话」用 new-session 类；nav-item 只剩 Supervisor（className 是模板字符串）
-    assert.match(sidebar, /nav-item\$\{props\.view\.kind === 'global'/, '应该还有 Supervisor 导航项');
-    assert.doesNotMatch(
-      sidebar,
-      /<button type="button" className="nav-item" onClick/,
-      '不该有第二个普通 nav-item',
-    );
+  it('侧栏就两个导航项：新会话 + Supervisor', () => {
+    // 两个都用 nav-item（结构完全一样），只有图标和文字不同。
+    assert.match(sidebar, /className="nav-item" onClick=\{props\.onNewSession\}/, '缺新会话');
+    assert.match(sidebar, /nav-item\$\{props\.view\.kind === 'global'/, '缺 Supervisor');
   });
 
   it('**项目选择器在输入区**', () => {

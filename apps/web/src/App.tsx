@@ -43,6 +43,7 @@ import { Conversation } from './components/Conversation.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
 import { RightRail } from './components/RightRail.js';
 import { ProjectPicker } from './components/ProjectPicker.js';
+import { NewSession } from './components/NewSession.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
 import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
@@ -63,7 +64,18 @@ import { draftKey } from './drafts.js';
 type View =
   | { readonly kind: 'assistant'; readonly projectId: string }
   | { readonly kind: 'executor'; readonly projectId: string; readonly executorId: string }
-  | { readonly kind: 'global' };
+  | { readonly kind: 'global' }
+  /**
+   * 新会话：**空页，还没选项目**。
+   *
+   * 用户原话：
+   * > "新会话"和"添加项目"这两个的作用是一样的，只保留"新会话"，
+   * > 然后在对话框附近选择项目
+   *
+   * 所以点「新会话」不再直接跳第一个项目，而是进这里——
+   * 项目在输入框旁边的选择器里定。
+   */
+  | { readonly kind: 'new' };
 
 export function App(): JSX.Element {
   const api = useMemo(() => new ApiClient(), []);
@@ -282,7 +294,7 @@ export function App(): JSX.Element {
   // 审批轮询：每 3 秒问一次有没有新的待审批动作。
   // 有Agent正在跑时才轮询，空闲时不打扰后端。
   useEffect(() => {
-    const projectId = view && view.kind !== 'global' ? view.projectId : state.currentProjectId;
+    const projectId = view && view.kind !== 'global' && view.kind !== 'new' ? view.projectId : state.currentProjectId;
     if (!projectId) return;
 
     let cancelled = false;
@@ -327,7 +339,7 @@ export function App(): JSX.Element {
   );
 
   // 记忆候选：进入项目时拉一次
-  const activeProjectId = view && view.kind !== 'global' ? view.projectId : state.currentProjectId;
+  const activeProjectId = view && view.kind !== 'global' && view.kind !== 'new' ? view.projectId : state.currentProjectId;
   useEffect(() => {
     if (!activeProjectId) return;
     let cancelled = false;
@@ -575,7 +587,7 @@ export function App(): JSX.Element {
         const result = await api.archiveProject(projectId);
         await refreshProjects();
         // 正开着的就是这个项目 → 退回全局视图
-        if (view && view.kind !== 'global' && 'projectId' in view && view.projectId === projectId) {
+        if (view && view.kind !== 'global' && view.kind !== 'new' && 'projectId' in view && view.projectId === projectId) {
           setView({ kind: 'global' });
         }
         setError(result.message);
@@ -716,7 +728,7 @@ export function App(): JSX.Element {
   }, [api, view, setError]);
 
   const currentProject =
-    (view && view.kind !== 'global'
+    (view && view.kind !== 'global' && view.kind !== 'new'
       ? state.projects.find((p) => p.id === view.projectId)
       : state.projects.find((p) => p.id === state.currentProjectId)) ?? null;
 
@@ -868,12 +880,17 @@ export function App(): JSX.Element {
         projects={state.projects}
         executors={state.executors}
         currentProjectId={state.currentProjectId}
-        view={view ?? { kind: 'global' }}
+        view={
+          view && view.kind !== 'new'
+            ? view
+            : { kind: 'global' }
+        }
         connected={state.connected}
         connectionDetail={state.connectionDetail}
         onOpenAssistant={(id) => void openAssistant(id)}
         onOpenExecutor={(pid, eid) => void openExecutor(pid, eid)}
         onOpenGlobal={() => setView({ kind: 'global' })}
+        onNewSession={() => setView({ kind: 'new' })}
         onOpenProject={() => setShowOpen(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDeleteExecutor={(projectId, executorId) => void handleDeleteExecutor(projectId, executorId)}
@@ -896,6 +913,15 @@ export function App(): JSX.Element {
         />
         {view?.kind === 'global' && (
           <GlobalAssistant api={api} projects={state.projects} onOpenAssistant={(id) => void openAssistant(id)} />
+        )}
+
+        {/* 新会话：还没选项目。选了才进对应的 Assistant。 */}
+        {view?.kind === 'new' && (
+          <NewSession
+            projects={state.projects}
+            onPick={(id) => void openAssistant(id)}
+            onCreate={() => setShowOpen(true)}
+          />
         )}
 
         {view?.kind === 'assistant' && currentProject && (

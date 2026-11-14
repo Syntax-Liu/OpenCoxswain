@@ -5387,12 +5387,6 @@ body.is-resizing {
   text-align: center;
 }
 
-.welcome-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--g-2);
-  color: var(--color-label-strong);
-}
 
 .welcome-brand svg {
   color: var(--color-action);
@@ -5450,4 +5444,27 @@ body.is-resizing {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--r-full);
   color: var(--color-label-secondary);
+}
+
+/* 欢迎页的图标和标题：**视觉对齐，不是盒子对齐**。
+   align-items: center 对齐的是盒子中心，但 28px 的图标
+   和 24px 的文字，重心的位置不一样——截图里图标明显偏高。
+   用基线对齐 + 微调，让两者的视觉中线重合。 */
+.welcome-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+}
+
+.welcome-brand svg {
+  /* 图标往下推一点，和 24px 大字的视觉中线对齐 */
+  position: relative;
+  top: 3px;
+  flex: none;
+}
+
+/* 新会话的空页面：输入框上方的提示（没选项目时） */
+.composer-hint-inline {
+  font-size: var(--fs-sm);
+  color: var(--color-action);
 }
