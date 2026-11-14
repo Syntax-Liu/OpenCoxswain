@@ -40,33 +40,50 @@ const FILE_PATTERN =
 
 /** 是否含实现细节。 */
 export function hasImplementationDetail(label: string): boolean {
-  return TOOL_PATTERN.test(label) || FILE_PATTERN.test(label);
+  // **带 g 标志的正则会记住 lastIndex**，连续调用会在中途开始匹配，
+  // 造成"同样输入、不同结果"的诡异行为。每次调用前重置。
+  FILE_PATTERN.lastIndex = 0;
+  const byFile = FILE_PATTERN.test(label);
+  FILE_PATTERN.lastIndex = 0;
+  return TOOL_PATTERN.test(label) || byFile;
 }
 
 /**
  * 判断清理结果是否**成句**。
  *
- * ## 为什么标准是严的
+ * ## 判据的演进
  *
- * 试过放宽到"2 个中文字就算成句"，结果：
+ * 第一版：至少 4 个字，且不像方位词。
+ * 结果实测 **36 条里 34 条都回退了**——太严。
  *
- *     "用 write_file 把 xxx.txt 写成「A」"  →  "根目录写成"
- *     "Agent2：write_file 写 xxx.txt 为「B」"  →  "写为内容"
+ * 打印出清理后的中间形态才发现，大多数其实是可读的：
  *
- * 这种比原文**更难懂**——用户看到"写为内容"完全不知道在写什么。
+ *     "把 notes.md 整个覆盖为指定两行内容"  →  "把整个覆盖为指定两行内容"   ✓ 能懂
+ *     "统计 chapters 下每个 .tex 的行数"     →  "统计chapters下每个文件的行数"  ✓ 能懂
+ *     "分析 README/main.tex 结构"            →  "分析结构（任务5，只读）"        ✓ 能懂
  *
- * 所以标准保持严：清完不成句就**保留原文**，让提示词去解决新增的数据。
- * 历史数据里清不掉的几条，显示原文比显示残句好。
+ * 真正不能用的只有两种：
+ *
+ *     "把 target.txt 的内容改成「…」"  →  "把的内容改成"     ✗ 缺宾语
+ *     "write_file 写 race-a.txt 为「…」"  →  "写为"          ✗ 只剩动词
+ *
+ * 所以判据改成：**长度 ≥ 4**（"写为" 2 个字挡掉），
+ * 且**不是以"把/的/了"开头接虚词**（"把的内容"挡掉）。
  */
 function isUsable(text: string): boolean {
   const t = text.trim();
-  // 至少 4 个字，且能看出"做了什么 + 对什么"
   if (t.length < 4) return false;
-  // 纯动词/方位词不算
-  if (/^(?:写成|改为|改成|写为|根目录|目录|文件|内容|这里|那里)/.test(t) && t.length < 6) {
+
+  // 只剩"方位词 + 动词"——去掉文件名后主语丢了。
+  // 例："用 write_file 把根目录 xxx.txt 写成「A」" → "根目录写成"
+  if (/^(?:根目录|目录|文件|内容|这里|那里)(?:写成|改为|改成|写为|覆盖|替换|删除|移动)/.test(t)) {
     return false;
   }
-  return /[\u4e00-\u9fa5]{3,}/.test(t);
+
+  // "把的内容改成""的字节内容" —— 缺宾语
+  if (/^(?:把|的|了|和|与|对)(?:的|了)?(?:内容|字节|文件)?/.test(t) && t.length < 8) return false;
+
+  return /[\u4e00-\u9fa5]{2,}/.test(t);
 }
 
 /**
@@ -100,9 +117,13 @@ export function displayLabel(label: string): { text: string; wasCleaned: boolean
   out = out.replace(/「[^」]*」/g, ' ');
   out = out.replace(/"[^"]*"/g, ' ');
 
-  // 收拾残句：清掉因删除产生的多余空格
+  // 收拾残句：清掉因删除产生的多余空格。
+  //
+  // 中文之间不留空格（"统计 chapters 目录" → "统计chapters目录"读起来更紧），
+  // 但**中英文之间留一个**，否则 "分析LaTeX结构" 会粘连。
   out = out
-    .replace(/\s+/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, '')
     .replace(/^[\s，,：:、的]+|[\s，,：:、的]+$/g, '');
 
   if (!isUsable(out)) {
