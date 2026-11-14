@@ -27,8 +27,11 @@ function rule(selector: string): string {
 }
 
 describe('**行高对齐 DSH**', () => {
-  it('导航行 22px', () => {
-    assert.match(rule('.nav-item'), /height:\s*22px/);
+  // 导航行从 22 提到 30：字号提到 16px 之后，22px 的行高会把文字挤住。
+  // DSH 侧栏的导航行实测 22px，但那是 14px 字号；我们字号大一号，
+  // 行高要相应加大才不挤。
+  it('导航行 30px', () => {
+    assert.match(rule('.nav-item'), /height:\s*30px/);
   });
 
   it('**项目行 34px**（文字只有 20px，剩下是留白）', () => {

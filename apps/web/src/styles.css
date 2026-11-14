@@ -447,14 +447,16 @@ button.link.danger {
      漏了这一行，内容会被按钮默认的 `justify-content: center` 居中，
      Supervisor / 添加项目 就比「新会话」缩进一大截。 */
   justify-content: flex-start;
-  height: 22px;
-  gap: var(--g-15);
+  height: 30px;
+  gap: var(--g-2);
   background: transparent;
   border: none;
   color: var(--text);
   text-align: left;
   padding: 0 var(--g-25);
   border-radius: 0;
+  font-size: var(--fs-md);
+  font-weight: 500;
 }
 
 .nav-item:hover {
@@ -466,10 +468,12 @@ button.link.danger {
 }
 
 .nav-icon {
-  width: 14px;
+  width: 16px;
   text-align: center;
   color: var(--text-muted);
   font-size: var(--fs-sm);
+  height: 16px;
+  flex: none;
 }
 
 .workspace-head {
@@ -2234,7 +2238,7 @@ button.small {
 
 /* 侧栏顶部导航和"添加项目"更像命令面板里的条目 */
 .nav-item {
-  font-size: var(--fs-sm); /* 和新会话统一 */
+  font-size: var(--fs-md); /* 和第一处一致，16px */
 }
 
 /* ============================================================
@@ -5108,7 +5112,9 @@ body.is-resizing {
 
    **不加第 5 档**——侧栏的 14px 正好落在现有的 sm 档上。
    ============================================================ */
-.nav-item,
+/* **导航项不在这组里**：它是 16px（--fs-md），
+   和下面的项目/会话（14px）本来就是两个层级。
+   之前误把 .nav-item 放进这组，结果 16px 被覆盖成 14px。 */
 .project-folder,
 .thread-item,
 .workspace-head {
