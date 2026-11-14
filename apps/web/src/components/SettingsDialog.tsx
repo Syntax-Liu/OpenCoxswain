@@ -160,14 +160,14 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
 
         <div className="modal-actions">
           {props.status.configured && props.status.source === 'file' && (
-            <button type="button" className="ghost" onClick={() => void clear()} disabled={busy}>
+            <button type="button" className="btn btn--ghost btn--md" onClick={() => void clear()} disabled={busy}>
               清除
             </button>
           )}
-          <button type="button" className="ghost" onClick={props.onClose} disabled={busy}>
+          <button type="button" className="btn btn--ghost btn--md" onClick={props.onClose} disabled={busy}>
             取消
           </button>
-          <button type="button" className="primary" onClick={() => void save()} disabled={busy}>
+          <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={busy}>
             {busy ? '保存中…' : '保存'}
           </button>
         </div>

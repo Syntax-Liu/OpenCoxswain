@@ -77,7 +77,7 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
               {props.onFocusDecision && (
                 <button
                   type="button"
-                  className="link"
+                  className="btn btn--link"
                   onClick={() => props.onFocusDecision!(item.id, item.body)}
                 >
                   我来回答
@@ -86,7 +86,7 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
               {props.onDismiss && (
                 <button
                   type="button"
-                  className="link muted"
+                  className="btn btn--link muted"
                   title="标记为已看过，之后不再出现在这个面板里"
                   onClick={() => props.onDismiss!(item.id)}
                 >
@@ -99,12 +99,12 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
       </ul>
 
       {hidden > 0 && (
-        <button type="button" className="link decision-more" onClick={() => setShowAll(true)}>
+        <button type="button" className="btn btn--link decision-more" onClick={() => setShowAll(true)}>
           还有 {hidden} 件（展开）
         </button>
       )}
       {showAll && items.length > DECISION_VISIBLE_LIMIT && (
-        <button type="button" className="link muted decision-more" onClick={() => setShowAll(false)}>
+        <button type="button" className="btn btn--link muted decision-more" onClick={() => setShowAll(false)}>
           收起
         </button>
       )}

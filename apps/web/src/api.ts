@@ -460,6 +460,20 @@ export class ApiClient {
     );
   }
 
+  /**
+   * 联网搜索配置。
+   *
+   * apiKey **不回显**——只告诉界面"配没配"。
+   */
+  searchSettings(): Promise<{ endpoint: string; configured: boolean }> {
+    return this.request('/api/search-settings');
+  }
+
+  /** 保存联网搜索配置。 */
+  setSearchSettings(next: { endpoint: string; apiKey: string }): Promise<{ ok: boolean; message: string }> {
+    return this.request('/api/search-settings', { method: 'POST', body: next });
+  }
+
   /** 全文搜索消息内容。 */
   search(query: string, projectId?: string): Promise<{ hits: SearchHitDto[] }> {
     const params = new URLSearchParams({ q: query });

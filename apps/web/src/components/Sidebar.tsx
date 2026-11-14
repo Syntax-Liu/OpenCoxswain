@@ -232,7 +232,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             <span className="workspace-actions">
               <button
                 type="button"
-                className="icon-btn"
+                className="btn btn--ghost btn--sm btn--icon"
                 title="搜索"
                 onClick={() => setSearchOpen(true)}
               >
@@ -243,7 +243,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               </button>
               <button
                 type="button"
-                className={`icon-btn${onlyRunning ? ' active' : ''}`}
+                className={`btn btn--ghost btn--sm btn--icon${onlyRunning ? ' active' : ''}`}
                 title={onlyRunning ? '显示全部' : '只看在跑'}
                 aria-pressed={onlyRunning}
                 onClick={() => setOnlyRunning((v) => !v)}
@@ -258,7 +258,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                   />
                 </svg>
               </button>
-          <button type="button" className="icon-btn" title="新建项目" onClick={props.onOpenProject}>
+          <button type="button" className="btn btn--ghost btn--sm btn--icon" title="新建项目" onClick={props.onOpenProject}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
               <path
                 d="M8 3v10M3 8h10"
@@ -311,7 +311,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               >
                 <button
                   type="button"
-                  className="folder-toggle"
+                  className="btn btn--ghost btn--sm folder-toggle"
                   aria-label={collapsed ? '展开' : '收起'}
                   aria-expanded={!collapsed}
                   onClick={() => toggleCollapse(project.id)}
@@ -322,7 +322,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                 </button>
                 <button
                   type="button"
-                  className="folder-name-btn"
+                  className="btn btn--link folder-name-btn"
                   onClick={() => props.onOpenAssistant(project.id)}
                   title={project.displayPath}
                 >
@@ -386,7 +386,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         <span className={`dot${props.connected ? ' ok' : ' bad'}`} />
         <span>{props.connected ? '已连接' : '未连接'}</span>
         {props.connectionDetail && <span className="muted small">{props.connectionDetail}</span>}
-        <button type="button" className="link" onClick={props.onOpenSettings}>
+        <button type="button" className="btn btn--link" onClick={props.onOpenSettings}>
           设置
         </button>
       </div>

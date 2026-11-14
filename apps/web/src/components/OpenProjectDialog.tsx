@@ -47,10 +47,10 @@ export function OpenProjectDialog(props: OpenProjectDialogProps): JSX.Element {
         </label>
 
         <div className="modal-actions">
-          <button type="button" className="ghost" onClick={props.onCancel}>
+          <button type="button" className="btn btn--ghost btn--md" onClick={props.onCancel}>
             取消
           </button>
-          <button type="button" className="primary" onClick={submit} disabled={!rootPath.trim()}>
+          <button type="button" className="btn btn--primary btn--md" onClick={submit} disabled={!rootPath.trim()}>
             打开
           </button>
         </div>

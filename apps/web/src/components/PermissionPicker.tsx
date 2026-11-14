@@ -98,7 +98,7 @@ export function PermissionPicker(props: PermissionPickerProps): JSX.Element | nu
     <div className="perm-picker" ref={ref}>
       <button
         type="button"
-        className="composer-chip perm-picker-btn"
+        className="btn btn--secondary btn--sm"
         onClick={() => setOpen((v) => !v)}
         title={active?.hint ?? '权限'}
         aria-expanded={open}

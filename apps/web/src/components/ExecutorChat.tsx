@@ -65,7 +65,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
   return (
     <div className="conversation">
       <header className="conversation-header">
-        <button type="button" className="ghost back-btn" onClick={props.onBack}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={props.onBack}>
           ← 返回
         </button>
         <div className="header-main">
@@ -76,7 +76,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           </p>
         </div>
         {busy && (
-          <button type="button" className="ghost" onClick={props.onCancel}>
+          <button type="button" className="btn btn--ghost btn--md" onClick={props.onCancel}>
             取消
           </button>
         )}
@@ -85,7 +85,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           <div className="header-side">
             <button
               type="button"
-              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
               onClick={props.onToggleRail}
               title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
               aria-pressed={props.railOpen}
@@ -156,7 +156,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
               {props.api && <PermissionPicker api={props.api} projectId={props.executor.projectId} />}
               <MetricsLine executor={props.executor} />
             </div>
-            <button type="button" className="primary small" onClick={submit} disabled={busy || !draft.trim()}>
+            <button type="button" className="btn btn--primary btn--sm" onClick={submit} disabled={busy || !draft.trim()}>
               发送
             </button>
           </div>
@@ -217,7 +217,7 @@ function EffectsBlock({
         {onRollbackAll && effects.filter(canUndo).length > 1 && (
           <button
             type="button"
-            className="link eff-rollback-all"
+            className="btn btn--link eff-rollback-all"
             title="把这一轮改过的文件全部恢复到改动前"
             onClick={onRollbackAll}
           >
@@ -240,7 +240,7 @@ function EffectsBlock({
               {canUndo(e) && onUndo && (
                 <button
                   type="button"
-                  className="link eff-undo"
+                  className="btn btn--link eff-undo"
                   title="把这个文件恢复到这次改动之前"
                   onClick={() => onUndo(e.id)}
                 >

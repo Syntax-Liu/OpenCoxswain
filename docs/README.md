@@ -14,6 +14,7 @@
 | [status.md](status.md) | **状态与下一步**：做完了什么、还没做什么、能不能收尾 |
 | [architecture.md](architecture.md) | 架构：能力边界与"万物皆插件"的路线 |
 | [ui-design-spec.md](ui-design-spec.md) | **界面设计规范**：三栏布局、三层令牌、组件与交互约定、改界面前检查清单 |
+| [ui-consistency-plan.md](ui-consistency-plan.md) | **控件统一改造方案**：69 个按钮类收敛为 4 变体×3 尺寸、附实测 bug 清单 |
 | [self-developed-plan.md](self-developed-plan.md) | 自研方案原始设计（四层：User / Supervisor / Assistant / Agent） |
 | [glossary.md](glossary.md) | **命名唯一权威**：代码、文档、界面、提交信息一律以此为准 |
 

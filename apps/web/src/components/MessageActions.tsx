@@ -78,7 +78,7 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
       {available.canRetry && props.onRetry && (
         <button
           type="button"
-          className="msg-action-btn"
+          className="btn btn--ghost btn--md btn--icon-md"
           title="重新回答"
           aria-label="重新回答"
           onClick={props.onRetry}
@@ -90,7 +90,7 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
       {available.canEdit && props.onEdit && (
         <button
           type="button"
-          className="msg-action-btn"
+          className="btn btn--ghost btn--md btn--icon-md"
           title="编辑后重发"
           aria-label="编辑后重发"
           onClick={props.onEdit}
@@ -102,7 +102,7 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
       {available.canResend && props.onResend && (
         <button
           type="button"
-          className="msg-action-btn"
+          className="btn btn--ghost btn--md btn--icon-md"
           title="原样重发"
           aria-label="原样重发"
           onClick={props.onResend}
@@ -114,7 +114,7 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
       {available.canCopy && (
         <button
           type="button"
-          className={`msg-action-btn${copied ? ' done' : ''}`}
+          className={`btn btn--ghost btn--md btn--icon-md${copied ? ' done' : ''}`}
           title={copied ? '已复制' : '复制'}
           aria-label={copied ? '已复制' : '复制'}
           onClick={async () => {

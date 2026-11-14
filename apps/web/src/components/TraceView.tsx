@@ -79,7 +79,7 @@ export function TraceView(props: TraceViewProps): JSX.Element {
           <button
             key={option.id}
             type="button"
-            className={`trace-filter-btn${filter === option.id ? ' active' : ''}`}
+            className={`btn btn--ghost btn--sm${filter === option.id ? ' active' : ''}`}
             aria-pressed={filter === option.id}
             onClick={() => setFilter(option.id)}
           >

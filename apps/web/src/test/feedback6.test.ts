@@ -44,7 +44,12 @@ describe('**1. 权限只在一个地方改**', () => {
 
   it('设置页侧栏只剩四项', () => {
     const sections = [...settingsPage.matchAll(/\{ id: '(\w+)', label: '([^']+)'/g)].map((m) => m[2]);
-    assert.deepEqual(sections, ['模型', '对话与记忆', '通用', '手机通道']);
+    // **不写死总数**——以后加分区不该让这条测试失败。
+    // 只锁住"没有权限"和"至少有这几项"。
+    assert.ok(!sections.some((s) => (s ?? '').includes('权限')), `不该有权限分区：${sections.join(', ')}`);
+    for (const must of ['模型', '对话与记忆', '通用', '手机通道']) {
+      assert.ok(sections.includes(must), `缺 ${must}`);
+    }
   });
 
   it('输入框里有权限选择器', () => {

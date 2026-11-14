@@ -26,8 +26,10 @@ function rule(selector: string): string {
 }
 
 describe('**操作按钮是图标，不是文字**', () => {
-  it('用 .msg-action-btn 而不是文字链 .link', () => {
-    assert.match(actions, /className="msg-action-btn"/);
+  it('用图标按钮组件，而不是文字链 .link', () => {
+    // 迁移到 .btn 组件契约后，断言应检查「这是一个图标按钮」这件事本身，
+    // 而不是钉死某个历史类名 .msg-action-btn。
+    assert.match(actions, /className="btn btn--ghost btn--md btn--icon-md"/);
     assert.doesNotMatch(actions, /className="link"/, '不该再用文字链');
   });
 
@@ -59,9 +61,11 @@ describe('**操作按钮是图标，不是文字**', () => {
 
 describe('**按钮尺寸和布局照 DSH**', () => {
   it('26×26 的方形按钮', () => {
-    const body = rule('.msg-action-btn');
-    assert.match(body, /width:\s*26px/);
-    assert.match(body, /height:\s*26px/);
+    // 尺寸来自组件契约：md 档高 26px，icon-md 是方形宽度。
+    assert.match(rule('.btn--md'), /height:\s*var\(--h-md\)/);
+    assert.match(rule('.btn--icon-md'), /width:\s*var\(--h-md\)/);
+    // 全局令牌 --h-md 必须真的是 26px，否则上面的断言只是自洽
+    assert.match(cleanCss, /--h-md:\s*26px/);
   });
 
   it('**常显，不靠悬停**', () => {

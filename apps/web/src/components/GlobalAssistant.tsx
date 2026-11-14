@@ -74,7 +74,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
           <div className="header-side">
             <button
               type="button"
-              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
               onClick={props.onToggleRail}
               title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
               aria-pressed={props.railOpen}
@@ -157,7 +157,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
                 <div className="route-actions">
                   <button
                     type="button"
-                    className="primary"
+                    className="btn btn--primary btn--md"
                     onClick={() =>
                       void handoff(result.candidates[0]!.projectId, result.candidates[0]!.name)
                     }
@@ -167,7 +167,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
                   </button>
                   <button
                     type="button"
-                    className="ghost"
+                    className="btn btn--ghost btn--md"
                     onClick={() => props.onOpenAssistant(result.candidates[0]!.projectId)}
                   >
                     直接打开项目
@@ -201,7 +201,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
           />
           <div className="composer-bar">
             <div className="composer-left" />
-            <button type="button" className="primary small" onClick={() => void ask()} disabled={busy || !query.trim()}>
+            <button type="button" className="btn btn--primary btn--sm" onClick={() => void ask()} disabled={busy || !query.trim()}>
               帮我找
             </button>
           </div>

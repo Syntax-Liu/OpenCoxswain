@@ -53,7 +53,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
           <div className="header-side">
             <button
               type="button"
-              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
               onClick={props.onToggleRail}
               title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
               aria-pressed={props.railOpen}
@@ -108,7 +108,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
             </div>
             <button
               type="button"
-              className="send-btn"
+              className="btn btn--primary btn--md btn--pill send-btn"
               onClick={submit}
               disabled={!draft.trim()}
               aria-label="发送"

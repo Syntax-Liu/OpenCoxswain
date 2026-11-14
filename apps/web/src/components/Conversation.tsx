@@ -267,7 +267,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           {props.onToggleRail && (
             <button
               type="button"
-              className={`rail-toggle${props.railOpen ? ' active' : ''}`}
+              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
               onClick={props.onToggleRail}
               title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
               aria-pressed={props.railOpen}
@@ -282,7 +282,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
       <div className="view-tabs" role="tablist">
         <button
           type="button"
-          className={`view-tab${tab === 'chat' ? ' active' : ''}`}
+          className={`btn btn--ghost btn--md view-tab${tab === 'chat' ? ' active' : ''}`}
           role="tab"
           aria-selected={tab === 'chat'}
           onClick={() => setTab('chat')}
@@ -291,7 +291,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
         </button>
         <button
           type="button"
-          className={`view-tab${tab === 'trace' ? ' active' : ''}`}
+          className={`btn btn--ghost btn--md view-tab${tab === 'trace' ? ' active' : ''}`}
           role="tab"
           aria-selected={tab === 'trace'}
           onClick={() => setTab('trace')}
@@ -503,7 +503,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
                   也是唯一对不习惯拖拽的用户友好的入口 */}
               <button
                 type="button"
-                className="composer-chip attach-btn"
+                className="btn btn--ghost btn--sm"
                 title="添加附件（也可以直接拖入或粘贴）"
                 onClick={() => fileInput.current?.click()}
               >
@@ -523,7 +523,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
               {props.templatePicker}
               <button
                 type="button"
-                className="composer-chip"
+                className="btn btn--secondary btn--sm"
                 onClick={props.onStop}
                 title="停止当前这轮"
               >
@@ -532,7 +532,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
             </div>
             <button
               type="button"
-              className="send-btn"
+              className="btn btn--primary btn--md btn--pill send-btn"
               onClick={submit}
               disabled={!draft.trim()}
               aria-label="发送"
@@ -571,7 +571,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           <span className="context-banner-text">{contextUsage.message}</span>
           <button
             type="button"
-            className="link context-banner-close"
+            className="btn btn--link context-banner-close"
             title="知道了，不再显示"
             onClick={() => setDismissedBanner(true)}
           >

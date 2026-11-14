@@ -4,7 +4,9 @@ import type { ApiClient, ModelConfigDto, ProjectDto, SettingsStatus } from '../a
 import { ImSettings } from './ImSettings.js';
 import { CloseBehaviorSettings } from './CloseBehaviorSettings.js';
 import { FontScaleSetting } from './FontScaleSetting.js';
+import { WebSearchSetting } from './WebSearchSetting.js';
 import {
+  IconGlobe,
   IconMemory,
   IconModel,
   IconPhone,
@@ -38,7 +40,8 @@ export type SettingsSection =
 
   | 'memory'
   | 'general'
-  | 'im';
+  | 'im'
+  | 'web';
 
 interface SectionMeta {
   readonly id: SettingsSection;
@@ -52,6 +55,7 @@ const SECTIONS: readonly SectionMeta[] = [
   { id: 'memory', label: '对话与记忆', icon: IconMemory },
   { id: 'general', label: '通用', icon: IconSettings },
   { id: 'im', label: '手机通道', icon: IconPhone },
+  { id: 'web', label: '联网搜索', icon: IconGlobe },
 ];
 
 export interface SettingsPageProps {
@@ -69,7 +73,7 @@ export function SettingsPage(props: SettingsPageProps): JSX.Element {
     <div className="settings-page">
       {/* 顶部：返回 + 菜单栏（照 DSH 的样子） */}
       <header className="settings-topbar">
-        <button type="button" className="back-btn" onClick={props.onClose}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={props.onClose}>
           ← 返回应用
         </button>
         <span className="settings-title">设置</span>
@@ -108,6 +112,7 @@ export function SettingsPage(props: SettingsPageProps): JSX.Element {
               <ImSettings api={props.api} projects={props.projects ?? []} />
             </section>
           )}
+          {section === 'web' && <WebSearchSetting api={props.api} />}
         </div>
       </div>
     </div>

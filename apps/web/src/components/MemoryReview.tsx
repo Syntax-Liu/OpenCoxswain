@@ -45,12 +45,12 @@ export function MemoryReview(props: MemoryReviewProps): JSX.Element {
   return (
     <div className="memory-review">
       <div className="memory-head">
-        <button type="button" className="link" onClick={() => setOpen((v) => !v)}>
+        <button type="button" className="btn btn--link" onClick={() => setOpen((v) => !v)}>
           {open ? '收起记忆' : `记忆（${pending.length} 待确认 · 已记 ${totalActive}）`}
         </button>
         <button
           type="button"
-          className="ghost small"
+          className="btn btn--ghost btn--sm"
           onClick={props.onExtract}
           disabled={props.busy}
         >
@@ -100,14 +100,14 @@ export function MemoryReview(props: MemoryReviewProps): JSX.Element {
                       <div className="memory-actions">
                         <button
                           type="button"
-                          className="ghost small"
+                          className="btn btn--ghost btn--sm"
                           onClick={() => props.onDismiss(c.id)}
                         >
                           忽略
                         </button>
                         <button
                           type="button"
-                          className="primary small"
+                          className="btn btn--primary btn--sm"
                           onClick={() => props.onAccept(c.id)}
                         >
                           记住
@@ -163,7 +163,7 @@ function ActiveGroup({
               <span className="muted small">{e.source}</span>
               <button
                 type="button"
-                className="link small"
+                className="btn btn--link"
                 style={{ marginLeft: 'auto' }}
                 onClick={() => onForget(e.id)}
                 title="删掉这条记忆"

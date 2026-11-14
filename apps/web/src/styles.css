@@ -84,6 +84,11 @@
   --c-overlay-11: rgba(255, 255, 255, 0.11);
   /* 结构分隔线专用：11% 太淡，看不出来主区和侧栏是两块 */
   --c-overlay-20: rgba(255, 255, 255, 0.2);
+  /* 遮罩与阴影：组件里曾直接写 rgba(0,0,0,.x)，改成令牌以便按主题调整 */
+  --c-scrim-45: rgba(0, 0, 0, 0.45);
+  --c-scrim-50: rgba(0, 0, 0, 0.5);
+  --c-scrim-55: rgba(0, 0, 0, 0.55);
+  --c-danger-15: rgba(184, 84, 80, 0.15);
 
   /* ---- 第二层：语义别名 ----
      这一层说"这块是什么用途"，不写具体颜色。
@@ -110,6 +115,13 @@
   /** **结构分隔线**：主区和侧栏之间那种一眼要看得出的界线。 */
   --color-border-divider: var(--c-overlay-20);
   --color-border-focus: var(--c-amber-400);
+  /* 遮罩与阴影：阴影用 rgba 在黑底上才自然；浅色主题里换成更淡的值 */
+  --color-scrim: var(--c-scrim-50);
+  --color-danger-dim: var(--c-danger-15);
+  --color-scrim-strong: var(--c-scrim-55);
+  --shadow-popover: 0 4px 12px var(--c-scrim-45);
+  --shadow-menu: 0 8px 24px var(--c-scrim-55);
+  --shadow-modal: 0 8px 32px var(--c-scrim-50);
 
   /* 状态：**琥珀只表示"需要你操作"**（见 semanticColor.ts） */
   --color-action: var(--c-amber-400);
@@ -189,9 +201,8 @@
      界面里曾同时存在两套 token（--radius-sm=2px 和 --r-sm=3px），
      这就是尺度混乱的直接来源。
      新代码一律用 --r-sm / --r-md / --r-full。 */
-  --radius: var(--r-sm);
-  --radius-sm: var(--r-sm);
-  --radius-lg: var(--r-md);
+  /* 旧圆角令牌已全部迁移到 --r-sm / --r-md / --r-full，这里故意不再保留转发。
+     原因：--radius-lg 原本指向 --r-md（名字说 lg、值给 md），名实不符会持续误导新代码。 */
 
   /* ---- 字体 ---- */
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei',
@@ -219,7 +230,6 @@
   --fs-sm: calc(13px * var(--font-scale));
   --fs-md: calc(15px * var(--font-scale));
   --fs-lg: calc(17px * var(--font-scale));
-
 
   /* ---- 控件高度：**只有 3 档** ---- */
   --h-sm: 22px;  /* 小按钮、标签 */
@@ -363,40 +373,796 @@ button:disabled {
   pointer-events: none;
 }
 
-button.primary {
-  background: var(--accent);
-  color: #fff;
-}
-
-button.primary:hover:not(:disabled) {
-  background: #5f9aff;
-}
-
-button.ghost {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-muted);
-}
-
-button.ghost:hover {
-  color: var(--text);
-  border-color: #39404f;
-}
-
 button.wide {
   width: 100%;
 }
 
-button.link {
+/* ============================================================
+   输入框组件契约
+   ------------------------------------------------------------
+   现状：同一个输入框在 5 个容器里各定义一遍，圆角有 --r-sm / --r-md
+   两种，内边距有 9/11、6/9、5/8、7/9 四组，焦点态有 3 种实现。
+
+   规则：
+   1. 普通输入框加 class="input"；
+   2. 尺寸差异用 .input--sm（小号，设置页/侧栏）；
+   3. 无边框贴底的那种用 .input--bare（搜索框、命令面板）；
+   4. 焦点一律 outline，不靠改 border-color（改边框会撑动布局）。
+   ============================================================ */
+
+.input {
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-sm);
+  padding: var(--g-15) var(--g-25);
+  color: var(--color-label-primary);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.input::placeholder {
+  color: var(--color-label-tertiary);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--color-border-divider);
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 小号：设置页、侧栏筛选这类密集区域 */
+.input--sm {
+  padding: var(--g-1) var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+/* 无边框：搜索框、命令面板这类贴底/贴容器的输入 */
+.input--bare {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.input--bare:focus,
+.input--bare:focus-visible {
+  outline: none;
+}
+
+/* ============================================================
+   按钮组件契约（4 变体 × 3 尺寸）
+   ------------------------------------------------------------
+   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
+   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
+   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
+
+   规则（新代码必须遵守）：
+   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
+   2. 不为新用途再造一个「.xxx-btn」类；
+   3. 变体只允许 4 个：primary / secondary / ghost / danger；
+   4. 尺寸只允许 3 个：sm / md / lg；
+   5. 颜色一律走语义令牌，不写裸色值。
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* ---- 尺寸 ---- */
+.btn--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+.btn--md {
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  font-size: var(--fs-md);
+}
+
+.btn--lg {
+  height: var(--h-lg);
+  padding: 0 var(--g-4);
+  font-size: var(--fs-md);
+}
+
+/* ---- 变体 ---- */
+.btn--primary {
+  background: var(--color-action);
+  color: var(--c-neutral-1000);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-label-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-label-secondary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* 文字按钮：无边框、无内边距，高度贴合文字；仍需 hover/focus 一致 */
+.btn--link {
   background: none;
   border: none;
   padding: 0;
-  color: var(--accent);
-  font-size: var(--fs-sm);
-  height: auto;}
+  height: auto;
+  color: var(--color-action);
+}
 
-button.link.danger {
-  color: var(--danger);
+.btn--link:hover:not(:disabled) {
+  color: var(--color-action-hover);
+  text-decoration: underline;
+}
+
+.btn--link.btn--danger {
+  color: var(--color-danger);
+}
+
+/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
+.btn--pill {
+  border-radius: var(--r-full);
+}
+
+/* ---- 统一五态 ---- */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 宽度修饰：与 .btn 搭配使用（原 button.wide） */
+.btn.wide {
+  width: 100%;
+}
+
+/* 纯图标按钮：方形，不带水平内边距。宽度跟随高度档位。 */
+.btn--icon {
+  padding: 0;
+  width: var(--h-sm);
+}
+
+/* 方形 26px：消息操作按钮、上下文菜单里的图标项 */
+.btn--icon-md {
+  padding: 0;
+  width: var(--h-md);
+}
+
+/* ============================================================
+   按钮组件契约（4 变体 × 3 尺寸）
+   ------------------------------------------------------------
+   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
+   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
+   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
+
+   规则（新代码必须遵守）：
+   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
+   2. 不为新用途再造一个「.xxx-btn」类；
+   3. 变体只允许 4 个：primary / secondary / ghost / danger；
+   4. 尺寸只允许 3 个：sm / md / lg；
+   5. 颜色一律走语义令牌，不写裸色值。
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* ---- 尺寸 ---- */
+.btn--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+.btn--md {
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  font-size: var(--fs-md);
+}
+
+.btn--lg {
+  height: var(--h-lg);
+  padding: 0 var(--g-4);
+  font-size: var(--fs-md);
+}
+
+/* ---- 变体 ---- */
+.btn--primary {
+  background: var(--color-action);
+  color: var(--c-neutral-1000);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-label-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-label-secondary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
+.btn--pill {
+  border-radius: var(--r-full);
+}
+
+/* ---- 统一五态 ---- */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 纯图标按钮：方形，不带水平内边距。宽度跟随高度档位。 */
+.btn--icon {
+  padding: 0;
+  width: var(--h-sm);
+}
+
+/* 方形 26px：消息操作按钮、上下文菜单里的图标项 */
+.btn--icon-md {
+  padding: 0;
+  width: var(--h-md);
+}
+
+/* ============================================================
+   按钮组件契约（4 变体 × 3 尺寸）
+   ------------------------------------------------------------
+   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
+   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
+   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
+
+   规则（新代码必须遵守）：
+   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
+   2. 不为新用途再造一个「.xxx-btn」类；
+   3. 变体只允许 4 个：primary / secondary / ghost / danger；
+   4. 尺寸只允许 3 个：sm / md / lg；
+   5. 颜色一律走语义令牌，不写裸色值。
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* ---- 尺寸 ---- */
+.btn--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+.btn--md {
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  font-size: var(--fs-md);
+}
+
+.btn--lg {
+  height: var(--h-lg);
+  padding: 0 var(--g-4);
+  font-size: var(--fs-md);
+}
+
+/* ---- 变体 ---- */
+.btn--primary {
+  background: var(--color-action);
+  color: var(--c-neutral-1000);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-label-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-label-secondary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
+.btn--pill {
+  border-radius: var(--r-full);
+}
+
+/* ---- 统一五态 ---- */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 纯图标按钮：方形成，不带水平内边距 */
+.btn--icon {
+  padding: 0;
+  width: var(--h-sm);
+}
+
+/* ============================================================
+   按钮组件契约（4 变体 × 3 尺寸）
+   ------------------------------------------------------------
+   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
+   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
+   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
+
+   规则（新代码必须遵守）：
+   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
+   2. 不为新用途再造一个「.xxx-btn」类；
+   3. 变体只允许 4 个：primary / secondary / ghost / danger；
+   4. 尺寸只允许 3 个：sm / md / lg；
+   5. 颜色一律走语义令牌，不写裸色值。
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* ---- 尺寸 ---- */
+.btn--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+.btn--md {
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  font-size: var(--fs-md);
+}
+
+.btn--lg {
+  height: var(--h-lg);
+  padding: 0 var(--g-4);
+  font-size: var(--fs-md);
+}
+
+/* ---- 变体 ---- */
+.btn--primary {
+  background: var(--color-action);
+  color: var(--c-neutral-1000);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-label-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-label-secondary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
+.btn--pill {
+  border-radius: var(--r-full);
+}
+
+/* ---- 统一五态 ---- */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 纯图标按钮：方形成，不带水平内边距 */
+.btn--icon {
+  padding: 0;
+  width: var(--h-sm);
+}
+
+/* ============================================================
+   按钮组件契约（4 变体 × 3 尺寸）
+   ------------------------------------------------------------
+   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
+   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
+   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
+
+   规则（新代码必须遵守）：
+   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
+   2. 不为新用途再造一个「.xxx-btn」类；
+   3. 变体只允许 4 个：primary / secondary / ghost / danger；
+   4. 尺寸只允许 3 个：sm / md / lg；
+   5. 颜色一律走语义令牌，不写裸色值。
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* ---- 尺寸 ---- */
+.btn--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+.btn--md {
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  font-size: var(--fs-md);
+}
+
+.btn--lg {
+  height: var(--h-lg);
+  padding: 0 var(--g-4);
+  font-size: var(--fs-md);
+}
+
+/* ---- 变体 ---- */
+.btn--primary {
+  background: var(--color-action);
+  color: var(--c-neutral-1000);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-label-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-label-secondary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
+.btn--pill {
+  border-radius: var(--r-full);
+}
+
+/* ---- 统一五态 ---- */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 纯图标按钮：方形成，不带水平内边距 */
+.btn--icon {
+  padding: 0;
+  width: var(--h-sm);
+}
+
+/* ============================================================
+   按钮组件契约（4 变体 × 3 尺寸）
+   ------------------------------------------------------------
+   背景：界面里曾有 69 个独立按钮类，同样 22px 高的小按钮
+   圆角有的 --r-md 有的 --r-sm，hover 各写各的（其中一处是
+   var(--color-surface-hover) 裸值，亮色主题下会变成灰斑）。
+
+   规则（新代码必须遵守）：
+   1. 只用 .btn + .btn--<变体> + .btn--<尺寸> 的组合；
+   2. 不为新用途再造一个「.xxx-btn」类；
+   3. 变体只允许 4 个：primary / secondary / ghost / danger；
+   4. 尺寸只允许 3 个：sm / md / lg；
+   5. 颜色一律走语义令牌，不写裸色值。
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--g-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* ---- 尺寸 ---- */
+.btn--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+.btn--md {
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  font-size: var(--fs-md);
+}
+
+.btn--lg {
+  height: var(--h-lg);
+  padding: 0 var(--g-4);
+  font-size: var(--fs-md);
+}
+
+/* ---- 变体 ---- */
+.btn--primary {
+  background: var(--color-action);
+  color: var(--c-neutral-1000);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-action-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-label-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-label-secondary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-label-primary);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
+.btn--pill {
+  border-radius: var(--r-full);
+}
+
+/* ---- 统一五态 ---- */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 纯图标按钮：方形成，不带水平内边距 */
+.btn--icon {
+  padding: 0;
+  width: var(--h-sm);
 }
 
 .muted {
@@ -565,7 +1331,7 @@ button.link.danger {
 }
 
 .thread-dot {
-  background: #4a5266;
+  background: var(--color-label-tertiary);
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -585,7 +1351,7 @@ button.link.danger {
 .badge {
   font-size: var(--fs-xs);
   padding: 0 5px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   border: 1px solid;
   flex: none;
 }
@@ -597,7 +1363,7 @@ button.link.danger {
 
 .badge.needs {
   color: var(--warn);
-  border-color: #6b5216;
+  border-color: var(--color-warn);
 }
 
 .sidebar-foot {
@@ -622,7 +1388,7 @@ button.link.danger {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #4a5266;
+  background: var(--color-label-tertiary);
   flex: none;
 }
 
@@ -670,7 +1436,7 @@ button.link.danger {
 
 .hint-card {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 12px 14px;
   background: var(--bg-elevated);
   color: var(--text-muted);
@@ -783,7 +1549,7 @@ button.link.danger {
 .goal-card {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent-dim);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 10px 14px;
   max-width: var(--content-read);
 }
@@ -818,12 +1584,12 @@ button.link.danger {
 
 .tool-row.result .tool-badge {
   color: var(--ok);
-  border-color: #24513c;
+  border-color: var(--color-success);
 }
 
 .tool-row.result.failed .tool-badge {
   color: var(--danger);
-  border-color: #5a3030;
+  border-color: var(--color-danger);
 }
 
 .tool-output {
@@ -843,7 +1609,7 @@ button.link.danger {
 
 .route-card {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 14px 16px;
   max-width: 640px;
 }
@@ -898,10 +1664,10 @@ button.link.danger {
 }
 
 .notice {
-  border: 1px solid #6b5216;
+  border: 1px solid var(--color-warn);
   background: #241d0d;
   color: var(--warn);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 8px 10px;
   font-size: var(--fs-sm);
   max-width: 640px;
@@ -942,7 +1708,7 @@ button.link.danger {
 }
 
 .md-inline-code {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--c-overlay-06);
   border-radius: var(--r-md);
   padding: 2px var(--g-1);
   font-size: var(--fs-sm);
@@ -1025,7 +1791,7 @@ button.link.danger {
 
 .advanced {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 8px 10px;
 }
 
@@ -1047,7 +1813,7 @@ button.link.danger {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-scrim);
   display: grid;
   place-items: center;
   z-index: 20;
@@ -1056,7 +1822,7 @@ button.link.danger {
 .modal {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 20px;
   width: min(460px, 92vw);
   display: flex;
@@ -1082,18 +1848,11 @@ button.link.danger {
 }
 
 .field input {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 9px 11px;
-  color: var(--text);
-  font-family: inherit;
+  padding: var(--g-15) var(--g-25);
   font-size: var(--fs-md);
 }
 
 .field input:focus {
-  outline: none;
-  border-color: var(--accent-dim);
 }
 
 .modal-actions {
@@ -1109,10 +1868,10 @@ button.link.danger {
   left: 50%;
   transform: translateX(-50%);
   background: #2b2027;
-  border: 1px solid #5a3030;
+  border: 1px solid var(--color-danger);
   color: #ffd9d9;
   padding: 9px 14px;
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   display: flex;
   align-items: center;
   gap: var(--g-3);
@@ -1141,11 +1900,10 @@ button.link.danger {
   cursor: help;
 }
 
-
 /* ---------- Σ�ն������� ---------- */
 
 .approval-banner {
-  border-bottom: 1px solid #6b5216;
+  border-bottom: 1px solid var(--color-warn);
   background: #1f1a0e;
   padding: 10px 24px;
   max-height: 42vh;
@@ -1176,7 +1934,7 @@ button.link.danger {
 
 .approval-item {
   border: 1px solid #4a3a12;
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 9px 11px;
   background: var(--bg-panel);
   display: flex;
@@ -1240,23 +1998,11 @@ button.link.danger {
 .approval-actions input {
   flex: 1;
   min-width: 0;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 6px 9px;
-  color: var(--text);
+  padding: var(--g-1) var(--g-2);
   font-size: var(--fs-sm);
-  font-family: inherit;
 }
 
 .approval-actions input:focus {
-  outline: none;
-  border-color: var(--accent-dim);
-}
-
-button.ghost.danger {
-  border-color: #5a3030;
-  color: var(--danger);
 }
 
 /* ---------- ���ս�� ---------- */
@@ -1408,7 +2154,7 @@ button.ghost.danger {
 
 .memory-list li {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 8px 10px;
   background: var(--bg);
 }
@@ -1459,39 +2205,12 @@ button.small {
 .sidebar-filter input {
   flex: 1;
   min-width: 0;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 5px 8px;
-  color: var(--text);
+  padding: var(--g-1) var(--g-2);
   font-size: var(--fs-sm);
-  font-family: inherit;
 }
 
 .sidebar-filter input:focus {
-  outline: none;
-  border-color: var(--accent-dim);
 }
-
-.chip {
-  flex: none;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: var(--r-md);
-  padding: 5px 8px;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-
-.chip.active {
-  border-color: var(--accent-dim);
-  color: var(--accent);
-}
-
-
-
-
 
 .memory-tabs {
   display: flex;
@@ -1543,13 +2262,8 @@ button.small {
 }
 
 .im-settings select {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
   padding: 7px 9px;
-  color: var(--text);
   font-size: var(--fs-md);
-  font-family: inherit;
 }
 
 /* ---------- ������ʾ ---------- */
@@ -1636,7 +2350,7 @@ button.small {
   gap: var(--g-05);
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   background: var(--bg);
   color: var(--text);
   cursor: pointer;
@@ -1678,26 +2392,18 @@ button.small {
 
 .template-form input,
 .template-form textarea {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
   padding: 7px 9px;
-  color: var(--text);
   font-size: var(--fs-md);
-  font-family: inherit;
   resize: vertical;
 }
 
 .template-form input:focus,
 .template-form textarea:focus {
-  outline: none;
-  border-color: var(--accent-dim);
 }
 
 .template-form button {
   align-self: flex-end;
 }
-
 
 /* ---- 滚动条：细而低调 ---- */
 
@@ -1828,14 +2534,14 @@ button.small {
   font-size: 0.92em;
   background: #2d2d2d;
   padding: 1px 4px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   color: #ce9178;
 }
 
 .md-body pre {
   background: #1a1a1a;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   padding: 8px 10px;
   overflow-x: auto;
   font-size: var(--fs-sm);
@@ -1896,9 +2602,7 @@ button.small {
   font-weight: 600;
 }
 
-
 /* 消息更紧凑：VS Code 的行距偏紧 */
-
 
 /* 正文段落间距收紧 */
 .md-body p {
@@ -2040,7 +2744,7 @@ button.small {
 }
 
 .win-close:hover {
-  background: #c42b1c;
+  background: var(--color-danger);
   color: #fff;
 }
 
@@ -2054,8 +2758,8 @@ button.small {
   padding: 4px 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-popover);
   display: flex;
   flex-direction: column;
 }
@@ -2071,7 +2775,7 @@ button.small {
 }
 
 .ctx-menu button:hover {
-  background: #04395e;
+  background: var(--color-surface-selected);
   color: #fff;
 }
 
@@ -2086,19 +2790,19 @@ button.small {
 /* 状态点改成细小的方块，颜色收敛（VS Code 里状态是文字，不是彩点） */
 
 .thread-dot.ok {
-  background: #4ec9b0;
+  background: var(--color-success);
 }
 
 .thread-dot.busy {
-  background: #dcdcaa;
+  background: var(--color-warn);
 }
 
 .thread-dot.bad {
-  background: #f14c4c;
+  background: var(--color-danger);
 }
 
 .thread-dot.idle {
-  background: #6e6e6e;
+  background: var(--color-label-tertiary);
 }
 
 /* 文件夹图标：用 VS Code 那种简洁的箭头，不用菱形 */
@@ -2218,16 +2922,9 @@ button.small {
   padding: 2px 6px;
   opacity: 1;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   font-size: var(--fs-xs);
   background: var(--bg-input);
-}
-
-.icon-btn {
-  padding: 0;
-  display: grid;
-  place-items: center;
-  font-size: var(--fs-sm);
 }
 
 /* ---------- 列表项：右对齐状态（DSH） ---------- */
@@ -2243,7 +2940,6 @@ button.small {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 
 .thread-status.busy {
   color: var(--warn);
@@ -2289,14 +2985,11 @@ button.small {
   border-bottom: none;
 }
 
-
-
-
 .header-badge {
   font-size: var(--fs-xs);
   color: var(--text-muted);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   padding: 0 6px;
   line-height: 17px;
   white-space: nowrap;
@@ -2324,33 +3017,9 @@ button.small {
   border-bottom: 1px solid var(--border);
 }
 
-.view-tab {
-  height: var(--h-md);
-  border-bottom: 2px solid transparent;
-  padding: 0 12px;
-  border: none;
-  border-radius: var(--r-md);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--fs-md);
-  line-height: 20px;
-}
-
-.view-tab:hover:not(:disabled) {
-  color: var(--text);
-}
-
 .view-tab.active {
-  border-bottom-color: var(--accent);
   color: var(--text-strong);
-  font-weight: 600;
-  border-bottom: none;
   background: transparent;
-}
-
-.view-tab:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .view-tab-more {
@@ -2401,49 +3070,6 @@ button.small {
   gap: var(--g-15);
 }
 
-.composer-chip {
-  /* 统一到 --h-sm / --fs-sm：之前是 19px 高、font 11px、padding 1px 8px，
-     和旁边的"+"按钮（21px / 15px / 2px 8px）对不齐。
-     规范见 docs/control-spec.md。 */
-  height: var(--h-sm);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  padding: 0 var(--g-2);
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-}
-
-.composer-chip:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.send-btn {
-  width: 26px;
-  height: var(--h-md);
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-size: var(--fs-md);
-  line-height: 1;
-}
-
-.send-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.send-btn:disabled {
-  background: var(--bg-active);
-  color: var(--text-dim);
-}
-
 /* ---------- 底部状态栏（DSH） ---------- */
 
 .status-bar {
@@ -2470,7 +3096,6 @@ button.small {
 
 /* ---------- 侧栏底栏（VS Code 状态栏质感） ---------- */
 
-
 /* ---------- 修正：主区垂直布局必须是"头固定 + 消息撑满 + 输入固定" ---------- */
 
 /* 这几条放最后，确保不被前面的规则覆盖 */
@@ -2489,7 +3114,6 @@ button.small {
   overflow-y: auto;
 }
 
-
 /* ============================================================
    按 DeepSeek Harness 源码校准的布局
    ------------------------------------------------------------
@@ -2504,12 +3128,6 @@ button.small {
 
 /* 标签页：DSH 高 34px、padding 0 12px、圆角 md、
    选中态**只变字重和颜色**，没有下划线 */
-
-
-
-.view-tab:hover:not(:disabled):not(.active) {
-  color: var(--text);
-}
 
 /* 主区头部：DSH 的 padding 是 22px 14px 12px 24px */
 .conversation-header {
@@ -2533,9 +3151,7 @@ button.small {
   word-break: break-word;
 }
 
-
 /* 用户消息：灰底气泡，右对齐（DSH 的样子） */
-
 
 /* 消息之间的间距：DSH 更松 */
 .messages {
@@ -2572,7 +3188,6 @@ button.small {
   padding: 6px 10px 4px;
 }
 
-
 /* 状态栏：DSH 的 footer 用右对齐 + 8px 间距 */
 /* .status-bar 的其余定义已合并到第一处 */
 
@@ -2594,18 +3209,13 @@ button.small {
 /* 窗口按钮：之前贴到最右边，鼠标移到右上角反而点不到。
    给右侧留出安全余量，并保证按钮本身足够大。 */
 
-
 .win-btn svg {
   pointer-events: none;
 }
 
 /* 图标按钮：SVG 需要居中对齐 */
-.icon-btn svg {
+.btn--icon svg {
   display: block;
-}
-
-.icon-btn {
-  cursor: pointer;
 }
 
 /* ---------- 设置里的关闭行为选项 ---------- */
@@ -2669,8 +3279,6 @@ body.is-resizing {
 /* 上一版加了 12px 右边距，方向反了——用户要的是紧贴角落。
    现在：标题栏右侧不留内边距，按钮铺到最边缘。 */
 
-
-
 /* 最右边那个（关闭）也要能贴住窗口右边缘 */
 .win-close {
   border-top-right-radius: 0;
@@ -2682,24 +3290,6 @@ body.is-resizing {
 /* 违和感的真正来源：按钮有浅色背景块 + 图标是纯白描边，
    在整片黑界面里像两块贴纸。DSH 里它们是极淡的灰，
    只有 hover 才显形。 */
-.icon-btn {
-  background: transparent;
-  color: var(--text-dim);
-  width: 22px;
-  height: var(--h-sm);
-  border-radius: var(--r-md);
-}
-
-.icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-}
-
-.icon-btn.active {
-  background: rgba(0, 120, 212, 0.18);
-  color: var(--accent);
-}
-
 /* 搜索框同理：不要白底，hover 才展开 */
 
 .workspace-head:hover .workspace-search,
@@ -2714,7 +3304,6 @@ body.is-resizing {
 /* "歪"的原因：给用户消息留了一条 2px 的 border-left 竖线（早期 VS Code 式设计），
    它把气泡整体往右推了 2px，看起来就是歪的，而且和右侧气泡并存很怪。 */
 /* 用户消息右对齐、气泡按内容宽度收窄 */
-
 
 /* Assistant 的消息靠左、铺满可用宽度（不是气泡） */
 .message.assistant {
@@ -2776,11 +3365,7 @@ body.is-resizing {
 .search-input {
   flex: 1;
   min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
   padding: 0;
-  color: var(--text);
   font-size: var(--fs-sm);
   line-height: 18px;
 }
@@ -2803,7 +3388,7 @@ body.is-resizing {
 }
 
 .search-clear:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-surface-hover);
   color: var(--text);
 }
 
@@ -2962,7 +3547,7 @@ body.is-resizing {
   padding: 8px 10px;
   background: #1a1a1a;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   color: var(--text);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -2994,8 +3579,6 @@ body.is-resizing {
 }
 
 /* ---------- 修正：轨迹统计条的间距与排版 ---------- */
-
-
 
 /* 标签和数值之间要能看出层次，而不是粘成一串 */
 .trace-stat-key::after {
@@ -3061,46 +3644,9 @@ body.is-resizing {
   padding: 0;
 }
 
-.folder-toggle {
-  flex: none;
-  width: 18px;
-  height: var(--h-md);
-  padding: 0;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: none;
-  border-radius: var(--r-sm);
-  color: var(--text-dim);
-}
-
-.folder-toggle:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--text);
-}
-
-
 /* 收起时箭头转向右 */
 .folder-icon.collapsed {
   transform: rotate(-90deg);
-}
-
-.folder-name-btn {
-  height: var(--h-md);
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  background: transparent;
-  border: none;
-  padding: 2px var(--g-1) 2px 0;
-  border-radius: var(--r-sm);
-  color: inherit;
-  font-size: var(--fs-sm);
-  line-height: 20px;
-}
-
-.folder-name-btn:hover {
-  color: var(--text-strong);
 }
 
 /* 右键菜单里的危险项 */
@@ -3109,7 +3655,7 @@ body.is-resizing {
 }
 
 .ctx-menu button.danger:hover:not(:disabled) {
-  background: rgba(241, 76, 76, 0.15);
+  background: var(--color-danger-dim);
   color: var(--danger);
 }
 
@@ -3163,20 +3709,6 @@ body.is-resizing {
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-sidebar);
-}
-
-.back-btn {
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  border: 1px solid var(--border-strong);
-}
-
-.back-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-strong);
 }
 
 .settings-title {
@@ -3265,7 +3797,7 @@ body.is-resizing {
   padding: 8px 12px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   font-size: var(--fs-sm);
   margin: 10px 0;
 }
@@ -3308,7 +3840,7 @@ body.is-resizing {
   gap: var(--g-25);
   padding: var(--g-3) var(--g-4);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   cursor: pointer;
   background: var(--bg-elevated);
 }
@@ -3319,7 +3851,7 @@ body.is-resizing {
 
 .perm-row.active {
   border-color: var(--accent);
-  background: rgba(0, 120, 212, 0.08);
+  background: var(--color-surface-hover);
 }
 
 .perm-row input {
@@ -3372,7 +3904,7 @@ body.is-resizing {
   text-align: left;
   background: transparent;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   color: var(--text-muted);
 }
 
@@ -3465,7 +3997,7 @@ body.is-resizing {
   padding: 8px 12px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
 }
 
 .role-name {
@@ -3550,7 +4082,7 @@ body.is-resizing {
   padding: 2px 8px 2px 6px;
   background: transparent;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   text-align: left;
   font-size: var(--fs-sm);
   color: var(--text-muted);
@@ -3644,7 +4176,7 @@ body.is-resizing {
 .composer.dragging {
   outline: 1px dashed var(--accent);
   outline-offset: 4px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-md);
 }
 
 .drop-hint {
@@ -3653,8 +4185,8 @@ body.is-resizing {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 12, 15, 0.85);
-  border-radius: var(--radius-lg);
+  background: var(--color-scrim-strong);
+  border-radius: var(--r-md);
   color: var(--accent);
   font-size: var(--fs-md);
   letter-spacing: 0.04em;
@@ -3670,16 +4202,8 @@ body.is-resizing {
 }
 
 .attachment-chip {
-  display: inline-flex;
   align-items: center;
   gap: var(--g-15);
-  max-width: 240px;
-  padding: 4px 6px 4px 4px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
 }
 
 .attachment-chip.has-warning {
@@ -3734,18 +4258,6 @@ body.is-resizing {
   background: var(--bg-hover);
 }
 
-.attach-btn {
-  /* "+" 是个图标按钮，字号可以大一点（视觉重量够），
-     但**高度和内边距必须和旁边的 chip 一致**，否则底部对不齐。 */
-  font-size: var(--fs-lg);
-  line-height: 1;
-  padding: 0 var(--g-2);
-  height: var(--h-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* composer 需要相对定位，拖入提示才能铺满 */
 .composer {
   position: relative;
@@ -3780,7 +4292,7 @@ body.is-resizing {
 .palette-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(4, 6, 8, 0.55);
+  background: var(--color-scrim);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -3793,8 +4305,8 @@ body.is-resizing {
   max-width: 90vw;
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 48px var(--color-scrim);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -3926,7 +4438,7 @@ body.is-resizing {
   overflow-y: auto;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-md);
   box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.4);
   z-index: 50;
 }
@@ -4010,7 +4522,7 @@ body.is-resizing {
   padding: var(--g-5);
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-md);
   position: absolute;
   inset: 0;
   z-index: 40;
@@ -4019,7 +4531,7 @@ body.is-resizing {
   margin: auto;
   max-height: 70%;
   overflow-y: auto;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 48px var(--color-scrim);
 }
 
 .onboarding-head {
@@ -4188,8 +4700,8 @@ body.is-resizing {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-left-width: 3px;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-modal);
   z-index: 150;
 }
 
@@ -4354,7 +4866,6 @@ body.is-resizing {
   top: calc(50% - 2px);
 }
 
-
 /* 撤销按钮：放在状态标签后面，不抢视觉 */
 .eff-undo {
   margin-left: 8px;
@@ -4384,36 +4895,9 @@ body.is-resizing {
   flex-wrap: wrap;
 }
 
-.trace-filter-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  cursor: pointer;
-}
-
-.trace-filter-btn:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.trace-filter-btn.active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .trace-filter-count {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-}
-
-.trace-filter-btn.active .trace-filter-count {
-  color: var(--accent);
 }
 
 /* 审批项：先说是谁要执行，再说什么动作 */
@@ -4537,27 +5021,6 @@ body.is-resizing {
   display: flex;
   gap: var(--g-2);
   margin-bottom: var(--g-2);
-}
-
-.font-scale-btn {
-  height: var(--h-sm);
-  padding: 0 var(--g-3);
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-
-.font-scale-btn:hover {
-  color: var(--text);
-  border-color: var(--border-focus);
-}
-
-.font-scale-btn.active {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 /* 上下文预警横幅：可关闭 */
@@ -4760,25 +5223,6 @@ body.is-resizing {
    DSH 的做法：固定位置放一个按钮，展开时高亮、收起时灰。
    位置不变，永远找得到。 */
 
-.rail-toggle {
-  flex: none;
-  width: var(--h-sm);
-  height: var(--h-sm);
-  padding: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  color: var(--color-label-tertiary);
-  font-size: var(--fs-md);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.rail-toggle:hover {
-  color: var(--color-label-primary);
-  background: var(--color-surface-hover);
-}
-
 /* 展开时高亮：告诉用户"右栏现在是开着的" */
 .rail-toggle.active {
   color: var(--color-label-primary);
@@ -4886,8 +5330,6 @@ body.is-resizing {
   font-size: var(--fs-sm);
 }
 
-
-
 /* ============================================================
    消息列宽：**对齐 DSH 实测**
    ------------------------------------------------------------
@@ -4960,7 +5402,6 @@ body.is-resizing {
   margin-bottom: 0;
 }
 
-
 /* ============================================================
    亮色主题（照 DSH 实测色板）
    ------------------------------------------------------------
@@ -5026,26 +5467,6 @@ body.is-resizing {
   gap: var(--g-2);
 }
 
-.theme-btn {
-  height: var(--h-sm);
-  padding: 0 var(--g-3);
-  background: transparent;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--r-sm);
-  color: var(--color-label-secondary);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-
-.theme-btn:hover {
-  color: var(--color-label-primary);
-}
-
-.theme-btn.active {
-  border-color: var(--color-action);
-  color: var(--color-action);
-}
-
 /* ---------- 新会话的项目选择器（照 DSH） ----------
    用户指出「新会话」和「添加项目」作用完全一样。
    DSH 的做法：新建/打开项目不再是顶部导航项，
@@ -5058,25 +5479,6 @@ body.is-resizing {
 
 .project-picker {
   position: relative;
-}
-
-.project-picker-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--g-15);
-  height: var(--h-sm);
-  padding: 0 var(--g-2);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  color: var(--color-label-secondary);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-
-.project-picker-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
 }
 
 .project-picker-name {
@@ -5173,7 +5575,6 @@ body.is-resizing {
   text-align: center;
 }
 
-
 .welcome-brand svg {
   color: var(--color-action);
   position: relative;
@@ -5248,13 +5649,11 @@ body.is-resizing {
   gap: var(--g-2);
 }
 
-
 /* 新会话的空页面：输入框上方的提示（没选项目时） */
 .composer-hint-inline {
   font-size: var(--fs-sm);
   color: var(--color-action);
 }
-
 
 /* ---------- 消息操作按钮（照 DSH） ----------
    DSH 是一排小的圆形图标按钮，紧贴内容下方左侧，常显。
@@ -5278,42 +5677,6 @@ body.is-resizing {
   align-items: center;
   gap: var(--g-05);
 }
-
-.msg-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--r-sm);
-  color: var(--color-label-tertiary);
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-
-.msg-action-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-label-primary);
-}
-
-/* 复制成功：短暂变绿 */
-.msg-action-btn.done {
-  color: var(--color-success);
-}
-
-/* 已投票：高亮 */
-.msg-action-btn.voted {
-  color: var(--color-action);
-}
-
-.msg-action-btn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
-}
-
 
 /* ---------- 回到底部（照 DSH / TRAE / WorkBuddy） ----------
    三家都是一个**圆形按钮 + 向下箭头**，悬浮在内容区底部居中。
@@ -5366,7 +5729,6 @@ body.is-resizing {
 .jump-bottom.has-unread {
   padding: 0 var(--g-25);
 }
-
 
 /* ---------- 成功提示（轻量，和错误卡片区分） ----------
    错误卡片是红色、不自动消失（错误是事实）。
@@ -5427,7 +5789,6 @@ body.is-resizing {
   color: var(--color-label-primary);
 }
 
-
 /* ---------- 输入框里的权限选择器（照 DSH） ----------
    DSH 输入框左下角有一个「⊙ 完全权限 ⌄」，点开是四档。
    之前只能进设置页改，再切回来，很别扭。 */
@@ -5435,17 +5796,6 @@ body.is-resizing {
   position: relative;
   display: inline-flex;
   align-items: center;
-}
-
-.perm-picker-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--g-05);
-  color: var(--color-label-secondary);
-}
-
-.perm-picker-btn:hover {
-  color: var(--color-label-primary);
 }
 
 .perm-picker-label {
@@ -5466,7 +5816,7 @@ body.is-resizing {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--r-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-menu);
 }
 
 .perm-picker-item {
@@ -5608,33 +5958,11 @@ body.is-resizing {
 }
 
 .ui-select-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--g-2);
   width: 100%;
-  height: 32px;
-  padding: 0 var(--g-2);
-  background: var(--color-surface-panel);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--r-sm);
-  color: var(--color-label-primary);
-  font-size: var(--fs-sm);
-  text-align: left;
-  cursor: pointer;
-}
-
-.ui-select-btn:hover:not(:disabled) {
-  border-color: var(--color-border-divider);
 }
 
 .ui-select-btn.open {
   border-color: var(--color-action);
-}
-
-.ui-select-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .ui-select-value {
@@ -5663,7 +5991,7 @@ body.is-resizing {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--r-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-menu);
 }
 
 .ui-select-item {
@@ -5718,7 +6046,6 @@ body.is-resizing {
   color: var(--color-label-tertiary);
 }
 
-
 /* ---------- 右栏外壳 ----------
    **之前这里没有样式，导致分隔线只在顶部画了 82px 高的一小段。**
 
@@ -5740,7 +6067,6 @@ body.is-resizing {
   height: 100%;
 }
 
-
 /* **三角形图标额外上抬 2px**。
    IconBrand 是舵轮，上下对称，像素中线对齐就够了。
    IconSupervisor 是三个节点构成的三角形（上窄下宽），
@@ -5753,7 +6079,6 @@ body.is-resizing {
      所以补 5px 回来。 */
   top: calc(0.528em + 3px);
 }
-
 
 /* **导航项里的三角形图标单独下移 3px**。
    同一个 IconSupervisor 在欢迎页（25.9px 字）和导航项（16px 字）里

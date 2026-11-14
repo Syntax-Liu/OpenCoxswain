@@ -20,7 +20,7 @@ export function AttachmentStrip(props: AttachmentStripProps): JSX.Element | null
       {props.attachments.map((att) => (
         <div
           key={att.id}
-          className={`attachment-chip${att.warning ? ' has-warning' : ''}`}
+          className={`btn btn--secondary btn--sm attachment-chip${att.warning ? ' has-warning' : ''}`}
           title={att.warning ?? describeAttachment(att)}
         >
           {att.kind === 'image' && att.dataUrl ? (

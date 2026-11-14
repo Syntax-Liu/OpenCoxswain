@@ -65,9 +65,12 @@ describe('**问题2：消息操作按钮不能占位**', () => {
   //   2. 绝对定位 + 悬停浮现 —— 不占位了，但形态还是文字，不像 DSH
 
   it('按钮是 26×26 的方形图标按钮', () => {
-    const body = rule('.msg-action-btn');
-    assert.match(body, /width:\s*26px/);
-    assert.match(body, /height:\s*26px/);
+    // 迁移到 .btn 契约后，尺寸由 md 档（26px）+ icon-md（方形宽度）共同决定。
+    // 断言仍锁住「26×26 方形」这个意图，只是改成读契约本身。
+    assert.match(rule('.btn--md'), /height:\s*var\(--h-md\)/);
+    assert.match(rule('.btn--icon-md'), /width:\s*var\(--h-md\)/);
+    // --h-md 必须真的是 26px
+    assert.match(cleanCss, /--h-md:\s*26px/);
   });
 
   it('**常显，不靠 opacity:0 隐藏**', () => {

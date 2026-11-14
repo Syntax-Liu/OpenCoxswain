@@ -1259,7 +1259,7 @@ function SetupScreen({
 
       {error && <p className="form-error">{error}</p>}
 
-      <button type="button" className="primary wide" onClick={() => void submit()} disabled={busy}>
+      <button type="button" className="btn btn--primary btn--md wide" onClick={() => void submit()} disabled={busy}>
         {busy ? '保存中…' : '开始使用'}
       </button>
     </div>

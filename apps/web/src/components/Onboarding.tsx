@@ -28,7 +28,7 @@ export function Onboarding(props: OnboardingProps): JSX.Element {
         <h3>试着让它干活</h3>
         <button
           type="button"
-          className="link onboarding-dismiss"
+          className="btn btn--link onboarding-dismiss"
           onClick={() => {
             markOnboardingSeen();
             props.onDismiss();

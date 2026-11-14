@@ -68,6 +68,11 @@ import { needsUserDecision } from './orchestrator/decisionRules.js';
 import { FileSnapshotStore, type SnapshotStore } from './security/snapshot.js';
 import { isUndoable, undoFileWrite } from './security/undo.js';
 import { buildCheckpoints, rollbackCheckpoint, type Checkpoint } from './security/checkpoint.js';
+import {
+  isSearchConfigured,
+  type SearchSettings,
+  type SearchStoreLike,
+} from './settings/search.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -111,6 +116,8 @@ export interface OrchestratorOptions {
   readonly closeSettings?: CloseSettingsStoreLike;
   /** 权限档位；不提供时默认「手动审批」。 */
   readonly permissions?: PermissionStoreLike;
+  /** 联网搜索配置的存取。不传时搜索工具永远"不可用"。 */
+  readonly searchStore?: SearchStoreLike;
   /** 多模型配置；不提供时用内存实现。 */
   readonly models?: ModelStoreLike;
   /** 用户级技能目录；不提供时用 ~/.opencoxswain/skills。 */
@@ -217,6 +224,20 @@ export class Orchestrator extends EventEmitter {
   private readonly scheduleStore: ScheduleStorage;
   private readonly closeStore: CloseSettingsStoreLike;
   private readonly permissionStore: PermissionStoreLike;
+  /**
+   * 联网搜索配置。
+   *
+   * 没配时 `web_search` 会明确告诉模型"不可用"——
+   * 不能让它编造搜索结果。
+   */
+  private readonly searchStore: SearchStoreLike | null;
+  /**
+   * 缓存的搜索配置。
+   *
+   * `runnerDeps` 是同步方法，不能在里面 await 读盘；
+   * 所以在启动时和保存配置后调 `refreshSearchCache()` 更新。
+   */
+  private searchCache: { endpoint: string; apiKey: string } | null = null;
   private readonly modelStore: ModelStoreLike;
   /** 用户级技能目录（~/.opencoxswain/skills）。 */
   private readonly userSkillsDir: string;
@@ -249,6 +270,7 @@ export class Orchestrator extends EventEmitter {
     this.scheduleStore = options.schedules ?? new MemoryScheduleStore();
     this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
+    this.searchStore = options.searchStore ?? null;
     this.modelStore = options.models ?? new MemoryModelStore();
     this.userSkillsDir = options.userSkillsDir ?? path.join(os.homedir(), '.opencoxswain', 'skills');
     // 快照目录：和 skills 同级，用户能直接看到
@@ -329,6 +351,9 @@ export class Orchestrator extends EventEmitter {
       ...(this.mcp && this.mcp.listTools().length > 0
         ? { mcpTools: this.mcp.listTools(), mcp: this.mcp }
         : {}),
+      // 联网搜索：用缓存的配置（runnerDeps 是同步的，这里不能 await）。
+      // 缓存在 refreshSearchCache() 里更新。
+      ...(this.searchCache ? { search: this.searchCache } : {}),
       approve: (tool, args) =>
         this.approveFor(input.projectId, input.executorId, tool, args),
       drainInputs: (executorId) => {
@@ -1625,6 +1650,50 @@ export class Orchestrator extends EventEmitter {
    * 检查点 = 时间窗内的一批文件改动，用于"整轮回滚"。
    * 不新开存储——台账里已经有 executorId 和 createdAt。
    */
+
+  /** 联网搜索配置。apiKey 不在列表接口里回显。 */
+  async searchSettings(): Promise<{ endpoint: string; configured: boolean }> {
+    const s = await this.searchStore?.load().catch(() => null);
+    return {
+      endpoint: s?.endpoint ?? '',
+      configured: s ? isSearchConfigured(s) : false,
+    };
+  }
+
+  /** 保存联网搜索配置。 */
+  async setSearchSettings(next: SearchSettings): Promise<{ ok: boolean; message: string }> {
+    if (!this.searchStore) {
+      return { ok: false, message: '这个版本没有接入联网搜索配置' };
+    }
+    await this.searchStore.save({
+      endpoint: next.endpoint.trim(),
+      apiKey: next.apiKey.trim(),
+    });
+    // 立刻刷新缓存，不用重启就生效
+    await this.refreshSearchCache();
+    return {
+      ok: true,
+      message: isSearchConfigured(next) ? '已保存，联网搜索可用。' : '已保存。endpoint 和密钥都填了才能用。',
+    };
+  }
+
+  /** 给执行器用的搜索配置（没配置时返回 null）。 */
+  async searchConfig(): Promise<{ endpoint: string; apiKey: string } | null> {
+    const s = await this.searchStore?.load().catch(() => null);
+    if (!s || !isSearchConfigured(s)) return null;
+    return { endpoint: s.endpoint, apiKey: s.apiKey };
+  }
+
+
+  /**
+   * 刷新搜索配置缓存。
+   *
+   * 启动时调一次；每次保存配置后再调一次。
+   * 这样同步的 runnerDeps 也能拿到最新配置。
+   */
+  async refreshSearchCache(): Promise<void> {
+    this.searchCache = await this.searchConfig();
+  }
   checkpointsForExecutor(executorId: string, projectId?: string): Checkpoint[] {
     const rows = this.store.listSideEffects({
       ...(projectId ? { projectId } : {}),

@@ -47,7 +47,7 @@ export function FontScaleSetting(): JSX.Element {
           <button
             key={option.id}
             type="button"
-            className={`font-scale-btn${scale === option.id ? ' active' : ''}`}
+            className={`btn btn--secondary btn--sm${scale === option.id ? ' active' : ''}`}
             aria-pressed={scale === option.id}
             onClick={() => pick(option.id)}
           >

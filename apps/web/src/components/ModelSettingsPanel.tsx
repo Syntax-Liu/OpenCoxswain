@@ -148,7 +148,7 @@ export function ModelSettingsPanel(props: {
               <span className="model-item-id">{m.model}</span>
             </button>
           ))}
-          <button type="button" className="ghost small model-add" onClick={addModel}>
+          <button type="button" className="btn btn--ghost btn--sm model-add" onClick={addModel}>
             ＋ 新增模型
           </button>
         </div>
@@ -163,7 +163,7 @@ export function ModelSettingsPanel(props: {
                 <h3>{selected.name || '未命名'}</h3>
                 <button
                   type="button"
-                  className="link danger-link"
+                  className="btn btn--link danger-link"
                   onClick={() => removeModel(selected.id)}
                 >
                   删除
@@ -334,7 +334,7 @@ export function ModelSettingsPanel(props: {
 
       <div className="settings-actions">
         {saved && <span className="saved-hint">已保存</span>}
-        <button type="button" className="primary" onClick={() => void save()} disabled={busy}>
+        <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={busy}>
           {busy ? '保存中…' : '保存模型设置'}
         </button>
       </div>

@@ -326,6 +326,9 @@ describe('**右栏关掉后还能重新打开**', () => {
   });
 
   it('展开时按钮高亮', () => {
+    // 迁移到 .btn 契约后类名字符串变成
+    // `btn btn--ghost btn--sm btn--icon rail-toggle${railOpen ? ' active' : ''}`
+    // 断言的是「rail-toggle 后面跟着 active 条件」这个意图。
     assert.match(conv, /rail-toggle\$\{[^}]*active/);
   });
 

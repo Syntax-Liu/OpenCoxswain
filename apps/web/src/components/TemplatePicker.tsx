@@ -75,7 +75,7 @@ export function TemplatePicker(props: TemplatePickerProps): JSX.Element {
 
   if (!open) {
     return (
-      <button type="button" className="ghost small" onClick={() => void load()}>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={() => void load()}>
         用模板
       </button>
     );
@@ -86,7 +86,7 @@ export function TemplatePicker(props: TemplatePickerProps): JSX.Element {
       <div className="template-head">
         <strong>选一个模板</strong>
         <span className="muted small">填好之后还要你自己点发送</span>
-        <button type="button" className="link" onClick={() => setOpen(false)}>
+        <button type="button" className="btn btn--link" onClick={() => setOpen(false)}>
           收起
         </button>
       </div>
@@ -123,7 +123,7 @@ export function TemplatePicker(props: TemplatePickerProps): JSX.Element {
             rows={4}
             onChange={(e) => setGoal(e.target.value)}
           />
-          <button type="button" className="primary small" onClick={() => void use()}>
+          <button type="button" className="btn btn--primary btn--sm" onClick={() => void use()}>
             填入输入框
           </button>
         </div>

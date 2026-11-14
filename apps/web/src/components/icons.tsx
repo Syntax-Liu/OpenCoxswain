@@ -275,3 +275,13 @@ export function IconMore({ size = 16, className }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/** 联网：地球。 */
+export function IconGlobe({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12" />
+    </svg>
+  );
+}

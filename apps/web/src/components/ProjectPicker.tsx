@@ -39,7 +39,7 @@ export function ProjectPicker(props: ProjectPickerProps): JSX.Element {
     <div className="project-picker">
       <button
         type="button"
-        className="project-picker-btn"
+        className="btn btn--ghost btn--sm project-picker-btn"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="listbox"

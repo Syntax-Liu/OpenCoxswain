@@ -107,7 +107,7 @@ export function Select(props: SelectProps): JSX.Element {
     <div className="ui-select" ref={rootRef}>
       <button
         type="button"
-        className={`ui-select-btn${open ? ' open' : ''}`}
+        className={`btn btn--secondary btn--md ui-select-btn${open ? ' open' : ''}`}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onKeyDown}
         disabled={props.disabled}

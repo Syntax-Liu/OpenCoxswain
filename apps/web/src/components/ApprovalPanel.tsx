@@ -95,7 +95,7 @@ function ApprovalItem({
 
       <p className="approval-why">{approval.why}</p>
 
-      <button type="button" className="link" onClick={() => setExpanded((v) => !v)}>
+      <button type="button" className="btn btn--link" onClick={() => setExpanded((v) => !v)}>
         {expanded ? '收起详情' : '查看完整参数'}
       </button>
       {expanded && (
@@ -110,10 +110,10 @@ function ApprovalItem({
           placeholder="理由（可选，会告诉Agent）"
           onChange={(e) => setReason(e.target.value)}
         />
-        <button type="button" className="ghost danger" onClick={() => onReject(reason)}>
+        <button type="button" className="btn btn--danger btn--md" onClick={() => onReject(reason)}>
           拒绝
         </button>
-        <button type="button" className="primary" onClick={() => onApprove(reason)}>
+        <button type="button" className="btn btn--primary btn--md" onClick={() => onApprove(reason)}>
           批准执行
         </button>
       </div>

@@ -513,6 +513,23 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
+    // ---- 联网搜索配置 ----
+    //
+    // apiKey **不回显**——只告诉界面"配没配"。
+    if (url.pathname === '/api/search-settings') {
+      if (method === 'GET') {
+        const s = await orchestrator.searchSettings();
+        return reply(200, s);
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+        const apiKey = typeof body.apiKey === 'string' ? body.apiKey : '';
+        const result = await orchestrator.setSearchSettings({ endpoint, apiKey });
+        return result.ok ? reply(200, result) : deny(400, result.message);
+      }
+    }
+
     // ---- 检查点：整轮回滚 ----------------------------------------------
     //
     // 单次撤销是一个副作用回滚一个文件；检查点是「这一轮 Agent 改的

@@ -54,7 +54,7 @@ export function UpdateBanner({
           GitHub Releases
         </a>
       </span>
-      <button type="button" className="link" onClick={() => setDismissed(true)}>
+      <button type="button" className="btn btn--link" onClick={() => setDismissed(true)}>
         知道了
       </button>
     </div>

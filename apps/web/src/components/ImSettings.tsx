@@ -118,11 +118,11 @@ export function ImSettings(props: ImSettingsProps): JSX.Element {
 
       <div className="modal-actions">
         {status?.hasToken && (
-          <button type="button" className="ghost" onClick={() => void clear()} disabled={busy}>
+          <button type="button" className="btn btn--ghost btn--md" onClick={() => void clear()} disabled={busy}>
             清除
           </button>
         )}
-        <button type="button" className="primary" onClick={() => void save()} disabled={busy}>
+        <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={busy}>
           {busy ? '保存中…' : '保存通道设置'}
         </button>
       </div>

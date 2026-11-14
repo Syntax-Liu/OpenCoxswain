@@ -47,7 +47,7 @@ export function ThemeSetting(): JSX.Element {
             type="button"
             role="radio"
             aria-checked={theme === o.id}
-            className={`theme-btn${theme === o.id ? ' active' : ''}`}
+            className={`btn btn--secondary btn--sm${theme === o.id ? ' active' : ''}`}
             onClick={() => choose(o.id)}
           >
             {o.label}
