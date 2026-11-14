@@ -5105,3 +5105,66 @@ body.is-resizing {
 }
 
 
+
+/* ============================================================
+   消息列宽：**对齐 DSH 实测**
+   ------------------------------------------------------------
+   视口 1707px 时：
+     DSH   内容列 643px（37.7%）
+     我们  消息区 1142px（66.9%）
+
+   宽了 78%——这是"看起来不像 DSH"最根本的原因：
+   每行文字太长，眼睛从行尾回到行首要横跨半屏。
+
+   DSH 的做法：clamp(680px, 64%, 920px)，但它的 64% 是相对
+   **对话列**（中间那列）算的，不是相对视口。
+
+   这里用等效的绝对上限：**760px**。
+   （DSH 在 1707 视口下是 643，在 1440 视口下约 640——
+     都在 640-700 区间。我们取 760 是因为字号 16px 比 DSH 略大，
+     需要相应宽一点才不至于频繁折行。）
+
+   同时**居中**：长行居中阅读更舒服，也让两侧留白对称。
+   ============================================================ */
+.messages > * {
+  max-width: var(--content-read);
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 输入框和状态栏跟着同一个宽度，保证视觉上一条竖线 */
+.composer-box,
+.status-bar {
+  max-width: var(--content-read);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 段落间距：DSH 实测 16px（上下各 16px，相邻段落之间实际 16px） */
+.md-body p {
+  margin: 0 0 var(--g-4);
+}
+
+.md-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* 列表项之间：DSH 用 16px 的块间距 */
+.md-body li + li {
+  margin-top: var(--g-1);
+}
+
+/* 段落间距：DSH 实测 16px。
+   **不能只写 .md-body p**——纯文本消息的内容直接放在 .bubble 里，
+   没有 .md-body 包裹（实测：父链是 div.bubble < div.message）。
+   漏了这条，16px 的规则对这些段落完全不生效。 */
+.md-body p,
+.bubble p {
+  margin: 0 0 var(--g-4);
+}
+
+.md-body p:last-child,
+.bubble p:last-child {
+  margin-bottom: 0;
+}
