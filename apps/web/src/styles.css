@@ -201,10 +201,20 @@
      基准是"标准"档：11 / 12 / 13 / 15。
      缩放用 calc，所以档位之间的比例关系保持不变。 */
   --font-scale: 1.08; /* 默认略微放大——实测 11/12/13 在 2K 屏上偏小 */
-  --fs-xs: calc(11px * var(--font-scale));
-  --fs-sm: calc(12px * var(--font-scale));
-  --fs-md: calc(13px * var(--font-scale));
-  --fs-lg: calc(15px * var(--font-scale));
+
+  /* **基准按 DSH 实测调整**。
+     DSH 正文：16px / 行高 26px。
+
+     我们原来是 11/12/13/15，正文（--fs-md）实际渲染 13×1.08 = 14.04px，
+     比 DSH 小 14%——这是"看起来不像 DSH"最主要的原因。
+
+     新基准：12/13/15/17，正文 15×1.08 = 16.2px，贴近 DSH 的 16px。
+
+     档位关系保持不变（xs < sm < md < lg），缩放机制也不变。 */
+  --fs-xs: calc(12px * var(--font-scale));
+  --fs-sm: calc(13px * var(--font-scale));
+  --fs-md: calc(15px * var(--font-scale));
+  --fs-lg: calc(17px * var(--font-scale));
 
 
   /* ---- 控件高度：**只有 3 档** ---- */
@@ -2643,7 +2653,7 @@ button.small {
   border-radius: var(--r-lg);
   padding: var(--g-2) var(--g-3);
   font-size: var(--fs-md);
-  line-height: 1.5;
+  line-height: 1.625; /* DSH 正文是 16/26 = 1.625 */
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -5070,4 +5080,31 @@ body.is-resizing {
 /* 会话悬停：整行变色，让"这是一行可点的东西"更明确 */
 .thread-item:hover {
   background: var(--color-surface-hover);
+}
+
+/* ============================================================
+   侧栏字号：**不跟随正文基准**
+   ------------------------------------------------------------
+   正文按 DSH 调成 16px 之后（--fs-md = 15×1.08 = 16.2），
+   侧栏也跟着变成了 16.2px——但 DSH 的侧栏是 **14px**。
+
+   原因：之前侧栏和正文共用 --fs-md，两者原来都是 14px，
+   看起来没事。字号一改，侧栏就跟着涨，文字被截断。
+
+   DSH 的分工：
+     侧栏 / 列表  14px
+     正文        16px
+
+   侧栏用独立令牌，不跟着正文走。
+   ============================================================ */
+.nav-item,
+.project-folder,
+.thread-item,
+.workspace-head {
+  font-size: var(--sidebar-font-size);
+}
+
+:root {
+  /* 侧栏字号是独立一档，和正文解耦 */
+  --sidebar-font-size: 14px;
 }
