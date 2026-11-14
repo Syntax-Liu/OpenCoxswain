@@ -90,7 +90,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
             在别的页面（主对话）已经是居中的欢迎页，两处不一致。 */}
         <div className="welcome">
           <div className="welcome-brand">
-            <IconSupervisor size={28} />
+            <IconSupervisor size={36} className="is-triangle" />
             <h1>Supervisor</h1>
           </div>
           <p className="welcome-sub">

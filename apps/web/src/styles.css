@@ -5739,3 +5739,17 @@ body.is-resizing {
   min-height: 0;
   height: 100%;
 }
+
+
+/* **三角形图标额外上抬 2px**。
+   IconBrand 是舵轮，上下对称，像素中线对齐就够了。
+   IconSupervisor 是三个节点构成的三角形（上窄下宽），
+   像素中线对齐时**视觉重心**仍然偏下——用户看出来了。
+
+   所以三角形单独再抬一档。类名由组件显式指定，
+   不靠结构选择器猜。 */
+.welcome-brand svg.is-triangle {
+  /* 实测：0.528em - 2px 时图标中线比文字高 5.0px，
+     所以补 5px 回来。 */
+  top: calc(0.528em + 3px);
+}
