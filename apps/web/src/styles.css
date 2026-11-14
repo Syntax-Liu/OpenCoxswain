@@ -408,6 +408,9 @@ button.link.danger {
 .app-shell {
   display: grid;
   height: 100%;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .main {
@@ -415,6 +418,7 @@ button.link.danger {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  border-left: 1px solid #000;
 }
 
 /* ---------- 侧边栏 ---------- */
@@ -461,10 +465,6 @@ button.link.danger {
 
 .nav-item:hover {
   background: var(--bg-hover);
-}
-
-.nav-item.active {
-
 }
 
 .nav-icon {
@@ -517,14 +517,6 @@ button.link.danger {
   background: var(--bg-hover);
 }
 
-.project-folder.active {
-
-}
-
-.folder-icon {
-
-}
-
 .project-folder.active .folder-icon {
   color: var(--accent);
 }
@@ -543,6 +535,8 @@ button.link.danger {
   display: flex;
   flex-direction: column;
   gap: 0;
+  position: relative;
+  padding-left: 0;
 }
 
 .thread-item {
@@ -567,32 +561,22 @@ button.link.danger {
   color: var(--text);
 }
 
-.thread-item.active {
-
-}
-
 .thread-dot {
   background: #4a5266;
-}
-
-.thread-dot.ok {
-
-}
-
-.thread-dot.busy {
-
-}
-
-.thread-dot.bad {
-
-}
-
-.thread-title {
-
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+  opacity: 0.9;
 }
 
 .thread-status {
   opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .badge {
@@ -618,6 +602,11 @@ button.link.danger {
   align-items: center;
   justify-content: space-between;
   gap: var(--g-2);
+  border-top: 1px solid var(--border);
+  padding: var(--g-1) 14px;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin-top: auto;
 }
 
 .conn {
@@ -644,16 +633,16 @@ button.link.danger {
 
 /* ---------- 对话区 ---------- */
 
-.conversation {
-
-}
-
 .conversation-header {
   flex: none;
 }
 
 .header-main {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+  min-width: 0;
 }
 
 .conversation-header h2 {
@@ -667,10 +656,9 @@ button.link.danger {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.back-btn {
-
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin: 0;
 }
 
 .messages {
@@ -699,6 +687,7 @@ button.link.danger {
   flex-direction: column;
   max-width: 100%;
   min-width: 0;
+  gap: var(--g-05);
 }
 
 .message.user {
@@ -779,10 +768,6 @@ button.link.danger {
   min-height: var(--composer-min-height);
   max-height: var(--composer-max-height);
   resize: none;
-}
-
-.composer textarea:focus {
-
 }
 
 .composer-actions {
@@ -1156,9 +1141,6 @@ button.link.danger {
   cursor: help;
 }
 
-.thread-status {
-  font-variant-numeric: tabular-nums;
-}
 
 /* ---------- Σ�ն������� ---------- */
 
@@ -1168,6 +1150,7 @@ button.link.danger {
   padding: 10px 24px;
   max-height: 42vh;
   overflow-y: auto;
+  flex: 0 0 auto;
 }
 
 .approval-head {
@@ -1386,6 +1369,10 @@ button.ghost.danger {
 .memory-review {
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
+  flex: 0 0 auto;
+  max-height: 34vh;
+  overflow-y: auto;
+  padding: var(--g-2) var(--g-4);
 }
 
 .memory-head {
@@ -1545,10 +1532,6 @@ button.small {
   border-color: var(--accent-dim);
 }
 
-.conversation {
-
-}
-
 .memory-tabs {
   display: flex;
   gap: var(--g-15);
@@ -1618,6 +1601,8 @@ button.small {
   background: #10202e;
   border-bottom: 1px solid #1d3a52;
   font-size: var(--fs-md);
+  flex: 0 0 auto;
+  padding: var(--g-2) var(--g-4);
 }
 
 .update-icon {
@@ -1813,6 +1798,7 @@ button.small {
 
 .message.user .msg-role {
   color: var(--accent);
+  display: none;
 }
 
 /* ---------- 覆写层：修正 VS Code 风格下的细节问题 ---------- */
@@ -1847,19 +1833,10 @@ button.small {
 }
 
 /* 会话头部：VS Code 的编辑器标签栏质感 */
-.conversation-header {
-
-}
 
 /* 整个输入区底色 */
-.composer {
-
-}
 
 /* 主区左边与被侧栏分隔线加强 */
-.main {
-  border-left: 1px solid #000;
-}
 
 /* 表格：细边框，不要整块粗框 */
 .md-body table {
@@ -1926,28 +1903,12 @@ button.small {
    我们的宽度由上面 `::-webkit-scrollbar` 统一控制（8px / 5px）。 */
 
 /* 记忆条不能无限增高：内容多了自己滚动，不去挤消息区 */
-.memory-review {
-  flex: 0 0 auto;
-  max-height: 34vh;
-  overflow-y: auto;
-  padding: var(--g-2) var(--g-4);
-}
 
 /* 消息列表始终保持可滚动且不被挤压 */
-.messages {
-
-}
 
 /* 更新提示条同样不该挤主区 */
-.update-banner {
-  flex: 0 0 auto;
-  padding: var(--g-2) var(--g-4);
-}
 
 /* 审批面板有上限 */
-.approval-banner {
-  flex: 0 0 auto;
-}
 
 /* ---------- 最后一层细节：让它更像 VS Code 编辑器 ---------- */
 
@@ -1965,27 +1926,19 @@ button.small {
   bottom: 0;
   width: 2px;
   background: var(--accent);
+  display: none;
 }
 
 .header-main h2 {
   color: var(--text-strong);
   letter-spacing: 0.2px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
 }
 
-.conversation-header p {
-  font-size: var(--fs-xs);
-  color: var(--text-dim);
-  margin: 0;
-}
 
 /* 消息更紧凑：VS Code 的行距偏紧 */
-.messages {
 
-}
-
-.message {
-  gap: var(--g-05);
-}
 
 /* 正文段落间距收紧 */
 .md-body p {
@@ -2019,7 +1972,6 @@ button.small {
 .md-body h1 { font-size: var(--fs-lg); }
 .md-body h2 { font-size: var(--fs-md); }
 .md-body h3 { font-size: var(--fs-md); }
-.md-body h4 { font-size: var(--fs-md); }
 
 /* 引用块：VS Code 的注释色 */
 .md-body blockquote {
@@ -2058,17 +2010,8 @@ button.small {
 }
 
 /* 状态点更小更克制 */
-.thread-dot {
-
-}
 
 /* 底栏：VS Code 状态栏的样子 */
-.sidebar-foot {
-  border-top: 1px solid var(--border);
-  padding: var(--g-1) 14px;
-  font-size: var(--fs-xs);
-  color: var(--text-dim);
-}
 
 /* ---------- 自绘标题栏 + 右键菜单（桌面软件质感） ---------- */
 
@@ -2090,7 +2033,7 @@ button.small {
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
   user-select: none;
-  /* -webkit-app-region 是 Electron 的，Tauri 不认，且会吞掉按钮点击 */
+  padding-right: 0;
 }
 
 .title-bar-brand {
@@ -2116,7 +2059,8 @@ button.small {
   align-items: stretch;
   height: 100%;
   flex: none;
-  /* -webkit-app-region 是 Electron 的，Tauri 不认，且会吞掉按钮点击 */
+  margin-right: 0;
+  align-self: stretch;
 }
 
 .win-btn {
@@ -2125,6 +2069,12 @@ button.small {
   border-radius: 0;
   color: var(--text);
   padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: default;
+  width: 46px;
+  min-width: 46px;
+  height: 30px;
 }
 
 .win-btn:hover {
@@ -2137,10 +2087,6 @@ button.small {
 }
 
 /* 主区不再占满高度：标题栏占了 30px */
-.app-shell {
-  flex: 1;
-  min-height: 0;
-}
 
 /* 右键菜单：VS Code 的菜单质感 */
 .ctx-menu {
@@ -2180,13 +2126,6 @@ button.small {
 /* ---------- 侧栏细节：像 VS Code 的资源管理器 ---------- */
 
 /* 状态点改成细小的方块，颜色收敛（VS Code 里状态是文字，不是彩点） */
-.thread-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex: none;
-  opacity: 0.9;
-}
 
 .thread-dot.ok {
   background: #4ec9b0;
@@ -2209,13 +2148,12 @@ button.small {
   color: var(--text-dim);
   width: 10px;
   text-align: center;
+  display: inline-block;
+  font-size: var(--fs-xs);
+  transition: transform var(--dur-fast) var(--ease);
 }
 
 /* 缩进用竖线引导，像文件树 */
-.thread-list {
-  position: relative;
-  padding-left: 0;
-}
 
 .thread-list::before {
   content: '';
@@ -2225,6 +2163,7 @@ button.small {
   bottom: 0;
   width: 1px;
   background: var(--border);
+  display: none;
 }
 
 .thread-item {
@@ -2310,6 +2249,9 @@ button.small {
   border: none;
   opacity: 0;
   transition: width var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+  background: transparent;
+  color: var(--text);
+  display: none;
 }
 
 /* 鼠标移到工作区标题行才展开搜索框 */
@@ -2321,6 +2263,7 @@ button.small {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   font-size: var(--fs-xs);
+  background: var(--bg-input);
 }
 
 .icon-btn {
@@ -2329,14 +2272,6 @@ button.small {
   display: grid;
   place-items: center;
   font-size: var(--fs-sm);
-}
-
-.icon-btn:hover {
-
-}
-
-.icon-btn.active {
-
 }
 
 /* ---------- 列表项：右对齐状态（DSH） ---------- */
@@ -2353,21 +2288,12 @@ button.small {
   white-space: nowrap;
 }
 
-.thread-status {
-  flex: none;
-  font-size: var(--fs-xs);
-  color: var(--text-dim);
-  white-space: nowrap;
-}
 
 .thread-status.busy {
   color: var(--warn);
 }
 
 /* 去掉文件树的竖线引导（DSH 不用） */
-.thread-list::before {
-  display: none;
-}
 
 .thread-item {
   padding-left: 26px;
@@ -2385,6 +2311,8 @@ button.small {
   height: 100%;
   cursor: col-resize;
   z-index: 10;
+  right: 0;
+  width: 5px;
 }
 
 .sidebar-resizer:hover {
@@ -2406,21 +2334,8 @@ button.small {
   border-bottom: none;
 }
 
-.conversation-header::before {
-  display: none;
-}
 
-.header-main {
-  display: flex;
-  align-items: center;
-  gap: var(--g-2);
-  min-width: 0;
-}
 
-.header-main h2 {
-  font-size: var(--fs-lg);
-  font-weight: 600;
-}
 
 .header-badge {
   font-size: var(--fs-xs);
@@ -2438,17 +2353,32 @@ button.small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
 }
 
 /* ---------- 标签页（DSH） ---------- */
 
 .view-tabs {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--g-05);
+  padding: 0 20px 4px;
+  border-bottom: 1px solid var(--border);
 }
 
 .view-tab {
   height: var(--h-md);
   border-bottom: 2px solid transparent;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+  line-height: 20px;
 }
 
 .view-tab:hover:not(:disabled) {
@@ -2457,6 +2387,10 @@ button.small {
 
 .view-tab.active {
   border-bottom-color: var(--accent);
+  color: var(--text-strong);
+  font-weight: 600;
+  border-bottom: none;
+  background: transparent;
 }
 
 .view-tab:disabled {
@@ -2482,10 +2416,6 @@ button.small {
   padding: var(--g-2) var(--g-3) var(--g-1);
 }
 
-.composer-box:focus-within {
-
-}
-
 .composer-box textarea {
   width: 100%;
   max-height: var(--composer-max-height);
@@ -2493,6 +2423,11 @@ button.small {
   border: none;
   color: var(--text);
   resize: none;
+  font-size: var(--fs-md);
+  line-height: 22px;
+  min-height: 28px;
+  padding: var(--g-1) 0;
+  outline: none;
 }
 
 .composer-box textarea::placeholder {
@@ -2585,9 +2520,6 @@ button.small {
 
 /* ---------- 侧栏底栏（VS Code 状态栏质感） ---------- */
 
-.sidebar-foot {
-  margin-top: auto;
-}
 
 /* ---------- 修正：主区垂直布局必须是"头固定 + 消息撑满 + 输入固定" ---------- */
 
@@ -2622,30 +2554,8 @@ button.small {
 
 /* 标签页：DSH 高 34px、padding 0 12px、圆角 md、
    选中态**只变字重和颜色**，没有下划线 */
-.view-tabs {
-  display: flex;
-  align-items: center;
-  gap: var(--g-05);
-  padding: 0 20px 4px;
-  border-bottom: 1px solid var(--border);
-}
 
-.view-tab {  height: var(--h-md);
-  padding: 0 12px;
-  border: none;
-  border-radius: var(--r-md);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--fs-md);
-  line-height: 20px;
-}
 
-.view-tab.active {
-  color: var(--text-strong);
-  font-weight: 600;
-  border-bottom: none;
-  background: transparent;
-}
 
 .view-tab:hover:not(:disabled):not(.active) {
   color: var(--text);
@@ -2712,12 +2622,6 @@ button.small {
   padding: 6px 10px 4px;
 }
 
-.composer-box textarea {
-  font-size: var(--fs-md);
-  line-height: 22px;
-  min-height: 28px;
-  padding: var(--g-1) 0;
-}
 
 /* 状态栏：DSH 的 footer 用右对齐 + 8px 间距 */
 /* .status-bar 的其余定义已合并到第一处 */
@@ -2744,19 +2648,7 @@ button.small {
 
 /* 窗口按钮：之前贴到最右边，鼠标移到右上角反而点不到。
    给右侧留出安全余量，并保证按钮本身足够大。 */
-.title-bar {
 
-}
-
-.title-bar-actions {
-
-}
-
-.win-btn {
-  display: grid;
-  place-items: center;
-  cursor: default;
-}
 
 .win-btn svg {
   pointer-events: none;
@@ -2815,19 +2707,12 @@ button.small {
    `grid-template-columns: 244px minmax(0,1fr)` —— 网格列宽被写死 244px。
    侧栏自己变宽了，可网格列没变，所以看上去拖动毫无反应。
    改成 auto：列宽跟着侧栏走。 */
-.app-shell {
-  grid-template-columns: auto minmax(0, 1fr);
-}
 
 .sidebar {
   flex: 0 0 auto;
 }
 
 /* 拖拽把手：贴右边但别被裁掉 */
-.sidebar-resizer {
-  right: 0;
-  width: 5px;
-}
 
 /* 拖动时整页禁止选中，避免把文字刷成蓝色 */
 body.is-resizing {
@@ -2839,20 +2724,8 @@ body.is-resizing {
 
 /* 上一版加了 12px 右边距，方向反了——用户要的是紧贴角落。
    现在：标题栏右侧不留内边距，按钮铺到最边缘。 */
-.title-bar {
-  padding-right: 0;
-}
 
-.title-bar-actions {
-  margin-right: 0;
-  align-self: stretch;
-}
 
-.win-btn {
-  width: 46px;
-  min-width: 46px;
-  height: 30px;
-}
 
 /* 最右边那个（关闭）也要能贴住窗口右边缘 */
 .win-close {
@@ -2884,15 +2757,8 @@ body.is-resizing {
 }
 
 /* 搜索框同理：不要白底，hover 才展开 */
-.workspace-search {
-  background: transparent;
-  color: var(--text);
-}
 
 .workspace-head:hover .workspace-search,
-.workspace-search:focus {
-  background: var(--bg-input);
-}
 
 /* 工作区标题行本身也不要底色 */
 .workspace-head {
@@ -2933,9 +2799,6 @@ body.is-resizing {
 }
 
 /* 去掉用户消息上方的"你"标签：自己说的话不需要标注说话人 */
-.message.user .msg-role {
-  display: none;
-}
 
 /* ---------- 搜索：收起是放大镜，展开是输入框（照 DSH） ---------- */
 
@@ -3001,9 +2864,6 @@ body.is-resizing {
 }
 
 /* 收起态：原来的搜索框样式不再需要（现在是按钮） */
-.workspace-search {
-  display: none;
-}
 
 /* ---------- 轨迹页（照 DSH） ---------- */
 
@@ -3024,20 +2884,14 @@ body.is-resizing {
   font-size: var(--fs-sm);
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
+  gap: 20px;
 }
 
 .trace-stat {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
-}
-
-.trace-stat-key {
-
-}
-
-.trace-search {
-
+  gap: var(--g-15);
 }
 
 /* 时间轴：一次调用一段，按类型着色 */
@@ -3197,13 +3051,7 @@ body.is-resizing {
 
 /* ---------- 修正：轨迹统计条的间距与排版 ---------- */
 
-.trace-stats {
-  gap: 20px;
-}
 
-.trace-stat {
-  gap: var(--g-15);
-}
 
 /* 标签和数值之间要能看出层次，而不是粘成一串 */
 .trace-stat-key::after {
@@ -3226,6 +3074,14 @@ body.is-resizing {
 /* 搜索框靠右，但不要贴边 */
 .trace-search {
   margin-left: auto;
+  width: 220px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: var(--fs-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  color: var(--text);
 }
 
 /* ---------- 1. 轨迹里不要"你"标签 ---------- */
@@ -3240,16 +3096,6 @@ body.is-resizing {
 
 /* 原来单独写了一套 height/width，和别处的输入框不一致。
    现在统一：和侧栏搜索框同高、同边框、同圆角。 */
-.trace-search {
-  width: 220px;
-  height: 28px;
-  padding: 0 8px;
-  font-size: var(--fs-sm);
-  background: var(--bg-input);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
-  color: var(--text);
-}
 
 .trace-search:focus {
   outline: none;
@@ -3289,11 +3135,6 @@ body.is-resizing {
   color: var(--text);
 }
 
-.folder-icon {
-  display: inline-block;
-  font-size: var(--fs-xs);
-  transition: transform var(--dur-fast) var(--ease);
-}
 
 /* 收起时箭头转向右 */
 .folder-icon.collapsed {
@@ -3350,9 +3191,6 @@ body.is-resizing {
 }
 
 /* 去掉浏览器给 textarea 的默认焦点环 */
-.composer-box textarea {
-  outline: none;
-}
 
 /* ============================================================
    设置页（独立页面，照 TRAE / DSH）
@@ -3984,17 +3822,12 @@ body.is-resizing {
   border: 1px solid var(--border);
   object-fit: contain;
   cursor: zoom-in;
+  min-width: 48px;
+  min-height: 48px;
 }
 
 /* 极小的图片也要占一个可见的框：否则用户以为图丢了。
    min-width/min-height 让 1×1 的图也有 48px，配合棋盘背景能看出是图。 */
-.bubble-image {
-  min-width: 48px;
-  min-height: 48px;
-  background:
-    repeating-conic-gradient(var(--bg-input) 0% 25%, var(--bg-elevated) 0% 50%)
-    50% / 12px 12px;
-}
 
 /* ============================================================
    命令面板（Ctrl+K）
@@ -4237,6 +4070,15 @@ body.is-resizing {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  max-width: 640px;
+  height: fit-content;
+  margin: auto;
+  max-height: 70%;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 .onboarding-head {
@@ -4314,17 +4156,6 @@ body.is-resizing {
 }
 
 /* 引导做成浮层：不依赖"对话是否为空"，老用户也能看到一次 */
-.onboarding {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  max-width: 640px;
-  height: fit-content;
-  margin: auto;
-  max-height: 70%;
-  overflow-y: auto;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-}
 
 /* 侧栏包裹层：必须撑满 grid 单元格的整高，
    否则侧栏会被内容撑开，「已连接/设置」就贴不到窗口底部。 */
@@ -4546,6 +4377,8 @@ body.is-resizing {
   width: 1px;
   background: var(--border-strong);
   pointer-events: none;
+  top: 0;
+  bottom: 50%;
 }
 
 /* 首：从行中间往下 */
@@ -4561,10 +4394,6 @@ body.is-resizing {
 }
 
 /* 尾：从顶部到行中间 */
-.thread-list li.batch-last::before {
-  top: 0;
-  bottom: 50%;
-}
 
 /* 首尾各加一个小圆点，标出这一批的起止 */
 .thread-list li.batch-first::after,
@@ -4577,15 +4406,13 @@ body.is-resizing {
   border-radius: 50%;
   background: var(--accent);
   pointer-events: none;
+  bottom: calc(50% - 2px);
 }
 
 .thread-list li.batch-first::after {
   top: calc(50% - 2px);
 }
 
-.thread-list li.batch-last::after {
-  bottom: calc(50% - 2px);
-}
 
 /* 撤销按钮：放在状态标签后面，不抢视觉 */
 .eff-undo {
@@ -4989,11 +4816,6 @@ body.is-resizing {
 
    DSH 的做法：固定位置放一个按钮，展开时高亮、收起时灰。
    位置不变，永远找得到。 */
-.header-side {
-  display: flex;
-  align-items: center;
-  gap: var(--g-2);
-}
 
 .rail-toggle {
   flex: none;
@@ -5151,13 +4973,22 @@ body.is-resizing {
 }
 
 /* 输入框和状态栏跟着同一个宽度，保证视觉上一条竖线 */
-.composer-box,
-.status-bar {
+/* **拆开写**：这两个元素用途完全不同（一个装输入框，一个是状态栏），
+   共用一个选择器组时，任何一边加布局属性都会泄漏到另一边——
+   曾经因为合并，.status-bar 的 display:flex 跑到 .composer-box 上，
+   导致输入区三个子元素横排塌成一团。
+   这里只共用宽度，所以拆成两条相同的规则。 */
+.composer-box {
   max-width: var(--content-read);
   margin-left: auto;
   margin-right: auto;
 }
 
+.status-bar {
+  max-width: var(--content-read);
+  margin-left: auto;
+  margin-right: auto;
+}
 /* 段落间距：DSH 实测 16px（上下各 16px，相邻段落之间实际 16px） */
 .md-body p {
   margin: 0 0 var(--g-4);
@@ -5402,6 +5233,9 @@ body.is-resizing {
 
 .welcome-brand svg {
   color: var(--color-action);
+  position: relative;
+  top: 3px;
+  flex: none;
 }
 
 .welcome-brand h1 {
@@ -5468,12 +5302,6 @@ body.is-resizing {
   gap: var(--g-2);
 }
 
-.welcome-brand svg {
-  /* 图标往下推一点，和 24px 大字的视觉中线对齐 */
-  position: relative;
-  top: 3px;
-  flex: none;
-}
 
 /* 新会话的空页面：输入框上方的提示（没选项目时） */
 .composer-hint-inline {
