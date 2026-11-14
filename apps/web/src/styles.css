@@ -431,7 +431,6 @@ button.link.danger {
   min-height: 0;
   padding: var(--g-2) 0;
   gap: 0;
-  width: 280px;
 }
 
 .nav-main {
@@ -459,7 +458,6 @@ button.link.danger {
   text-align: left;
   padding: 0 var(--g-25);
   border-radius: 0;
-  font-size: var(--fs-md);
   font-weight: 500;
 }
 
@@ -479,7 +477,6 @@ button.link.danger {
 .workspace-head {
   justify-content: space-between;
   color: var(--text-dim);
-  font-size: var(--fs-xs);
 }
 
 .workspace-tree {
@@ -510,7 +507,6 @@ button.link.danger {
   font-size: var(--fs-md);
   line-height: 34px;
   height: 34px;
-  margin-top: var(--g-3);
 }
 
 .project-folder:hover {
@@ -557,7 +553,6 @@ button.link.danger {
 }
 
 .thread-item:hover {
-  background: var(--bg-hover);
   color: var(--text);
 }
 
@@ -634,7 +629,6 @@ button.link.danger {
 /* ---------- 对话区 ---------- */
 
 .conversation-header {
-  flex: none;
 }
 
 .header-main {
@@ -664,8 +658,6 @@ button.link.danger {
 .messages {
   display: flex;
   flex-direction: column;
-  gap: var(--g-4);
-  padding: var(--g-4);
 }
 
 .hint-card {
@@ -704,7 +696,6 @@ button.link.danger {
   border: none;
   min-width: 0;
   color: var(--text);
-  padding: var(--g-25) var(--g-3);
 }
 
 .message.user .bubble {
@@ -760,7 +751,6 @@ button.link.danger {
 
 .composer {
   flex: none;
-  padding: var(--g-2) var(--g-5) var(--g-3);
 }
 
 .composer textarea {
@@ -1942,11 +1932,9 @@ button.small {
 
 /* 正文段落间距收紧 */
 .md-body p {
-  margin: 0 0 6px;
 }
 
 .md-body p:last-child {
-  margin-bottom: 0;
 }
 
 .md-body ul,
@@ -2204,7 +2192,6 @@ button.small {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: var(--g-15);
   height: 22px;
   padding: 0 var(--g-25);
   background: transparent;
@@ -2267,7 +2254,6 @@ button.small {
 }
 
 .icon-btn {
-  height: var(--h-sm);
   padding: 0;
   display: grid;
   place-items: center;
@@ -2296,7 +2282,6 @@ button.small {
 /* 去掉文件树的竖线引导（DSH 不用） */
 
 .thread-item {
-  padding-left: 26px;
 }
 
 /* ---------- 拖拽把手 ---------- */
@@ -2413,7 +2398,6 @@ button.small {
 
 .composer-box {
   transition: border-color var(--dur-fast) var(--ease);
-  padding: var(--g-2) var(--g-3) var(--g-1);
 }
 
 .composer-box textarea {
@@ -2501,16 +2485,12 @@ button.small {
   justify-content: flex-end;
   gap: var(--g-2);
   padding: 0 var(--g-3);
-  max-width: var(--content-wide);
   margin: 0 auto;
   width: 100%;
   height: var(--h-sm);
 }
 
 .status-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--g-1);
   white-space: nowrap;
 }
 
@@ -2631,15 +2611,10 @@ button.small {
 /* 正文最宽限制：DSH 的消息区也不是无限拉伸的。
    屏幕上太宽一行读起来很累，限制在 820px 并把整块居中。 */
 .messages > * {
-  max-width: var(--content-wide);
-  margin-left: auto;
-  margin-right: auto;
-  width: 100%;
 }
 
 /* 输入框同样限宽，和消息对齐 */
 .composer-box {
-  max-width: var(--content-wide);
   margin: 0 auto;
 }
 
@@ -2660,7 +2635,6 @@ button.small {
 }
 
 .icon-btn {
-  height: var(--h-sm);
   cursor: pointer;
 }
 
@@ -4042,9 +4016,6 @@ body.is-resizing {
 
 /* 上下文预警条：贴在状态栏上方，只在需要时出现 */
 .context-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--g-2);
   margin: 0 16px 8px;
   padding: 8px 12px;
   background: var(--bg-elevated);
