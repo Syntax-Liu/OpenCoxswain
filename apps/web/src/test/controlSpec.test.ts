@@ -449,7 +449,8 @@ describe('Supervisor 图标和图标库风格统一', () => {
     const body = m?.[0] ?? '';
     const circles = (body.match(/<circle/g) ?? []).length;
     assert.ok(circles >= 3, `应该有中心 + 外围共 4 个圆，实际 ${circles}`);
-    // 坐标在 v0.92 整体下移 1.62 让图形居中，所以从 M8 7.62 起
-    assert.match(body, /<path d="M8 7/, '缺少连线');
+    // 连线从中心节点往三个外围节点画。坐标随图形重画会变，
+    // 只断言"有从 (8, y) 出发的线"。
+    assert.match(body, /<path d="M8 \d/, '缺少从中心节点出发的连线');
   });
 });

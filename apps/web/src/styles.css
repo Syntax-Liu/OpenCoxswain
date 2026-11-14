@@ -5753,3 +5753,13 @@ body.is-resizing {
      所以补 5px 回来。 */
   top: calc(0.528em + 3px);
 }
+
+
+/* **导航项里的三角形图标单独下移 3px**。
+   同一个 IconSupervisor 在欢迎页（25.9px 字）和导航项（16px 字）里
+   基线下沉量不同，用一个偏移量必然有一处不对。
+   实测导航项里图标中线比文字高 3.0px。 */
+.nav-icon.is-triangle {
+  position: relative;
+  top: 3px;
+}

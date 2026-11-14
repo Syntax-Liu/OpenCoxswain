@@ -67,17 +67,16 @@ export function IconNewChat({ size = 16, className }: IconProps): JSX.Element {
 export function IconSupervisor({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size, className)}>
-      {/* **整体下移 1.62**：实测这一组图形的绘制中线在 y=6.38，
-          比视口中心 8 高 1.62px，视觉上就是"图标偏上"。
-          所以这里所有 y 坐标统一 +1.62，让绘制范围居中。 */}
-      {/* 中心节点 */}
-      <circle cx="8" cy="9.62" r="2" />
-      {/* 三条连线 */}
-      <path d="M8 7.62 8 5.12M6.3 8.52 4.2 11.12M9.7 8.52l2.1 2.6" />
-      {/* 三个外围节点 */}
-      <circle cx="8" cy="3.87" r="1.25" />
-      <circle cx="3.25" cy="12.12" r="1.25" />
-      <circle cx="12.75" cy="12.12" r="1.25" />
+      {/* **整个图形压缩进 16 视口，并让视觉重心居中。**
+          这是三角形：一个顶点在上、两个底点在下，
+          视觉重心比包围盒中线**低**，所以要整体下移；
+          但不能移出视口（之前移到底点 15.5，被裁掉了一半）。
+          这里把尺寸压到 11.4 高、再下移，保证描边也不出界。 */}
+      <circle cx="8" cy="10.05" r="1.8" />
+      <path d="M8 8.25 8 6.3M6.5 10.55 4.9 12.9M9.5 10.55l1.6 2.35" />
+      <circle cx="8" cy="4.55" r="1.1" />
+      <circle cx="4.1" cy="13.4" r="1.1" />
+      <circle cx="11.9" cy="13.4" r="1.1" />
     </svg>
   );
 }

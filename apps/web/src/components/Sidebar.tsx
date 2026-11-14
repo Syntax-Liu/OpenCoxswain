@@ -182,7 +182,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           className={`nav-item${props.view.kind === 'global' ? ' active' : ''}`}
           onClick={props.onOpenGlobal}
         >
-          <IconSupervisor size={20} className="nav-icon" />
+          <IconSupervisor size={20} className="nav-icon is-triangle" />
           Supervisor
         </button>
         {/* **「添加项目」已移除**：它和「新会话」绑的是同一个 onOpenProject，

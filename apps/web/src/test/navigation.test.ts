@@ -34,7 +34,8 @@ describe('**两个导航项结构完全一样**', () => {
     // 「新会话」的 className 现在带 active 判断，用模板字符串；
     // 所以检查 onClick 而不是 className 的字面形式。
     assert.match(sidebar, /onClick=\{props\.onNewSession\}/, '缺新会话按钮');
-    const icons = sidebar.match(/className="nav-icon"/g) ?? [];
+    // Supervisor 额外带 is-triangle（三角形重心偏下，要单独偏移）
+    const icons = sidebar.match(/className="nav-icon[^"]*"/g) ?? [];
     assert.ok(icons.length >= 2, `两个导航项都要有 nav-icon，实际 ${icons.length}`);
   });
 

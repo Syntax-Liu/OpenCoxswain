@@ -92,18 +92,20 @@ describe('**问题3：图标在视口里必须居中**', () => {
     return m?.[0] ?? '';
   }
 
-  it('IconSupervisor 的图形居中（曾经偏上 1.62px）', () => {
+  it('IconSupervisor 的图形留在 16 视口内（不被裁切）', () => {
+    // 之前为了"居中"把底点挪到 15.5，结果描边超出视口被切掉一半。
+    // 正确的要求是：**整个图形（含描边）都在 0~16 之内**。
     const body = iconBody('IconSupervisor');
-    const circles = [...body.matchAll(/<circle\s+cx="[\d.]+"\s+cy="([\d.]+)"\s+r="([\d.]+)"/g)]
-      .map((m) => ({ cy: Number(m[1]), r: Number(m[2]) }));
-    assert.ok(circles.length >= 4, '应该有中心 + 三个外围节点');
-    const minY = Math.min(...circles.map((c) => c.cy - c.r));
-    const maxY = Math.max(...circles.map((c) => c.cy + c.r));
-    const mid = (minY + maxY) / 2;
-    assert.ok(
-      Math.abs(mid - 8) <= 0.6,
-      `图形中线应该在 8 附近（实际 ${mid.toFixed(2)}）——偏了就是"图标偏上"`,
-    );
+    const shapes = [
+      ...[...body.matchAll(/<circle\s+cx="[\d.]+"\s+cy="([\d.]+)"\s+r="([\d.]+)"/g)]
+        .map((m) => ({ cy: Number(m[1]), r: Number(m[2]) })),
+    ];
+    assert.ok(shapes.length >= 4, '应该有中心 + 三个外围节点');
+    const SW = 0.75; // stroke-width 1.5 的一半
+    const minY = Math.min(...shapes.map((s) => s.cy - s.r)) - SW;
+    const maxY = Math.max(...shapes.map((s) => s.cy + s.r)) + SW;
+    assert.ok(minY >= 0, `图形顶部 ${minY.toFixed(2)} 超出视口，会被裁掉`);
+    assert.ok(maxY <= 16, `图形底部 ${maxY.toFixed(2)} 超出视口，会被裁掉`);
   });
 
   it('IconMemory 的图形居中（曾经偏下 1.25px）', () => {
