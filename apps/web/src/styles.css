@@ -1774,10 +1774,6 @@ button.small {
 
 /* ---------- 消息角色标签（VS Code / DSH 风格） ---------- */
 
-.message.assistant .bubble {
-  border-left: 2px solid var(--border-strong);
-}
-
 .msg-role {
   font-size: var(--fs-xs);
   color: var(--text-dim);
@@ -2626,13 +2622,14 @@ button.small {
   padding: 14px 20px 6px;
 }
 
-/* 消息气泡：DSH 用 padding 10px 16px + 大圆角，不用左侧竖线 */
-.message.assistant .bubble,
-.message.user .bubble {
-  border-left: none;
-  padding-left: 0;
-}
+/* 消息气泡：两种消息都要有容器感
+   ------------------------------------------------------------
+   早期照 DSH 去掉了左侧竖线（`border-left: none` + `padding-left: 0`），
+   结果 Assistant 消息完全透明，文字直接铺在画布上——
+   用户消息有底色块，Assistant 像旁白。
 
+   我们不是 DSH：它的对话区更宽、留白更多，透明气泡也读得清；
+   我们密度更高，需要明确的块边界。 */
 .bubble {
   border-radius: var(--r-lg);
   padding: var(--g-2) var(--g-3);
@@ -2642,6 +2639,10 @@ button.small {
   word-break: break-word;
 }
 
+.message.user .bubble {
+  background: var(--color-surface-raised);
+}
+
 /* 用户消息：灰底气泡，右对齐（DSH 的样子） */
 .message.user {
 
@@ -2649,10 +2650,6 @@ button.small {
 
 .message.user .bubble {
   color: var(--text-strong);
-}
-
-.message.assistant .bubble {
-
 }
 
 /* 消息之间的间距：DSH 更松 */
@@ -2881,12 +2878,6 @@ body.is-resizing {
 
 /* "歪"的原因：给用户消息留了一条 2px 的 border-left 竖线（早期 VS Code 式设计），
    它把气泡整体往右推了 2px，看起来就是歪的，而且和右侧气泡并存很怪。 */
-.message.user .bubble,
-.message.assistant .bubble {
-  border-left: none;
-  padding-left: 16px;
-}
-
 /* 用户消息右对齐、气泡按内容宽度收窄 */
 .message.user {
   align-items: flex-end;
@@ -2896,6 +2887,13 @@ body.is-resizing {
   background: var(--bg-elevated);
   border-radius: var(--r-md);
   padding: var(--g-2) var(--g-3);
+  /* **用户气泡不要左侧竖线**。
+     早期 VS Code 式设计给它加了一条 2px 琥珀竖线，
+     后来改成"有底色的气泡"之后那条线是多余的：
+     而且琥珀是"需要你操作"的语义色，用户自己说的话不是待办。
+     （之前靠后面一条 `border-left: none` 抵消，那条被清理掉后
+      竖线又露出来了。） */
+  border-left: none;
   /* 70% 而不是 78%：更宽时一眼读不完一行，眼睛要横跨整屏 */
   max-width: 70%;
 }
@@ -2905,10 +2903,24 @@ body.is-resizing {
   align-items: flex-start;
 }
 
+/* **不加底色，但加一条左侧竖线。**
+   ------------------------------------------------------------
+   试过给 Assistant 气泡加背景块，后来撤了：这个界面里
+   Assistant 的输出经常是长报告（几百上千字），
+   加背景会变成一大块色块，比透明更难读。
+
+   但完全透明也不行：和用户消息（有底色）放在一起，
+   用户说的话像"话"，Assistant 的像"旁白"。
+
+   折中：保留透明 + 一条 2px 左竖线标出"这是一段内容"。
+   密度高的界面里，一根竖线足够划出边界，又不抢注意力。 */
 .message.assistant .bubble {
   background: transparent;
-  padding-left: 0;
+  border-left: 2px solid var(--color-border-subtle);
+  border-radius: 0;
+  padding-left: var(--g-3);
   padding-right: 0;
+  /* 长回复不要横跨整屏：一行 100+ 字眼睛找不到下一行开头 */
   max-width: 100%;
 }
 
@@ -4732,6 +4744,16 @@ body.is-resizing {
   display: flex;
   gap: var(--g-3);
   margin-top: 4px;
+  /* **悬停或键盘聚焦时才显示**。
+     4 条 × 2 个按钮 = 8 个操作项常驻，
+     面板里一半像素被它们占掉，而真正要看的是决策内容。 */
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.decision-item:hover .decision-actions,
+.decision-item:focus-within .decision-actions {
+  opacity: 1;
 }
 
 /* 字号档位选择：四个并排按钮 */

@@ -67,6 +67,12 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
               <div className="decision-body md-body">{renderMarkdown(item.body)}</div>
             )}
 
+            {/* **操作按钮悬停才出现**。
+                之前每条都常驻显示，4 条就是 8 个操作项，
+                面板里一半的像素被"我来回答 / 不需要决定"占掉。
+
+                悬停显示 + 键盘 focus 也显示（`focus-within`），
+                不影响可访问性。 */}
             <div className="decision-actions">
               {props.onFocusDecision && (
                 <button
@@ -81,10 +87,10 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
                 <button
                   type="button"
                   className="link muted"
-                  title="不用回答，只是标记它已看过"
+                  title="标记为已看过，之后不再出现在这个面板里"
                   onClick={() => props.onDismiss!(item.id)}
                 >
-                  不需要决定
+                  标记已看过
                 </button>
               )}
             </div>
