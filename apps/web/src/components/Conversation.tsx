@@ -409,18 +409,6 @@ export function Conversation(props: ConversationProps): JSX.Element {
         )}
       </div>
 
-      {!scroll.atBottom && (
-        <button
-          type="button"
-          className={`jump-bottom${scroll.unread > 0 ? ' has-unread' : ''}`}
-          onClick={scroll.scrollToBottom}
-          title={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
-          aria-label={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
-        >
-          {scroll.unread > 0 ? <span>{scroll.unread}</span> : <IconChevron size={14} direction="down" />}
-        </button>
-      )}
-
       {/* 输入区照 DSH：浮在底部的大框，内含工具栏 + 圆形发送 */}
       <div
         className={`composer${attachments.dragging ? ' dragging' : ''}`}
@@ -459,6 +447,20 @@ export function Conversation(props: ConversationProps): JSX.Element {
             }}
             onClose={() => setMention({ active: false, query: '', start: -1 })}
           />
+        )}
+
+        {/* **回到底部：挂在输入区上沿之外**，不挡消息内容。
+            跟着输入区走，输入框多高都不会压到内容。 */}
+        {!scroll.atBottom && (
+          <button
+            type="button"
+            className={`jump-bottom${scroll.unread > 0 ? ' has-unread' : ''}`}
+            onClick={scroll.scrollToBottom}
+            title={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
+            aria-label={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
+          >
+            {scroll.unread > 0 ? <span>{scroll.unread}</span> : <IconChevron size={14} direction="down" />}
+          </button>
         )}
 
         <div className="composer-box">

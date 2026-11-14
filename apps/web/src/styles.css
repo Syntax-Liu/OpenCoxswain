@@ -5310,9 +5310,10 @@ body.is-resizing {
    退化成通用 button 样式后宽度撑满父容器。 */
 .jump-bottom {
   position: absolute;
-  /* 内容区底部居中偏上一点，不压住输入框 */
+  /* **挂在输入区上沿之外**：bottom: 100% 是相对 .composer 的高度，
+     所以按钮永远在输入框正上方，不会挡住消息内容。 */
   left: 50%;
-  bottom: var(--g-3);
+  bottom: calc(100% + var(--g-2));
   transform: translateX(-50%);
   z-index: 5;
 
