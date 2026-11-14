@@ -412,7 +412,7 @@ describe('**「新会话」和「添加项目」不再重复**', () => {
 
   it('侧栏就两个导航项：新会话 + Supervisor', () => {
     // 两个都用 nav-item（结构完全一样），只有图标和文字不同。
-    assert.match(sidebar, /className="nav-item" onClick=\{props\.onNewSession\}/, '缺新会话');
+    assert.match(sidebar, /onClick=\{props\.onNewSession\}/, '缺新会话');
     assert.match(sidebar, /nav-item\$\{props\.view\.kind === 'global'/, '缺 Supervisor');
   });
 

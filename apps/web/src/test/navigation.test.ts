@@ -31,8 +31,9 @@ describe('**两个导航项结构完全一样**', () => {
   });
 
   it('两者都是 nav-item + nav-icon 图标', () => {
-    const newBtn = /<button[^>]*className="nav-item"[^>]*onClick=\{props\.onNewSession\}/.exec(sidebar);
-    assert.ok(newBtn, '新会话应该是普通 nav-item');
+    // 「新会话」的 className 现在带 active 判断，用模板字符串；
+    // 所以检查 onClick 而不是 className 的字面形式。
+    assert.match(sidebar, /onClick=\{props\.onNewSession\}/, '缺新会话按钮');
     const icons = sidebar.match(/className="nav-icon"/g) ?? [];
     assert.ok(icons.length >= 2, `两个导航项都要有 nav-icon，实际 ${icons.length}`);
   });
@@ -83,5 +84,35 @@ describe('**「新会话」进空页，不直接开项目**', () => {
 
   it('没选项目时发送只提示，不真发', () => {
     assert.match(newPage, /先在上面选一个项目/);
+  });
+});
+
+describe('**导航高亮跟着视图走**', () => {
+  // 踩过：为了绕开 typecheck，把 new 视图转成了 global 传下去——
+  // 结果点「新会话」时高亮的是 Supervisor。
+  it('Sidebar 的 view 类型认识 new', () => {
+    assert.match(sidebar, /kind: 'new'/, 'Sidebar 的 view 类型要包含 new');
+  });
+
+  it('「新会话」有 active 判断', () => {
+    const m = /className=\{[^}]*nav-item[^}]*\}/.exec(sidebar);
+    assert.ok(m, '找不到新会话的 className');
+    // 两个 nav-item 的 className 都要有 active 判断
+    const navClasses = [...sidebar.matchAll(/className=\{[^}]*nav-item[^}]*\}/g)].map((x) => x[0]);
+    for (const cls of navClasses) {
+      assert.match(cls, /active/, `这个 nav-item 没有 active 判断: ${cls}`);
+    }
+  });
+
+  it('新会话的 active 判断基于 view.kind === new', () => {
+    assert.match(sidebar, /props\.view\.kind === 'new' \? ' active' : ''/);
+  });
+
+  it('**App 不再把 new 转成 global**', () => {
+    assert.doesNotMatch(
+      app,
+      /view\.kind !== 'new'[\s\S]{0,40}\{ kind: 'global' \}/,
+      '不能把 new 转成 global 传下去——那会让 Supervisor 误高亮',
+    );
   });
 });

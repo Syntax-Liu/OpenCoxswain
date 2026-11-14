@@ -19,7 +19,9 @@ export interface SidebarProps {
   readonly view:
     | { readonly kind: 'assistant'; readonly projectId: string }
     | { readonly kind: 'executor'; readonly projectId: string; readonly executorId: string }
-    | { readonly kind: 'global' };
+    | { readonly kind: 'global' }
+    /** 新会话空页：两个导航项都不算"当前项目"。 */
+    | { readonly kind: 'new' };
   readonly connected: boolean;
   readonly connectionDetail: string | null;
   readonly onOpenAssistant: (projectId: string) => void;
@@ -167,7 +169,11 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
           现在两个都是 .nav-item，只有图标和文字不同。 */}
       <nav className="nav-main">
-        <button type="button" className="nav-item" onClick={props.onNewSession}>
+        <button
+          type="button"
+          className={`nav-item${props.view.kind === 'new' ? ' active' : ''}`}
+          onClick={props.onNewSession}
+        >
           <IconNewChat size={16} className="nav-icon" />
           新会话
         </button>

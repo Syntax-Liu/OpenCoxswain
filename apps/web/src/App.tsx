@@ -880,11 +880,7 @@ export function App(): JSX.Element {
         projects={state.projects}
         executors={state.executors}
         currentProjectId={state.currentProjectId}
-        view={
-          view && view.kind !== 'new'
-            ? view
-            : { kind: 'global' }
-        }
+        view={view ?? { kind: 'global' }}
         connected={state.connected}
         connectionDetail={state.connectionDetail}
         onOpenAssistant={(id) => void openAssistant(id)}
