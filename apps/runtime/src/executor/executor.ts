@@ -1090,6 +1090,13 @@ export interface RunExecutorOptions {
   readonly signal: AbortSignal;
   readonly maxSteps?: number;
   readonly commandTimeoutMs?: number;
+  /**
+   * 联网搜索配置。
+   *
+   * 不传时 `web_search` 会明确告诉模型"不可用"——
+   * 不能让它编造搜索结果。
+   */
+  readonly search?: SearchConfig | null;
   /** 中途补投的指令（C 用 message_executor 发的）。 */
   readonly drainInputs?: () => readonly string[];
   /**
@@ -1186,6 +1193,13 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
     ...(options.commandTimeoutMs !== undefined
       ? { commandTimeoutMs: options.commandTimeoutMs }
       : {}),
+    // **子 Agent 需要的三样东西**：没有 llm 就派不出去；
+    // 没有 signal，父 Agent 停了子 Agent 还在跑。
+    llm: options.llm,
+    signal: options.signal,
+    subagentDepth: 0,
+    // 联网搜索配置：不传的话 web_search 会明确说"不可用"
+    ...(options.search ? { search: options.search } : {}),
   });
 
   const events: LoopEvent[] = [];

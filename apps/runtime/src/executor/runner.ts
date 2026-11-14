@@ -9,6 +9,7 @@
  * - 不决定"怎么告诉用户"（那是汇报的事）
  */
 import type { LlmClient } from '../llm/types.js';
+import type { SearchConfig } from './web.js';
 import type { LoopEvent } from '../session/loop.js';
 import type { SkillSummary } from '../skills/index.js';
 import type { SnapshotStore } from '../security/snapshot.js';
@@ -39,6 +40,10 @@ export function truncateArgs(args: Record<string, unknown>): string {
 export interface ExecutorRunnerDeps {
   readonly store: Store;
   readonly llm: LlmClient;
+  /**
+   * 联网搜索配置。不传时 `web_search` 会明确告诉模型"不可用"。
+   */
+  readonly search?: SearchConfig | null;
   readonly maxSteps: number;
   readonly commandTimeoutMs?: number;
   /**
@@ -134,6 +139,7 @@ export async function runExecutorOnce(
   try {
     const outcome = await runExecutor({
       llm: deps.llm,
+      ...(deps.search ? { search: deps.search } : {}),
       // 用原始大小写路径作为工作目录（归一化路径仅用于判重）。
       rootPath: project.displayPath,
       projectName: project.name,
@@ -285,6 +291,7 @@ export async function resumeExecutorOnce(
   try {
     const outcome = await runExecutor({
       llm: deps.llm,
+      ...(deps.search ? { search: deps.search } : {}),
       rootPath: project.displayPath,
       projectName: project.name,
       goal: request.text,

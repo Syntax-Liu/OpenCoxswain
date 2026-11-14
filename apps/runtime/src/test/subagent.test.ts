@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -68,8 +69,43 @@ describe('子 Agent 的常量', () => {
   });
 });
 
-describe('工具集里两个新工具都在', () => {
-  it('read_url 在', async () => {
+describe('**执行链路真的接通了**', () => {
+  // 这个坑踩过：工具定义写了、执行分支写了，但 runExecutor 建 toolHost
+  // 时没把 llm / signal 传下去——真实运行里永远走"没给 llm → 拒绝"。
+  // 单测里的 mock 看不出这个问题，所以要读源码断言。
+  //
+  // 注意：测试跑的是 dist/，要读**源码**才能看到这些传参。
+  const source = readFileSync(
+    new URL('../../src/executor/executor.ts', import.meta.url),
+    'utf8',
+  );
+
+  it('runExecutor 建 toolHost 时传了 llm 和 signal', () => {
+    const idx = source.indexOf('export async function runExecutor');
+    assert.ok(idx > 0, '找不到 runExecutor');
+    const block = source.slice(idx, idx + 5000);
+
+    assert.match(block, /llm:\s*options\.llm/, 'runExecutor 没把 llm 传进 toolHost');
+    assert.match(block, /signal:\s*options\.signal/, '没传 signal，父 Agent 停了子 Agent 还在跑');
+    assert.match(block, /subagentDepth:\s*0/, '父 Agent 应该从深度 0 开始');
+  });
+
+  it('runExecutor 也传了 search 配置', () => {
+    const idx = source.indexOf('export async function runExecutor');
+    const block = source.slice(idx, idx + 5000);
+    assert.match(block, /options\.search/, '没传 search，web_search 永远是"不可用"');
+  });
+
+  it('runner 把 search 传给 runExecutor', () => {
+    const runner = readFileSync(
+      new URL('../../src/executor/runner.ts', import.meta.url),
+      'utf8',
+    );
+    assert.match(runner, /deps\.search/, 'runner 没把 search 传下去');
+  });
+});
+
+describe('工具集里两个新工具都在', () => {  it('read_url 在', async () => {
     const host = createExecutorToolHost({ rootPath: root, writeScope: [] });
     const names = host.definitions().map((d) => d.name);
     assert.ok(names.includes('read_url'), `工具集: ${names.join(', ')}`);
