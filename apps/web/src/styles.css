@@ -4811,3 +4811,147 @@ body.is-resizing {
   gap: var(--g-1);
   cursor: help;
 }
+
+/* ============================================================
+   右侧栏（照 DSH）
+   ------------------------------------------------------------
+   用户要求：
+   > 决策面板不要常驻在顶上，应该在右边侧边栏打开，就像 DSH 这样
+   > 放在顶上导致下方对话很扁，看不全内容
+
+   顶部面板占的是**垂直空间**，直接压扁对话区；
+   挪到右栏后占的是**宽度**——对话区高度完全恢复。
+   ============================================================ */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface-sidebar);
+  /* 左边界线：和主区分开 */
+  border-left: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+}
+
+.rail-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--h-lg);
+  padding: 0 var(--g-3);
+  flex: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.rail-label {
+  font-size: var(--fs-sm);
+  color: var(--color-label-secondary);
+}
+
+.rail-close {
+  background: transparent;
+  border: none;
+  color: var(--color-label-tertiary);
+  cursor: pointer;
+  padding: 0 var(--g-1);
+  font-size: var(--fs-sm);
+}
+
+.rail-close:hover {
+  color: var(--color-label-primary);
+}
+
+.rail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--g-2) 0;
+}
+
+/* ---- 分区 ---- */
+.rail-section {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.rail-section:last-child {
+  border-bottom: none;
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--g-15);
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--g-3);
+  background: transparent;
+  border: none;
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.rail-head:hover {
+  color: var(--color-label-primary);
+  background: var(--color-surface-hover);
+}
+
+.rail-caret {
+  width: 10px;
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.rail-title {
+  flex: 1;
+}
+
+/* 决策条数：走"需要你操作"的琥珀语义 */
+.rail-badge {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--g-1);
+  border-radius: var(--r-full);
+  background: var(--color-action);
+  color: var(--color-surface-canvas);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  text-align: center;
+}
+
+.rail-body {
+  padding: 0 var(--g-3) var(--g-2);
+}
+
+/* 右栏里决策面板：**去掉边框和高度限制**——
+   右栏自己会滚，面板不需要再限高，也不需要外框（已经是栏内的一块） */
+.rail .decision-panel {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  max-height: none;
+  overflow: visible;
+}
+
+/* 右栏里，面板自己的标题和右栏分区标题重复了：
+   「待决策」+「6 件事等你决定」——而且 320px 装不下，会挤成两行。
+   只保留右栏那个。 */
+.rail .decision-head {
+  display: none;
+}
+
+/* 右栏窄：决策项的字号再收一档，长句按词换行 */
+.rail .decision-item {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+/* 右栏里的"我来回答/标记已看过"：宽度有限，允许换行 */
+.rail .decision-actions {
+  flex-wrap: wrap;
+}

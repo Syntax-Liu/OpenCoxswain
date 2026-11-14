@@ -230,3 +230,59 @@ describe('**决策面板的操作按钮悬停才显示**', () => {
     assert.match(css, /\.decision-item:focus-within\s+\.decision-actions/);
   });
 });
+describe('**决策面板在右栏，不在顶部**', () => {
+  // 用户原话：
+  // > 决策面板不要常驻在顶上，应该在右边侧边栏打开，就像 DSH 这样
+  // > 放在顶上导致下方对话很扁，看不全内容
+  //
+  // 顶部面板占垂直空间（实测 26% → 展开 32vh，消息区被压到 370px）；
+  // 右栏占宽度，对话区高度完全恢复。
+  const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+
+  it('**DecisionPanel 渲染在 RightRail 里**', () => {
+    // 找 RightRail 块里的内容
+    const railStart = app.indexOf('<RightRail');
+    assert.ok(railStart > 0, '找不到 <RightRail>');
+    // RightRail 有子元素，结束在带缩进的那一行
+    const railEnd = app.lastIndexOf(' />');
+    assert.ok(railEnd > railStart, '找不到 RightRail 结束标记');
+    const railBlock = app.slice(railStart, railEnd);
+    assert.match(railBlock, /<DecisionPanel/, 'DecisionPanel 应该在 RightRail 的 decisions 里');
+  });
+
+  it('**DecisionPanel 不在 main 的垂直流里**', () => {
+    const mainStart = app.indexOf('<main className="main">');
+    const mainEnd = app.indexOf('</main>');
+    assert.ok(mainStart > 0 && mainEnd > mainStart);
+    const mainBlock = app.slice(mainStart, mainEnd);
+    assert.doesNotMatch(mainBlock, /<DecisionPanel/, 'DecisionPanel 不该留在 main 里');
+  });
+
+  it('右栏宽度可折叠', () => {
+    assert.match(app, /railCollapsed/);
+    assert.match(app, /railWidth/);
+  });
+});
+
+describe('右栏样式', () => {
+  it('.rail 有左边框，和主区分开', () => {
+    const m = /^\.rail \{([^}]*)\}/m.exec(css);
+    assert.ok(m, '找不到 .rail');
+    assert.match(m[1] ?? '', /border-left:/);
+  });
+
+  it('右栏里的决策面板**不再限高**（右栏自己会滚）', () => {
+    const m = /\.rail \.decision-panel \{([^}]*)\}/.exec(css);
+    assert.ok(m, '找不到 .rail .decision-panel');
+    assert.match(m[1] ?? '', /max-height:\s*none/);
+  });
+
+  it('右栏里隐藏面板自带标题（和分区标题重复）', () => {
+    assert.match(css, /\.rail \.decision-head\s*\{[^}]*display:\s*none/);
+  });
+
+  it('决策条数徽章用"需要操作"的琥珀语义色', () => {
+    const m = /^\.rail-badge \{([^}]*)\}/m.exec(css);
+    assert.match(m?.[1] ?? '', /background:\s*var\(--color-action\)/);
+  });
+});

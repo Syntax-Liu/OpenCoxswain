@@ -1,6 +1,6 @@
 {
   "name": "@opencoxswain/runtime",
-  "version": "0.77.0",
+  "version": "0.78.0",
   "private": true,
   "description": "OpenCoxswain 自研运行时：A 用户 / B 全局助理 / C 项目助理 / D 执行 Agent",
   "license": "Apache-2.0",

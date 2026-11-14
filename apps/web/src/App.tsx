@@ -41,6 +41,7 @@ import {
 import { Sidebar } from './components/Sidebar.js';
 import { Conversation } from './components/Conversation.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
+import { RightRail } from './components/RightRail.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
 import { GlobalAssistant } from './components/GlobalAssistant.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
@@ -105,6 +106,19 @@ export function App(): JSX.Element {
    * 现在初始值也从 localStorage 读。
    */
   const [sidebarWidth, setSidebarWidth] = useState(readSavedSidebarWidth);
+
+  /**
+   * 右栏宽度和折叠状态。
+   *
+   * 用户原话：
+   * > 决策面板不要常驻在顶上，应该在右边侧边栏打开，就像 DSH 这样
+   * > 放在顶上导致下方对话很扁，看不全内容
+   *
+   * 测过：顶部面板占主区 26%（228 / 870），展开时能到 32vh，
+   * 消息区被压到 370px。挪到右栏后，它占的是**宽度**不是高度。
+   */
+  const [railWidth, setRailWidth] = useState(320);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -831,10 +845,15 @@ export function App(): JSX.Element {
         className="app-shell"
         // 网格列宽必须由这里控制：侧栏内部改 width 时，写死在 CSS 里的
         // 列宽不会跟着变，拖动就会"毫无反应"。
+        //
+        // **三列**：左栏 / 主区 / 右栏。
+        // 右栏宽度也给用户拖（见 rail-resizer），但先固定一个合理值。
         style={{
-          gridTemplateColumns: sidebarCollapsed
-            ? '0 minmax(0, 1fr)'
-            : `${sidebarWidth}px minmax(0, 1fr)`,
+          gridTemplateColumns: [
+            sidebarCollapsed ? '0' : `${sidebarWidth}px`,
+            'minmax(0, 1fr)',
+            railCollapsed ? '0' : `${railWidth}px`,
+          ].join(' '),
         }}
       >
       {/* 折叠时整块隐藏，不只是收窄——收窄到几十像素反而更难看。
@@ -880,17 +899,9 @@ export function App(): JSX.Element {
 
         {view?.kind === 'assistant' && currentProject && (
           <>
-            {/* 待决策面板放在对话上方：这是唯一需要用户动脑的地方，
-                不该让他从几十条消息里自己认出来 */}
-            <DecisionPanel
-              reports={state.reports}
-              onFocusDecision={(id, body) => {
-                void handleAcknowledge(id);
-                // 问题正文填进输入框，用户接着回答就行（还能改）
-                setDraftSeed({ text: `针对「${body.slice(0, 60)}…」\n我的决定是：`, at: Date.now() });
-              }}
-              onDismiss={(id) => void handleAcknowledge(id)}
-            />
+            {/* 待决策面板已挪到右侧栏（见下面 <RightRail>）。
+                它原来在这里，占主区 26% 的垂直空间，
+                展开时能把消息区压到 370px。 */}
             <Conversation
             api={api}
             project={currentProject as ProjectDto}
@@ -904,17 +915,6 @@ export function App(): JSX.Element {
               if (currentProject) setView({ kind: 'executor', projectId: currentProject.id, executorId: id });
             }}
             thinking={state.thinking}
-            memoryReview={
-              <MemoryReview
-                candidates={memories}
-                active={activeMemories}
-                busy={extracting}
-                onExtract={() => void handleExtract()}
-                onAccept={(id) => void handleAcceptMemory(id)}
-                onDismiss={(id) => void handleDismissMemory(id)}
-                onForget={(scope, id) => void handleForgetMemory(scope, id)}
-              />
-            }
             templatePicker={
               <TemplatePicker
                 api={api}
@@ -947,6 +947,29 @@ export function App(): JSX.Element {
 
         {!view && <div className="empty">正在加载…</div>}
       </main>
+
+      {/* **右侧栏**：待决策、工作区文件、快捷操作。
+          用户要求"像 DSH 那样"，把这些从顶部挪到右边——
+          顶部面板占的是垂直空间，会直接压扁对话区。 */}
+      <RightRail
+        onClose={() => setRailCollapsed(true)}
+        decisionCount={
+          state.reports.filter((r) => r.needsUser && !r.ackedAt).length
+        }
+        decisions={
+          view?.kind === 'assistant' && currentProject ? (
+            <DecisionPanel
+              reports={state.reports}
+              onFocusDecision={(id, body) => {
+                void handleAcknowledge(id);
+                // 问题正文填进输入框，用户接着回答就行（还能改）
+                setDraftSeed({ text: `针对「${body.slice(0, 60)}…」\n我的决定是：`, at: Date.now() });
+              }}
+              onDismiss={(id) => void handleAcknowledge(id)}
+            />
+          ) : null
+        }
+      />
 
       {showOpen && (
         <OpenProjectDialog
