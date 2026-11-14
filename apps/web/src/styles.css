@@ -5092,19 +5092,16 @@ body.is-resizing {
    看起来没事。字号一改，侧栏就跟着涨，文字被截断。
 
    DSH 的分工：
-     侧栏 / 列表  14px
-     正文        16px
+     侧栏 / 列表  14px   → 用 --fs-sm（实际渲染 13 x 1.08 = 14.04）
+     正文        16px   → 用 --fs-md（15 x 1.08 = 16.2）
 
-   侧栏用独立令牌，不跟着正文走。
+   **不加第 5 档**——侧栏的 14px 正好落在现有的 sm 档上。
    ============================================================ */
 .nav-item,
 .project-folder,
 .thread-item,
 .workspace-head {
-  font-size: var(--sidebar-font-size);
+  font-size: var(--fs-sm);
 }
 
-:root {
-  /* 侧栏字号是独立一档，和正文解耦 */
-  --sidebar-font-size: 14px;
-}
+
