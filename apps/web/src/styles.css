@@ -2172,6 +2172,16 @@ button.small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 不用 flex:1 撑空间——交给常驻的 .title-bar-spacer。
+     之前 crumb 用它撑着，crumb 不渲染时窗口按钮就跑到了左边。 */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 常驻的弹性占位：把窗口按钮顶到右边。
+   不能依赖 .title-bar-crumb——它在 crumb 与品牌名相同时不渲染，
+   那会让最小化/最大化/关闭跑到左边去。 */
+.title-bar-spacer {
   flex: 1;
   min-width: 0;
 }

@@ -82,10 +82,13 @@ export function TitleBar(props: TitleBarProps): JSX.Element {
     <>
       <div className="title-bar" onMouseDown={onMouseDown}>
         <span className="title-bar-brand">OpenCoxswain</span>
-        {/* crumb 与品牌名相同时不重复显示——否则首屏会看到两个 "OpenCoxswain" */}
+        {/* crumb 与品牌名相同时不重复显示——否则首屏会看到两个 "OpenCoxswain"。
+            但**不能因此把窗口按钮挤到左边**：撑开空间的必须是常驻元素，
+            而不是这个可能不渲染的 crumb（踩过：最小化/最大化/关闭跑到左边）。 */}
         {props.crumb && props.crumb !== 'OpenCoxswain' && (
           <span className="title-bar-crumb">{props.crumb}</span>
         )}
+        <span className="title-bar-spacer" aria-hidden />
 
         {desktop && (
           <div className="title-bar-actions">
