@@ -219,14 +219,197 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
         </section>
 
         <section className="settings-section">
-          <h3 className="settings-section-title">关于其他设置</h3>
+          <h3 className="settings-section-title">联网搜索</h3>
+          <WebSearchSection />
+        </section>
+
+        <section className="settings-section">
+          <h3 className="settings-section-title">手机通道</h3>
+          <ImSection />
+        </section>
+
+        <section className="settings-section">
+          <h3 className="settings-section-title">记忆</h3>
           <p className="settings-hint">
-            记忆、手机通道、联网搜索还没迁移到新界面，
-            暂时可以在旧界面（`apps/web-legacy`）里改，或直接编辑配置文件。
+            记忆的查看与编辑还没迁移到新界面（它需要项目选择器和一个较复杂的列表）。
+            Agent 运行时仍会正常读写记忆，只是暂时不能在界面里手动改。
           </p>
         </section>
       </div>
     </div>
+  );
+}
+
+/** 联网搜索：端点 + 密钥。 */
+function WebSearchSection(): JSX.Element {
+  const api = useState(() => new ApiClient())[0];
+  const [endpoint, setEndpoint] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [configured, setConfigured] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api
+      .searchSettings()
+      .then((s) => {
+        setEndpoint(s.endpoint);
+        setConfigured(s.configured);
+      })
+      .catch(() => undefined);
+  }, [api]);
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.setSearchSettings({ endpoint: endpoint.trim(), apiKey: apiKey.trim() });
+      setMsg(r.message || '已保存');
+      if (r.ok) {
+        setApiKey('');
+        setConfigured(true);
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <p className="settings-hint">
+        {configured ? '已配置，Agent 可以联网检索' : '未配置。不配置也能用，只是不能联网检索'}
+      </p>
+      <div className="settings-field">
+        <label htmlFor="set-search-endpoint">检索端点</label>
+        <input
+          id="set-search-endpoint"
+          className="settings-input"
+          value={endpoint}
+          placeholder="https://..."
+          onChange={(e) => setEndpoint(e.target.value)}
+        />
+      </div>
+      <div className="settings-field">
+        <label htmlFor="set-search-key">密钥</label>
+        <input
+          id="set-search-key"
+          type="password"
+          className="settings-input"
+          value={apiKey}
+          placeholder={configured ? '留空表示不修改' : '填写密钥'}
+          onChange={(e) => setApiKey(e.target.value)}
+          autoComplete="off"
+        />
+      </div>
+      <div className="settings-actions">
+        <button
+          type="button"
+          className="btn btn--primary btn--md"
+          onClick={() => void save()}
+          disabled={busy || !endpoint.trim()}
+        >
+          {busy ? '保存中…' : '保存'}
+        </button>
+      </div>
+      {msg && <p className="settings-message">{msg}</p>}
+    </>
+  );
+}
+
+/** 手机通道（飞书机器人）。 */
+function ImSection(): JSX.Element {
+  const api = useState(() => new ApiClient())[0];
+  const [token, setToken] = useState('');
+  const [status, setStatus] = useState<{ configured: boolean; running: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api
+      .im()
+      .then((s) => {
+        setStatus({ configured: s.hasToken, running: (s.status?.running ?? false) });
+      })
+      .catch(() => undefined);
+  }, [api]);
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.saveIm(token.trim(), null);
+      setMsg(r.message || (r.ok ? '已保存' : '保存失败'));
+      if (r.ok) {
+        setToken('');
+        const s = await api.im();
+        setStatus({ configured: s.hasToken, running: (s.status?.running ?? false) });
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clear = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      await api.clearIm();
+      const s = await api.im();
+      setStatus({ configured: s.hasToken, running: (s.status?.running ?? false) });
+      setMsg('已清除');
+    } catch {
+      setMsg('清除失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <p className="settings-hint">
+        {status === null
+          ? '正在读取…'
+          : status.configured
+            ? `已配置${status.running ? '，正在接收消息' : ''}`
+            : '未配置。配置后可以在手机上给 Assistant 发消息'}
+      </p>
+      <div className="settings-field">
+        <label htmlFor="set-im">机器人 Token</label>
+        <input
+          id="set-im"
+          type="password"
+          className="settings-input"
+          value={token}
+          placeholder="留空表示不修改"
+          onChange={(e) => setToken(e.target.value)}
+          autoComplete="off"
+        />
+      </div>
+      <div className="settings-actions">
+        <button
+          type="button"
+          className="btn btn--primary btn--md"
+          onClick={() => void save()}
+          disabled={busy || !token.trim()}
+        >
+          {busy ? '保存中…' : '保存'}
+        </button>
+        {status?.configured && (
+          <button
+            type="button"
+            className="btn btn--danger btn--md"
+            onClick={() => void clear()}
+            disabled={busy}
+          >
+            断开
+          </button>
+        )}
+      </div>
+      {msg && <p className="settings-message">{msg}</p>}
+    </>
   );
 }
 
