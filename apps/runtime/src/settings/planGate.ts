@@ -46,8 +46,20 @@ export interface PlanGateSettings {
   readonly projects?: Readonly<Record<string, PlanGateMode>>;
 }
 
+/**
+ * 默认值：**`on`**。
+ *
+ * 2026-11-15 之前这里是 `off`，因为那时还没有"创建方案"的流程，
+ * 强制拦截会让所有派活失败。现在方案创建（`propose_plan`）、
+ * 批准（`/api/plans/:id/approve`）、界面审阅都已就位，可以开启了。
+ *
+ * 注意 `on` 的实际语义（见 `orchestrator.spawn`）：
+ * - **没有活跃方案** → 放行（不是所有活都必须先有计划）
+ * - 有活跃方案但未批准 → 拒绝
+ * 所以开启它不会把日常小事也拦下来。
+ */
 export const DEFAULT_PLAN_GATE: PlanGateSettings = {
-  mode: 'off',
+  mode: 'on',
 };
 
 /** 解析未知输入，坏数据一律退回默认（不能因为配置坏了就不许派活）。 */

@@ -994,6 +994,201 @@ select {
 }
 
 /* ============================================================
+   方案横条
+   ============================================================ */
+
+.plan-banner {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+}
+
+/* 待批准：琥珀，最醒目——这是唯一需要用户拍板的地方 */
+.plan-banner.asking {
+  border-left: 3px solid var(--status-asking);
+  background: var(--sig-ask-dim);
+}
+
+.plan-banner.failed {
+  border-left: 3px solid var(--status-failed);
+}
+
+.plan-banner.done {
+  border-left: 3px solid var(--status-done);
+}
+
+.plan-banner-head {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+  width: 100%;
+  padding: var(--g-2) var(--g-5);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  padding: 0 var(--g-1);
+  line-height: 16px;
+}
+
+.plan-banner-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-amend-chip {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: var(--surface-input);
+  border-radius: var(--r-sm);
+  padding: 0 var(--g-1);
+  line-height: 16px;
+}
+
+.plan-caret {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.plan-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-3);
+  padding: 0 var(--g-5) var(--g-4);
+}
+
+.plan-goal {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: var(--lh-read);
+}
+
+.plan-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+}
+
+.plan-step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-secondary);
+}
+
+.plan-step.done {
+  color: var(--text-tertiary);
+}
+
+.plan-step.blocked,
+.plan-step.failed {
+  color: var(--status-failed);
+}
+
+.plan-step-icon {
+  flex-shrink: 0;
+  width: 14px;
+  color: var(--text-tertiary);
+}
+
+.plan-step.done .plan-step-icon {
+  color: var(--status-done);
+}
+
+.plan-step-id {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.plan-step-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-step.done .plan-step-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--border-subtle);
+}
+
+.plan-step-status {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.plan-step-attempts {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--status-asking);
+}
+
+.plan-amendments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  padding-top: var(--g-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.plan-amend-title {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.plan-amend {
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: var(--lh-base);
+}
+
+.plan-amend-why {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.plan-actions {
+  display: flex;
+  gap: var(--g-2);
+  flex-wrap: wrap;
+}
+
+.plan-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  line-height: var(--lh-base);
+}
+
+/* ============================================================
    审批（危险动作）
    ============================================================ */
 

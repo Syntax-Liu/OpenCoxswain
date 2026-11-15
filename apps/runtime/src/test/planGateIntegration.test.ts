@@ -84,18 +84,18 @@ async function putPlan(
   return plan;
 }
 
-describe('方案把关：默认 off 时行为不变', () => {
-  it('**没配 planGate，派活照旧成功**（不能停摆）', async () => {
+describe('方案把关：默认 on，但没有方案时放行', () => {
+  it('**没配 planGate 且没有方案时，派活照旧成功**', async () => {
     const { runtime, project } = await makeRuntime();
     const r = await runtime.spawn(project.id, {
       label: '普通任务',
       goal: '做点事',
       writeScope: ['readonly'],
     });
-    assert.ok(r.executor.id, '默认配置下应该能派出去');
+    assert.ok(r.executor.id, 'on 不等于拦下所有活：没有方案时应该放行');
   });
 
-  it('**即使存在未批准的方案，off 也不拦**', async () => {
+  it('**显式 off 时，即使有未批准的方案也不拦**', async () => {
     const { runtime, store, project } = await makeRuntime(parsePlanGate({ mode: 'off' }));
     await putPlan(store, project.id, 'awaiting-approval');
     const r = await runtime.spawn(project.id, {

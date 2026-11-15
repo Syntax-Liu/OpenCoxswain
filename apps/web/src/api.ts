@@ -237,6 +237,49 @@ export interface MemoryCandidateDto {
   readonly decidedAt: number | null;
 }
 
+/** 方案步骤状态。 */
+export type PlanStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'blocked';
+
+/** 方案状态。 */
+export type PlanStatus =
+  | 'draft'
+  | 'awaiting-approval'
+  | 'approved'
+  | 'superseded'
+  | 'done'
+  | 'blocked';
+
+export interface PlanStepDto {
+  readonly id: string;
+  readonly title: string;
+  readonly goal: string;
+  readonly writeScope: readonly string[];
+  readonly status: PlanStepStatus;
+  /** 重试次数。≥2 时下一次失败就会卡住。 */
+  readonly attempts: number;
+  readonly dependsOn?: readonly string[];
+}
+
+export interface PlanAmendmentDto {
+  readonly id: string;
+  readonly kind: 'small' | 'big';
+  readonly what: string;
+  readonly why: string;
+  readonly criteriaTouched: boolean;
+}
+
+export interface PlanDto {
+  readonly id: string;
+  readonly projectId: string;
+  readonly goal: string;
+  readonly steps: readonly PlanStepDto[];
+  readonly status: PlanStatus;
+  readonly approvedAt: number | null;
+  readonly approvedBy: 'user' | null;
+  readonly amendments: readonly PlanAmendmentDto[];
+  readonly createdAt: number;
+}
+
 export interface ImStatusDto {
   readonly enabled: boolean;
   readonly hasToken: boolean;
@@ -429,6 +472,32 @@ export class ApiClient {
    */
   acknowledgeReport(reportId: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/reports/${encodeURIComponent(reportId)}/ack`, { method: 'POST' });
+  }
+
+  // ---- 方案 ----
+
+  /** 某项目当前活跃的方案（待批准 / 执行中 / 卡住）。没有则 null。 */
+  activePlan(projectId: string): Promise<{ plan: PlanDto | null }> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/plan`);
+  }
+
+  /**
+   * 批准方案。
+   *
+   * 批过之后 Assistant 会一路推进，不再逐步问——这是整个方案设计的核心。
+   */
+  approvePlan(planId: string): Promise<{ ok: boolean; plan: PlanDto }> {
+    return this.request(`/api/plans/${encodeURIComponent(planId)}/approve`, { method: 'POST' });
+  }
+
+  /** 驳回：回到草稿，Assistant 可以改。 */
+  rejectPlan(planId: string): Promise<{ ok: boolean; plan: PlanDto }> {
+    return this.request(`/api/plans/${encodeURIComponent(planId)}/reject`, { method: 'POST' });
+  }
+
+  /** 作废：大改动后旧方案不再是依据。 */
+  supersedePlan(planId: string): Promise<{ ok: boolean; plan: PlanDto }> {
+    return this.request(`/api/plans/${encodeURIComponent(planId)}/supersede`, { method: 'POST' });
   }
 
   /** 撤销一次文件写入。只有文件写入可撤销。 */  undoEffect(effectId: string, projectId: string): Promise<{ ok: boolean; message: string }> {

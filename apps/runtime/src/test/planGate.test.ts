@@ -14,25 +14,31 @@ import {
   planGateFor,
 } from '../settings/planGate.js';
 
-describe('默认值：不拦', () => {
-  it('**默认是 off**（没有方案创建流程时不能拦）', () => {
-    assert.equal(DEFAULT_PLAN_GATE.mode, 'off');
+describe('默认值', () => {
+  it('**默认是 on**（方案流程已就位，硬关卡可以开了）', () => {
+    assert.equal(DEFAULT_PLAN_GATE.mode, 'on');
   });
 
-  it('默认设置下任何项目都不拦', () => {
-    assert.equal(planGateEnabled(DEFAULT_PLAN_GATE, 'prj_any'), false);
+  it('默认设置下项目走 on', () => {
+    assert.equal(planGateEnabled(DEFAULT_PLAN_GATE, 'prj_any'), true);
+  });
+
+  it('但 on 不等于「拦下所有活」——没有方案时仍放行（见集成测试）', () => {
+    // 这条只是提醒：on 的语义是"有方案且未批准才拦"，
+    // 真正验证在 planGateIntegration.test.ts 里。
+    assert.equal(planGateFor(DEFAULT_PLAN_GATE, 'prj_x'), 'on');
   });
 });
 
 describe('parsePlanGate：坏数据一律退回默认', () => {
   it('null / undefined', () => {
-    assert.equal(parsePlanGate(null).mode, 'off');
-    assert.equal(parsePlanGate(undefined).mode, 'off');
+    assert.equal(parsePlanGate(null).mode, 'on');
+    assert.equal(parsePlanGate(undefined).mode, 'on');
   });
 
   it('未知字符串', () => {
-    assert.equal(parsePlanGate('garbage').mode, 'off');
-    assert.equal(parsePlanGate({ mode: 'yes' }).mode, 'off');
+    assert.equal(parsePlanGate('garbage').mode, 'on');
+    assert.equal(parsePlanGate({ mode: 'yes' }).mode, 'on');
   });
 
   it('合法值能读', () => {
