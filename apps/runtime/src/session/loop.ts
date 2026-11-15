@@ -185,6 +185,15 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
         type: 'function',
         function: { name: c.name, arguments: JSON.stringify(c.args ?? {}) },
       })),
+      // **思维链必须存下来带回下一轮**。
+      //
+      // DeepSeek 思考模式（deepseek-flash 默认开启）：带 tools 的请求，
+      // 后续每一轮都要完整回传 reasoning_content，否则 **API 返回 400**。
+      //
+      // 丢了它的后果不是显式报错，而是工具循环整轮崩掉——
+      // 模型于是学会"只写文字、不调工具"，用户看到的就是
+      // "Assistant 不肯派活，要说很多次"。
+      ...(response.reasoningContent ? { reasoning_content: response.reasoningContent } : {}),
     });
     if (text) {
       lastText = text;

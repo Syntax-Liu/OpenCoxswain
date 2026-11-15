@@ -71,6 +71,33 @@ export interface ChatMessage {
    * 而其中真正需要图片的不到 1%。单独一个字段把改动面控制在这里。
    */
   parts?: readonly ContentPart[];
+  /**
+   * 思考模式的思维链。
+   *
+   * ## 为什么必须回传
+   *
+   * DeepSeek 文档（思考模式 → 工具调用）：
+   *
+   * > 携带了 `tools` 参数的请求，在后续所有请求中，**必须完整回传
+   * > `reasoning_content`** ——即使该轮模型未实际进行工具调用。
+   * > 若您的代码中未正确回传，API 会返回 400 报错。
+   *
+   * 而 `deepseek-flash` 的思考模式**默认打开**。所以：
+   *
+   *   模型在思考模式下想调工具
+   *   → 我们没存 reasoning_content
+   *   → 下一轮请求缺它
+   *   → API 400
+   *   → 工具循环整个断掉
+   *
+   * ## 表现
+   *
+   * 不是显式报错，而是**模型学会了只写文字、不调工具**——
+   * 用户看到的是"Assistant 很难主动派活，要说很多次"。
+   *
+   * 用户实测（2026-11-15）：说"需要"说了 6 次才派出一个。
+   */
+  reasoning_content?: string;
 }
 
 /** 取出一条消息的纯文本部分（用于估算 token、落库、日志）。 */
@@ -123,6 +150,14 @@ export interface LlmChatResponse {
    * "没有这个数据"不能当成 0。
    */
   readonly cachedTokens?: number;
+  /**
+   * 思考模式的思维链。
+   *
+   * **必须在下一轮请求里原样回传**（见 ChatMessage.reasoning_content）。
+   * 不传的话，带 tools 的后续请求会被 API 以 400 拒绝，
+   * 工具循环整个断掉——表现就是"模型不肯调工具"。
+   */
+  readonly reasoningContent?: string;
 }
 
 export interface LlmClient {
@@ -198,6 +233,15 @@ export function toWireMessages(
     };
     if (message.tool_calls) base.tool_calls = message.tool_calls;
     if (message.tool_call_id) base.tool_call_id = message.tool_call_id;
+
+    // **思维链必须回传**。
+    //
+    // DeepSeek 文档：带 tools 的请求，后续每一轮都必须完整回传
+    // `reasoning_content`，否则 API 返回 400。
+    //
+    // 不回传的后果不是显式报错，而是**工具循环整轮崩掉**——
+    // 用户看到的是"Assistant 不肯派活，要说很多次"。
+    if (message.reasoning_content) base.reasoning_content = message.reasoning_content;
 
     // 没有多模态内容：原样返回（和以前完全一致，零行为变化）
     if (!message.parts || message.parts.length === 0) return base;
@@ -277,6 +321,8 @@ export class OpenAiCompatClient implements LlmClient {
         choices?: Array<{
           message?: {
             content?: string | null;
+            /** 思考模式的思维链。**下一轮必须原样回传**。 */
+            reasoning_content?: string | null;
             tool_calls?: Array<{
               id?: string;
               function?: { name?: string; arguments?: string };
@@ -303,6 +349,10 @@ export class OpenAiCompatClient implements LlmClient {
         tokensIn: Number(usage.prompt_tokens) || 0,
         tokensOut: Number(usage.completion_tokens) || 0,
         ...(cached !== undefined ? { cachedTokens: cached } : {}),
+        // 思维链要留到下一轮（带 tools 的请求必须回传，否则 400）。
+        ...(typeof message.reasoning_content === 'string'
+          ? { reasoningContent: message.reasoning_content }
+          : {}),
       };
     } finally {
       clearTimeout(timer);

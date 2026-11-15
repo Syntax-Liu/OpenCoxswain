@@ -30,24 +30,37 @@
 export function claimsSpawn(text: string): string[] {
   const ids: string[] = [];
 
-  // 先找**所有** exe_ id，再看它们附近有没有"已派出"这类声明。
-  // 这样"已派出 exe_a 和 exe_b"里的两个都能抓到。
+  // 先说结论：**只要正文里出现 exe_ id，就一律交给调用方核对**。
   //
-  // 实测 2026-11-15：模型写成「我派出 Agent (exe_xxx) 进行统计」——
-  // "派出"和 id 之间有 "Agent ("，原正则要求紧邻，漏了。
-  // 现在把窗口拉到 40 字符，并补上「派出 / 派了 / 交给」等动词。
+  // 原来是「id 前 40 字符里有派出类动词」才算，实测一直被绕过：
+  //   - 「已实际调用工具，Agent id `exe_xxx`」  → "调用工具"不在动词表里
+  //   - 「Agent id exe_xxx，状态 starting」      → 前面根本没有动词
+  // 每次补一个动词，模型就换个说法。这个猫鼠游戏没有尽头。
+  //
+  // 所以不再做动词判定——**出现 id 就当声称**，由调用方用
+  // 本轮真实创建的列表核对。对不上就是编的，怎么措辞都逃不掉。
+  //
+  // ## 唯一要排除的：明确否定的陈述
+  //
+  // 「数据库里没有 exe_abc 这条记录」「exe_xxx 不存在」这类是
+  // **在陈述事实，不是在声称派活**，不该判错。
   const idRe = /(exe_[a-z0-9]{3,})/gi;
   let m: RegExpExecArray | null;
-  const claimRe = /(?:已派出|派出了|已成功派出|已创建|派出|派了|交给|创建了)/;
-
   while ((m = idRe.exec(text)) !== null) {
     const id = m[1]!;
-    const from = Math.max(0, m.index - 40);
-    const before = text.slice(from, m.index);
-    if (claimRe.test(before)) ids.push(id);
+    // 否定词**可能在 id 前面也可能在后面**：
+    //   「数据库里没有 exe_abc」  → 前
+    //   「exe_xyz 不存在」        → 后
+    // 两边都要看，范围各 20 字符够用（再长容易误伤别处的否定）。
+    const before = text.slice(Math.max(0, m.index - 20), m.index);
+    const after = text.slice(m.index + id.length, m.index + id.length + 20);
+    const negRe = /(?:没有|不存在|查不到|找不到|未找到|无此)/;
+    if (negRe.test(before) || negRe.test(after)) continue;
+    ids.push(id);
   }
 
-  return ids;
+  // 去重（同一句里可能重复提到同一个 id）
+  return [...new Set(ids)];
 }
 
 /**

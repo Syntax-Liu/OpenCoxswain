@@ -689,6 +689,57 @@ export class Orchestrator extends EventEmitter {
 
     // 用一个"只消费一轮"的 drain：本轮开头已取走全部消息。
     const messages = assistant.history();
+
+    // **上下文健康检查**：污染太重就先清洗，再交给模型。
+    //
+    // ## 为什么需要（2026-11-15 实测）
+    //
+    // 用户反馈"Assistant 不肯派活，要说很多次"。查下来老项目的会话有
+    // 144 条消息，其中：
+    //
+    //   49 条含 exe_ 的 assistant（谎报/样板）
+    //   11 条「不成立」更正
+    //   30 条 internal 系统注入（重试指令）
+    //
+    // —— 大部分上下文是**修补机制自己制造的噪音**。
+    //
+    // 模型看到这一串"说得像、做得不像"的先例，就不再调工具了。
+    // **开新项目一次就成功**，证实是这个原因。
+    //
+    // 只在**污染比例过高**时清：偶尔一条不是什么问题，
+    // 每轮都清会让模型失去连续感。
+    {
+      // 两道清洗：
+      //   1. "声称已派出但没真派"的 assistant 消息（模型会照抄这种句式）
+      //   2. **旧的 internal 注入**（重试指令、纠偏提示）——
+      //      它们是诊断信息，不是用户说的话，留着只会让上下文变成
+      //      "一堆系统在骂模型"的记录，反而干扰正常推理。
+      //
+      // 第 2 项**只清旧的**：最近 4 条保留（本轮的纠偏模型得看到）。
+      const afterSpawn = sanitizeSpawnClaims(messages);
+      const internalIdx: number[] = [];
+      afterSpawn.forEach((m, i) => {
+        if (m.role === 'user' && (m.content ?? '').includes('本轮**没有调用任何工具**')) {
+          internalIdx.push(i);
+        }
+      });
+      const keepFrom = Math.max(0, afterSpawn.length - 4);
+      const cleaned = afterSpawn.filter((_, i) => !internalIdx.includes(i) || i >= keepFrom);
+
+      const removed = messages.length - cleaned.length;
+      // 去掉的量超过 1/4，或者超过 10 条 —— 说明历史已经病态了
+      if (removed > 10 || (messages.length > 20 && removed / messages.length > 0.25)) {
+        messages.length = 0;
+        messages.push(...cleaned);
+        this.emit('runtime', {
+          type: 'assistant_text',
+          projectId: project.id,
+          text:
+            `（上下文已整理：剔除 ${removed} 条"声称已派出但没真派"的旧消息和过期纠偏提示，` +
+            `剩余 ${cleaned.length} 条。这类记录会让模型学不会调工具。）`,
+        } as RuntimeEvent);
+      }
+    }
     // 记忆注入：拿这一轮**用户真正说的话**去检索。
     // 内部通知（结算等）里含Agent 的原始输出，用它检索会召回无关记忆。
     const userInputs = inputs.filter((i) => !i.internal);

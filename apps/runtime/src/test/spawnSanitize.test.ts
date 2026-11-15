@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { sanitizeSpawnClaims } from '../assistant/spawnClaim.js';
+import { claimsSpawn, sanitizeSpawnClaims } from '../assistant/spawnClaim.js';
 
 /**
  * 从上下文里剔除"声称派活"的旧消息。
@@ -116,5 +116,92 @@ describe('混合场景', () => {
     assert.equal(out.length, 5);
     assert.ok(!out.some((m) => m.content?.includes('已派出')));
     assert.ok(out.some((m) => m.content === '共 3 个文件。'));
+  });
+});
+
+/**
+ * 谎报检测不能靠动词表。
+ *
+ * ## 踩过的坑
+ *
+ * 2026-11-15 实测：修了 `reasoning_content` 之后，Assistant 终于"看起来"
+ * 在派活了，但数据库里根本没有那条记录：
+ *
+ *   Assistant 说：已实际调用工具，Agent id `exe_mwi2d7m1q9b4x`
+ *   数据库最新：  14:30 的 exe_mwhxlmc618wnpu（早 36 分钟）
+ *   exe_mwi2d7m1q9b4x：不存在
+ *
+ * 原来的 `claimsSpawn` 要求"id 前 40 字符里有派出类动词"，
+ * 而「已实际调用工具」不在动词表里 —— 逃过了检测。
+ *
+ * 每补一个动词，模型就换一种说法。所以改成：
+ * **正文出现 exe_ id 就算声称，交给调用方核对**。
+ */
+describe('**谎报检测不依赖措辞**', () => {
+  it('「已实际调用工具，Agent id …」要被抓到', () => {
+    const ids = claimsSpawn('已实际调用工具，Agent id `exe_mwi2d7m1q9b4x`，状态 starting');
+    assert.deepEqual(ids, ['exe_mwi2d7m1q9b4x']);
+  });
+
+  it('前面没有动词也要抓到', () => {
+    assert.deepEqual(claimsSpawn('Agent id exe_abc999，状态 starting'), ['exe_abc999']);
+  });
+
+  it('只有 id 也抓到', () => {
+    assert.deepEqual(claimsSpawn('exe_abc999 正在跑'), ['exe_abc999']);
+  });
+
+  it('同一 id 重复只算一次', () => {
+    const ids = claimsSpawn('exe_abc 和 exe_abc 是同一个');
+    assert.deepEqual(ids, ['exe_abc']);
+  });
+
+  it('**否定陈述不算声称**（陈述事实不是派活）', () => {
+    assert.deepEqual(claimsSpawn('数据库里没有 exe_abc 这条记录'), []);
+    assert.deepEqual(claimsSpawn('exe_xyz 不存在'), []);
+    assert.deepEqual(claimsSpawn('查不到 exe_xyz'), []);
+  });
+});
+
+/**
+ * 上下文健康检查：污染太重时整段清洗。
+ *
+ * ## 实测数据（2026-11-15 用户的库）
+ *
+ * 老项目一个会话 144 条消息：
+ *
+ *   49 条含 exe_ 的 assistant（谎报/样板）
+ *   11 条「不成立」更正
+ *   30 条 internal 系统注入（重试指令）
+ *
+ * —— 大部分上下文是修补机制自己制造的噪音。
+ * 模型看到这串"说得像、做得不像"的先例，就不调工具了。
+ *
+ * **开新项目一次就成功**，证实是这个原因。
+ */
+describe('污染比例判定', () => {
+  it('偶尔一条不清（每轮都清会失去连续感）', () => {
+    const msgs: Msg[] = [];
+    for (let i = 0; i < 40; i += 1) {
+      msgs.push({ role: 'assistant', content: `第 ${i} 条正常回复。` });
+    }
+    msgs.push({ role: 'assistant', content: '已派出 exe_x123。' });
+    const cleaned = sanitizeSpawnClaims(msgs);
+    const removed = msgs.length - cleaned.length;
+    assert.equal(removed, 1);
+    assert.ok(removed / msgs.length < 0.25, '1/41 不该触发整段清洗');
+  });
+
+  it('**大规模污染要触发清洗**（复刻真实会话）', () => {
+    const msgs: Msg[] = [];
+    for (let i = 0; i < 49; i += 1) {
+      msgs.push({ role: 'assistant', content: `已派出 exe_fake${i}，正在跑。` });
+      msgs.push({ role: 'user', content: `第 ${i} 个任务` });
+      msgs.push({ role: 'assistant', content: `完成 ${i}。` });
+    }
+    const cleaned = sanitizeSpawnClaims(msgs);
+    const removed = msgs.length - cleaned.length;
+    assert.equal(removed, 49, '49 条谎报样板都该清掉');
+    assert.ok(removed > 10, '超过 10 条，触发整段清洗');
   });
 });
