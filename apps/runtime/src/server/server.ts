@@ -339,6 +339,16 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           return deny(400, errors.join('；'));
         }
         await orchestrator.saveModelSettings(settings);
+        // **必须刷新 LLM 客户端**。
+        //
+        // 保存只是写了 models.json；正在跑的 `LlmProvider` 还拿着
+        // 旧的 `OpenAiCompatClient`——里面的 `supportsImages` 是
+        // 创建时的快照。
+        //
+        // 不刷新的话，用户勾了"支持图片输入"、点了保存、界面上也显示
+        // 已勾选，但**当前进程一直到重启前都不会发图片块**。
+        // 表现就是"发图没用"，而所有配置文件看都是对的。
+        await llmSettings?.refresh();
         return reply(200, { ok: true, storage: orchestrator.modelStorageMode() });
       }
     }

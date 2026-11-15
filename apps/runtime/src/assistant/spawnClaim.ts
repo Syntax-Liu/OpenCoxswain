@@ -125,3 +125,48 @@ export function correctionText(
     '文字描述不会派活，只有真的调用工具才会。需要我现在派吗？'
   );
 }
+
+/**
+ * 从历史里剔除"声称派活"的 assistant 消息。
+ *
+ * ## 为什么要在重试时清洗
+ *
+ * 根因不是"这一条说错了"，而是**历史里积了几十条样板**。
+ * 模型看到前任写了「已派出 exe_xxx」，就照抄句式、不调工具
+ * ——这是上下文里的范式模仿。
+ *
+ * 实测（2026-11-15 用户的库）：793 条 assistant 消息里 59 条含「已派出」，
+ * 最严重的会话有 25 条。原来的重试只 pop 掉最后一条，
+ * 剩下 24 条还摆在上下文里当范本。
+ *
+ * 更糟的是纠正语本身也含"已派出"三个字，等于又加一份样板。
+ *
+ * ## 只剔除 assistant 的
+ *
+ * 用户消息必须原样保留——用户说"派出去了吗"是有意义的追问，
+ * 删掉会让对话失去上下文。
+ *
+ * ## 为什么不删更正消息
+ *
+ * 更正（"⚠ 更正：…不成立"）是真事实，删了会让模型以为之前真的派过。
+ * 但它含"已派出"字样，所以这里**逐条判断**：
+ * 声称派活且**不是**更正 → 剔除。
+ */
+export function sanitizeSpawnClaims<T extends { readonly role: string; readonly content: string | null }>(
+  messages: readonly T[],
+): T[] {
+  return messages.filter((m) => {
+    if (m.role !== 'assistant') return true;
+    const text = m.content ?? '';
+
+    // 更正消息保留：
+    // 它是系统补的真相，删了模型会以为真的派过活。
+    if (text.includes('不成立') || text.includes('实际没有创建')) return true;
+
+    // 声称派活（带 id 或不带 id）→ 剔除
+    if (claimsSpawn(text).length > 0) return false;
+    if (claimsSpawnWithoutId(text)) return false;
+
+    return true;
+  });
+}

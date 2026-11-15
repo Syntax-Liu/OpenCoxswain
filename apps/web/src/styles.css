@@ -3712,6 +3712,21 @@ body.is-resizing {
 .attachment-chip {
   align-items: center;
   gap: var(--g-15);
+
+  /* ---- 覆盖全局 `button` / `.btn` 规则 ----
+   *
+   * 这个 chip 同时带了 `btn btn--secondary btn--sm`：
+   *   .btn      → display: inline-flex（好，我们要 flex）
+   *   .btn--sm  → height: 22px，padding: 0 8px
+   *   button    → align-items: center
+   *
+   * 但 chip 里是 **28px 的缩略图**，22px 装不下，会溢出到相邻元素上。
+   * 所以按内容撑高、并给横向 padding 留出缩略图的呼吸空间。 */
+  height: auto;
+  min-height: 34px;
+  padding: 3px 8px 3px 3px; /* 左边 3px：让 28px 缩略图贴着圆角，不留空 */
+  max-width: 100%;          /* 长文件名不能把 chip 顶出输入框 */
+  min-width: 0;             /* 允许它被压缩，否则 flex 子项默认不收缩 */
 }
 
 .attachment-chip.has-warning {
@@ -3724,6 +3739,8 @@ body.is-resizing {
   object-fit: cover;
   border-radius: var(--r-sm);
   display: block;
+  /* 缩略图不该被压缩——文件名长的时候先缩名字。 */
+  flex: none;
 }
 
 .attachment-icon {
@@ -3736,6 +3753,7 @@ body.is-resizing {
   border-radius: var(--r-sm);
   color: var(--text-dim);
   font-size: var(--fs-md);
+  flex: none;
 }
 
 .attachment-name {
@@ -3743,6 +3761,10 @@ body.is-resizing {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
+  /* **必须有 min-width: 0**：flex 子项默认 min-width: auto，
+     长文件名不会收缩，直接顶出 chip 的右边界。 */
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .attachment-warn {

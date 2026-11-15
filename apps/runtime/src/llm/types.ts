@@ -256,6 +256,8 @@ export class OpenAiCompatClient implements LlmClient {
       if (this.config.temperature !== undefined) body.temperature = this.config.temperature;
 
       const url = `${this.config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+      const payload = JSON.stringify(body);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {

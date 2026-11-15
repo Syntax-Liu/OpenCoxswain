@@ -91,8 +91,31 @@ export function modelForRole(
   role: keyof RoleBindings,
 ): ModelConfig | null {
   const id = settings.roles[role];
-  if (!id) return null;
-  return settings.models.find((m) => m.id === id) ?? null;
+  if (id) {
+    const bound = settings.models.find((m) => m.id === id);
+    if (bound) return bound;
+  }
+
+  // **没绑定 → 回退到默认模型**。
+  //
+  // 界面里那行文案写的是「不绑定的角色会用『沿用当前密钥』那套默认配置」，
+  // 但这里原来直接 `return null` —— 文案承诺的回退**根本没实现**。
+  //
+  // 后果不是"用错模型"，而是**参数全丢**：
+  // `paramsOf()` 拿到 null，`supportsImages` 一律按 false 处理，
+  // 用户在设置里勾了"支持图片输入"、图片也确实发到了服务端，
+  // 但请求体里没有 image 块 —— 模型自然说"我看不到图"。
+  //
+  // 回退规则（保守，不猜）：
+  //   1. 只有**一个**模型 → 就是它（用户没得选，默认即唯一）
+  //   2. 有多个 → 不猜，返回 null（让它走"沿用当前密钥"那条老路径）
+  //
+  // 为什么不总是回退到第一个：有多个模型时猜错会让用户
+  // 以为"我明明绑了 A 却用了 B"，比不生效更难查。
+  if (settings.models.length === 1) {
+    return settings.models[0] ?? null;
+  }
+  return null;
 }
 
 /**

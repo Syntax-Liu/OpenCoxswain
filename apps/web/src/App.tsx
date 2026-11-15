@@ -1057,7 +1057,13 @@ export function App(): JSX.Element {
             }
             {...(draftSeed ? { draftSeed } : {})}
             stats={projectStats}
-            onSend={(text) => void handleSendToAssistant(text)}
+            // **图片必须传过去**。
+            // 之前是 `onSend={(text) => handleSendToAssistant(text)}`——
+            // 只取了第一个参数，images 被静默丢掉。
+            // 用户拖图进输入框、点发送，界面上有附件卡，但真正发出去的
+            // 只有文字，模型那边完全不知道有图。
+            // 这不是"图没显示"，是**图根本没发出去**。
+            onSend={(text, images) => void handleSendToAssistant(text, images)}
             onStop={() => void handleStop()}
           />
           </>

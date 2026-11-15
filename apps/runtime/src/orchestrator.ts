@@ -20,7 +20,7 @@ import { stat as fsStat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { auditSpawnClaims, correctionText } from './assistant/spawnClaim.js';
+import { auditSpawnClaims, correctionText, sanitizeSpawnClaims } from './assistant/spawnClaim.js';
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
 import { decideSession, detectUserIntent } from './orchestrator/sessionPolicy.js';
 import { INTERNAL_SOURCE_PREFIX } from './store/store.js';
@@ -753,8 +753,6 @@ export class Orchestrator extends EventEmitter {
       }
     }
 
-    await assistant.recordAssistant(finalText);
-
     // **核对"已派出"的说法**。
     //
     // 实测踩过：Assistant 声称"已派出 exe_xxx"，但它没有调用 spawn_executor，
@@ -763,6 +761,23 @@ export class Orchestrator extends EventEmitter {
     // 提示词里已经写了"不许预告派活"，但软约束不够——
     // 这里在运行时补一道硬检查：说了但没派的，追加一条更正。
     const audit = auditSpawnClaims(finalText, spawnedThisTurn);
+
+    // **谎报的回复不写进历史**。
+    //
+    // 这是"Assistant 很难主动派活"的根因。
+    //
+    // 原来这里无条件 `recordAssistant(finalText)` —— 于是每一句
+    // 「已派出 exe_xxx」都变成了后续推理的**范例**。模型下一轮看到
+    // 前任这么写，就照抄句式、依然不调工具，污染越滚越大。
+    //
+    // 实测用户的库：793 条 assistant 消息里 59 条含「已派出」，
+    // 最严重的会话 25 条。用户得说很多次"需要"它才动。
+    //
+    // 所以：**先判断，再落库**。谎报的那句只用在更正里，
+    // 不进上下文。
+    if (!audit.wrong) {
+      await assistant.recordAssistant(finalText);
+    }
 
     // **自动重试一次**。
     //
@@ -783,11 +798,36 @@ export class Orchestrator extends EventEmitter {
         text: `（检测到未真实派活，正在重试一次）`,
       } as RuntimeEvent);
 
-      // 重试：把刚才的错误回复从历史里剔除，换成明确的纠正指令。
-      // 标记为 system 来源：它是系统纠偏，不是用户说的话，不该显示在对话流里。
-      messages.pop();
+      // 重试：**清洗整段历史里"声称派活"的消息**，再换成明确的纠正指令。
+      //
+      // ## 为什么不是只 pop 一条
+      //
+      // 原来只 `messages.pop()` 掉最后一条，但根因不是"这一条错了"，
+      // 而是**历史里积了几十条「已派出 exe_xxx」的样板**——模型照着模仿，
+      // 复现文字但不调工具（见 docs/incident-spawn-claim.md）。
+      //
+      // 实测（2026-11-15 用户的库）：793 条 assistant 消息里 59 条含「已派出」，
+      // 最严重的会话有 25 条。只删最后一条，剩下 24 条还是范本。
+      //
+      // 更糟的是纠正消息本身也含"已派出"三个字，等于又加一份样板。
+      // 所以纠正语里不再引用原句，历史里的样板也一并抹掉。
+      const cleaned = sanitizeSpawnClaims(messages);
+      const removed = messages.length - cleaned.length;
+
+      messages.length = 0;
+      messages.push(...cleaned);
       messages.push({ role: 'user', content: correction });
       await assistant.recordUser(correction, 'system', true);
+
+      if (removed > 0) {
+        // 走 runtime 事件而不是 console：壳层和界面都能看到这次清洗。
+        this.emit('runtime', {
+          type: 'assistant_text',
+          projectId: project.id,
+          text: `（已从上下文剔除 ${removed} 条"声称已派出"的旧消息，避免模型继续照抄句式）`,
+        } as RuntimeEvent);
+      }
+
       void this.runAssistantTurn(project, assistant, signal, retryCount + 1);
       return;
     }
