@@ -221,10 +221,19 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
     }
   }
 
-  // 步数用尽：如实报告，不假装完成。
+  // 限额用尽：如实报告，不假装完成。
+  //
+  // 措辞必须是「轮」，不是「步」：
+  // maxSteps 限的是**模型往返轮次**，而 executor 的 metrics.steps 统计的是
+  // **工具调用总数**（一轮里可能有多个并发调用）。
+  // 2026-11-15 实测：任务因 40 轮上限失败，但界面显示 93 步，
+  // 用户看到「93 步 / 上限 40」会以为是 bug。两者是不同单位。
   yield {
     type: 'error',
-    message: `达到单轮最大步数 ${maxSteps}，本轮以未完成状态结束。`,
+    message:
+      `达到单轮最大轮次 ${maxSteps}，本轮以未完成状态结束。` +
+      '（一轮里可以并发多个工具调用，所以工具调用总数会高于轮次。' +
+      '这通常意味着任务范围给得太大，建议缩小范围后重试。）',
     retryable: true,
   };
   yield { type: 'done', finalText: lastText, steps: maxSteps };

@@ -7,7 +7,8 @@
  * （只有 metrics.steps 和 metrics.durationMs）。编一个假百分比会让人
  * 误判"快好了"，而系统根本不知道还剩多少。
  *
- * 显示的是真实数据：步数、耗时、写域权限、结论摘要。
+ * 显示的是真实数据：工具调用次数、耗时、写域权限、结论摘要。
+ * 注意：这里是**工具调用总数**，不是轮次——一轮可有多个并发调用。
  */
 import type { ExecutorDto } from '../api.js';
 
@@ -72,7 +73,7 @@ export function RunnerLane(props: RunnerLaneProps): JSX.Element {
       {!minimized && (
         <>
           <span className="lane-meta">
-            {steps > 0 && <span>{steps} 步</span>}
+            {steps > 0 && <span>{steps} 次工具调用</span>}
             <span>{formatDuration(elapsed)}</span>
             {e.access === 'readonly' && <span className="lane-scope">只读</span>}
           </span>

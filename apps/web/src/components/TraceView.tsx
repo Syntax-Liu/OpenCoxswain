@@ -86,7 +86,7 @@ export function TraceView(props: TraceViewProps): JSX.Element {
             </span>
             {executor.metrics && (
               <>
-                <span>{executor.metrics.steps} 步</span>
+                <span>{executor.metrics.steps} 次工具调用</span>
                 <span>{formatDuration(elapsed)}</span>
                 {trace && trace.total > 0 && <span>{trace.total} 条记录</span>}
                 {trace && trace.spanMs > 0 && <span>跨度 {describeSpan(trace.spanMs)}</span>}
