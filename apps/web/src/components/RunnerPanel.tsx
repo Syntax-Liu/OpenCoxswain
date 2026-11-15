@@ -45,11 +45,18 @@ export function pendingDecisions(
   return reports.filter((r) => r.needsUser && r.ackedAt === null);
 }
 
-/** 活跃的：在跑 + 失败（失败要留在视野里）。 */
+/**
+ * 活跃的：在跑 + 等着的 + 失败的。
+ *
+ * **必须包含 asking**。曾经只算 running/failed，
+ * 而 asking 又不属于 decisions（那是 report 层），
+ * 结果带 blockedReason 的 Agent 三处都不渲染，直接从界面上消失。
+ * 一个正在等的 Agent 比一条完成的跑道更需要被看见。
+ */
 export function activeOf(executors: readonly ExecutorDto[]): readonly ExecutorDto[] {
   return executors.filter((e) => {
     const s = laneStatusOf(e);
-    return s === 'running' || s === 'failed';
+    return s === 'running' || s === 'asking' || s === 'failed';
   });
 }
 
