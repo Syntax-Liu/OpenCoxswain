@@ -145,6 +145,13 @@ export function assistantTools(): ToolDefinition[] {
             description:
               '你对"这条需求与在跑任务关系"的判定：new=全新 / parallel=可并行 / conflict=冲突。',
           },
+          planStepId: {
+            type: 'string',
+            description:
+              '如果这个 Agent 执行的是**已批准方案**里的某一步，填那一步的 id（如 "P0"）。' +
+              '填了之后系统会自动回填进度并在它完成后提示你下一步。' +
+              '临时任务不要填。',
+          },
           criteria: {
             type: 'array',
             description:

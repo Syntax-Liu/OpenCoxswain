@@ -105,6 +105,14 @@ export interface ExecutorRow {
   readonly policy: AcceptancePolicy;
   /** 系统复核结果。**未复核时为 null**，不要伪装成通过。 */
   readonly acceptance: AcceptanceResult | null;
+  /**
+   * 这个 Agent 执行的是方案的哪一步。
+   *
+   * 有了它，Agent 结算时才能把结果回填到方案、推进下一步；
+   * 没有它，方案就只是一张清单，执行完不会变成进度。
+   * 非方案内的临时任务为 null。
+   */
+  readonly planStepId?: string | null;
   readonly createdAt: number;
   readonly endedAt: number | null;
 }

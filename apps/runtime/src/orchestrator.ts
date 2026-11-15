@@ -64,7 +64,13 @@ import {
   planGateFor,
   type PlanGateSettings,
 } from './settings/planGate.js';
-import { canSpawnStep, createPlan, transition } from './orchestrator/plan.js';
+import {
+  canSpawnStep,
+  createPlan,
+  onStepDone,
+  onStepFailed,
+  transition,
+} from './orchestrator/plan.js';
 import { checkAllCommands } from './acceptance/portability.js';
 import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
@@ -207,6 +213,13 @@ export interface SpawnInput {
    * 不给的话只能按策略自动判断。
    */
   readonly userText?: string;
+  /**
+   * 这个 Agent 执行的是方案的哪一步（如 'P0'）。
+   *
+   * 给了它，Agent 结算时会自动回填方案进度并推进下一步；
+   * 不给就是普通临时任务，与方案无关。
+   */
+  readonly planStepId?: string;
 }
 
 export interface SpawnResult {
@@ -831,6 +844,9 @@ export class Orchestrator extends EventEmitter {
                 // 用户原文：用来识别"开新会话 / 接着上次"这类明确要求。
                 // 取最近一条真实用户消息（内部通知不算）。
                 userText: this.latestUserText(project.id),
+                ...(typeof args.planStepId === 'string' && args.planStepId.trim()
+                  ? { planStepId: args.planStepId.trim() }
+                  : {}),
               });
               // 记下真实创建的 id——本轮结束时核对"已派出"的说法
               this.turnSpawnLog.get(assistant)?.push(result.executor.id);
@@ -1244,6 +1260,7 @@ export class Orchestrator extends EventEmitter {
       criteria: input.criteria ?? [],
       policy: input.policy ?? 'unverified_only',
       acceptance: null,
+      ...(input.planStepId ? { planStepId: input.planStepId } : {}),
       createdAt: now,
       endedAt: null,
     };
@@ -1577,6 +1594,89 @@ export class Orchestrator extends EventEmitter {
     // 由调用方自己说清楚原因，不在这里重复。
     if (status === 'cancelled' && cancelledBy !== 'system') {
       await this.notifyCancelled(row);
+    }
+
+    // 方案推进：这个 Agent 如果是某一步的执行者，回填结果并决定下一步。
+    //
+    // **只对 done/failed 处理**：cancelled 是用户主动停的，
+    // 不该算作"这一步失败"（那会让步子自己往前走到 blocked）。
+    if (row.planStepId && (status === 'done' || status === 'failed')) {
+      await this.advancePlan(row, status, summary ?? '');
+    }
+  }
+
+  /**
+   * 回填方案进度，并决定下一步。
+   *
+   * 关键取舍：**这里不直接派活**，而是发一条内部通知给 Assistant，
+   * 让它照常决定下一步怎么做。理由：
+   *   - 派活要考虑排队、写域冲突、用户新需求，这些都在 Assistant 那边
+   *   - 由这里硬派会让 Assistant 对方案失去掌控，违反了"Assistant 是项目的主人"
+   *
+   * 所以方案推进的产物是「通知」+「状态更新」，不是直接的 spawn。
+   */
+  private async advancePlan(
+    row: ExecutorRow,
+    status: 'done' | 'failed',
+    summary: string,
+  ): Promise<void> {
+    const plan = this.store.activePlanOf(row.projectId);
+    if (!plan) return;
+    if (!plan.steps.some((s) => s.id === row.planStepId)) return;
+
+    const outcome =
+      status === 'done'
+        ? onStepDone(plan, row.planStepId!)
+        : onStepFailed(plan, row.planStepId!);
+
+    await this.store.putPlan(outcome.plan);
+
+    const step = outcome.plan.steps.find((s) => s.id === row.planStepId);
+    const lines: string[] = [];
+
+    if (status === 'done') {
+      lines.push(`方案步骤 ${row.planStepId}「${step?.title ?? ''}」已完成。`);
+      const next = outcome.nextStepId;
+      if (next) {
+        const nextStep = outcome.plan.steps.find((s) => s.id === next);
+        lines.push(
+          `下一步是 ${next}「${nextStep?.title ?? ''}」。` +
+            '方案已批准，**直接派活继续，不用再问用户**。',
+        );
+      } else if (outcome.plan.status === 'done') {
+        lines.push('方案的全部步骤都完成了，向用户汇报最终结果。');
+      } else {
+        lines.push('当前没有可推进的步骤（后续步骤的依赖还没满足）。');
+      }
+    } else if (outcome.escalate) {
+      lines.push(
+        `方案步骤 ${row.planStepId}「${step?.title ?? ''}」已连续失败 ` +
+          `${step?.attempts ?? 0} 次，方案卡住了。`,
+        '把「哪一步、试过什么、卡在哪」讲清楚交给用户，不要自己再试。',
+      );
+    } else {
+      const nextStep = outcome.plan.steps.find((s) => s.id === outcome.nextStepId);
+      lines.push(
+        `方案步骤 ${row.planStepId}「${step?.title ?? ''}」失败（第 ${step?.attempts ?? 1} 次）。`,
+        `改法后重派：${nextStep?.title ?? ''}。` +
+          '缩小范围或换做法，**不要重复同一个失败的做法**。',
+      );
+    }
+
+    if (summary.trim()) {
+      lines.push(`结算结论：${summary.slice(0, 400)}`);
+    }
+
+    const target = this.store.getProject(row.projectId);
+    if (!target) return;
+    try {
+      await this.userSays(
+        target.id,
+        `${INTERNAL_NOTICE_PREFIX}\n${lines.join('\n')}`,
+        { source: 'executor', internal: true },
+      );
+    } catch {
+      // Assistant 不在场不影响事实：方案状态已经落库
     }
   }
 

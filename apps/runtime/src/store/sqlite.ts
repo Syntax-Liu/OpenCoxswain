@@ -56,7 +56,7 @@ import {
   type SearchableMessage,
 } from '../search/fulltext.js';
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -122,6 +122,8 @@ CREATE TABLE IF NOT EXISTS executor (
   criteria TEXT,
   policy TEXT,
   acceptance TEXT,
+  -- v10：这个 Agent 执行方案的哪一步（NULL = 非方案任务）
+  plan_step_id TEXT,
   created_at INTEGER NOT NULL,
   ended_at INTEGER
 );
@@ -283,6 +285,11 @@ export class SqliteStore implements Store {
       // tok/s 要用它算才对——老数据为 NULL，退回用 duration_ms。
       if (version < 9 && !this.hasColumn('executor', 'model_ms')) {
         this.db.exec('ALTER TABLE executor ADD COLUMN model_ms INTEGER;');
+      }
+      // v9 → v10：executor 表新增 plan_step_id（这个 Agent 执行方案的哪一步）。
+      // 老数据为 NULL（不是方案内的任务），行为与之前一致。
+      if (version < 10 && !this.hasColumn('executor', 'plan_step_id')) {
+        this.db.exec('ALTER TABLE executor ADD COLUMN plan_step_id TEXT;');
       }
       this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
       // v3 → v4 只是新增 approval 表，SCHEMA 里的 CREATE IF NOT EXISTS 已覆盖，
@@ -546,8 +553,8 @@ export class SqliteStore implements Store {
     this.db
       .prepare(
         `INSERT INTO executor (id, project_id, session_id, label, goal, access, write_scope, status, summary, blocked_reason,
-           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, model_ms, context_tokens, criteria, policy, acceptance, created_at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, model_ms, context_tokens, criteria, policy, acceptance, plan_step_id, created_at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            status = excluded.status,
            summary = excluded.summary,
@@ -561,6 +568,7 @@ export class SqliteStore implements Store {
            model_ms = excluded.model_ms,
            context_tokens = excluded.context_tokens,
            acceptance = excluded.acceptance,
+           plan_step_id = excluded.plan_step_id,
            ended_at = excluded.ended_at`,
       )
       .run(
@@ -585,6 +593,7 @@ export class SqliteStore implements Store {
         JSON.stringify(row.criteria),
         row.policy,
         row.acceptance ? JSON.stringify(row.acceptance) : null,
+        row.planStepId ?? null,
         row.createdAt,
         row.endedAt,
       );
@@ -1068,6 +1077,7 @@ function toExecutor(raw: Row): ExecutorRow {
         ? raw.policy
         : 'unverified_only',
     acceptance: parseJsonField(raw.acceptance, null),
+    planStepId: raw.plan_step_id === null || raw.plan_step_id === undefined ? null : String(raw.plan_step_id),
     createdAt: Number(raw.created_at),
     endedAt: raw.ended_at === null ? null : Number(raw.ended_at),
   };
