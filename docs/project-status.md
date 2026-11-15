@@ -82,13 +82,13 @@ packages/core  23 文件   2015 行   legacy 内核（部分复用）
 A 用户
   │  用自然语言说话
   ▼
-B Supervisor ── 只在"你有多个项目、不知道进哪个"时路由
+Supervisor Supervisor ── 只在"你有多个项目、不知道进哪个"时路由
   │
   ▼
-C Assistant ── 每个项目一个，**常驻会话**
+Assistant Assistant ── 每个项目一个，**常驻会话**
   │  派活 / 汇报 / 判断冲突
   ▼
-D Agent ──── 临时工，干完就结算
+Agent Agent ──── 临时工，干完就结算
 ```
 
 ### 2.2 主推流程
@@ -96,7 +96,7 @@ D Agent ──── 临时工，干完就结算
 ```
 1. 打开项目          → C 恢复上次的对话
 2. 对 Assistant 说"把登录页重构一下"
-3. C 判断：这是新任务，可并行
+3. Assistant 判断：这是新任务，可并行
 4. Assistant 派 Agent1、D2、D3 同时开工
 5. 谁先完成，C 立刻汇报谁（不等其它）
 6. Agent 卡住了 → C 自己推一把，或问你
@@ -116,7 +116,7 @@ D Agent ──── 临时工，干完就结算
 | **关窗口不退出** | 点 × 只是隐藏到托盘 | 关个窗口就杀掉正在跑的活儿，不能接受 |
 | **单实例锁** | 第二次双击唤回已有窗口 | 两个实例抢同一个端口和数据库 |
 
-### 2.4 为什么 C 不直接干活
+### 2.4 为什么 Assistant 不直接干活
 
 因为**反馈延迟**。一个 Agent 跑 5 分钟没动静，你不知道它在想还是在卡；
 换成 C 立刻回一句"我派了三个 Agent，先做登录页"，你就安心了。
@@ -135,7 +135,7 @@ Assistant 的价值不是"更聪明"，是**让你知道现在什么情况**。
 | D 多路并行 | ✅ | 只读任务不互斥；写任务按写域加锁 |
 | 先完成先汇报 | ✅ | 同一批完成的会去抖合并成一条 |
 | Agent 可续聊 | ✅ | 点开某个 Agent 的会话，带着原上下文继续追问 |
-| 关软件再打开 | ✅ | C 和 Agent 的历史都在，从断点继续 |
+| 关软件再打开 | ✅ | Assistant 和 Agent 的历史都在，从断点继续 |
 | B 路由 | ✅ | 项目多了不知道进哪个时，B 给依据或转交原话 |
 
 ### 3.2 可信性（线 A）
@@ -211,7 +211,7 @@ OpenCoxswain/
 | `executor/` | 3 | **D** 的执行循环、工具集、写域闸门、运行器 |
 | `global/` | 1 | **B** 的路由逻辑 |
 | `inbox/` | 1 | 消息队列（`next` / `step` 双队列） |
-| `session/` | 1 | LLM 工具调用循环（最底层，C 和 D 共用） |
+| `session/` | 1 | LLM 工具调用循环（最底层，Assistant 和 D 共用） |
 | `llm/` | 3 | 模型客户端、设置存储、密钥加密客户端 |
 | `store/` | 2 | `Store` 接口 + 内存/SQLite 两套实现 |
 | `server/` | 3 | HTTP/SSE 服务、事件总线、访问令牌 |
@@ -231,9 +231,9 @@ OpenCoxswain/
 
 #### `apps/runtime/src/orchestrator.ts`（1474 行）
 
-**总调度**。C 和 Agent 的所有协调逻辑在这里：
+**总调度**。Assistant 和 Agent 的所有协调逻辑在这里：
 
-- `openProject()` — 打开/新建项目，恢复 C 会话
+- `openProject()` — 打开/新建项目，恢复 Assistant 会话
 - `userSays()` — 用户对 Assistant 说话（入队即返回，不阻塞）
 - `spawn()` — Assistant 派活：判断冲突、建记录、后台跑
 - `runExecutorBackground()` — Agent 的执行编排
@@ -257,7 +257,7 @@ OpenCoxswain/
 
 #### `apps/runtime/src/executor/gate.ts`
 
-**写域闸门**。决定哪些 D 能同时跑：
+**写域闸门**。决定哪些 Agent 能同时跑：
 
 ```
 只读任务        → 永不冲突
@@ -511,7 +511,7 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/route` | B 路由：给依据或转交原话 |
-| GET | `/api/route/brief` | 项目概览（供 B 判断） |
+| GET | `/api/route/brief` | 项目概览（供 Supervisor 判断） |
 | POST | `/api/handoff` | 转交原话到指定项目 |
 
 #### IM

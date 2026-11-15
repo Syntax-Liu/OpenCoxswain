@@ -524,7 +524,7 @@ pnpm --filter @opencoxswain/web test   # 606 全绿
 | --- | --- | --- |
 | **A 并入契约** | `rail-toggle`（4 处）、`folder-toggle`、`attachment-chip`、`send-btn`（2 处）、`view-tab`（2 处）、`ui-select-btn` | 加 `.btn` 组合类 |
 | **B 保留定位类** | 同上 | **加新类、不删旧类**：`btn btn--ghost rail-toggle` |
-| **C 不迁移** | `win-btn`（窗口控制，46×30 无圆角）、`welcome-example-pill`（是 `<span>` 不是按钮） | 保持独立，各自形态特殊 |
+| **Assistant 不迁移** | `win-btn`（窗口控制，46×30 无圆角）、`welcome-example-pill`（是 `<span>` 不是按钮） | 保持独立，各自形态特殊 |
 
 ### 12.3 一个必须记下的错误
 
