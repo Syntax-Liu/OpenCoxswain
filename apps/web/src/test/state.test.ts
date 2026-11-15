@@ -145,6 +145,23 @@ describe('乐观更新与列表', () => {
     assert.equal(next[0]?.role, 'user');
   });
 
+  it('**发图片时本地消息也要带 images**（否则图发出去就消失了）', () => {
+    const img = { type: 'image' as const, dataUrl: 'data:image/png;base64,AAA', name: 'a.png' };
+    const next = appendUserMessage([], '看这张图', [img]);
+    assert.equal(next[0]?.images?.length, 1);
+    assert.equal(next[0]?.images?.[0]?.dataUrl, img.dataUrl);
+  });
+
+  it('没有图片时不带 images 字段（不制造空数组）', () => {
+    const next = appendUserMessage([], '纯文字');
+    assert.equal(next[0]?.images, undefined);
+  });
+
+  it('空图片数组也不带字段', () => {
+    const next = appendUserMessage([], '纯文字', []);
+    assert.equal(next[0]?.images, undefined);
+  });
+
   it('upsertExecutor 保持顺序并替换', () => {
     const a = executor({ id: 'a' });
     const b = executor({ id: 'b' });

@@ -157,7 +157,18 @@ export function mergeAssistantText(
 }
 
 /** 用户发出消息后立刻显示（乐观更新）。 */
-export function appendUserMessage(messages: readonly MessageDto[], text: string): MessageDto[] {
+/**
+ * 把用户刚发的一条消息放进列表（乐观显示）。
+ *
+ * **必须带 images**：不带的话，发图片时本地列表里那张图会消失，
+ * 看起来像是发送失败——实际后端收到了，只是界面没显示。
+ * 实测踩过：用户附了图、发出去、图没了，以为没发出去。
+ */
+export function appendUserMessage(
+  messages: readonly MessageDto[],
+  text: string,
+  images?: ReadonlyArray<{ type: 'image'; dataUrl: string; name?: string }>,
+): MessageDto[] {
   return [
     ...messages,
     {
@@ -166,6 +177,7 @@ export function appendUserMessage(messages: readonly MessageDto[], text: string)
       content: text,
       source: 'webapp',
       at: Date.now(),
+      ...(images && images.length > 0 ? { images } : {}),
     },
   ];
 }

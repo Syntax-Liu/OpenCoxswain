@@ -745,7 +745,8 @@ export function App(): JSX.Element {
       if (view?.kind !== 'assistant') return;
       setState((s) => ({
         ...s,
-        messages: appendUserMessage(s.messages, text),
+        // **图片要一起放进本地列表**，否则发出去后图上就没了
+        messages: appendUserMessage(s.messages, text, images),
         thinking: true,
       }));
       try {
