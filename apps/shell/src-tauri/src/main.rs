@@ -881,6 +881,12 @@ fn main() {
             if let Some(tray) = app.remove_tray_by_id("main-tray") {
                 drop(tray);
             }
+            // **给 Shell 一点时间处理注销**。
+            //
+            // 进程退得太快，NIM_DELETE 的消息可能还没被 Shell 处理完，
+            // 槽位就成了"僵尸"——留在托盘面板里，鼠标划过才被回收
+            // （用户描述的"一移到上面就消失"正是这个）。
+            std::thread::sleep(std::time::Duration::from_millis(120));
             if let Ok(mut slot) = app.state::<Runtime>().0.lock() {
                 if let Some(mut child) = slot.take() {
                     // Windows 上 child.kill() 只结束运行时本身，
