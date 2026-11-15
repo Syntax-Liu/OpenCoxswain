@@ -1,0 +1,40 @@
+<svg data-theme="sky" data-label="晴空蓝" xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Agent robot icon">
+  <defs>
+    <linearGradient id="oc-sky-shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#CDEAFB"/>
+      <stop offset="1" stop-color="#9BCEF1"/>
+    </linearGradient>
+    <linearGradient id="oc-sky-eye" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#37B6F0"/>
+      <stop offset="1" stop-color="#1E96DF"/>
+    </linearGradient>
+    <!-- 小号圆润三角猫耳：右耳由左耳镜像得到 -->
+    <g id="oc-sky-catEar">
+      <path d="M 116 176
+               Q 100 132 112 106
+               Q 124 82 138 98
+               Q 158 118 188 140
+               L 184 158
+               L 120 184
+               Z" fill="url(#oc-sky-shell)"/>
+    </g>
+  </defs>
+
+  <!-- 头顶两只小耳朵（先画，压在头部下层） -->
+  <use href="#oc-sky-catEar"/>
+  <use href="#oc-sky-catEar" transform="translate(512,0) scale(-1,1)"/>
+
+  <!-- 两侧耳罩（同样压在头部下层） -->
+  <rect x="78" y="218" width="22" height="86" rx="11" fill="#9CCFF0"/>
+  <rect x="412" y="218" width="22" height="86" rx="11" fill="#9CCFF0"/>
+
+  <!-- 头部外壳 -->
+  <circle cx="256" cy="256" r="159" fill="url(#oc-sky-shell)"/>
+
+  <!-- 面罩：白色描边 + 深色面板 -->
+  <rect x="138" y="176" width="236" height="160" rx="68" fill="#0B1220" stroke="#FFFFFF" stroke-width="20"/>
+
+  <!-- 双眼 -->
+  <rect x="190" y="222" width="28" height="66" rx="14" fill="url(#oc-sky-eye)"/>
+  <rect x="294" y="222" width="28" height="66" rx="14" fill="url(#oc-sky-eye)"/>
+</svg>

@@ -25,9 +25,12 @@
  */
 import { type ReactNode, useState } from 'react';
 
-import { IconBrand, IconChevron, IconClose, IconFolder, IconPlus, IconSettings } from './icons.js';
+import { IconChevron, IconClose, IconFolder, IconGlobe, IconPlus, IconSettings } from './icons.js';
 
 export interface RightRailProps {
+  /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
+  readonly iconTheme?: string;
+
   /** 待决策面板（传 null 表示没有）。 */
   readonly decisions?: ReactNode;
   /** 工作区文件区。 */
@@ -72,6 +75,7 @@ function Section(props: {
 }
 
 export function RightRail(props: RightRailProps): JSX.Element {
+  const iconTheme = props.iconTheme;
   return (
     <aside className="rail" aria-label="侧边栏">
       <div className="rail-top">
@@ -141,7 +145,10 @@ export function RailEmptyState(props: {
     },
     props.onOpenBrowser && {
       key: 'browser',
-      icon: <IconBrand size={16} />,
+      // 这里是「在浏览器中打开」，用通用图标；
+      // 品牌图标（AppIcon）只用在"代表这个应用"的位置，
+      // 用在一个功能入口上会让人误以为是应用菜单。
+      icon: <IconGlobe size={16} />,
       title: '在浏览器中打开',
       hint: '用系统默认浏览器打开',
       onClick: props.onOpenBrowser,

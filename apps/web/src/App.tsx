@@ -40,6 +40,7 @@ import {
 } from './state.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Conversation } from './components/Conversation.js';
+import { readIconTheme, writeIconTheme } from './iconTheme.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
 import { RailEmptyState, RightRail } from './components/RightRail.js';
 import { ProjectPicker } from './components/ProjectPicker.js';
@@ -101,6 +102,16 @@ export function App(): JSX.Element {
   }, [notice]);
   /** 侧栏折叠（Ctrl+B）。独立于宽度——折叠不是把宽度设成 0。 */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  /**
+   * 应用图标配色。
+   *
+   * 存在 localStorage（同步读，首屏不会闪旧图标）；
+   * Rust 侧启动时读同一个键，窗口和托盘图标也跟着变。
+   */
+  const [iconTheme, setIconTheme] = useState<string>(() => readIconTheme());
+  const pickIconTheme = useCallback((id: string) => {
+    setIconTheme(writeIconTheme(id));
+  }, []);
   /** 命令面板（Ctrl+K）。 */
   const [showPalette, setShowPalette] = useState(false);
   const [settings, setSettings] = useState<SettingsStatus | null>(null);
@@ -1113,6 +1124,8 @@ export function App(): JSX.Element {
             api={api}
             status={settings}
             projects={state.projects}
+            iconTheme={iconTheme}
+            onPickIconTheme={pickIconTheme}
             onClose={() => setShowSettings(false)}
             onSaved={setSettings}
           />

@@ -4,6 +4,7 @@ import type { ApiClient, ModelConfigDto, ProjectDto, SettingsStatus } from '../a
 import { ImSettings } from './ImSettings.js';
 import { CloseBehaviorSettings } from './CloseBehaviorSettings.js';
 import { FontScaleSetting } from './FontScaleSetting.js';
+import { IconThemeSetting } from './IconThemeSetting.js';
 import { WebSearchSetting } from './WebSearchSetting.js';
 import {
   IconGlobe,
@@ -63,6 +64,10 @@ export interface SettingsPageProps {
   readonly status: SettingsStatus;
   readonly projects: readonly ProjectDto[];
   readonly onClose: () => void;
+  /** 应用图标配色。 */
+  readonly iconTheme?: string;
+  /** 换配色。 */
+  readonly onPickIconTheme?: (id: string) => void;
   readonly onSaved: (status: SettingsStatus) => void;
 }
 
@@ -101,7 +106,14 @@ export function SettingsPage(props: SettingsPageProps): JSX.Element {
             <ModelSettingsPanel api={props.api} status={props.status} onSaved={props.onSaved} />
           )}
             {section === 'memory' && <MemorySection api={props.api} projects={props.projects} />}
-          {section === 'general' && <GeneralSection api={props.api} status={props.status} />}
+          {section === 'general' && (
+            <GeneralSection
+              api={props.api}
+              status={props.status}
+              iconTheme={props.iconTheme ?? 'violet'}
+              onPickIconTheme={props.onPickIconTheme ?? (() => {})}
+            />
+          )}
           {section === 'im' && (
             <section className="settings-block">
               <h2>手机通道</h2>
@@ -141,12 +153,20 @@ function MemorySection(props: { api: ApiClient; projects: readonly ProjectDto[] 
 }
 
 /** 通用：关闭行为 + 密钥存储状态。 */
-function GeneralSection(props: { api: ApiClient; status: SettingsStatus }): JSX.Element {
+function GeneralSection(props: {
+  api: ApiClient;
+  status: SettingsStatus;
+  iconTheme: string;
+  onPickIconTheme: (id: string) => void;
+}): JSX.Element {
   return (
     <section className="settings-block">
       <h2>通用</h2>
       <FontScaleSetting />
         <ThemeSetting />
+
+      <h3 className="settings-subhead">应用图标</h3>
+      <IconThemeSetting value={props.iconTheme} onChange={props.onPickIconTheme} />
       <CloseBehaviorSettings api={props.api} />
 
       <h3 className="settings-subhead">键盘快捷键</h3>

@@ -11,7 +11,8 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens } from './contextUsage.js';
-import { IconBrand, IconChevron, IconPlus, IconSend, IconSidebar } from './icons.js';
+import { IconChevron, IconPlus, IconSend, IconSidebar } from './icons.js';
+import { AppIcon } from './AppIcon.js';
 import { buildStatus } from './statusMetrics.js';
 import { PermissionPicker } from './PermissionPicker.js';
 import { describeWait } from './waitStatus.js';
@@ -23,6 +24,9 @@ import { MentionPicker, applyMention, detectMention, type MentionState } from '.
 import type { ApiClient } from '../api.js';
 
 export interface ConversationProps {
+  /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
+  readonly iconTheme?: string;
+
   readonly project: ProjectDto;
   /**
    * 项目选择器（照 DSH）。
@@ -86,6 +90,7 @@ export interface ConversationProps {
  * 输入框**从不被禁用**：C 还在回复时用户依然可以继续发（连发不打断）。
  */
 export function Conversation(props: ConversationProps): JSX.Element {
+  const iconTheme = props.iconTheme;
   // 草稿：按视图分开存，切换项目再回来内容还在
   const draftKey = props.draftKey;
   const [draft, setDraft] = useState(() => loadDraft(draftKey));
@@ -316,7 +321,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
              照 DSH：居中大标语 + 输入框在下，安静、有份量。 */
           <div className="welcome">
             <div className="welcome-brand">
-              <IconBrand size={36} />
+              <AppIcon size={36} theme={iconTheme} />
               <h1>从这里开始</h1>
             </div>
             <p className="welcome-sub">

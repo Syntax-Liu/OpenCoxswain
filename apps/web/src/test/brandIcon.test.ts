@@ -43,13 +43,13 @@ function rule(selector: string): string {
 
 describe('**欢迎页大图标要够大**', () => {
   it('图标 36px（不是 28px）', () => {
-    assert.match(newSession, /<IconBrand size=\{36\}/);
+    assert.match(newSession, /<AppIcon size=\{36\}/);
     // Supervisor 页的欢迎页同理
-    assert.doesNotMatch(newSession, /<IconBrand size=\{28\}/);
+    assert.doesNotMatch(newSession, /<AppIcon size=\{28\}/);
   });
 
   it('Supervisor 页也用 36', () => {
-    assert.match(conversation, /<IconBrand size=\{36\}/);
+    assert.match(conversation, /<AppIcon size=\{36\}/);
   });
 
   it('**top 用相对单位**（换字号不用重新量）', () => {

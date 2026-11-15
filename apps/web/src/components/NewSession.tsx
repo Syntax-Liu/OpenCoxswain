@@ -18,10 +18,13 @@
 import { useState } from 'react';
 
 import type { ProjectDto } from '../api.js';
-import { IconBrand, IconSend, IconSidebar } from './icons.js';
+import { IconSend, IconSidebar } from './icons.js';
+import { AppIcon } from './AppIcon.js';
 import { ProjectPicker } from './ProjectPicker.js';
 
 export interface NewSessionProps {
+  /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
+  readonly iconTheme?: string;
   /** 右侧边栏是否展开（和主对话保持一致）。 */
   readonly railOpen?: boolean;
   /** 切换右侧边栏。 */
@@ -34,6 +37,7 @@ export interface NewSessionProps {
 }
 
 export function NewSession(props: NewSessionProps): JSX.Element {
+  const iconTheme = props.iconTheme;
   const [draft, setDraft] = useState('');
   const [hint, setHint] = useState(false);
 
@@ -67,7 +71,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
       <div className="messages">
         <div className="welcome">
           <div className="welcome-brand">
-            <IconBrand size={36} />
+            <AppIcon size={36} theme={iconTheme} />
             <h1>新会话</h1>
           </div>
           <p className="welcome-sub">

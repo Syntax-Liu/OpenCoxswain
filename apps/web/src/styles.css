@@ -5645,3 +5645,53 @@ body.is-resizing {
   background: var(--color-danger);
   color: var(--color-code-fg);
 }
+
+/* ---------- 图标配色选择 ----------
+   六个配色都是同一只猫耳机器人的换色。
+   网格用 auto-fill，窗口变窄时自动换行，不需要断点。 */
+.icon-theme-setting {
+  margin-top: var(--g-2);
+}
+
+.icon-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--g-2);
+  margin-top: var(--g-3);
+}
+
+.icon-theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--g-2);
+  padding: var(--g-3) var(--g-2);
+
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--color-surface-panel);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.icon-theme-option:hover {
+  background: var(--color-surface-hover);
+}
+
+/* 选中：描边用主色，**不换背景**——换背景会让图标本身看起来变暗 */
+.icon-theme-option.is-active {
+  border-color: var(--color-action);
+  box-shadow: 0 0 0 1px var(--color-action);
+}
+
+.icon-theme-label {
+  font-size: var(--fs-xs);
+  color: var(--color-label-secondary);
+  white-space: nowrap;
+}
+
+.icon-theme-option.is-active .icon-theme-label {
+  color: var(--color-label-primary);
+}
