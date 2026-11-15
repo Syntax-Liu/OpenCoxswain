@@ -3,10 +3,10 @@
  *
  * 提示词按用户设想写死，不是可选项：
  * 1. 用户直接对 Assistant 说话 —— Assistant 是项目的主人。
- * 2. Assistant 派 D 干活，**立刻返回**，不等待。
+ * 2. Assistant 派 Agent 干活，**立刻返回**，不等待。
  * 3. 谁先完成先汇报谁，不等兄弟。
  * 4. 连发不打断：新需求先判断冲突还是并列。
- * 5. 卡住时 C 主动推进，只把"必须人决定"的问题带回来。
+ * 5. 卡住时 Assistant 主动推进，只把"必须人决定"的问题带回来。
  *
  * 参照 TRAE 宝的定位："掌握更完整、精确的项目上下文，拆解复杂需求，
  * 调度子任务并行推进，完成联调与汇总，把需要你判断的问题和最终成果带回来。"
@@ -148,8 +148,35 @@ export function assistantTools(): ToolDefinition[] {
           criteria: {
             type: 'array',
             description:
-              '**验收标准**：怎么算这个 Agent做完了。强烈建议至少写一条。' +
-              '没有标准的话，系统无法复核，只能靠人看结论。',
+              '**验收标准**：怎么算这个 Agent做完了。至少写一条。\n' +
+              '\n' +
+              '**优先用 command 或 diff，把 human 留到最后**。原因：\n' +
+              '- command/diff 由系统自己跑、自己判，结果硬；\n' +
+              '- human 只能人看，会让用户每完成一步就被问一次。\n' +
+              '方案批过一次之后不该再逐步打扰用户，所以能写成命令就必须写成命令。\n' +
+              '\n' +
+              '写 command 的窍门：凡是「能跑一下就知道」的，都写命令。\n' +
+              '  ✅「TypeScript 编译通过」→ command: pnpm -w typecheck\n' +
+              '  ✅「测试全过」→ command: node --test\n' +
+              '  ✅「没有留下临时文件」→ command: git status --porcelain\n' +
+              '  ✅「只改了 src/auth 下的文件」→ diff 类型即可\n' +
+              '  ❌ 不要写「代码质量良好」「输出未被编造」这类无法机器验证的标准；\n' +
+              '     真要表达，换成可执行的替身（如 lint 通过、输出里含特定字段）。\n' +
+              '\n' +
+              '**只有纯判断类任务**（调研、方案设计、需要人做取舍）才用 human。\n' +
+              '\n' +
+              '**命令必须能在本机跑通**。系统用 shell 执行 check，' +
+              `当前平台是 ${process.platform === 'win32' ? 'Windows（cmd.exe）' : process.platform === 'darwin' ? 'macOS（/bin/sh）' : 'Linux（/bin/sh）'}。\n` +
+              (process.platform === 'win32'
+                ? '  这里**没有 bash**：不要用 test -f / grep -q / for … do … done 这类 POSIX 写法。\n' +
+                  '  Windows 上这样写：\n' +
+                  '    ✅ 文件存在 → if exist path\\file.ts (exit 0) else (exit 1)\n' +
+                  '    ✅ 内容包含 → findstr /C:"export function foo" path\\file.ts\n' +
+                  '    ✅ 编译通过 → pnpm -w typecheck（跨平台工具，推荐）\n' +
+                  '    ✅ 没留临时文件 → git status --porcelain\n' +
+                  '  最稳妥的是选**跨平台命令**（node -e、pnpm、git），它们在哪个平台都一样。'
+                : '  POSIX shell 语法可用（test -f / grep -q / for … do … done）。\n' +
+                  '  最稳妥的是选**跨平台命令**（node -e、pnpm、git），它们在哪个平台都一样。'),
             items: {
               type: 'object',
               additionalProperties: false,
@@ -161,11 +188,14 @@ export function assistantTools(): ToolDefinition[] {
                   type: 'string',
                   enum: ['command', 'diff', 'human'],
                   description:
-                    'command=由系统重跑一条命令看退出码 / diff=由系统统计改动 / human=需要人看',
+                    'command=由系统重跑一条命令看退出码（**首选**）/ diff=由系统统计改动（**次选**）/' +
+                    'human=需要人看（只在无法机器验证时用）',
                 },
                 check: {
                   type: 'string',
-                  description: 'type=command 时必填：要重跑的命令，如 pnpm -w typecheck',
+                  description:
+                    'type=command 时**必填**：要重跑的命令，如 pnpm -w typecheck。' +
+                    '必须是只读、幂等、能在几秒到几分钟内跑完的命令。',
                 },
               },
             },
