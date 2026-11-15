@@ -1,162 +1,184 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+
 /**
  * 命令面板（Ctrl+K）。
  *
- * 为什么需要：新界面取消了左栏，项目切换在头部下拉里——
- * 项目一多就不好找。命令面板是"没有侧栏"的必要补偿。
+ * 一个输入框搜一切：项目、会话、动作。
  *
- * 提供：切项目、打开 Agent、打开设置。
- * 不做：模糊搜索太重，用子串匹配 + 首字母排序就够了。
+ * ## 为什么要它
+ *
+ * 项目和会话多了之后，靠点侧栏找越来越慢。
+ * 命令面板把「用鼠标找」变成「打字找」——这是 VS Code 和 DSH 都有、
+ * 而我们之前完全没有的东西。
+ *
+ * ## 交互约定
+ *
+ * - 打开时自动聚焦输入框
+ * - ↑↓ 选择，Enter 执行，Esc 关闭
+ * - 输入即过滤（不区分大小写，匹配名称和说明）
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ExecutorDto, ProjectDto } from '../api.js';
 
-export interface Command {
+export interface PaletteItem {
   readonly id: string;
   readonly label: string;
   readonly hint?: string;
+  /** 分组标题：项目 / 动作 / 会话。 */
   readonly group: string;
   readonly run: () => void;
 }
 
 export interface CommandPaletteProps {
-  readonly projects: readonly ProjectDto[];
-  readonly executors: readonly ExecutorDto[];
+  readonly items: readonly PaletteItem[];
   readonly onClose: () => void;
-  readonly onPickProject: (id: string) => void;
-  readonly onOpenExecutor: (id: string) => void;
-  readonly onOpenSettings: () => void;
-  /** 在侧边栏打开浏览器。 */
-  readonly onOpenBrowser?: () => void;
-}
-
-export function buildCommands(props: CommandPaletteProps): readonly Command[] {
-  const cmds: Command[] = [];
-  for (const p of props.projects) {
-    cmds.push({
-      id: `project:${p.id}`,
-      label: p.name,
-      hint: p.rootPath,
-      group: '项目',
-      run: () => props.onPickProject(p.id),
-    });
-  }
-  for (const e of props.executors) {
-    cmds.push({
-      id: `executor:${e.id}`,
-      label: e.label,
-      hint: e.status === 'running' ? '正在执行' : e.status,
-      group: 'Agent',
-      run: () => props.onOpenExecutor(e.id),
-    });
-  }
-  cmds.push({
-    id: 'settings',
-    label: '打开设置',
-    group: '操作',
-    run: () => props.onOpenSettings(),
-  });
-  if (props.onOpenBrowser) {
-    cmds.push({
-      id: 'browser',
-      label: '打开浏览器',
-      hint: '侧边栏',
-      group: '操作',
-      run: () => props.onOpenBrowser?.(),
-    });
-  }
-  return cmds;
-}
-
-/** 子串匹配（不区分大小写）。 */
-export function filterCommands(
-  commands: readonly Command[],
-  query: string,
-): readonly Command[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return commands;
-  return commands.filter(
-    (c) =>
-      c.label.toLowerCase().includes(q) ||
-      (c.hint ?? '').toLowerCase().includes(q),
-  );
+  /**
+   * 异步搜索会话内容。
+   *
+   * 和 items（本地的项目/动作）不同，这是要去运行时查的，
+   * 所以单独一个回调，由面板自己管加载状态。
+   */
+  readonly onSearch?: (query: string) => Promise<readonly PaletteItem[]>;
 }
 
 export function CommandPalette(props: CommandPaletteProps): JSX.Element {
   const [query, setQuery] = useState('');
-  const [index, setIndex] = useState(0);
+  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const commands = useMemo(() => buildCommands(props), [props]);
-  const filtered = useMemo(() => filterCommands(commands, query), [commands, query]);
-
+  // 打开时聚焦：不聚焦的话用户要先点一下才能打字
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  // 会话全文搜索：异步、防抖
+  const [sessionHits, setSessionHits] = useState<readonly PaletteItem[]>([]);
+  const [searching, setSearching] = useState(false);
+
   useEffect(() => {
-    setIndex(0);
+    const q = query.trim();
+    if (!props.onSearch || q.length < 2) {
+      setSessionHits([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearching(true);
+
+    // 防抖：连续打字不要每个字符都发请求
+    const timer = setTimeout(() => {
+      props
+        .onSearch?.(q)
+        .then((hits) => {
+          if (!cancelled) setSessionHits(hits);
+        })
+        .catch(() => {
+          if (!cancelled) setSessionHits([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [props.onSearch, query]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    // 本地项（项目/动作）先过滤；会话搜索结果是运行时给的，不再过滤
+    const local = !q
+      ? props.items
+      : props.items.filter(
+          (item) =>
+            item.label.toLowerCase().includes(q) ||
+            (item.hint ?? '').toLowerCase().includes(q) ||
+            item.group.toLowerCase().includes(q),
+        );
+    return [...local, ...sessionHits];
+  }, [props.items, query, sessionHits]);
+
+  // 过滤结果变化时把选中项拉回 0，避免越界
+  useEffect(() => {
+    setActive(0);
   }, [query]);
 
-  const runAt = (i: number): void => {
-    const cmd = filtered[i];
-    if (!cmd) return;
-    cmd.run();
+  // 选中项滚进视野
+  useEffect(() => {
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+
+  const runItem = (item: PaletteItem | undefined): void => {
+    if (!item) return;
     props.onClose();
+    // 先关闭再执行：动作里可能要弹别的层，不能两个叠着
+    item.run();
   };
 
   return (
-    <div
-      className="palette-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) props.onClose();
-      }}
-    >
-      <div className="palette" role="dialog" aria-label="命令面板">
+    <div className="palette-overlay" onClick={props.onClose}>
+      <div
+        className="palette"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="命令面板"
+      >
         <input
           ref={inputRef}
           className="palette-input"
           value={query}
-          placeholder="搜索项目、Agent 或操作"
+          placeholder="搜索项目、会话或动作…"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              props.onClose();
-              return;
-            }
             if (e.key === 'ArrowDown') {
               e.preventDefault();
-              setIndex((i) => Math.min(i + 1, filtered.length - 1));
-              return;
-            }
-            if (e.key === 'ArrowUp') {
+              setActive((i) => Math.min(i + 1, filtered.length - 1));
+            } else if (e.key === 'ArrowUp') {
               e.preventDefault();
-              setIndex((i) => Math.max(i - 1, 0));
-              return;
-            }
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              setActive((i) => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter') {
               e.preventDefault();
-              runAt(index);
+              runItem(filtered[active]);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              props.onClose();
             }
           }}
         />
 
-        <div className="palette-list" role="listbox">
-          {filtered.length === 0 && <p className="palette-empty">没有匹配项</p>}
-          {filtered.map((c, i) => (
-            <button
-              key={c.id}
-              type="button"
-              role="option"
-              aria-selected={i === index}
-              className={`palette-item${i === index ? ' active' : ''}`}
-              onMouseEnter={() => setIndex(i)}
-              onClick={() => runAt(i)}
-            >
-              <span className="palette-group">{c.group}</span>
-              <span className="palette-label">{c.label}</span>
-              {c.hint && <span className="palette-hint">{c.hint}</span>}
-            </button>
-          ))}
+        <div className="palette-list" ref={listRef}>
+          {filtered.length === 0 && (
+            <div className="palette-empty">{searching ? '搜索会话中…' : '没有匹配的项'}</div>
+          )}
+
+          {filtered.map((item, index) => {
+            // 分组标题：只在每一组的第一个之前显示
+            const showGroup = index === 0 || filtered[index - 1]?.group !== item.group;
+            return (
+              <div key={item.id}>
+                {showGroup && <div className="palette-group">{item.group}</div>}
+                <button
+                  type="button"
+                  data-index={index}
+                  className={`palette-item${index === active ? ' active' : ''}`}
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => runItem(item)}
+                >
+                  <span className="palette-label">{item.label}</span>
+                  {item.hint && <span className="palette-hint">{item.hint}</span>}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="palette-footer">
+          <span>↑↓ 选择</span>
+          <span>Enter 执行</span>
+          <span>Esc 关闭</span>
         </div>
       </div>
     </div>

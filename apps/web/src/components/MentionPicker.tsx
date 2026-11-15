@@ -1,105 +1,98 @@
-/**
- * `@` 文件引用补全。
- *
- * 用户输入 `@` 后弹出文件列表，选中后插入 `@路径`。
- * 后端 `listFiles(projectId, q)` 支持按查询过滤，所以边打字边收窄。
- *
- * 设计取舍：
- * - **不做全量文件树**：只在输入 `@` 时按需查询，避免大仓库卡顿；
- * - 选中后插入的是**路径文本**而不是特殊标记：模型能直接读懂，
- *   不需要额外的协议，也不会让消息在历史里变成看不懂的结构。
- */
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+import type { ApiClient } from '../api.js';
 import type { FileEntryDto } from '../api.js';
-import { ApiClient } from '../api.js';
 
+/**
+ * @ 引用文件的选择器。
+ *
+ * ## 交互
+ *
+ * 在输入框里打 `@` 时弹出，继续打字就过滤。
+ * `↑↓` 选择，`Enter`/`Tab` 确认，`Esc` 关闭。
+ *
+ * ## 为什么不用完整文件树
+ *
+ * 文件多的项目逐层点开很慢。真正好用的是**输入即过滤**：
+ * 打 `@log` 直接出 `login.ts`。
+ */
 export interface MentionPickerProps {
+  readonly api: ApiClient;
   readonly projectId: string;
-  /** 当前已输入的内容。 */
-  readonly value: string;
-  readonly onChange: (next: string) => void;
-  readonly textareaRef: React.RefObject<HTMLTextAreaElement>;
+  /** 已经输入的部分（@ 之后的内容）。 */
+  readonly query: string;
+  readonly onPick: (file: FileEntryDto) => void;
+  readonly onClose: () => void;
 }
 
-/** 找出光标前最近的 `@` 片段；没有则返回 null。 */
-export function activeMention(value: string, caret: number): { start: number; query: string } | null {
-  const upToCaret = value.slice(0, caret);
-  const at = upToCaret.lastIndexOf('@');
-  if (at < 0) return null;
-  // `@` 前面必须是行首或空白，否则算普通字符（如邮箱）
-  const before = at === 0 ? '' : upToCaret[at - 1];
-  if (before && !/\s/.test(before)) return null;
-  const query = upToCaret.slice(at + 1);
-  // 片段里不能有空白或换行
-  if (/[\s\n]/.test(query)) return null;
-  return { start: at, query };
-}
+export function MentionPicker(props: MentionPickerProps): JSX.Element {
+  const [files, setFiles] = useState<FileEntryDto[]>([]);
+  const [active, setActive] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const listRef = useRef<HTMLDivElement>(null);
 
-export function MentionPicker(props: MentionPickerProps): JSX.Element | null {
-  const caret = useMemo(() => {
-    const el = props.textareaRef.current;
-    return el ? el.selectionStart : props.value.length;
-  }, [props.value, props.textareaRef]);
-
-  const mention = useMemo(() => activeMention(props.value, caret), [props.value, caret]);
-
-  const [items, setItems] = useState<readonly FileEntryDto[]>([]);
-  const [index, setIndex] = useState(0);
-  const api = useMemo(() => new ApiClient(), []);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // 查询变化时重新取（运行时那边做了过滤和排序）
   useEffect(() => {
-    if (!mention) {
-      setItems([]);
-      return;
-    }
-    // 防抖：边打字边查，150ms 足够
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      void api
-        .listFiles(props.projectId, mention.query)
-        .then((r) => {
-          setItems(r.files.slice(0, 8));
-          setIndex(0);
+    let cancelled = false;
+    setLoading(true);
+
+    // 防抖：连续打字时不要每个字符都发一次请求
+    const timer = setTimeout(() => {
+      props.api
+        .listFiles(props.projectId, props.query)
+        .then((res) => {
+          if (cancelled) return;
+          setFiles(res.files);
+          setActive(0);
         })
-        .catch(() => setItems([]));
-    }, 150);
+        .catch(() => {
+          if (!cancelled) setFiles([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 120);
+
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      cancelled = true;
+      clearTimeout(timer);
     };
-  }, [api, props.projectId, mention?.query]);
+  }, [props.api, props.projectId, props.query]);
 
-  if (!mention || items.length === 0) return null;
+  // 选中项滚进视野
+  useEffect(() => {
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
 
-  const pick = (entry: FileEntryDto): void => {
-    const before = props.value.slice(0, mention.start);
-    const after = props.value.slice(mention.start + 1 + mention.query.length);
-    props.onChange(`${before}@${entry.path}${after}`);
-    // 光标放到插入内容之后
-    requestAnimationFrame(() => {
-      const el = props.textareaRef.current;
-      if (!el) return;
-      const pos = before.length + 1 + entry.path.length;
-      el.focus();
-      el.setSelectionRange(pos, pos);
-    });
-  };
+  const shown = useMemo(() => files.slice(0, 12), [files]);
 
   return (
-    <div className="mention" role="listbox" aria-label="引用文件">
-      {items.map((f, i) => (
+    <div className="mention-picker" ref={listRef}>
+      {loading && shown.length === 0 && <div className="mention-empty">搜索中…</div>}
+      {!loading && shown.length === 0 && <div className="mention-empty">没有匹配的文件</div>}
+
+      {shown.map((file, index) => (
         <button
-          key={f.path}
+          key={file.path}
           type="button"
-          role="option"
-          aria-selected={i === index}
-          className={`mention-item${i === index ? ' active' : ''}`}
-          onMouseEnter={() => setIndex(i)}
-          onClick={() => pick(f)}
+          data-index={index}
+          className={`mention-item${index === active ? ' active' : ''}`}
+          onMouseEnter={() => setActive(index)}
+          // 用 onMouseDown 而不是 onClick：click 会先让输入框失焦，
+          // 焦点一丢选择器就可能被关掉，点击就失效了。
+          onMouseDown={(e) => {
+            e.preventDefault();
+            props.onPick(file);
+          }}
         >
-          <span className="mention-path">{f.path}</span>
+          <span className="mention-name">{file.name}</span>
+          <span className="mention-path">{file.path}</span>
         </button>
       ))}
     </div>
   );
 }
+
+// 检测与替换逻辑在 mention.ts（纯函数，单独测试）
+export { applyMention, detectMention, type MentionState } from './mention.js';

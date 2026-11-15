@@ -237,49 +237,6 @@ export interface MemoryCandidateDto {
   readonly decidedAt: number | null;
 }
 
-/** 方案步骤状态。 */
-export type PlanStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'blocked';
-
-/** 方案状态。 */
-export type PlanStatus =
-  | 'draft'
-  | 'awaiting-approval'
-  | 'approved'
-  | 'superseded'
-  | 'done'
-  | 'blocked';
-
-export interface PlanStepDto {
-  readonly id: string;
-  readonly title: string;
-  readonly goal: string;
-  readonly writeScope: readonly string[];
-  readonly status: PlanStepStatus;
-  /** 重试次数。≥2 时下一次失败就会卡住。 */
-  readonly attempts: number;
-  readonly dependsOn?: readonly string[];
-}
-
-export interface PlanAmendmentDto {
-  readonly id: string;
-  readonly kind: 'small' | 'big';
-  readonly what: string;
-  readonly why: string;
-  readonly criteriaTouched: boolean;
-}
-
-export interface PlanDto {
-  readonly id: string;
-  readonly projectId: string;
-  readonly goal: string;
-  readonly steps: readonly PlanStepDto[];
-  readonly status: PlanStatus;
-  readonly approvedAt: number | null;
-  readonly approvedBy: 'user' | null;
-  readonly amendments: readonly PlanAmendmentDto[];
-  readonly createdAt: number;
-}
-
 export interface ImStatusDto {
   readonly enabled: boolean;
   readonly hasToken: boolean;
@@ -474,49 +431,6 @@ export class ApiClient {
     return this.request(`/api/reports/${encodeURIComponent(reportId)}/ack`, { method: 'POST' });
   }
 
-  // ---- 文件变更（副作用台账） ----
-
-  /**
-   * 某项目（或某个 Agent）碰过的文件。
-   *
-   * 对话里用它显示"创建 / 修改了哪个文件"的小卡片——
-   * 这是用户要的最轻量呈现：不需要单独的方案窗口。
-   */
-  sideEffects(filter: { projectId?: string; executorId?: string }): Promise<{
-    sideEffects: SideEffectDto[];
-  }> {
-    const params = new URLSearchParams();
-    if (filter.projectId) params.set('projectId', filter.projectId);
-    if (filter.executorId) params.set('executorId', filter.executorId);
-    const q = params.toString();
-    return this.request(`/api/side-effects${q ? `?${q}` : ''}`);
-  }
-
-  // ---- 方案 ----
-  /** 某项目当前活跃的方案（待批准 / 执行中 / 卡住）。没有则 null。 */
-  activePlan(projectId: string): Promise<{ plan: PlanDto | null }> {
-    return this.request(`/api/projects/${encodeURIComponent(projectId)}/plan`);
-  }
-
-  /**
-   * 批准方案。
-   *
-   * 批过之后 Assistant 会一路推进，不再逐步问——这是整个方案设计的核心。
-   */
-  approvePlan(planId: string): Promise<{ ok: boolean; plan: PlanDto }> {
-    return this.request(`/api/plans/${encodeURIComponent(planId)}/approve`, { method: 'POST' });
-  }
-
-  /** 驳回：回到草稿，Assistant 可以改。 */
-  rejectPlan(planId: string): Promise<{ ok: boolean; plan: PlanDto }> {
-    return this.request(`/api/plans/${encodeURIComponent(planId)}/reject`, { method: 'POST' });
-  }
-
-  /** 作废：大改动后旧方案不再是依据。 */
-  supersedePlan(planId: string): Promise<{ ok: boolean; plan: PlanDto }> {
-    return this.request(`/api/plans/${encodeURIComponent(planId)}/supersede`, { method: 'POST' });
-  }
-
   /** 撤销一次文件写入。只有文件写入可撤销。 */  undoEffect(effectId: string, projectId: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/side-effects/${encodeURIComponent(effectId)}/undo`, {
       method: 'POST',
@@ -616,17 +530,7 @@ export class ApiClient {
     });
   }
 
-  /**
-   * 用户叫停：**级联**停掉这个项目里的一切。
-   *
-   * 注意语义：「连发不打断」是故意的——用户不该打断 Assistant，只说最新的想法。
-   * 所以这个方法不是"让 Assistant 闭嘴"，而是"什么活都别干了"：
-   * Assistant 当前这轮停掉，它派出去的 Agent（含还在排队的）全部取消。
-   * 返回值里的 `cancelledExecutors` 用来告诉用户"一共停了几个"，而不是含糊的"已停止"。
-   */
-  stop(
-    projectId: string,
-  ): Promise<{ stopped: boolean; cancelledExecutors?: number; failedExecutors?: number }> {
+  stop(projectId: string): Promise<{ stopped: boolean }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/stop`, {
       method: 'POST',
     });
