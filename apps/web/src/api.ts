@@ -530,7 +530,17 @@ export class ApiClient {
     });
   }
 
-  stop(projectId: string): Promise<{ stopped: boolean }> {
+  /**
+   * 用户叫停：**级联**停掉这个项目里的一切。
+   *
+   * 注意语义：「连发不打断」是故意的——用户不该打断 Assistant，只说最新的想法。
+   * 所以这个方法不是"让 Assistant 闭嘴"，而是"什么活都别干了"：
+   * Assistant 当前这轮停掉，它派出去的 Agent（含还在排队的）全部取消。
+   * 返回值里的 `cancelledExecutors` 用来告诉用户"一共停了几个"，而不是含糊的"已停止"。
+   */
+  stop(
+    projectId: string,
+  ): Promise<{ stopped: boolean; cancelledExecutors?: number; failedExecutors?: number }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/stop`, {
       method: 'POST',
     });

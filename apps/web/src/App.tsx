@@ -12,7 +12,7 @@
  * 它们经过 698 条测试验证，不需要重写。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ExecutorDto, MessageDto, OutboundEvent } from './api.js';
+import type { ApprovalDto, ExecutorDto, MessageDto, OutboundEvent } from './api.js';
 import { ApiClient, EventStream } from './api.js';
 import {
   applyEvent,
@@ -21,6 +21,7 @@ import {
   visibleExecutors,
   type AppState,
 } from './state.js';
+import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { Composer } from './components/Composer.js';
 import { ProjectSwitcher } from './components/ProjectSwitcher.js';
 import { RunnerPanel } from './components/RunnerPanel.js';
@@ -32,6 +33,7 @@ type View = { readonly kind: 'chat' } | { readonly kind: 'executor'; readonly id
 export function App(): JSX.Element {
   const [state, setState] = useState<AppState>(initialState);
   const [view, setView] = useState<View>({ kind: 'chat' });
+  const [approvals, setApprovals] = useState<readonly ApprovalDto[]>([]);
   const [connecting, setConnecting] = useState(true);
   // 连接状态三态：未知（首帧）/ 已连 / 已断。
   // 只有**曾经连上过**再断开才报"离线"——否则首帧会闪一下错误提示。
@@ -111,6 +113,46 @@ export function App(): JSX.Element {
     };
   }, [api, state.currentProjectId]);
 
+  // ---- 审批：定时拉取（审批有时效，不能只靠事件） ----
+  useEffect(() => {
+    const pid = state.currentProjectId;
+    if (!pid) return;
+    let alive = true;
+    const load = async (): Promise<void> => {
+      try {
+        const r = await api.approvals(pid);
+        if (alive) setApprovals(r.approvals);
+      } catch {
+        // 拉不到就保留上一次的结果，不清空
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 3000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [api, state.currentProjectId]);
+
+  const decideApproval = useCallback(
+    async (id: string, decision: 'approve' | 'reject', reason?: string) => {
+      // 先本地移除，避免用户点了两次
+      setApprovals((list) => list.filter((a) => a.id !== id));
+      try {
+        if (decision === 'approve') await api.approve(id, reason);
+        else await api.reject(id, reason ?? '');
+      } catch {
+        // 失败时重新拉一次，让状态回到真实值
+        const pid = state.currentProjectId;
+        if (pid) {
+          const r = await api.approvals(pid).catch(() => null);
+          if (r) setApprovals(r.approvals);
+        }
+      }
+    },
+    [api, state.currentProjectId],
+  );
+
   const executors = useMemo(() => visibleExecutors(state.executors), [state.executors]);
   const currentProject = useMemo(
     () => state.projects.find((p) => p.id === state.currentProjectId) ?? null,
@@ -143,6 +185,35 @@ export function App(): JSX.Element {
 
   const openExecutor = useCallback((id: string) => setView({ kind: 'executor', id }), []);
   const backToChat = useCallback(() => setView({ kind: 'chat' }), []);
+
+  /** 在跑的 Agent 数（含启动中）——决定要不要显示「停止全部」。 */
+  const runningCount = useMemo(
+    () => executors.filter((e) => e.status === 'starting' || e.status === 'running').length,
+    [executors],
+  );
+
+  /**
+   * 用户叫停：**级联**，不是"让 Assistant 闭嘴"。
+   * 后端会把 Assistant 当前这一轮和所有在跑/排队的 Agent 一起取消。
+   * 失败必须可见——这是"点了停止却没停"的唯一防线。
+   */
+  const [stopError, setStopError] = useState<string | null>(null);
+  const stopAll = useCallback(async () => {
+    const pid = state.currentProjectId;
+    if (!pid) return;
+    setStopError(null);
+    try {
+      const r = await api.stop(pid);
+      // 后端会推 executor_settled，跑道会自己变成已取消；这里只兜底报错。
+      if (r.failedExecutors && r.failedExecutors > 0) {
+        setStopError(`${r.failedExecutors} 个 Agent 没能停下，请再看一眼跑道。`);
+      }
+    } catch (error) {
+      setStopError(
+        `没能停下：${error instanceof Error ? error.message : String(error)}。它们可能还在跑。`,
+      );
+    }
+  }, [api, state.currentProjectId]);
 
   return (
     <div className="shell">
@@ -180,6 +251,13 @@ export function App(): JSX.Element {
 
       <div className={`body${showPanel ? ' has-panel' : ''}`}>
         <main className="main">
+          {/* 审批置顶：它是阻塞性的，且有时效，必须比对话更醒目 */}
+          <ApprovalPanel
+            approvals={approvals}
+            onApprove={(id) => void decideApproval(id, 'approve')}
+            onReject={(id, reason) => void decideApproval(id, 'reject', reason)}
+          />
+
           {connecting ? (
             <div className="empty">
               <p className="empty-hint">正在连接本地运行时…</p>
@@ -201,11 +279,41 @@ export function App(): JSX.Element {
               );
             })()
           ) : (
-            <Transcript messages={state.messages} />
+            <Transcript
+              messages={state.messages}
+              onRetry={() => {
+                // 重试 Assistant：把最后一条用户消息再发一次。
+                // 语义是「再试一次」，不删历史——轨迹可回看是这个产品的承诺。
+                const lastUser = [...state.messages]
+                  .reverse()
+                  .find((m) => m.role === 'user');
+                if (lastUser) void send(lastUser.content);
+              }}
+              onEditResend={(message, next) => {
+                void send(next);
+                setState((s) => ({
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === message.id ? { ...m, content: next } : m,
+                  ),
+                }));
+              }}
+            />
           )}
 
           {currentProject && view.kind === 'chat' && (
-            <Composer onSend={(t) => void send(t)} />
+            <>
+              {stopError && (
+                <p className="composer-error" role="alert">
+                  {stopError}
+                </p>
+              )}
+              <Composer
+                onSend={(t) => void send(t)}
+                onStop={() => void stopAll()}
+                runningCount={runningCount}
+              />
+            </>
           )}
         </main>
 

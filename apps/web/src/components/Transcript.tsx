@@ -11,9 +11,14 @@
 import { useEffect, useRef } from 'react';
 import type { MessageDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
+import { MessageActions } from './MessageActions.js';
 
 export interface TranscriptProps {
   readonly messages: readonly MessageDto[];
+  /** 对 Assistant 消息重试：再发一次同样的请求。 */
+  readonly onRetry?: (message: MessageDto) => void;
+  /** 编辑用户消息后重发。 */
+  readonly onEditResend?: (message: MessageDto, next: string) => void;
 }
 
 /** 系统内部通知不显示在对话流里（它是给模型的指令）。 */
@@ -58,7 +63,12 @@ export function Transcript(props: TranscriptProps): JSX.Element {
       ) : (
         <div className="transcript-inner">
           {shown.map((m) => (
-            <Message key={m.id} message={m} />
+            <Message
+              key={m.id}
+              message={m}
+              onRetry={props.onRetry}
+              onEditResend={props.onEditResend}
+            />
           ))}
           <div ref={endRef} />
         </div>
@@ -67,7 +77,11 @@ export function Transcript(props: TranscriptProps): JSX.Element {
   );
 }
 
-function Message(props: { readonly message: MessageDto }): JSX.Element {
+function Message(props: {
+  readonly message: MessageDto;
+  readonly onRetry?: (message: MessageDto) => void;
+  readonly onEditResend?: (message: MessageDto, next: string) => void;
+}): JSX.Element {
   const m = props.message;
   const role = m.role === 'user' ? 'user' : 'assistant';
 
@@ -77,6 +91,17 @@ function Message(props: { readonly message: MessageDto }): JSX.Element {
       <div className="msg-body">
         {role === 'assistant' ? renderMarkdown(m.content) : m.content}
       </div>
+      <MessageActions
+        role={m.role}
+        source={m.source}
+        content={m.content}
+        {...(role === 'assistant' && props.onRetry
+          ? { onRetry: () => props.onRetry?.(m) }
+          : {})}
+        {...(role === 'user' && props.onEditResend
+          ? { onEdit: (next: string) => props.onEditResend?.(m, next) }
+          : {})}
+      />
     </div>
   );
 }

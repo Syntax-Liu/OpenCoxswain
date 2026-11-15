@@ -348,6 +348,34 @@ select {
   text-align: center;
 }
 
+/* ---- 单条消息的操作 ---- */
+.msg-actions {
+  display: flex;
+  gap: var(--g-1);
+  margin-top: var(--g-1);
+  /* 常显（不做悬停才出现：触屏和键盘用户摸不到） */
+  opacity: 0.75;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.msg:hover .msg-actions,
+.msg-actions:focus-within {
+  opacity: 1;
+}
+
+.msg-actions .btn {
+  height: 22px;
+  padding: 0 var(--g-2);
+  font-size: 11px;
+}
+
+.msg-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+  margin-top: var(--g-2);
+}
+
 /* ---- markdown 内容 ---- */
 .msg-body p {
   margin: 0 0 var(--g-3);
@@ -477,6 +505,28 @@ select {
 
 .composer-bar .spacer {
   flex: 1;
+}
+
+/* 在跑时的提示：「直接说新的想法，它们不会被这句话打断」。
+   这是把**故意设计**讲给用户听的地方——否则用户会以为说话没反应。 */
+.composer-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 停止失败必须看得见：静默的"点了没停"是最坏的情况。 */
+.composer-error {
+  max-width: var(--wide-w);
+  margin: 0 auto var(--g-2);
+  padding: var(--g-2) var(--g-3);
+  border: 1px solid var(--status-failed);
+  border-radius: var(--r-sm);
+  background: var(--sig-stop-dim);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
 }
 
 /* ============================================================
@@ -847,6 +897,102 @@ select {
   background: var(--sig-stop-dim);
   border-color: transparent;
   color: var(--status-failed);
+}
+
+/* ============================================================
+   审批（危险动作）
+   ============================================================ */
+
+.approvals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+  padding: var(--g-3) var(--g-5);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.approval {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+  padding: var(--g-3) var(--g-4);
+  border: 1px solid var(--border-strong);
+  border-left: 2px solid var(--status-asking);
+  border-radius: var(--r-md);
+  background: var(--surface-raised);
+}
+
+.approval-head {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+}
+
+.approval-tool {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.approval-time {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.approval-why {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  line-height: var(--lh-base);
+}
+
+.approval-evidence {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  line-height: var(--lh-base);
+  white-space: pre-wrap;
+}
+
+.approval-args {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  align-items: flex-start;
+}
+
+.approval-args-body {
+  margin: 0;
+  width: 100%;
+  max-height: 200px;
+  overflow: auto;
+  padding: var(--g-2);
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.approval-actions {
+  display: flex;
+  gap: var(--g-2);
+  flex-wrap: wrap;
+}
+
+.approval-reject {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
 }
 
 /* ============================================================
