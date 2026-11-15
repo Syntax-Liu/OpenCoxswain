@@ -208,7 +208,9 @@ export function IconPlus({ size = 16, className }: IconProps): JSX.Element {
 export function IconSend({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size, className)}>
-      <path d="M8 13V3.5M4.5 7 8 3.5 11.5 7" />
+      {/* 箭头横杠收窄到 5.5（原 7）：34px 圆里 16px 的图标，
+          横杠太宽会显得笨重、四周留白被吃掉。 */}
+      <path d="M8 13V3.5M5.25 6.25 8 3.5l2.75 2.75" />
     </svg>
   );
 }

@@ -18,7 +18,7 @@
 import { useState } from 'react';
 
 import type { ProjectDto } from '../api.js';
-import { IconBrand, IconSidebar } from './icons.js';
+import { IconBrand, IconSend, IconSidebar } from './icons.js';
 import { ProjectPicker } from './ProjectPicker.js';
 
 export interface NewSessionProps {
@@ -106,15 +106,18 @@ export function NewSession(props: NewSessionProps): JSX.Element {
             <div className="composer-left">
               {hint && <span className="composer-hint-inline">先在上面选一个项目</span>}
             </div>
+            {/* **和 Conversation 用同一个按钮**：
+                之前这里写的是文字 `↑`、没有图标，
+                而主对话用 IconSend —— 两个页面同一个动作长得不一样。 */}
             <button
               type="button"
-              className="btn btn--primary btn--md btn--pill send-btn"
+              className="send-btn"
               onClick={submit}
               disabled={!draft.trim()}
               aria-label="发送"
               title="发送（Enter）"
             >
-              ↑
+              <IconSend size={16} />
             </button>
           </div>
         </div>

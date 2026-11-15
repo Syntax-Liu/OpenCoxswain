@@ -530,9 +530,12 @@ export function Conversation(props: ConversationProps): JSX.Element {
                 停止
               </button>
             </div>
+            {/* **不套 btn 系统**：通用按钮是胶囊/矩形语义，
+                套上去会得到 40×26 的椭圆。
+                .send-btn 自己保证宽高相等 → 正圆。 */}
             <button
               type="button"
-              className="btn btn--primary btn--md btn--pill send-btn"
+              className="send-btn"
               onClick={submit}
               disabled={!draft.trim()}
               aria-label="发送"

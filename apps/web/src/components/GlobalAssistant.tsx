@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import type { ApiClient, ProjectDto } from '../api.js';
-import { IconSidebar, IconSupervisor } from './icons.js';
+import { IconSend, IconSidebar, IconSupervisor } from './icons.js';
 
 export interface GlobalAssistantProps {
   /** 右侧边栏是否展开（和主对话保持一致）。 */
@@ -201,8 +201,18 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
           />
           <div className="composer-bar">
             <div className="composer-left" />
-            <button type="button" className="btn btn--primary btn--sm" onClick={() => void ask()} disabled={busy || !query.trim()}>
-              帮我找
+            {/* **和其它页用同一个圆形箭头按钮**。
+                之前这里是文字按钮「帮我找」，形状、颜色都和
+                主对话/新会话对不上——同一个"发送"动作不该长两样。 */}
+            <button
+              type="button"
+              className="send-btn"
+              onClick={() => void ask()}
+              disabled={busy || !query.trim()}
+              aria-label="发送"
+              title="发送（Enter）"
+            >
+              <IconSend size={16} />
             </button>
           </div>
         </div>

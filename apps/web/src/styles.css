@@ -5571,3 +5571,77 @@ body.is-resizing {
 .eff-rollback-all:hover {
   text-decoration: underline;
 }
+
+
+/* ---------- 发送按钮 ----------
+ *
+ * **必须是正圆**：宽高相等、无横向内边距。
+ *
+ * ## 之前为什么是椭圆
+ *
+ * 组件写的是 `btn btn--primary btn--md btn--pill send-btn`：
+ *
+ *   .btn--md     height: var(--h-md) = 26px，padding: 0 12px
+ *   .btn--pill   圆角是 var(--r-full)
+ *   .send-btn    **CSS 里根本没有这个类**
+ *
+ * 于是按钮宽 = 16px 图标 + 12×2 内边距 ≈ 40px、高 26px，
+ * 百分号圆角作用在 40×26 上画出来就是**椭圆**——
+ * 不是规范里写的"圆形发送按钮"。
+ *
+ * ## 为什么不套 btn 系统
+ *
+ * 通用按钮是"胶囊/矩形"语义（有文字、有左右内边距）。
+ * 发送按钮是**方形图标按钮**，硬套要覆盖一堆属性，
+ * 不如独立写清楚。
+ */
+.send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+
+  /* **宽高相等**是正圆的前提 */
+  width: 34px;
+  height: 34px;
+  padding: 0;
+
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--color-action);
+  color: var(--color-on-action);
+
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+.send-btn:hover:not(:disabled) {
+  /* **提亮而不是变暗**：主色按钮悬停变暗会显得脏 */
+  background: var(--color-action-hover);
+}
+
+.send-btn:active:not(:disabled) {
+  /* 按下有反馈，幅度小——按一下不该看到按钮跳 */
+  transform: scale(0.96);
+}
+
+/* 没内容可发：变淡，但仍然是个正圆。
+ *
+ * 注意**不能太接近输入框背景**——之前用 --color-surface-raised，
+ * 和 composer-box 的底色几乎一样，整个按钮糊成一团看不见。
+ * 加描边把它和背景分开。 */
+.send-btn:disabled {
+  background: var(--color-surface-hover);
+  color: var(--color-label-tertiary);
+  border: 1px solid var(--color-border-subtle);
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* 停止按钮：同一形状，换危险色，避免和"发送"混淆 */
+.send-btn.is-stop {
+  background: var(--color-danger);
+  color: var(--color-code-fg);
+}
