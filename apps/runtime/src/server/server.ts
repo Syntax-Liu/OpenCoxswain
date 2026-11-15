@@ -34,6 +34,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Orchestrator, RuntimeEvent } from '../orchestrator.js';
+import { transition } from '../orchestrator/plan.js';
 import { cleanLabel } from '../orchestrator/label.js';
 import { findProject, handoff, projectBrief } from '../global/assistant.js';
 import { isInternalSource, type Store } from '../store/store.js';
@@ -463,6 +464,50 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           ? await approveAction(store, approvalId, reason)
           : await rejectAction(store, approvalId, reason);
       return result.ok ? json(res, 200, result) : fail(res, 400, result.message);
+    }
+
+    // ---- 方案 ----
+    if (method === 'GET' && url.pathname === '/api/plans') {
+      const projectId = url.searchParams.get('projectId') ?? undefined;
+      return reply(200, {
+        plans: store.listPlans(projectId ? { projectId } : {}),
+      });
+    }
+
+    // 某项目的活跃方案（界面顶部横条用它）
+    const activePlanMatch = /^\/api\/projects\/([^/]+)\/plan$/.exec(url.pathname);
+    if (method === 'GET' && activePlanMatch) {
+      const projectId = decodeURIComponent(activePlanMatch[1]!);
+      return reply(200, { plan: store.activePlanOf(projectId) ?? null });
+    }
+
+    // 批准 / 驳回 / 作废
+    const planActionMatch = /^\/api\/plans\/([^/]+)\/(approve|reject|supersede)$/.exec(
+      url.pathname,
+    );
+    if (method === 'POST' && planActionMatch) {
+      const planId = decodeURIComponent(planActionMatch[1]!);
+      const action = planActionMatch[2];
+      const plan = store.getPlan(planId);
+      if (!plan) return deny(404, `方案 ${planId} 不存在`);
+
+      try {
+        // 驳回后回到 draft：用户可以改，
+        // 也可以让 Assistant 重新出方案（会走到 draft → awaiting-approval）。
+        const next =
+          action === 'approve'
+            ? transition(plan, 'approved')
+            : action === 'reject'
+              ? transition(plan, 'draft')
+              : transition(plan, 'superseded');
+        await store.putPlan(next);
+
+        // 批准后「自动推进下一步」还没接（plan-approval 第 4 步）。
+        // 现在批准只是把状态变成 approved，Assistant 下一轮看到后自行推进。
+        return reply(200, { ok: true, plan: next });
+      } catch (error) {
+        return fail(res, 400, error instanceof Error ? error.message : String(error));
+      }
     }
 
     // ---- 项目 ----

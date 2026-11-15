@@ -254,6 +254,79 @@ export function assistantTools(): ToolDefinition[] {
       },
     },
     {
+      name: 'propose_plan',
+      description:
+        '提出一份方案交给用户批准。**批准之前不许派方案内的 Agent**。\n' +
+        '\n' +
+        '## 什么时候必须出方案\n' +
+        '1. **用户明确要求出方案** → 一定出，没有例外。\n' +
+        '2. 用户没要求，但任务**不能一步到位**（多步骤、涉及多个目录、' +
+        '要先调研再动手、有明确的先后依赖）→ 自己判断，该出就出。\n' +
+        '\n' +
+        '## 什么时候不要出方案\n' +
+        '简单直接的事：改一个错别字、查一个文件、跑一条命令、回答一个问题。\n' +
+        '这类事直接 spawn_executor 或直接回答，别让用户多点一次"批准"。\n' +
+        '\n' +
+        '## 出方案之后\n' +
+        '调用本工具后**立即结束本轮**，等用户批准。不要在同一轮里又去派活。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['goal', 'steps'],
+        properties: {
+          goal: {
+            type: 'string',
+            description: '用户最初的需求原话（或你的准确概括）',
+          },
+          steps: {
+            type: 'array',
+            description:
+              '步骤列表，按依赖顺序排。每步要能让 Agent 独立执行。' +
+              '步骤别超过 8 个——太多了说明拆得还不够清楚。',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['title', 'goal', 'writeScope', 'criteria'],
+              properties: {
+                title: { type: 'string', description: '人话短名，如「调研现有架构」' },
+                goal: {
+                  type: 'string',
+                  description: '给 Agent 的完整目标（它看不到你和用户的对话）',
+                },
+                writeScope: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: '要改的路径前缀；只读任务填 ["readonly"]',
+                },
+                criteria: {
+                  type: 'array',
+                  description:
+                    '验收标准。**优先 command/diff**，human 留到最后。\n' +
+                    '命令必须能在本机跑通（见 spawn_executor 的平台说明）。',
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['id', 'desc', 'type'],
+                    properties: {
+                      id: { type: 'string' },
+                      desc: { type: 'string' },
+                      type: { type: 'string', enum: ['command', 'diff', 'human'] },
+                      check: { type: 'string', description: 'type=command 时必填' },
+                    },
+                  },
+                },
+                dependsOn: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: '依赖哪几步的 id（用 1-based 序号，如 ["P0"]）。没有就不填。',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
       name: 'report_to_user',
       description:
         '主动向用户汇报一件事（进度、卡点或结论）。Agent结算后你应当立刻汇报该结果，不要等其它Agent。',

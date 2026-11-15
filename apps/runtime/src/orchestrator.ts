@@ -64,7 +64,8 @@ import {
   planGateFor,
   type PlanGateSettings,
 } from './settings/planGate.js';
-import { canSpawnStep } from './orchestrator/plan.js';
+import { canSpawnStep, createPlan, transition } from './orchestrator/plan.js';
+import { checkAllCommands } from './acceptance/portability.js';
 import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
 import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
@@ -882,6 +883,88 @@ export class Orchestrator extends EventEmitter {
             case 'cancel_executor': {
               const id = String(args.executorId ?? '');
               return this.cancel(id, project.id);
+            }
+            case 'propose_plan': {
+              // 出方案：把步骤落库，状态置 awaiting-approval，等用户批准。
+              //
+              // 这一轮**不许再派活**——方案就是用来先看后批的。
+              // 提示词里已经这么要求，这里再兜一次：调用方拿到明确的
+              // 「本轮结束」信号，不会被后面的工具调用绕过去。
+              const stepsRaw = Array.isArray(args.steps) ? args.steps : [];
+              if (stepsRaw.length === 0) {
+                return { ok: false, content: '方案至少要有一个步骤' };
+              }
+
+              const steps = stepsRaw.map((raw, i) => {
+                const s = raw as Record<string, unknown>;
+                let criteria: Criterion[] = [];
+                try {
+                  criteria = parseCriteria(s.criteria ?? []);
+                } catch (error) {
+                  throw new Error(`第 ${i + 1} 步的验收标准不合法：${errorText(error)}`);
+                }
+                // **派活前就检查验收命令能不能跑**（见 acceptance/portability.ts）。
+                // 不能等 Agent 跑完一轮才发现所有验收都红。
+                const commands = criteria
+                  .filter((c) => c.type === 'command' && c.check)
+                  .map((c) => c.check as string);
+                const report = checkAllCommands(commands);
+                if (!report.allUsable) {
+                  throw new Error(
+                    `第 ${i + 1} 步有验收命令在当前平台跑不了：` +
+                      report.problems.map((p) => `${p.command}（${p.reason}）`).join('；') +
+                      '。请改成跨平台命令（node / pnpm / git）或本平台写法后重新提交方案。',
+                  );
+                }
+                return {
+                  id: `P${i}`,
+                  title: String(s.title ?? `第 ${i + 1} 步`),
+                  goal: String(s.goal ?? ''),
+                  writeScope: Array.isArray(s.writeScope)
+                    ? (s.writeScope as string[])
+                    : ['readonly'],
+                  criteria,
+                  acceptancePolicy: 'unverified_only' as const,
+                  dependsOn: Array.isArray(s.dependsOn) ? (s.dependsOn as string[]) : undefined,
+                };
+              });
+
+              // 一个项目同时只该有一条活跃方案；有就替换（用户可能想重来）。
+              const existing = this.store.activePlanOf(project.id);
+              const planId = existing?.id ?? `plan_${newId('p')}`;
+              const draft = createPlan({
+                id: planId,
+                projectId: project.id,
+                goal: String(args.goal ?? ''),
+                steps,
+              });
+              const awaiting = transition(draft, 'awaiting-approval');
+              await this.store.putPlan(awaiting);
+
+              this.emit('runtime', {
+                type: 'assistant_text',
+                projectId: project.id,
+                text:
+                  `方案已出（${steps.length} 步），等你批准。\n` +
+                  steps.map((s, i) => `${i + 1}. ${s.title}`).join('\n'),
+              } as RuntimeEvent);
+
+              await this.recordReport({
+                projectId: project.id,
+                executorId: null,
+                kind: 'question',
+                body:
+                  `方案待批准：${awaiting.goal}\n\n` +
+                  steps.map((s, i) => `P${i} ${s.title}：${s.goal.slice(0, 80)}`).join('\n'),
+                needsUser: true,
+              });
+
+              return {
+                ok: true,
+                content:
+                  `方案已提交（id ${planId}，${steps.length} 步），状态 awaiting-approval。\n` +
+                  '**本轮到此结束**：等用户批准后再派活，现在不要调用 spawn_executor。',
+              };
             }
             case 'report_to_user': {
               const body = String(args.body ?? '');
