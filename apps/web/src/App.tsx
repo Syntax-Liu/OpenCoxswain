@@ -12,7 +12,7 @@
  * 它们经过 698 条测试验证，不需要重写。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ApprovalDto, ExecutorDto, MessageDto, OutboundEvent } from './api.js';
+import type { ApprovalDto, ExecutorDto, MessageDto, OutboundEvent, ReportDto } from './api.js';
 import { ApiClient, EventStream } from './api.js';
 import {
   applyEvent,
@@ -215,6 +215,44 @@ export function App(): JSX.Element {
     [api, state.currentProjectId],
   );
 
+  /**
+   * 回答一条待决策。
+   *
+   * 两步都要做，缺一不可：
+   *   1. 把答案经 Assistant 转达（接口层没有直接给 Agent 传话的通道）
+   *   2. **ack 这条报告**——否则 needsUser 永远为 true，卡片永远不消失。
+   *
+   * 之前只做了第 1 步，用户回答完卡片会一直挂着。
+   */
+  const answerDecision = useCallback(
+    async (report: ReportDto, text: string) => {
+      setState((s) => ({
+        ...s,
+        reports: s.reports.map((r) =>
+          r.id === report.id ? { ...r, ackedAt: Date.now() } : r,
+        ),
+      }));
+      const label = executors.find((e) => e.id === report.executorId)?.label ?? 'Agent';
+      await send(`关于「${label}」：${text}`);
+      await api.acknowledgeReport(report.id).catch(() => undefined);
+    },
+    [api, executors, send],
+  );
+
+  /** 忽略一条待决策：只 ack，不转达。 */
+  const dismissDecision = useCallback(
+    async (report: ReportDto) => {
+      setState((s) => ({
+        ...s,
+        reports: s.reports.map((r) =>
+          r.id === report.id ? { ...r, ackedAt: Date.now() } : r,
+        ),
+      }));
+      await api.acknowledgeReport(report.id).catch(() => undefined);
+    },
+    [api],
+  );
+
   const openExecutor = useCallback((id: string) => setView({ kind: 'executor', id }), []);
   const backToChat = useCallback(() => setView({ kind: 'chat' }), []);
 
@@ -395,12 +433,8 @@ export function App(): JSX.Element {
             executors={executors}
             reports={state.reports}
             onOpen={openExecutor}
-            onAnswer={(executorId, text) => {
-              // 回答经由 C 转达：接口层没有「直接给某个 D 传话」的入口，
-              // 这就是架构规定的通道——C 负责把用户的话派给正确的 D。
-              const label = executors.find((e) => e.id === executorId)?.label ?? 'Agent';
-              void send(`关于「${label}」：${text}`);
-            }}
+            onAnswer={(report, text) => void answerDecision(report, text)}
+            onDismiss={(report) => void dismissDecision(report)}
           />
         )}
       </div>

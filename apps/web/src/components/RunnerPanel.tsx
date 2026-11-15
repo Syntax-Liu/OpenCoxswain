@@ -18,8 +18,10 @@ export interface RunnerPanelProps {
   readonly executors: readonly ExecutorDto[];
   readonly reports: readonly ReportDto[];
   readonly onOpen: (id: string) => void;
-  /** 回答某个 Agent 的卡点：经由 Assistant 转达（架构里唯一的通道）。 */
-  readonly onAnswer: (executorId: string, text: string) => void;
+  /** 回答某个待决策：实现方负责转达 **并 ack 报告**。 */
+  readonly onAnswer: (report: ReportDto, text: string) => void;
+  /** 忽略某条待决策：只 ack，不转达。 */
+  readonly onDismiss: (report: ReportDto) => void;
 }
 
 /** 需要用户拍板的：有卡点且仍在跑的。 */
@@ -60,7 +62,7 @@ export function finishedOf(executors: readonly ExecutorDto[]): readonly Executor
 }
 
 export function RunnerPanel(props: RunnerPanelProps): JSX.Element {
-  const { executors, reports, onOpen, onAnswer } = props;
+  const { executors, reports, onOpen, onAnswer, onDismiss } = props;
 
   const { decisions, active, finished } = useMemo(
     () => ({
@@ -99,7 +101,8 @@ export function RunnerPanel(props: RunnerPanelProps): JSX.Element {
                 executorLabel={
                   executors.find((e) => e.id === r.executorId)?.label ?? 'Agent'
                 }
-                onAnswer={(text) => onAnswer(r.executorId ?? '', text)}
+                onAnswer={(text) => onAnswer(r, text)}
+                onDismiss={() => onDismiss(r)}
                 onSeeTrace={() => {
                   if (r.executorId) onOpen(r.executorId);
                 }}

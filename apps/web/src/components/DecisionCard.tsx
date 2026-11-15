@@ -15,21 +15,31 @@ import type { ReportDto } from '../api.js';
 export interface DecisionCardProps {
   readonly report: ReportDto;
   readonly executorLabel: string;
+  /**
+   * 用户回答了。实现方必须做两件事：
+   *   1. 把答案经 Assistant 转达（say）
+   *   2. **ack 这条报告**——否则 needsUser 永远是 true，卡片永远不消失
+   */
   readonly onAnswer: (text: string) => void;
   readonly onSeeTrace: () => void;
+  /** 直接忽略这条，不再追问。 */
+  readonly onDismiss: () => void;
 }
 
 export function DecisionCard(props: DecisionCardProps): JSX.Element {
   const { report, executorLabel } = props;
   const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const submit = useCallback(() => {
     const v = text.trim();
-    if (!v) return;
+    if (!v || busy) return;
+    setBusy(true);
     props.onAnswer(v);
     setText('');
-  }, [text, props]);
+    setBusy(false);
+  }, [text, busy, props]);
 
   return (
     <div className="decision">
@@ -56,12 +66,20 @@ export function DecisionCard(props: DecisionCardProps): JSX.Element {
           type="button"
           className="btn btn--primary btn--sm"
           onClick={submit}
-          disabled={text.trim().length === 0}
+          disabled={text.trim().length === 0 || busy}
         >
           发送
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={props.onSeeTrace}>
           看它做了什么
+        </button>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={props.onDismiss}
+          title="不再追问这条"
+        >
+          忽略
         </button>
       </div>
     </div>
