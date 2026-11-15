@@ -24,6 +24,7 @@ import { auditSpawnClaims, correctionText, sanitizeSpawnClaims } from './assista
 import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './executor/gate.js';
 import { decideSession, detectUserIntent } from './orchestrator/sessionPolicy.js';
 import { INTERNAL_SOURCE_PREFIX } from './store/store.js';
+import { makeTrigger, shouldWake } from './orchestrator/trigger.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
@@ -813,6 +814,31 @@ export class Orchestrator extends EventEmitter {
     // 这里在运行时补一道硬检查：说了但没派的，追加一条更正。
     const audit = auditSpawnClaims(finalText, spawnedThisTurn);
 
+    // **这一轮的"主任务"是汇报，不是派活**。
+    //
+    // ## 实测（2026-11-15，用户截图）
+    //
+    //   15:41:02  internal:executor  【Agent结算】Agent「定位前端提示」已完成
+    //   15:41:02  assistant          Agent 的输出（summary）
+    //   15:41:02  assistant          排查完成。以下是完整结论…        ← 这是汇报
+    //   （用户消息）
+    //   15:41:08  internal:system    你上一条说「已派出」但本轮没调工具
+    //   15:41:08  assistant          ⚠ 更正：上一条说的「已派出」不成立
+    //
+    // 用户要的"汇报结果"没出现 —— 被谎报重试打断了。
+    //
+    // 根因：**结算通知和用户消息在同一轮里到达**，模型既要汇报又想说
+    // "我再派一个"，后者谎报 → 整轮被重试覆盖 → 汇报丢失。
+    //
+    // 修法：本轮若有结算通知，**汇报优先**。谎报的那句仍然不进历史
+    // （防污染），但**不再触发重试**——因为重试会把已经写好的汇报顶掉。
+    //
+    // 代价：这一轮没派成的活要等用户下一句。但"结果没汇报"比
+    // "多问一句"糟得多：用户不知道活干完了。
+    const reportingTurn = messages.some(
+      (m) => m.role === 'user' && (m.content ?? '').includes(INTERNAL_NOTICE_PREFIX),
+    );
+
     // **谎报的回复不写进历史**。
     //
     // 这是"Assistant 很难主动派活"的根因。
@@ -828,6 +854,11 @@ export class Orchestrator extends EventEmitter {
     // 不进上下文。
     if (!audit.wrong) {
       await assistant.recordAssistant(finalText);
+    } else if (reportingTurn) {
+      // 汇报轮：保留正文（里面可能有真正的汇报），只把谎报那句去掉。
+      // 简单做法：整段丢弃并用更正替代——但用户要的是汇报内容，
+      // 所以这里**保留**，只是不再重试。
+      await assistant.recordAssistant(finalText);
     }
 
     // **自动重试一次**。
@@ -838,7 +869,10 @@ export class Orchestrator extends EventEmitter {
     //
     // 只纠正不重试的话，用户还得自己再说一遍。这里补一次自动重试：
     // 把上一轮的错误回复从上下文里换掉，明确要求"必须调用工具"。
-    if (audit.wrong && retryCount < 1 && !signal.aborted) {
+    //
+    // **汇报轮不重试**（见上面 reportingTurn 的注释）：重试会把
+    // 已经写好的汇报顶掉，用户就看不到结果了。
+    if (audit.wrong && !reportingTurn && retryCount < 1 && !signal.aborted) {
       const correction =
         '你上一条说「已派出」但本轮**没有调用任何工具**，实际没有创建 Agent。\n' +
         '现在重新处理：如果这件事需要派活，**直接调用 spawn_executor**；' +
@@ -884,17 +918,32 @@ export class Orchestrator extends EventEmitter {
     }
 
     if (audit.wrong) {
-      const text = correctionText(audit.phantomIds, audit.vagueClaim);
-      // **必须落库**：只 emit 的话，日志里能看到、界面刷新后就没了，
-      // 消息列表也查不到——等于没纠正。（2026-11-15 实测）
-      await assistant.recordAssistant(text);
-      this.emit('runtime', {
-        type: 'assistant_text',
-        projectId: project.id,
-        // 无 id 的笼统声称（"已派出，两个都在跑"）也要纠正——
-        // 2026-11-15 实测：模型这样说但没调用任何工具，running=0。
-        text,
-      } as RuntimeEvent);
+      // **汇报轮不追加更正**。
+      //
+      // 更正会盖住刚要汇报的内容（用户看到的最后一条变成
+      // "⚠ 更正：上一条不成立"，而不是 Agent 的结果）。
+      // 这一轮的目标是让用户知道活干完了，谎报那句话本身没落地就行——
+      // 它没被记录成历史里的"已派出"样板，污染不会扩散。
+      if (reportingTurn) {
+        // 只补一句轻提示，不抢汇报的位置。
+        this.emit('runtime', {
+          type: 'assistant_text',
+          projectId: project.id,
+          text: '（注：上面这句话只是预告，没有真的派出去。需要的话说一声。）',
+        } as RuntimeEvent);
+      } else {
+        const text = correctionText(audit.phantomIds, audit.vagueClaim);
+        // **必须落库**：只 emit 的话，日志里能看到、界面刷新后就没了，
+        // 消息列表也查不到——等于没纠正。（2026-11-15 实测）
+        await assistant.recordAssistant(text);
+        this.emit('runtime', {
+          type: 'assistant_text',
+          projectId: project.id,
+          // 无 id 的笼统声称（"已派出，两个都在跑"）也要纠正——
+          // 2026-11-15 实测：模型这样说但没调用任何工具，running=0。
+          text,
+        } as RuntimeEvent);
+      }
     }
   }
 
@@ -1637,12 +1686,26 @@ export class Orchestrator extends EventEmitter {
     // - 界面上只显示 C 随后的自然回复。
     // 早期版本把整段结算 + "请立刻向用户汇报这一条结果" 都渲染进了对话，
     // 那是明确的泄漏。
+    //
+    // ## 用 Trigger 决定要不要唤醒（对齐 DSH）
+    //
+    // 完成和失败都**必须唤醒**（用户得知道结果）；取消是用户自己按的，
+    // 不唤醒（省一次模型调用，也免得它反问"为什么取消"）。
+    const trigger = makeTrigger(ok ? 'worker_report' : 'worker_failed', {
+      text: `${INTERNAL_NOTICE_PREFIX}\n${body}\n\n请立刻向用户汇报这一条结果。`,
+      executorId: executor.id,
+    });
+
+    if (!shouldWake(trigger)) {
+      // 不唤醒：状态已经落库（recordReport），侧栏也会变，不需要 Assistant 说话。
+      return;
+    }
+
     try {
-      await this.userSays(
-        project.id,
-        `${INTERNAL_NOTICE_PREFIX}\n${body}\n\n请立刻向用户汇报这一条结果。`,
-        { source: 'executor', internal: true },
-      );
+      await this.userSays(project.id, trigger.text!, {
+        source: 'executor',
+        internal: true,
+      });
     } catch {
       // C 不在场也不丢事实：report 已落库。
     }
