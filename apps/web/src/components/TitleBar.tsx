@@ -82,8 +82,11 @@ export function TitleBar(props: TitleBarProps): JSX.Element {
     <>
       <div className="title-bar" onMouseDown={onMouseDown}>
         <span className="title-bar-brand">OpenCoxswain</span>
-        <span className="title-bar-crumb">{props.crumb}</span>
-
+        {/* 面包屑与品牌同名时省略，避免标题栏出现两个「OpenCoxswain」。
+            这是真机截图发现的：首屏 crumb 就是项目名，恰好等于产品名。 */}
+        {props.crumb && props.crumb !== 'OpenCoxswain' && (
+          <span className="title-bar-crumb">{props.crumb}</span>
+        )}
         {desktop && (
           <div className="title-bar-actions">
             <button type="button" className="win-btn" title="最小化" onClick={() => void act('minimize')}>

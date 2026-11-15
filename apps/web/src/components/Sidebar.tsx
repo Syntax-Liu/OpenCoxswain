@@ -322,7 +322,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                 </button>
                 <button
                   type="button"
-                  className="btn btn--link folder-name-btn"
+                  className="btn btn--ghost folder-name-btn"
                   onClick={() => props.onOpenAssistant(project.id)}
                   title={project.displayPath}
                 >
