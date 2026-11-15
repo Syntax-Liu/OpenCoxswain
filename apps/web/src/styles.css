@@ -1814,7 +1814,10 @@ button.small {
   text-align: left;
   font-family: inherit;
   position: relative;
-}
+
+  /* 模板卡片是按钮但有多行内容 */
+  height: auto;
+  align-items: stretch;}
 
 .template-card:hover {
   border-color: var(--accent-dim);
@@ -3148,6 +3151,13 @@ body.is-resizing {
   inset: 0;
   z-index: 500;
   background: var(--bg);
+  /* 让出顶部标题栏的高度。
+   *
+   * 之前是 `inset: 0` —— 整屏铺满，把自绘标题栏连同最小化/最大化/关闭
+   * **一起盖住**了。用户打开设置就点不到窗口按钮，只能先退出去。
+   *
+   * 标题栏高 30px（.title-bar），这里用同一个 token 保持同步。 */
+  top: 30px;
 }
 
 .settings-page {
@@ -3351,6 +3361,9 @@ body.is-resizing {
   border-right: 1px solid var(--border);
   padding-right: 12px;
   min-height: 120px;
+  /* 左栏是 200px 固定宽（见 .model-layout）。子项默认 min-width:auto，
+     长名字会把按钮撑到 200px 之外、盖住右边的详情区。 */
+  min-width: 0;
 }
 
 .model-item {
@@ -3363,6 +3376,24 @@ body.is-resizing {
   border: none;
   border-radius: var(--r-sm);
   color: var(--text-muted);
+  /* **必须给 min-width: 0**：flex 子项默认 min-width: auto，
+     内容比容器宽时不会收缩，直接把父级撑开——
+     长模型名会把列表左栏撑宽，盖住右边的详情区。 */
+  min-width: 0;
+
+  /* ---- 覆盖全局 `button` 规则 ----
+   *
+   * 那里写了 `height: var(--h-md)`（26px）+ `align-items: center`，
+   * 是给"一行文字"的普通按钮用的。模型项是**两行**（名字 + id），
+   * 套上之后整块被压成 26px，两行文字各自只有 7px 高，糊成一团。
+   *
+   * 三处都要覆盖：
+   *   height     → 由内容决定（auto）
+   *   align-items → stretch（让 span 占满宽度才能触发省略号）
+   *   padding    → 全局是 `0 12px`，这里要上下留白 */
+  height: auto;
+  align-items: stretch;
+  padding: 6px 10px;
 }
 
 .model-item:hover {
@@ -3376,12 +3407,22 @@ body.is-resizing {
 
 .model-item-name {
   font-size: var(--fs-sm);
+  /* 截断：模型名是用户或服务端给的任意长文本。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .model-item-id {
   font-size: var(--fs-xs);
   color: var(--text-dim);
   font-family: var(--font-mono);
+  /* 模型 id 往往比显示名还长（厂商前缀、日期版本）。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .model-add {
@@ -4033,7 +4074,10 @@ body.is-resizing {
   text-align: left;
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease);
-}
+
+  /* 引导页卡片是按钮但有多行内容 */
+  height: auto;
+  align-items: stretch;}
 
 .onboarding-card:hover {
   border-color: var(--accent);
@@ -5674,7 +5718,10 @@ body.is-resizing {
   transition:
     border-color var(--dur-fast) var(--ease),
     background-color var(--dur-fast) var(--ease);
-}
+
+  /* 全局 button 是单行 26px，这里是图标+文字两行，要按内容撑开 */
+  height: auto;
+  align-items: stretch;}
 
 .icon-theme-option:hover {
   background: var(--color-surface-hover);
