@@ -676,9 +676,65 @@ fn read_api_token() -> Option<String> {
     std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
 }
 
+/// 固定当前进程的 AppUserModelID。
+///
+/// ## 为什么必须设
+///
+/// 不设的话 Windows 用 **exe 路径 + 文件时间戳** 推断应用身份。
+/// `tauri build` 每次产出新 exe（时间戳变了）→ Windows 当成新应用 →
+/// 托盘历史里再记一条 → 用户看到堆积的幽灵图标。
+///
+/// 设成固定值后，不管重编多少次都是同一个应用。
+///
+/// ## 为什么自己声明 FFI
+///
+/// 只为了一个 `SetCurrentProcessExplicitAppUserModelID` 引入
+/// `windows` / `winapi` crate，会和运行时"零第三方依赖"的取舍背离
+/// —— 那一个调用值几十个项目依赖。
+#[cfg(windows)]
+fn set_app_user_model_id(id: &str) {
+    use std::os::windows::ffi::OsStrExt;
+    use std::ffi::OsStr;
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
+    }
+
+    // 必须 NUL 结尾的宽字符串
+    let mut wide: Vec<u16> = OsStr::new(id).encode_wide().collect();
+    wide.push(0);
+
+    // SAFETY: wide 在调用期间一直有效，且以 NUL 结尾。
+    let hr = unsafe { SetCurrentProcessExplicitAppUserModelID(wide.as_ptr()) };
+    if hr < 0 {
+        append_log(&format!("设置 AppUserModelID 失败：HRESULT 0x{hr:08X}"));
+    }
+}
+
+#[cfg(not(windows))]
+fn set_app_user_model_id(_id: &str) {}
+
 fn main() {
     // 崩溃也要留下痕迹：桌面应用没有终端，否则用户只看到窗口消失。
     install_panic_hook();
+    // **固定 AppUserModelID**。
+    //
+    // ## 这是"托盘幽灵图标"的真正根因
+    //
+    // 之前从没调用过 `SetCurrentProcessExplicitAppUserModelID`。
+    // 不设的话 Windows 会自己推断应用身份——**按 exe 路径 + 文件时间戳**。
+    // 而 `tauri build` 每次产出新的 exe（时间戳变了），Windows 就当成
+    // 一个**全新的应用**，托盘历史里再记一条。
+    //
+    // 所以：发几十个版本、装几十次 → 积几十条同样的方块图标。
+    // 这正是用户说的"长时间使用之后才会看到很多"。
+    //
+    // 固定 ID 之后，不管 exe 重编多少次，Windows 都认作同一个应用。
+    //
+    // 注意：必须和 `tauri.conf.json` 的 `identifier` 一致，
+    // 否则窗口、托盘、快捷方式会被当成不同的应用。
+    set_app_user_model_id("com.opencoxswain.desktop");
 
     let app = match tauri::Builder::default()
         // 单实例必须**第一个**注册（插件文档要求）：
