@@ -163,7 +163,10 @@ export function App(): JSX.Element {
   const showPanel = executors.length > 0;
 
   const send = useCallback(
-    async (text: string) => {
+    async (
+      text: string,
+      images: readonly { type: 'image'; dataUrl: string; name: string }[] = [],
+    ) => {
       const pid = state.currentProjectId;
       if (!pid) return;
       const optimistic: MessageDto = {
@@ -172,10 +175,11 @@ export function App(): JSX.Element {
         content: text,
         source: 'user',
         at: Date.now(),
+        ...(images.length > 0 ? { images } : {}),
       };
       setState((s) => ({ ...s, messages: [...s.messages, optimistic] }));
       try {
-        await api.say(pid, text);
+        await api.say(pid, text, images.length > 0 ? images : undefined);
       } catch {
         // 失败会通过事件流反映成系统消息，这里不吞
       }
@@ -309,7 +313,8 @@ export function App(): JSX.Element {
                 </p>
               )}
               <Composer
-                onSend={(t) => void send(t)}
+                projectId={currentProject.id}
+                onSend={(t, imgs) => void send(t, imgs)}
                 onStop={() => void stopAll()}
                 runningCount={runningCount}
               />
