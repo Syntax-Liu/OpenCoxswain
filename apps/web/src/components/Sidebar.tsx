@@ -21,6 +21,8 @@ export interface SidebarProps {
   readonly tab: SidebarTab;
   /** file 标签下要预览的路径。 */
   readonly filePath?: string;
+  /** browser 标签下的初始地址；不给就用 localhost:5173。 */
+  readonly initialUrl?: string;
   readonly projectId: string;
   readonly onClose: () => void;
 }
@@ -29,6 +31,11 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   const api = useState(() => new ApiClient())[0];
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 浏览器地址栏。默认指向本地 dev server——那是最常看的东西。 */
+  const [url, setUrl] = useState(props.initialUrl ?? 'http://localhost:5173');
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  /** 地址栏输入无效时的提示。 */
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
     if (props.tab !== 'file' || !props.filePath) return;
@@ -57,11 +64,12 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   }, [props]);
 
   const fileName = props.filePath?.replace(/\\/g, '/').split('/').pop() ?? '';
+  const title = props.tab === 'browser' ? '浏览器' : fileName || '侧边栏';
 
   return (
     <aside className="sidebar" aria-label="侧边栏">
       <div className="sidebar-head">
-        <span className="sidebar-title">{fileName || '侧边栏'}</span>
+        <span className="sidebar-title">{title}</span>
         <button
           type="button"
           className="btn btn--ghost btn--icon"
@@ -73,7 +81,42 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         </button>
       </div>
 
-      <div className="sidebar-body">
+      {props.tab === 'browser' && (
+        <form
+          className="sidebar-url"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const next = normalizeUrl(url);
+            // 地址不合法就**保持原样**，不要清掉已经打开的页面——
+            // 用户输错一个字符就把正在看的东西弄没了，很烦。
+            if (next) {
+              setLoadedUrl(next);
+              setUrlError(null);
+            } else {
+              setUrlError('只能打开 http / https 地址');
+            }
+          }}
+        >
+          <input
+            className="sidebar-url-input"
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setUrlError(null);
+            }}
+            placeholder="http://localhost:5173"
+            spellCheck={false}
+            aria-invalid={urlError !== null}
+          />
+          <button type="submit" className="btn btn--secondary btn--sm">
+            打开
+          </button>
+        </form>
+      )}
+
+      {urlError && <p className="sidebar-url-error">{urlError}</p>}
+
+      <div className={`sidebar-body${props.tab === 'browser' ? ' is-browser' : ''}`}>
         {props.tab === 'file' && (
           <>
             {error && <p className="sidebar-empty">读取失败：{error}</p>}
@@ -83,9 +126,39 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         )}
 
         {props.tab === 'browser' && (
-          <p className="sidebar-empty">浏览器预览还没做（预留位置）。</p>
+          <>
+            {loadedUrl === null ? (
+              <p className="sidebar-empty">
+                输入地址后打开。本地 dev server（如 http://localhost:5173）最常用。
+                <br />
+                注意：有些网站禁止被嵌入（X-Frame-Options），会显示空白——那是对方的选择。
+              </p>
+            ) : (
+              <iframe
+                className="sidebar-frame"
+                src={loadedUrl}
+                title="浏览器预览"
+                // 不给脚本同源权限：它是个预览，不是我们页面的一部分
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              />
+            )}
+          </>
         )}
       </div>
     </aside>
   );
+}
+
+/** 补协议头；只放行 http/https，避免 javascript: 之类。 */
+export function normalizeUrl(input: string): string | null {
+  const t = input.trim();
+  if (!t) return null;
+  const withProto = /^[a-z]+:\/\//i.test(t) ? t : `http://${t}`;
+  try {
+    const u = new URL(withProto);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
 }

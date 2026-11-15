@@ -380,6 +380,7 @@ export function App(): JSX.Element {
           }}
           onOpenExecutor={openExecutor}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenBrowser={() => setSidebar({ tab: 'browser' })}
         />
       )}
 

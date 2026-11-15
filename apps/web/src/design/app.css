@@ -1141,6 +1141,55 @@ select {
   word-break: break-word;
 }
 
+/* ---- 浏览器 tab ---- */
+
+.sidebar-url {
+  display: flex;
+  gap: var(--g-2);
+  padding: var(--g-2) var(--g-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-url-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-md);
+  padding: 0 var(--g-2);
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.sidebar-url-error {
+  margin: 0;
+  padding: var(--g-1) var(--g-3);
+  font-size: var(--fs-xs);
+  color: var(--status-failed);
+}
+
+.sidebar-url-input:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+/* 浏览器内容区不要内边距，iframe 要铺满 */
+.sidebar-body.is-browser {
+  padding: 0;
+  overflow: hidden;
+}
+
+.sidebar-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+  display: block;
+}
+
 /* ============================================================
    方案横条
    ============================================================ */

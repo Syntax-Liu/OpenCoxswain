@@ -25,6 +25,8 @@ export interface CommandPaletteProps {
   readonly onPickProject: (id: string) => void;
   readonly onOpenExecutor: (id: string) => void;
   readonly onOpenSettings: () => void;
+  /** 在侧边栏打开浏览器。 */
+  readonly onOpenBrowser?: () => void;
 }
 
 export function buildCommands(props: CommandPaletteProps): readonly Command[] {
@@ -53,6 +55,15 @@ export function buildCommands(props: CommandPaletteProps): readonly Command[] {
     group: '操作',
     run: () => props.onOpenSettings(),
   });
+  if (props.onOpenBrowser) {
+    cmds.push({
+      id: 'browser',
+      label: '打开浏览器',
+      hint: '侧边栏',
+      group: '操作',
+      run: () => props.onOpenBrowser?.(),
+    });
+  }
   return cmds;
 }
 
