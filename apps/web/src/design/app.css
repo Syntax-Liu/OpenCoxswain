@@ -1316,6 +1316,126 @@ select {
 }
 
 /* ============================================================
+   设置
+   ============================================================ */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--g-5);
+  z-index: 50;
+}
+
+.settings {
+  width: min(620px, 100%);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--g-3) var(--g-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--g-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-5);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-3);
+}
+
+.settings-section-title {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  line-height: var(--lh-base);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+}
+
+.settings-field label {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+.settings-input,
+.settings-select {
+  height: var(--h-lg);
+  padding: 0 var(--g-2);
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+}
+
+.settings-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.settings-input:focus,
+.settings-select:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.settings-select {
+  cursor: pointer;
+}
+
+.settings-actions {
+  display: flex;
+  gap: var(--g-2);
+  flex-wrap: wrap;
+}
+
+.settings-message {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+/* ============================================================
    空态
    ============================================================ */
 

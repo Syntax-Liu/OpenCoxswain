@@ -25,6 +25,7 @@ import { ApprovalPanel } from './components/ApprovalPanel.js';
 import { Composer } from './components/Composer.js';
 import { ProjectSwitcher } from './components/ProjectSwitcher.js';
 import { RunnerPanel } from './components/RunnerPanel.js';
+import { SettingsPanel } from './components/SettingsPanel.js';
 import { Transcript } from './components/Transcript.js';
 import { TraceView } from './components/TraceView.js';
 
@@ -34,6 +35,7 @@ export function App(): JSX.Element {
   const [state, setState] = useState<AppState>(initialState);
   const [view, setView] = useState<View>({ kind: 'chat' });
   const [approvals, setApprovals] = useState<readonly ApprovalDto[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [connecting, setConnecting] = useState(true);
   // 连接状态三态：未知（首帧）/ 已连 / 已断。
   // 只有**曾经连上过**再断开才报"离线"——否则首帧会闪一下错误提示。
@@ -153,6 +155,22 @@ export function App(): JSX.Element {
     [api, state.currentProjectId],
   );
 
+  // ---- 快捷键：Esc 关设置，Ctrl+, 开设置 ----
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && settingsOpen) {
+        setSettingsOpen(false);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [settingsOpen]);
+
   const executors = useMemo(() => visibleExecutors(state.executors), [state.executors]);
   const currentProject = useMemo(
     () => state.projects.find((p) => p.id === state.currentProjectId) ?? null,
@@ -251,7 +269,33 @@ export function App(): JSX.Element {
             离线
           </span>
         )}
+        <button
+          type="button"
+          className="btn btn--ghost btn--icon"
+          onClick={() => setSettingsOpen(true)}
+          title="设置（Ctrl+,）"
+          aria-label="设置"
+        >
+          ⚙
+        </button>
       </header>
+
+      {settingsOpen && (
+        <div
+          className="settings-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSettingsOpen(false);
+          }}
+        >
+          <SettingsPanel
+            onClose={() => setSettingsOpen(false)}
+            onChanged={() => {
+              // 配置变了，重新拉一次项目列表
+              void api.listProjects().then((snap) => setState((s) => applySnapshot(s, snap)));
+            }}
+          />
+        </div>
+      )}
 
       <div className={`body${showPanel ? ' has-panel' : ''}`}>
         <main className="main">
