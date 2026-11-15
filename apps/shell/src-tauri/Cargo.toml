@@ -1,6 +1,6 @@
 [package]
 name = "opencoxswain"
-version = "0.104.0"
+version = "0.105.0"
 description = "OpenCoxswain 舵手"
 authors = ["OpenCoxswain"]
 edition = "2021"
@@ -11,7 +11,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # 托盘：关窗口不等于退出，让执行者继续跑。
-tauri = { version = "2", features = ["tray-icon"] }
+#
+# `image-png` 是必须的：六套配色的托盘图标在编译期以 PNG 嵌进 exe
+# （见 main.rs 的 tray_icon_for），没有这个 feature 就解不了码。
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 # 加密服务的共享令牌必须用系统 CSPRNG，不能自己拼熵。
 getrandom = "0.2"
 # capabilities 里的 JSON 由 generate_context! 内联展开，需要 serde_json 在手边。

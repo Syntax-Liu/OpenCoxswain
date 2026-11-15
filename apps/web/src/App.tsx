@@ -109,9 +109,17 @@ export function App(): JSX.Element {
    * Rust 侧启动时读同一个键，窗口和托盘图标也跟着变。
    */
   const [iconTheme, setIconTheme] = useState<string>(() => readIconTheme());
-  const pickIconTheme = useCallback((id: string) => {
-    setIconTheme(writeIconTheme(id));
-  }, []);
+  const pickIconTheme = useCallback(
+    (id: string) => {
+      // 1. 先更新界面（同步，点了立刻变）
+      setIconTheme(writeIconTheme(id));
+      // 2. 再落一份给壳层——窗口和托盘图标是 Rust 画的，
+      //    它们读不到 localStorage。失败不影响界面（下次启动
+      //    壳层会退回紫罗兰），所以只记录不打断。
+      void api.setIconTheme(id).catch(() => {});
+    },
+    [api],
+  );
   /** 命令面板（Ctrl+K）。 */
   const [showPalette, setShowPalette] = useState(false);
   const [settings, setSettings] = useState<SettingsStatus | null>(null);

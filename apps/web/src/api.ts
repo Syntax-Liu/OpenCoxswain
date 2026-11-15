@@ -461,6 +461,21 @@ export class ApiClient {
   }
 
   /**
+   * 读应用图标配色。
+   *
+   * 界面用它初始化选择器；**壳层也读这个接口**来决定
+   * 窗口和托盘图标用哪套（那两样是 Tauri 画的，网页管不到）。
+   */
+  iconTheme(): Promise<{ theme: string }> {
+    return this.request('/api/icon-theme');
+  }
+
+  /** 保存图标配色（落盘，壳层下次启动能读到）。 */
+  setIconTheme(theme: string): Promise<{ ok: boolean; theme: string }> {
+    return this.request('/api/icon-theme', { method: 'POST', body: { theme } });
+  }
+
+  /**
    * 联网搜索配置。
    *
    * apiKey **不回显**——只告诉界面"配没配"。

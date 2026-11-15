@@ -513,6 +513,22 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       }
     }
 
+    // ---- 应用图标配色 ----
+    //
+    // 界面用它初始化选择器；**壳层也读这个接口**来决定
+    // 窗口和托盘图标用哪套配色（那两样是 Tauri 画的，网页管不到）。
+    if (url.pathname === '/api/icon-theme') {
+      if (method === 'GET') {
+        return reply(200, { theme: await orchestrator.iconTheme() });
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        const theme = typeof body.theme === 'string' ? body.theme : '';
+        const result = await orchestrator.setIconTheme(theme);
+        return reply(200, result);
+      }
+    }
+
     // ---- 联网搜索配置 ----
     //
     // apiKey **不回显**——只告诉界面"配没配"。

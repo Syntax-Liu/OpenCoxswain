@@ -26,6 +26,8 @@ import { loadExtensions } from './extensions/index.js';
 import { ScheduleStore } from './schedules/store.js';
 import { CloseSettingsStore } from './settings/close.js';
 import { PermissionStore } from './settings/permission.js';
+import { IconThemeStore } from './settings/iconTheme.js';
+import { SearchStore } from './settings/search.js';
 import { ModelStore } from './llm/modelStore.js';
 import { modelForRole } from './llm/models.js';
 import { TokenStore } from './server/token.js';
@@ -195,6 +197,15 @@ async function main(): Promise<void> {
     schedules: new ScheduleStore(path.join(os.homedir(), '.opencoxswain', 'schedules.json')),
     closeSettings: new CloseSettingsStore(path.join(os.homedir(), '.opencoxswain', 'close.json')),
     permissions: new PermissionStore(path.join(os.homedir(), '.opencoxswain', 'permissions.json')),
+    // 联网搜索配置。
+    //
+    // **之前这里漏了**——`SearchStore` 类写好了但从来没实例化，
+    // 于是 `web_search` 永远拿不到 key，设置页存了也只在内存里。
+    searchStore: new SearchStore(path.join(os.homedir(), '.opencoxswain', 'search.json')),
+    // 应用图标配色：壳层（Rust）读这份来决定窗口和托盘图标。
+    iconThemeStore: new IconThemeStore(
+      path.join(os.homedir(), '.opencoxswain', 'icon-theme.json'),
+    ),
     // MCP 服务器配置：读 ~/.opencoxswain/mcp.json。
     // **读不到文件就不启用**——MCP 是可选能力，不该因为缺配置报错。
     mcpServers: await loadMcpServers(),

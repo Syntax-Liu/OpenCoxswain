@@ -73,6 +73,11 @@ import {
   type SearchSettings,
   type SearchStoreLike,
 } from './settings/search.js';
+import {
+  DEFAULT_ICON_THEME,
+  normalizeIconTheme,
+  type IconThemeStoreLike,
+} from './settings/iconTheme.js';
 import { EMPTY_METRICS } from './cost/metrics.js';
 import { evaluateRunning, evaluateSpawn, startOfToday } from './cost/budget.js';
 import { classifyDanger } from './security/classify.js';
@@ -118,6 +123,13 @@ export interface OrchestratorOptions {
   readonly permissions?: PermissionStoreLike;
   /** 联网搜索配置的存取。不传时搜索工具永远"不可用"。 */
   readonly searchStore?: SearchStoreLike;
+  /**
+   * 应用图标配色。
+   *
+   * **壳层也要读**（窗口和托盘图标是 Tauri 建的，不是网页画的），
+   * 所以除了 localStorage 还要落一份 JSON 供 Rust 侧读。
+   */
+  readonly iconThemeStore?: IconThemeStoreLike;
   /** 多模型配置；不提供时用内存实现。 */
   readonly models?: ModelStoreLike;
   /** 用户级技能目录；不提供时用 ~/.opencoxswain/skills。 */
@@ -231,6 +243,8 @@ export class Orchestrator extends EventEmitter {
    * 不能让它编造搜索结果。
    */
   private readonly searchStore: SearchStoreLike | null;
+  /** 应用图标配色（壳层读这份）。 */
+  private readonly iconThemeStore: IconThemeStoreLike | null;
   /**
    * 缓存的搜索配置。
    *
@@ -271,6 +285,7 @@ export class Orchestrator extends EventEmitter {
     this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
     this.searchStore = options.searchStore ?? null;
+    this.iconThemeStore = options.iconThemeStore ?? null;
     this.modelStore = options.models ?? new MemoryModelStore();
     this.userSkillsDir = options.userSkillsDir ?? path.join(os.homedir(), '.opencoxswain', 'skills');
     // 快照目录：和 skills 同级，用户能直接看到
@@ -1675,6 +1690,19 @@ export class Orchestrator extends EventEmitter {
       ok: true,
       message: isSearchConfigured(next) ? '已保存，联网搜索可用。' : '已保存。endpoint 和密钥都填了才能用。',
     };
+  }
+
+  /** 应用图标配色。 */
+  async iconTheme(): Promise<string> {
+    if (!this.iconThemeStore) return DEFAULT_ICON_THEME;
+    return this.iconThemeStore.load();
+  }
+
+  /** 保存图标配色。空值/非法值一律归一成默认。 */
+  async setIconTheme(theme: string): Promise<{ ok: boolean; theme: string }> {
+    const next = normalizeIconTheme(theme);
+    if (this.iconThemeStore) await this.iconThemeStore.save(next);
+    return { ok: true, theme: next };
   }
 
   /** 给执行器用的搜索配置（没配置时返回 null）。 */

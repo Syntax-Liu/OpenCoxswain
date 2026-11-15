@@ -526,34 +526,40 @@ fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-    // **托盘图标必须显式给**。
+    // **托盘图标必须显式给**，而且优先用用户选的配色。
     //
-    // ## 之前的问题
+    // ## 顺序
     //
-    // 这里是 `if let Some(icon)` —— 取不到就静默跳过，托盘变成无图标。
-    // 而 `tauri.conf.json` 的 `app.windows` 是空数组（窗口在 Rust 里手建），
-    // Tauri 不会自动加载窗口图标，`default_window_icon()` 返回 **None**。
+    // 1. 用户在设置里选的配色（`icon_theme()` 读运行时接口）
+    // 2. exe 内嵌的应用图标资源
+    // 3. 什么都没有 → 记日志（Windows 会用蓝色占位方块顶上）
     //
-    // 结果是托盘项没有图标，Windows 用**蓝色占位方块**顶上。
-    // 每次启动重新注册一次，那个方块就在托盘历史里越叠越多——
-    // 用户看到的就是一整屏 `oc` 幽灵图标。
-    builder = match app.default_window_icon().cloned() {
-        Some(icon) => builder.icon(icon),
-        None => {
-            // **不能静默跳过**：没有图标就会变成占位方块。
-            //
-            // `from_app_icon_resource` 读的是 exe 里由 tauri-build 嵌入的图标
-            // （和资源管理器显示的是同一个），不依赖配置文件。
-            append_log("托盘：default_window_icon 为空，改用 exe 内嵌图标资源");
-            match tauri::image::Image::from_app_icon_resource(32) {
-                Ok(fallback) => builder.icon(fallback),
-                Err(error) => {
-                    append_log(&format!("托盘图标加载失败，将显示为占位方块：{error}"));
-                    builder
-                }
-            }
-        }
-    };
+    // ## 为什么第 1 步不能省
+    //
+    // 用户在设置里换了配色，界面立刻变，但如果托盘还是旧的，
+    // 会让人以为"只有一半生效"。
+    let theme = icon_theme();
+    let mut picked = tray_icon_for(&theme);
+    if picked.is_some() {
+        append_log(&format!("托盘使用配色：{theme}"));
+    }
+
+    if picked.is_none() {
+        picked = app.default_window_icon().cloned();
+    }
+    if picked.is_none() {
+        // **不能静默跳过**：没有图标就会变成占位方块。
+        //
+        // `from_app_icon_resource` 读的是 exe 里由 tauri-build 嵌入的图标
+        // （和资源管理器显示的是同一个），不依赖配置文件。
+        append_log("托盘：取不到配色图标，改用 exe 内嵌图标资源");
+        picked = tauri::image::Image::from_app_icon_resource(32).ok();
+    }
+    if let Some(icon) = picked {
+        builder = builder.icon(icon);
+    } else {
+        append_log("托盘图标加载失败，将显示为占位方块");
+    }
 
     builder.build(app)?;
     Ok(())
@@ -674,6 +680,90 @@ fn read_api_token() -> Option<String> {
         .ok()?;
     let path = std::path::Path::new(&home).join(".opencoxswain").join("token");
     std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+}
+
+/// 等运行时起来，返回用户选的图标配色。
+///
+/// 轮询 `/api/icon-theme`：运行时启动要几秒，这期间接口连不上。
+/// 超时返回 None（调用方保持默认配色，不要报错——图标配色失败
+/// 不该影响任何功能）。
+fn wait_for_runtime_ready(timeout: Duration) -> Option<String> {
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if let Some(token) = read_api_token() {
+            if let Some(body) = http_get(&format!("http://127.0.0.1:{PORT}/api/icon-theme"), &token) {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&body) {
+                    if let Some(theme) = parsed.get("theme").and_then(|v| v.as_str()) {
+                        return Some(match theme {
+                            "violet" | "sky" | "coral" | "deep" | "graphite" | "mint" => {
+                                theme.to_string()
+                            }
+                            _ => "violet".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    None
+}
+
+/// 读用户选的应用图标配色。
+///
+/// 从运行时的 HTTP 接口读（不是读 WebView 的 localStorage——
+/// 那是 Chromium 的 LevelDB，格式随版本变，从 Rust 侧解析不可靠）。
+///
+/// 读不到就用紫罗兰（主图标）。
+fn icon_theme() -> String {
+    let Some(token) = read_api_token() else {
+        return "violet".to_string();
+    };
+    let Some(body) = http_get(&format!("http://127.0.0.1:{PORT}/api/icon-theme"), &token) else {
+        return "violet".to_string();
+    };
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return "violet".to_string();
+    };
+    let theme = parsed
+        .get("theme")
+        .and_then(|v| v.as_str())
+        .unwrap_or("violet");
+
+    // 白名单：未知值退回默认。图标文件是编译期嵌进 exe 的，
+    // 拼一个不存在的名字会导致托盘没图标。
+    match theme {
+        "violet" | "sky" | "coral" | "deep" | "graphite" | "mint" => theme.to_string(),
+        _ => "violet".to_string(),
+    }
+}
+
+/// 取某套配色的托盘图标。
+///
+/// 六个 ICO 在编译期嵌进 exe（体积很小，最大的一张 256px 也只有 ~20KB），
+/// 这样换配色不需要读盘、也不依赖安装目录里的文件。
+fn tray_icon_for(theme: &str) -> Option<tauri::image::Image<'static>> {
+    use tauri::image::Image;
+
+    // 托盘用 32px 足够：Windows 会自己按 DPI 缩放。
+    let bytes: &[u8] = match theme {
+        "sky" => include_bytes!("../icons/theme/sky/32x32.png"),
+        "coral" => include_bytes!("../icons/theme/coral/32x32.png"),
+        "deep" => include_bytes!("../icons/theme/deep/32x32.png"),
+        "graphite" => include_bytes!("../icons/theme/graphite/32x32.png"),
+        "mint" => include_bytes!("../icons/theme/mint/32x32.png"),
+        _ => include_bytes!("../icons/theme/violet/32x32.png"),
+    };
+
+    // `from_bytes` 定义在 `impl Image<'static>` 上（不是泛型 impl），
+    // 所以要显式指定生命周期，否则推断成 `Image<'_>` 找不到这个方法。
+    match Image::<'static>::from_bytes(bytes) {
+        Ok(img) => Some(img),
+        Err(error) => {
+            append_log(&format!("托盘图标解码失败（{theme}）：{error}"));
+            None
+        }
+    }
 }
 
 /// 固定当前进程的 AppUserModelID。
@@ -827,6 +917,39 @@ fn main() {
             // **关窗口不等于退出**：执行者可能还在跑，直接退出会把它们全部杀掉。
             // 所以点关闭只隐藏窗口，真正退出走托盘菜单。
             build_tray(app)?;
+
+            // **托盘建好之后再换一次配色图标**。
+            //
+            // 为什么不能在建托盘时就读：托盘比运行时**先建**
+            // （`spawn_runtime` 在上面，但运行时真正监听端口要几秒）。
+            // 那会儿 `/api/icon-theme` 还没起来，`icon_theme()` 只能
+            // 退回默认——用户在设置里选的配色就白选了。
+            //
+            // 所以这里起一个后台线程：等运行时就绪后读一次，
+            // 和当前图标不一致就换掉。
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let theme = match wait_for_runtime_ready(Duration::from_secs(30)) {
+                        Some(theme) => theme,
+                        None => {
+                            append_log("托盘配色：运行时 30 秒内未就绪，保持默认配色");
+                            return;
+                        }
+                    };
+                    let Some(tray) = handle.tray_by_id("main-tray") else {
+                        return;
+                    };
+                    if let Some(icon) = tray_icon_for(&theme) {
+                        match tray.set_icon(Some(icon)) {
+                            Ok(()) => append_log(&format!("托盘配色已应用：{theme}")),
+                            Err(error) => {
+                                append_log(&format!("托盘配色切换失败（{theme}）：{error}"))
+                            }
+                        }
+                    }
+                });
+            }
 
             std::thread::spawn(wait_for_runtime);
             Ok(())
