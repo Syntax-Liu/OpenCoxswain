@@ -4,7 +4,7 @@
  * 为什么需要：新界面取消了左栏，项目切换在头部下拉里——
  * 项目一多就不好找。命令面板是"没有侧栏"的必要补偿。
  *
- * 提供：切项目、打开执行者、打开设置。
+ * 提供：切项目、打开 Agent、打开设置。
  * 不做：模糊搜索太重，用子串匹配 + 首字母排序就够了。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -43,7 +43,7 @@ export function buildCommands(props: CommandPaletteProps): readonly Command[] {
       id: `executor:${e.id}`,
       label: e.label,
       hint: e.status === 'running' ? '正在执行' : e.status,
-      group: '执行者',
+      group: 'Agent',
       run: () => props.onOpenExecutor(e.id),
     });
   }
@@ -105,7 +105,7 @@ export function CommandPalette(props: CommandPaletteProps): JSX.Element {
           ref={inputRef}
           className="palette-input"
           value={query}
-          placeholder="搜索项目、执行者或操作"
+          placeholder="搜索项目、Agent 或操作"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {

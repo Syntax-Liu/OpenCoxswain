@@ -87,7 +87,7 @@ function Message(props: {
 
   return (
     <div className={`msg ${role}`}>
-      <span className="msg-who">{role === 'user' ? '你' : '助理'}</span>
+      <span className="msg-who">{role === 'user' ? '你' : 'Assistant'}</span>
       <div className="msg-body">
         {role === 'assistant' ? renderMarkdown(m.content) : m.content}
       </div>

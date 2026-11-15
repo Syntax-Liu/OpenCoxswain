@@ -2,7 +2,7 @@
   "name": "@opencoxswain/web",
   "version": "0.105.2",
   "private": true,
-  "description": "OpenCoxswain 工作台：项目 → 对 C 说话 → 看 D 进展",
+  "description": "OpenCoxswain 工作台：项目 → 对 Assistant 说话 → 看 Agent 进展",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\""
+    "test": "node -e \"require('node:fs').rmSync('dist-test',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\""
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -5,7 +5,7 @@
  *
  * 与旧界面的区别：
  *   - **没有左栏**：项目切换在头部下拉；
- *   - **面板不常驻**：没有执行者时整块不渲染，主区自动占满；
+ *   - **面板不常驻**：没有 Agent 时整块不渲染，主区自动占满；
  *   - **App.tsx 不再是什么都管的上帝组件**（旧版 1288 行）。
  *
  * 数据层沿用旧实现的类型与纯函数（applySnapshot / applyEvent），
@@ -90,7 +90,7 @@ export function App(): JSX.Element {
     return () => stream.close();
   }, [api]);
 
-  // ---- 切项目时拉消息 + 执行者 ----
+  // ---- 切项目时拉消息 + Agent ----
   useEffect(() => {
     const pid = state.currentProjectId;
     if (!pid) return;
@@ -187,7 +187,7 @@ export function App(): JSX.Element {
     [state.projects, state.currentProjectId],
   );
 
-  /** 面板只在有执行者或有待决策时出现——新旧界面最大的结构差异。 */
+  /** 面板只在有 Agent 或有待决策时出现——新旧界面最大的结构差异。 */
   const showPanel = executors.length > 0 || state.reports.some((r) => r.needsUser && r.ackedAt === null);
 
   const send = useCallback(
@@ -343,7 +343,7 @@ export function App(): JSX.Element {
                 <TraceView executor={target} onBack={backToChat} />
               ) : (
                 <div className="empty">
-                  <p className="empty-hint">这个执行者已经不在列表里了。</p>
+                  <p className="empty-hint">这个 Agent 已经不在列表里了。</p>
                   <button type="button" className="btn btn--secondary btn--md" onClick={backToChat}>
                     返回对话
                   </button>
@@ -398,7 +398,7 @@ export function App(): JSX.Element {
             onAnswer={(executorId, text) => {
               // 回答经由 C 转达：接口层没有「直接给某个 D 传话」的入口，
               // 这就是架构规定的通道——C 负责把用户的话派给正确的 D。
-              const label = executors.find((e) => e.id === executorId)?.label ?? '执行者';
+              const label = executors.find((e) => e.id === executorId)?.label ?? 'Agent';
               void send(`关于「${label}」：${text}`);
             }}
           />

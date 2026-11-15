@@ -234,11 +234,11 @@ canvas → sidebar → sunken(输入框) → panel → raised → hover → sele
 
 ```
 [◎ 新会话]                    ← 顶部大按钮
-  ⌘ 全局助理                  ← nav-item
+  ⌘ Supervisor                  ← nav-item
 ──────────────────────────
 工作区              ⌕ ⇅ ＋      ← 标题行带小图标
- ▾ 项目名                      ← 点击 = 进该项目的 C（项目助理）
-     对话标题        已完成      ← 点击 = 看某个 D（执行者）；右对齐状态
+ ▾ 项目名                      ← 点击 = 进该项目的 C（Assistant）
+     对话标题        已完成      ← 点击 = 看某个 D（Agent）；右对齐状态
 ```
 
 **三种视图**：
@@ -246,7 +246,7 @@ canvas → sidebar → sunken(输入框) → panel → raised → hover → sele
 | 视图 | `view.kind` | 含义 |
 | --- | --- | --- |
 | 新会话 | `'new'` | 还没选项目，两个导航项都**不算**当前项目 |
-| 全局助理 | `'global'` | B 层：跨项目路由 |
+| Supervisor | `'global'` | B 层：跨项目路由 |
 | 项目 | 项目 id | C 层：该项目常驻会话 |
 
 **行高（对齐 DSH，测试锁死）**：
@@ -262,8 +262,8 @@ canvas → sidebar → sunken(输入框) → panel → raised → hover → sele
 ### 3.2 主区（`Main`）
 
 - `UpdateBanner`（有更新才出现）
-- `ApprovalPanel`（有审批请求才出现；多个 D 同时请求时**必须标明是谁要干**）
-- `Conversation`（对 C 说话）或 `ExecutorChat`（对 D 说话）或 `GlobalAssistant`（对 B 说话）
+- `ApprovalPanel`（有审批请求才出现；多个 Agent 同时请求时**必须标明是谁要干**）
+- `Conversation`（对 Assistant 说话）或 `ExecutorChat`（对 D 说话）或 `GlobalAssistant`（对 B 说话）
 - 新会话空态：`NewSession`
 
 ### 3.3 右侧栏（`RightRail.tsx`）
@@ -388,10 +388,10 @@ padding: var(--g-25) var(--g-3)   /* 10px 12px */
 
 | 文件 | 职责 |
 | --- | --- |
-| `Conversation.tsx` | 与 C 的对话 |
-| `ExecutorChat.tsx` | 与 D 的对话（含轨迹） |
-| `GlobalAssistant.tsx` | 与 B 的对话 |
-| `TraceView.tsx` | D 的执行轨迹查看 |
+| `Conversation.tsx` | 与 Assistant 的对话 |
+| `ExecutorChat.tsx` | 与 Agent 的对话（含轨迹） |
+| `GlobalAssistant.tsx` | 与 Supervisor 的对话 |
+| `TraceView.tsx` | Agent 的执行轨迹查看 |
 | `ApprovalPanel.tsx` | 危险动作审批 |
 | `DecisionPanel.tsx` | 待决策项 |
 | `Markdown.tsx` | Markdown 渲染 |

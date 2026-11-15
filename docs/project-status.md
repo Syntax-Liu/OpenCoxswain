@@ -33,7 +33,7 @@
 
 **OpenCoxswain（舵手）** 是一个**本地优先的 AI 开发助理**。
 
-你用自然语言说要做什么，它派多个 Agent去干活，边干边向你汇报。
+你用自然语言说要做什么，它派多个 Agent 去干活，边干边向你汇报。
 
 ### 一句话定位
 
@@ -95,11 +95,11 @@ D Agent ──── 临时工，干完就结算
 
 ```
 1. 打开项目          → C 恢复上次的对话
-2. 对 C 说"把登录页重构一下"
+2. 对 Assistant 说"把登录页重构一下"
 3. C 判断：这是新任务，可并行
-4. C 派 D1、D2、D3 同时开工
+4. Assistant 派 Agent1、D2、D3 同时开工
 5. 谁先完成，C 立刻汇报谁（不等其它）
-6. D 卡住了 → C 自己推一把，或问你
+6. Agent 卡住了 → C 自己推一把，或问你
 7. 你可以继续发话，不打断 C
 8. D 干完 → 系统独立复核 → 台账留痕
 ```
@@ -108,20 +108,20 @@ D Agent ──── 临时工，干完就结算
 
 | 机制 | 做什么 | 为什么这么做 |
 | --- | --- | --- |
-| **C 常驻** | 一个项目一个 `assistantSessionId` | 关掉软件再打开，C 记得之前聊过什么 |
+| **Assistant 常驻** | 一个项目一个 `assistantSessionId` | 关掉软件再打开，C 记得之前聊过什么 |
 | **连发不打断** | 消息进 Inbox 双队列（`next` / `step`） | 你说话时 C 还在干活，不该被阻塞 |
 | **并行 + 写域互斥** | 只读任务随便并行；写任务按目录加锁 | 三个人同时改同一个文件必然冲突 |
-| **先完成先汇报** | 每个 D 结算立刻交给 C | 等最慢的那个会让人以为卡住了 |
+| **先完成先汇报** | 每个 Agent 结算立刻交给 C | 等最慢的那个会让人以为卡住了 |
 | **卡点三分类** | 可重试 / 环境问题 / 需你决定 | 只有第三类才该打扰你 |
 | **关窗口不退出** | 点 × 只是隐藏到托盘 | 关个窗口就杀掉正在跑的活儿，不能接受 |
 | **单实例锁** | 第二次双击唤回已有窗口 | 两个实例抢同一个端口和数据库 |
 
 ### 2.4 为什么 C 不直接干活
 
-因为**反馈延迟**。一个 D 跑 5 分钟没动静，你不知道它在想还是在卡；
-换成 C 立刻回一句"我派了三个Agent，先做登录页"，你就安心了。
+因为**反馈延迟**。一个 Agent 跑 5 分钟没动静，你不知道它在想还是在卡；
+换成 C 立刻回一句"我派了三个 Agent，先做登录页"，你就安心了。
 
-C 的价值不是"更聪明"，是**让你知道现在什么情况**。
+Assistant 的价值不是"更聪明"，是**让你知道现在什么情况**。
 
 ---
 
@@ -134,8 +134,8 @@ C 的价值不是"更聪明"，是**让你知道现在什么情况**。
 | 对 Assistant 说话派活 | ✅ | 自然语言，自动判断能否并行 |
 | D 多路并行 | ✅ | 只读任务不互斥；写任务按写域加锁 |
 | 先完成先汇报 | ✅ | 同一批完成的会去抖合并成一条 |
-| Agent 可续聊 | ✅ | 点开某个 D 的会话，带着原上下文继续追问 |
-| 关软件再打开 | ✅ | C 和 D 的历史都在，从断点继续 |
+| Agent 可续聊 | ✅ | 点开某个 Agent 的会话，带着原上下文继续追问 |
+| 关软件再打开 | ✅ | C 和 Agent 的历史都在，从断点继续 |
 | B 路由 | ✅ | 项目多了不知道进哪个时，B 给依据或转交原话 |
 
 ### 3.2 可信性（线 A）
@@ -157,7 +157,7 @@ C 的价值不是"更聪明"，是**让你知道现在什么情况**。
 | 记忆管理 | ✅ | 能看见记住了什么，能删单条 |
 | 任务模板 | ✅ | 五类，套用只预填，**不自动派活** |
 | 定时建议 | ✅ | 到点只提醒，**不自动开工** |
-| 界面细节 | ✅ | 消息复制/重发、Agent搜索、回到底部 |
+| 界面细节 | ✅ | 消息复制/重发、Agent 搜索、回到底部 |
 
 ### 3.4 入口与分发（线 C）
 
@@ -231,12 +231,12 @@ OpenCoxswain/
 
 #### `apps/runtime/src/orchestrator.ts`（1474 行）
 
-**总调度**。C 和 D 的所有协调逻辑在这里：
+**总调度**。C 和 Agent 的所有协调逻辑在这里：
 
 - `openProject()` — 打开/新建项目，恢复 C 会话
 - `userSays()` — 用户对 Assistant 说话（入队即返回，不阻塞）
-- `spawn()` — C 派活：判断冲突、建记录、后台跑
-- `runExecutorBackground()` — D 的执行编排
+- `spawn()` — Assistant 派活：判断冲突、建记录、后台跑
+- `runExecutorBackground()` — Agent 的执行编排
 - `userSaysToExecutor()` — 用户直接对 D 追问
 - `cancel()` / `recover()` — 取消与重启恢复
 - `applyTemplate()` / `checkSchedules()` — 模板与定时
@@ -246,7 +246,7 @@ OpenCoxswain/
 
 #### `apps/runtime/src/executor/runner.ts`
 
-**D 的运行器**。从 orchestrator 拆出来，只管"把 D 跑起来"：
+**Agent 的运行器**。从 orchestrator 拆出来，只管"把 Agent 跑起来"：
 
 - 首轮运行（`runExecutorOnce`）
 - 续聊运行（`resumeExecutorOnce`）
@@ -310,9 +310,9 @@ src/
 ├── styles.css             全部样式
 ├── components/
 │   ├── Sidebar.tsx        左侧导航（B + 工作区树）
-│   ├── Conversation.tsx   与 C 的对话
-│   ├── ExecutorChat.tsx   D 的轨迹与续聊
-│   ├── GlobalAssistant.tsx B 的界面
+│   ├── Conversation.tsx   与 Assistant 的对话
+│   ├── ExecutorChat.tsx   Agent 的轨迹与续聊
+│   ├── GlobalAssistant.tsx Supervisor 的界面
 │   ├── ApprovalPanel.tsx  危险动作审批条
 │   ├── MemoryReview.tsx   记忆候选与已生效记忆
 │   ├── TemplatePicker.tsx 任务模板选择
@@ -392,7 +392,7 @@ Tauri 2 + Rust，职责很窄：
 | 表 | 存什么 | 关键字段 |
 | --- | --- | --- |
 | `project` | 项目 | `root_path`、`assistant_session_id`、`token_guard` |
-| `session` | 会话（C 的 / D 的） | `kind`、`parent_session_id`、`system_prompt` |
+| `session` | 会话（Assistant 的 / Agent 的） | `kind`、`parent_session_id`、`system_prompt` |
 | `message` | 消息 | `role`、`content`、`source`（含 `internal:` 前缀） |
 | `executor` | Agent | `access`、`write_scope`、`metrics`、`criteria`、`acceptance` |
 | `turn` | 轮次 | `judged`（判定结果，可审计） |
@@ -459,7 +459,7 @@ Authorization: Bearer <token>
 | --- | --- | --- |
 | GET | `/api/projects` | 项目列表 |
 | POST | `/api/projects` | 打开/新建项目 |
-| GET | `/api/projects/:id` | 项目详情（含Agent与汇报） |
+| GET | `/api/projects/:id` | 项目详情（含 Agent 与汇报） |
 | POST | `/api/projects/:id/say` | 对 Assistant 说话 |
 | POST | `/api/projects/:id/stop` | 停止当前这轮 |
 | GET | `/api/projects/:id/messages` | 会话消息 |
@@ -475,11 +475,11 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/executors/:id` | Agent详情 |
+| GET | `/api/executors/:id` | Agent 详情 |
 | GET | `/api/executors/:id/messages` | 完整轨迹 |
 | GET | `/api/executors/:id/effects` | 副作用台账 |
 | POST | `/api/executors/:id/say` | 直接对 D 追问 |
-| POST | `/api/executors/:id/cancel` | 取消Agent |
+| POST | `/api/executors/:id/cancel` | 取消 Agent |
 
 #### 审批
 
@@ -527,7 +527,7 @@ Authorization: Bearer <token>
 ### 6.3 SSE 事件类型
 
 ```
-assistant_text        C 的回复
+assistant_text        Assistant 的回复
 executor_started      D 开始运行
 executor_queued       D 进入队列
 executor_settled      D 结算
@@ -643,7 +643,7 @@ memory_candidates     记忆候选
 | `llm-settings.test.ts` | 9 | 密钥保管、环境变量优先、立即生效 |
 | `auth.test.ts` | 9 | **真实 HTTP**：跨源拒绝、无令牌 401 |
 | `path.test.ts` | 7 | 盘符根归一化（`D:\` → `d:/`） |
-| `templates.test.ts` | 20 | **套用模板后没有Agent**、定时只产建议 |
+| `templates.test.ts` | 20 | **套用模板后没有 Agent**、定时只产建议 |
 | `token.test.ts` | 20 | 令牌生成校验、CORS 白名单、注入转义（XSS） |
 | `dchat.test.ts` | 5 | 三条只读并行、Agent 可续聊 |
 | `purity.test.ts` | 5 | 内部通知不进对话流 |
@@ -800,11 +800,11 @@ DPAPI 是 Win32 API。Node 调它要引原生模块，会破坏零依赖。
 
 ### 11.5 为什么托盘做成"关窗口不退出"
 
-关掉窗口会杀掉运行时，正在跑的Agent全部中断。
+关掉窗口会杀掉运行时，正在跑的 Agent 全部中断。
 用户点个 × 就丢掉任务，这个体验不能接受。
 
 **折中**：点 × 隐藏到托盘，D 继续跑；真正退出走托盘菜单。
-菜单项文字直接写「退出（会停止正在跑的Agent）」——让你在点之前就知道代价。
+菜单项文字直接写「退出（会停止正在跑的 Agent）」——让你在点之前就知道代价。
 
 ### 11.6 为什么模板和定时都不能自动执行
 

@@ -6,7 +6,7 @@
  *   2. 正在跑 / 失败
  *   3. 已完成（收成细线）
  *
- * 面板**不常驻**：没有执行者时整个面板不渲染，主区自动变宽。
+ * 面板**不常驻**：没有 Agent 时整个面板不渲染，主区自动变宽。
  * 这是旧界面最大的结构问题（右栏永远占着，大多数时间是空的）。
  */
 import { useMemo } from 'react';
@@ -18,7 +18,7 @@ export interface RunnerPanelProps {
   readonly executors: readonly ExecutorDto[];
   readonly reports: readonly ReportDto[];
   readonly onOpen: (id: string) => void;
-  /** 回答某个执行者的卡点：经由 C 转达（架构里唯一的通道）。 */
+  /** 回答某个 Agent 的卡点：经由 Assistant 转达（架构里唯一的通道）。 */
   readonly onAnswer: (executorId: string, text: string) => void;
 }
 
@@ -71,20 +71,20 @@ export function RunnerPanel(props: RunnerPanelProps): JSX.Element {
     [executors, reports],
   );
 
-  // 面板是否该出现：有执行者，或有待决策
+  // 面板是否该出现：有 Agent，或有待决策
   const liveCount = active.length + decisions.length;
 
   return (
-    <aside className="panel" aria-label="执行者">
+    <aside className="panel" aria-label="Agent">
       <div className="panel-head">
-        <span className="panel-title">执行者</span>
+        <span className="panel-title">Agent</span>
         {liveCount > 0 && <span className="panel-count">{liveCount}</span>}
       </div>
 
       <div className="panel-body">
         {executors.length === 0 && decisions.length === 0 && (
           <p className="panel-empty">
-            还没有执行者。
+            还没有 Agent。
             <br />
             在左边对它说一句话，它会派 Agent 去做。
           </p>
@@ -97,7 +97,7 @@ export function RunnerPanel(props: RunnerPanelProps): JSX.Element {
                 key={r.id}
                 report={r}
                 executorLabel={
-                  executors.find((e) => e.id === r.executorId)?.label ?? '执行者'
+                  executors.find((e) => e.id === r.executorId)?.label ?? 'Agent'
                 }
                 onAnswer={(text) => onAnswer(r.executorId ?? '', text)}
                 onSeeTrace={() => {

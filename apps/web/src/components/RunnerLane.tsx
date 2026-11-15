@@ -1,7 +1,7 @@
 /**
  * 跑道条（签名元素）。
  *
- * 一个执行者（D）一条跑道。
+ * 一个 Agent 一条跑道。
  *
  * **不画进度百分比**：后端 `ExecutorDto` 没有这个数据
  * （只有 metrics.steps 和 metrics.durationMs）。编一个假百分比会让人

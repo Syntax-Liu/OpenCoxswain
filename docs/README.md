@@ -37,6 +37,7 @@
 | 文档 | 内容 | 边界 |
 | --- | --- | --- |
 | [sandbox.md](sandbox.md) | 命令沙箱 | 静态检查，**非进程隔离** |
+| [plan-approval.md](plan-approval.md) | **方案审批与自动推进**（设计，待实现） | **只批一次**：批准后逐步执行不再问；小改动报不停、大改动停并重批 |
 | [code-navigation.md](code-navigation.md) | 代码导航 | 词法级，**非真 LSP** |
 | [attachments.md](attachments.md) | 附件（拖入/粘贴/选择） | 只做图片和文本文件 |
 | [undo.md](undo.md) | 撤销 | **只做文件写入** |

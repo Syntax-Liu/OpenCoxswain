@@ -765,7 +765,7 @@ node scripts/audit-theme-contrast.mjs  # 72 组达标
 pnpm --filter @opencoxswain/web test   # 698 全绿
 ```
 
-> 这正是产品要解决的问题本身：两个执行者并行改同一片区域，
+> 这正是产品要解决的问题本身：两个 Agent 并行改同一片区域，
 > 需要有人（这里是 C）在合并后**重新验证整套约束**，而不是各自宣布完成。
 
 ### 15.6 本批新增的防回退
