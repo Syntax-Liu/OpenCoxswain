@@ -826,6 +826,232 @@ select {
 }
 
 /* ============================================================
+   执行轨迹
+   ============================================================ */
+
+.trace-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+}
+
+.trace-title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+
+.trace-goal {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: var(--lh-read);
+  max-width: 70ch;
+}
+
+.trace-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--g-3);
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-blocked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  padding: var(--g-3) var(--g-4);
+  border-left: 2px solid var(--status-asking);
+  background: var(--sig-ask-dim);
+  border-radius: var(--r-md);
+}
+
+.trace-blocked p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  line-height: var(--lh-base);
+}
+
+.trace-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+}
+
+.trace-section-title {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.trace-criteria {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+}
+
+.trace-criteria li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: var(--g-1) var(--g-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  padding: var(--g-1) 0;
+}
+
+.trace-criterion-desc {
+  color: var(--text-primary);
+}
+
+.trace-criterion-note {
+  grid-column: 2;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.trace-empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+/* ---- 轨迹列表：左侧竖线串起时间线 ---- */
+.trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--g-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  position: relative;
+}
+
+.trace-list::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--border-subtle);
+}
+
+.trace-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--g-2);
+  position: relative;
+  margin-left: calc(var(--g-4) * -1);
+  padding-left: var(--g-4);
+}
+
+.trace-dot {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  background: var(--ink-500);
+  border: 1px solid var(--surface-canvas);
+}
+
+/* 工具调用是这条轨迹里最重要的东西 */
+.trace-row.tool .trace-dot {
+  background: var(--text-secondary);
+}
+
+.trace-row.user .trace-dot {
+  background: var(--ink-200);
+}
+
+.trace-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+}
+
+.trace-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+  width: 100%;
+  padding: var(--g-1) var(--g-2);
+  margin-left: calc(var(--g-2) * -1);
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trace-row-head:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.trace-row-head:disabled {
+  cursor: default;
+}
+
+.trace-kind {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  padding: 0 var(--g-1);
+  line-height: 16px;
+}
+
+.trace-title-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  line-height: var(--lh-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-caret {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.trace-detail {
+  margin: 0 0 var(--g-2);
+  padding: var(--g-2) var(--g-3);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ============================================================
    空态
    ============================================================ */
 

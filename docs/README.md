@@ -60,6 +60,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [usability-plan.md](usability-plan.md) | 易用性 9 项（v0.29–v0.34 已完成） |
+| [ux-competitive-research.md](ux-competitive-research.md) | **使用体验对标**：同类产品每个操作怎么做、我们差在哪、19 条按优先级排的优化项 |
 | [roadmap.md](roadmap.md) | 后续方向与已知技术债（⚠️ 部分内容已过时，以 `next-steps.md` 为准） |
 | [next-steps.md](next-steps.md) | **下一步计划**：收口 → 飞书 → 可参与性，含验收标准与待决项 |
 | [ui-consistency-plan.md](ui-consistency-plan.md) | 界面统一改造记录（六轮：按钮/输入框/颜色/主题可读性） |

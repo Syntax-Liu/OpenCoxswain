@@ -25,7 +25,7 @@ import { Composer } from './components/Composer.js';
 import { ProjectSwitcher } from './components/ProjectSwitcher.js';
 import { RunnerPanel } from './components/RunnerPanel.js';
 import { Transcript } from './components/Transcript.js';
-import { ExecutorFocus } from './components/ExecutorFocus.js';
+import { TraceView } from './components/TraceView.js';
 
 type View = { readonly kind: 'chat' } | { readonly kind: 'executor'; readonly id: string };
 
@@ -187,11 +187,19 @@ export function App(): JSX.Element {
           ) : !currentProject ? (
             <EmptyNoProject />
           ) : view.kind === 'executor' ? (
-            <ExecutorFocus
-              executorId={view.id}
-              executors={executors}
-              onBack={backToChat}
-            />
+            (() => {
+              const target = executors.find((e) => e.id === view.id);
+              return target ? (
+                <TraceView executor={target} onBack={backToChat} />
+              ) : (
+                <div className="empty">
+                  <p className="empty-hint">这个执行者已经不在列表里了。</p>
+                  <button type="button" className="btn btn--secondary btn--md" onClick={backToChat}>
+                    返回对话
+                  </button>
+                </div>
+              );
+            })()
           ) : (
             <Transcript messages={state.messages} />
           )}
