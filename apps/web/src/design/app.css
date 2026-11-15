@@ -1565,6 +1565,25 @@ select {
   margin-left: var(--g-1);
 }
 
+/* 记忆条目：一条记忆一块，含标签、正文、操作 */
+.memory-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  padding: var(--g-2) var(--g-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--surface-input);
+}
+
+.memory-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  line-height: var(--lh-base);
+  word-break: break-word;
+}
+
 .settings-message {
   margin: 0;
   font-size: var(--fs-sm);

@@ -12,13 +12,17 @@
  * - 保存后立即生效，不需要重启。
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { SettingsStatus } from '../api.js';
+import type { ProjectDto, SettingsStatus } from '../api.js';
 import { ApiClient } from '../api.js';
+import { MemorySection } from './MemorySection.js';
 
 export interface SettingsPanelProps {
   readonly onClose: () => void;
   /** 配置变化后通知外层（项目列表可能需要重新拉取）。 */
   readonly onChanged?: () => void;
+  /** 记忆分区需要项目列表来选择看哪个项目。 */
+  readonly projects: readonly ProjectDto[];
+  readonly currentProjectId: string | null;
 }
 
 const MODEL_PRESETS: readonly { label: string; baseUrl: string; model: string }[] = [
@@ -230,10 +234,7 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
 
         <section className="settings-section">
           <h3 className="settings-section-title">记忆</h3>
-          <p className="settings-hint">
-            记忆的查看与编辑还没迁移到新界面（它需要项目选择器和一个较复杂的列表）。
-            Agent 运行时仍会正常读写记忆，只是暂时不能在界面里手动改。
-          </p>
+          <MemorySection projects={props.projects} currentProjectId={props.currentProjectId} />
         </section>
       </div>
     </div>

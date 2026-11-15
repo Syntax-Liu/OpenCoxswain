@@ -350,6 +350,8 @@ export function App(): JSX.Element {
           }}
         >
           <SettingsPanel
+            projects={state.projects}
+            currentProjectId={state.currentProjectId}
             onClose={() => setSettingsOpen(false)}
             onChanged={() => {
               // 配置变了，重新拉一次项目列表
