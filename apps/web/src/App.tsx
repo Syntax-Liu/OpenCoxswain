@@ -105,6 +105,7 @@ export function App(): JSX.Element {
         setState((s) => ({
           ...s,
           executors: detail.executors,
+          reports: detail.reports,
           messages: msg.messages,
         }));
         streamRef.current?.setLastSeq(msg.lastSeq);
@@ -186,8 +187,8 @@ export function App(): JSX.Element {
     [state.projects, state.currentProjectId],
   );
 
-  /** 面板只在有执行者时出现——新旧界面最大的结构差异。 */
-  const showPanel = executors.length > 0;
+  /** 面板只在有执行者或有待决策时出现——新旧界面最大的结构差异。 */
+  const showPanel = executors.length > 0 || state.reports.some((r) => r.needsUser && r.ackedAt === null);
 
   const send = useCallback(
     async (
@@ -392,6 +393,7 @@ export function App(): JSX.Element {
         {showPanel && (
           <RunnerPanel
             executors={executors}
+            reports={state.reports}
             onOpen={openExecutor}
             onAnswer={(executorId, text) => {
               // 回答经由 C 转达：接口层没有「直接给某个 D 传话」的入口，

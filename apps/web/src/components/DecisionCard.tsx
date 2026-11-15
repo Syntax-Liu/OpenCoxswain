@@ -10,16 +10,17 @@
  * （接口层没有"直接给某个 D 传话"的入口）。
  */
 import { useCallback, useRef, useState } from 'react';
-import type { ExecutorDto } from '../api.js';
+import type { ReportDto } from '../api.js';
 
 export interface DecisionCardProps {
-  readonly executor: ExecutorDto;
+  readonly report: ReportDto;
+  readonly executorLabel: string;
   readonly onAnswer: (text: string) => void;
   readonly onSeeTrace: () => void;
 }
 
 export function DecisionCard(props: DecisionCardProps): JSX.Element {
-  const { executor } = props;
+  const { report, executorLabel } = props;
   const [text, setText] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -32,8 +33,8 @@ export function DecisionCard(props: DecisionCardProps): JSX.Element {
 
   return (
     <div className="decision">
-      <span className="decision-from">{executor.label} 需要你确认</span>
-      <p className="decision-q">{executor.blockedReason ?? '需要你决定'}</p>
+      <span className="decision-from">{executorLabel} 需要你确认</span>
+      <p className="decision-q">{report.body}</p>
 
       <textarea
         ref={ref}
