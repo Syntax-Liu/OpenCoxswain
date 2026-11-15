@@ -104,6 +104,7 @@
   /* ===== 布局 ===== */
   --header-h: 44px;
   --panel-w: 340px;
+  --sidebar-w: 420px;
   --read-w: 760px;
   --wide-w: 860px;
 }
@@ -267,6 +268,15 @@ select {
 
 .body.has-panel {
   grid-template-columns: minmax(0, 1fr) var(--panel-w);
+}
+
+/* 侧边栏打开时再加一列；主区保底 420px，不让对话被挤没 */
+.body.has-sidebar {
+  grid-template-columns: minmax(420px, 1fr) auto;
+}
+
+.body.has-panel.has-sidebar {
+  grid-template-columns: minmax(420px, 1fr) var(--panel-w) auto;
 }
 
 /* 窄窗口：面板浮在上面而不是挤压主区 */
@@ -991,6 +1001,144 @@ select {
   background: var(--sig-stop-dim);
   border-color: transparent;
   color: var(--status-failed);
+}
+
+/* ============================================================
+   文件变更卡片（对话内联）
+   ============================================================ */
+
+.file-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+  margin: var(--g-2) 0 var(--g-4);
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--g-3);
+  padding: var(--g-2) var(--g-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  max-width: 75ch;
+}
+
+.file-card-badge {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
+  background: var(--surface-selected);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.file-card.deleted .file-card-badge {
+  color: var(--status-failed);
+}
+
+.file-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.file-card-name {
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-card.deleted .file-card-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--status-failed);
+  color: var(--text-secondary);
+}
+
+.file-card-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  overflow: hidden;
+}
+
+.file-card-dir {
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-card-preview {
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   侧边栏（文件 / 浏览器等工具）
+   ============================================================ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-w);
+  min-width: 280px;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+  min-height: 0;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  padding: var(--g-2) var(--g-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-title {
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--g-3);
+}
+
+.sidebar-empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.sidebar-code {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* ============================================================

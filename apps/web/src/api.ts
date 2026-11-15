@@ -474,8 +474,25 @@ export class ApiClient {
     return this.request(`/api/reports/${encodeURIComponent(reportId)}/ack`, { method: 'POST' });
   }
 
-  // ---- 方案 ----
+  // ---- 文件变更（副作用台账） ----
 
+  /**
+   * 某项目（或某个 Agent）碰过的文件。
+   *
+   * 对话里用它显示"创建 / 修改了哪个文件"的小卡片——
+   * 这是用户要的最轻量呈现：不需要单独的方案窗口。
+   */
+  sideEffects(filter: { projectId?: string; executorId?: string }): Promise<{
+    sideEffects: SideEffectDto[];
+  }> {
+    const params = new URLSearchParams();
+    if (filter.projectId) params.set('projectId', filter.projectId);
+    if (filter.executorId) params.set('executorId', filter.executorId);
+    const q = params.toString();
+    return this.request(`/api/side-effects${q ? `?${q}` : ''}`);
+  }
+
+  // ---- 方案 ----
   /** 某项目当前活跃的方案（待批准 / 执行中 / 卡住）。没有则 null。 */
   activePlan(projectId: string): Promise<{ plan: PlanDto | null }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/plan`);

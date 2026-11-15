@@ -9,9 +9,10 @@
  * 不做的：气泡右对齐。长文右对齐会让眼动距离忽大忽小，读起来累。
  */
 import { useEffect, useRef } from 'react';
-import type { MessageDto } from '../api.js';
+import type { MessageDto, SideEffectDto } from '../api.js';
 import { renderMarkdown } from './Markdown.js';
 import { MessageActions } from './MessageActions.js';
+import { FileCard } from './FileCard.js';
 
 export interface TranscriptProps {
   readonly messages: readonly MessageDto[];
@@ -19,6 +20,10 @@ export interface TranscriptProps {
   readonly onRetry?: (message: MessageDto) => void;
   /** 编辑用户消息后重发。 */
   readonly onEditResend?: (message: MessageDto, next: string) => void;
+  /** 文件变更：跟在对话流里，轻量呈现，不另开窗口。 */
+  readonly fileChanges?: readonly SideEffectDto[];
+  /** 点预览 → 侧边栏打开。 */
+  readonly onPreviewFile?: (path: string) => void;
 }
 
 /** 系统内部通知不显示在对话流里（它是给模型的指令）。 */
@@ -47,6 +52,17 @@ export function Transcript(props: TranscriptProps): JSX.Element {
 
   const shown = props.messages.filter(visible);
 
+  /**
+   * 文件变更卡片：只保留最近 8 条**文件类**副作用。
+   *
+   * 注意顺序：**先过滤再截取**。台账里绝大多数是 proc.exec（跑命令），
+   * 如果先 slice 再过滤，会被命令记录占满位置，真正的文件写入反而显示不出来。
+   */
+  const fileCards = (props.fileChanges ?? [])
+    .filter((e) => e.kind === 'fs.write' || e.kind === 'fs.delete')
+    .filter((e) => e.state === 'succeeded' || e.state === 'failed')
+    .slice(-8);
+
   useEffect(() => {
     if (stickRef.current) endRef.current?.scrollIntoView({ block: 'end' });
   }, [shown.length]);
@@ -70,6 +86,19 @@ export function Transcript(props: TranscriptProps): JSX.Element {
               onEditResend={props.onEditResend}
             />
           ))}
+          {/* 文件变更：跟在对话末尾，轻量卡片，不打断阅读。
+              只显示最近 8 条——更早的去轨迹页看，避免刷屏。 */}
+          {fileCards.length > 0 && (
+            <div className="file-cards">
+              {fileCards.map((e) => (
+                <FileCard
+                  key={e.id}
+                  effect={e}
+                  onPreview={(path) => props.onPreviewFile?.(path)}
+                />
+              ))}
+            </div>
+          )}
           <div ref={endRef} />
         </div>
       )}

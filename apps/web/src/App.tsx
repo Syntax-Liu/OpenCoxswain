@@ -17,8 +17,8 @@ import type {
   ExecutorDto,
   MessageDto,
   OutboundEvent,
-  PlanDto,
   ReportDto,
+  SideEffectDto,
 } from './api.js';
 import { ApiClient, EventStream } from './api.js';
 import {
@@ -29,7 +29,7 @@ import {
   type AppState,
 } from './state.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
-import { PlanBanner } from './components/PlanBanner.js';
+import { Sidebar } from './components/Sidebar.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Composer } from './components/Composer.js';
 import { ProjectSwitcher } from './components/ProjectSwitcher.js';
@@ -44,8 +44,12 @@ export function App(): JSX.Element {
   const [state, setState] = useState<AppState>(initialState);
   const [view, setView] = useState<View>({ kind: 'chat' });
   const [approvals, setApprovals] = useState<readonly ApprovalDto[]>([]);
-  const [plan, setPlan] = useState<PlanDto | null>(null);
-  const [planBusy, setPlanBusy] = useState(false);
+  /** 文件变更台账：对话里显示"创建 / 修改了哪个文件"。 */
+  const [sideEffects, setSideEffects] = useState<readonly SideEffectDto[]>([]);
+  /** 侧边栏：文件和浏览器等工具都在这里开，不另造窗口。 */
+  const [sidebar, setSidebar] = useState<
+    { tab: 'file' | 'browser'; filePath?: string } | null
+  >(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [connecting, setConnecting] = useState(true);
@@ -128,6 +132,33 @@ export function App(): JSX.Element {
     };
   }, [api, state.currentProjectId]);
 
+  // ---- 文件变更：轮询副作用台账 ----
+  //
+  // 对话里显示"创建 / 修改了哪个文件"就靠它。5 秒一次，
+  // 与方案状态同频——它不是关键路径，不需要更快。
+  useEffect(() => {
+    const pid = state.currentProjectId;
+    if (!pid) {
+      setSideEffects([]);
+      return;
+    }
+    let alive = true;
+    const load = async (): Promise<void> => {
+      try {
+        const r = await api.sideEffects({ projectId: pid });
+        if (alive) setSideEffects(r.sideEffects);
+      } catch {
+        // 拉不到保留上一次
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [api, state.currentProjectId]);
+
   // ---- 审批：定时拉取（审批有时效，不能只靠事件） ----
   useEffect(() => {
     const pid = state.currentProjectId;
@@ -148,56 +179,6 @@ export function App(): JSX.Element {
       clearInterval(timer);
     };
   }, [api, state.currentProjectId]);
-
-  // ---- 方案：轮询活跃方案 ----
-  //
-  // 方案状态会被 Assistant（出方案）和运行时（推进步骤）共同改变，
-  // 只靠事件容易漏，所以定时拉。5 秒一次，比审批慢一点——
-  // 方案变化没审批那么急。
-  useEffect(() => {
-    const pid = state.currentProjectId;
-    if (!pid) {
-      setPlan(null);
-      return;
-    }
-    let alive = true;
-    const load = async (): Promise<void> => {
-      try {
-        const r = await api.activePlan(pid);
-        if (alive) setPlan(r.plan);
-      } catch {
-        // 拉不到保留上一次，不清空（避免界面闪一下）
-      }
-    };
-    void load();
-    const timer = setInterval(() => void load(), 5000);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, [api, state.currentProjectId]);
-
-  /** 批准 / 驳回方案。乐观更新，失败再拉回真实值。 */
-  const decidePlan = useCallback(
-    async (decision: 'approve' | 'reject') => {
-      if (!plan) return;
-      setPlanBusy(true);
-      try {
-        const r =
-          decision === 'approve' ? await api.approvePlan(plan.id) : await api.rejectPlan(plan.id);
-        setPlan(r.plan);
-      } catch {
-        const pid = state.currentProjectId;
-        if (pid) {
-          const fresh = await api.activePlan(pid).catch(() => null);
-          if (fresh) setPlan(fresh.plan);
-        }
-      } finally {
-        setPlanBusy(false);
-      }
-    },
-    [api, plan, state.currentProjectId],
-  );
 
   const decideApproval = useCallback(
     async (id: string, decision: 'approve' | 'reject', reason?: string) => {
@@ -421,20 +402,10 @@ export function App(): JSX.Element {
         </div>
       )}
 
-      <div className={`body${showPanel ? ' has-panel' : ''}`}>
+      <div
+        className={`body${showPanel ? ' has-panel' : ''}${sidebar ? ' has-sidebar' : ''}`}
+      >
         <main className="main">
-          {/* 方案置顶：它是**唯一的人为关卡**，批过一次就不再逐步问，
-              所以这一刻必须最显眼。审批排在它下面——审批是执行中偶发的。
-              done 状态的方案也显示（绿色的"全部完成"），用户看得到收尾。 */}
-          {plan && (
-            <PlanBanner
-              plan={plan}
-              busy={planBusy}
-              onApprove={() => void decidePlan('approve')}
-              onReject={() => void decidePlan('reject')}
-            />
-          )}
-
           {/* 审批：阻塞性、有时效，比对话更醒目 */}
           <ApprovalPanel
             approvals={approvals}
@@ -482,6 +453,8 @@ export function App(): JSX.Element {
                   ),
                 }));
               }}
+              fileChanges={sideEffects}
+              onPreviewFile={(path) => setSidebar({ tab: 'file', filePath: path })}
             />
           )}
 
@@ -509,6 +482,16 @@ export function App(): JSX.Element {
             onOpen={openExecutor}
             onAnswer={(report, text) => void answerDecision(report, text)}
             onDismiss={(report) => void dismissDecision(report)}
+          />
+        )}
+
+        {/* 侧边栏：文件预览与（后续的）浏览器都在这里开，不另造窗口。 */}
+        {sidebar && currentProject && (
+          <Sidebar
+            tab={sidebar.tab}
+            {...(sidebar.filePath ? { filePath: sidebar.filePath } : {})}
+            projectId={currentProject.id}
+            onClose={() => setSidebar(null)}
           />
         )}
       </div>
