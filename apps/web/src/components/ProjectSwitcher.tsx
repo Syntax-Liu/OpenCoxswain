@@ -39,6 +39,10 @@ export function ProjectSwitcher(props: ProjectSwitcherProps): JSX.Element {
   }, [open, close]);
 
   const label = props.current?.name ?? '选择项目';
+  // 项目名与产品名相同时不重复显示——旧界面踩过：
+  // 首屏标题栏出现两个一模一样的 "OpenCoxswain"。
+  const BRAND = 'OpenCoxswain';
+  const showsBrand = label === BRAND;
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>

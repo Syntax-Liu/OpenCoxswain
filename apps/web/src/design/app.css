@@ -207,8 +207,10 @@ select {
   width: 16px;
   height: 16px;
   border-radius: var(--r-sm);
-  background: var(--status-running);
-  opacity: 0.85;
+  /* 不用青色：青色是"正在跑"的信号，头部标记是装饰。
+     用中性色，把青色的稀缺性留给真正需要它的地方。 */
+  background: var(--ink-600);
+  box-shadow: inset 0 0 0 1px var(--ink-500);
 }
 
 .head-sep {
@@ -514,14 +516,17 @@ select {
   font-size: var(--fs-md);
 }
 
+/* 主按钮：用正文反色，不用青色。
+   青色是"正在跑"的信号，主按钮是"发起动作"——两者含义不同，
+   混用会让"哪里在跑"这个信号失效。 */
 .btn--primary {
-  background: var(--status-running);
-  color: var(--text-on-signal);
+  background: var(--ink-200);
+  color: var(--ink-900);
   font-weight: 500;
 }
 
 .btn--primary:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background: var(--ink-100);
 }
 
 .btn--secondary {
