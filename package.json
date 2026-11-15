@@ -16,6 +16,7 @@
     "version:major": "node scripts/version.mjs bump major",
     "build": "node scripts/version.mjs sync && pnpm --filter @opencoxswain/runtime build && pnpm --filter @opencoxswain/web build",
     "test": "pnpm --filter @opencoxswain/runtime test && pnpm --filter @opencoxswain/web test",
+    "e2e": "node scripts/e2e.mjs",
     "test:e2e": "node scripts/e2e-suite.mjs",
     "test:all": "pnpm test && pnpm test:e2e",
     "ui:audit": "node scripts/ui-audit.mjs",
