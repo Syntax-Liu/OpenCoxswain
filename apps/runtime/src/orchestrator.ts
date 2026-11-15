@@ -727,10 +727,16 @@ export class Orchestrator extends EventEmitter {
     // 这里在运行时补一道硬检查：说了但没派的，追加一条更正。
     const audit = auditSpawnClaims(finalText, spawnedThisTurn);
     if (audit.wrong) {
+      const text = correctionText(audit.phantomIds, audit.vagueClaim);
+      // **必须落库**：只 emit 的话，日志里能看到、界面刷新后就没了，
+      // 消息列表也查不到——等于没纠正。（2026-11-15 实测）
+      await assistant.recordAssistant(text);
       this.emit('runtime', {
         type: 'assistant_text',
         projectId: project.id,
-        text: correctionText(audit.phantomIds),
+        // 无 id 的笼统声称（"已派出，两个都在跑"）也要纠正——
+        // 2026-11-15 实测：模型这样说但没调用任何工具，running=0。
+        text,
       } as RuntimeEvent);
     }
   }
@@ -1779,6 +1785,49 @@ export class Orchestrator extends EventEmitter {
       restored: [...outcome.restored],
       skipped: outcome.skipped.map((s) => ({ ...s })),
     };
+  }
+
+  /**
+   * 用户叫停：停掉这个项目里**一切正在进行的事**。
+   *
+   * ## 为什么不是"只停 Assistant"
+   *
+   * 「连发不打断」是**故意的设计**：用户不需要打断 Assistant，只说最新的想法，
+   * 消息排队，当前这轮跑完再被看到。所以用户嘴里的"停"，从来不是让 Assistant 闭嘴。
+   *
+   * 它指的是：**什么活都别干了。** 那意味着 Assistant 当前这轮停掉，
+   * 而且它派出去的 Agent 一个都不许继续改文件、继续烧 token。
+   *
+   * ## 曾经的真缺陷
+   *
+   * HTTP 的 `/stop` 只调了 `assistant.stop()`，一个 Agent 都没停。
+   * 用户点了停止，Agent 还在跑，而且界面没有任何异常——这是最坏的一种：
+   * 看起来停了，实际在花钱。
+   *
+   * ## 排队的也要取消
+   *
+   * 否则上限释放后，排队的 Agent 会自己开跑——
+   * 用户叫停之后又被"自己停止前派出去的活"接着干，比不停更令人意外。
+   *
+   * 取消一律走 `cancel()`：它负责中止、结算、释放写域闸门，
+   * 并且把状态记成 `cancelled` 而不是 `done`——**任务没做完，不许记成完成**。
+   */
+  async stopAll(projectId: string): Promise<{ cancelled: string[]; failed: string[] }> {
+    // 先停 Assistant：否则它还在跑的这一轮可能继续 spawn 新的 Agent。
+    this.getAssistant(projectId)?.stop();
+
+    const live = this.store
+      .listExecutors({ projectId })
+      .filter((row) => !isExecutorTerminal(row.status));
+
+    const cancelled: string[] = [];
+    const failed: string[] = [];
+    for (const row of live) {
+      const result = await this.cancel(row.id, projectId);
+      if (result.ok) cancelled.push(row.id);
+      else failed.push(row.id);
+    }
+    return { cancelled, failed };
   }
 
   async cancel(executorId: string, projectId?: string): Promise<{ ok: boolean; content: string }> {

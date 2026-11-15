@@ -768,11 +768,22 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
         return reply(202, { accepted: true, lastSeq: bus.lastSeq });
       }
 
+      // 用户叫停：**级联**。
+      //
+      // 「连发不打断」是故意的设计——用户不该打断 Assistant，只说最新的想法。
+      // 所以这里的"停"不是让 Assistant 闭嘴，而是"什么活都别干了"：
+      // Assistant 当前这一轮停掉，它派出去的 Agent（含还在排队的）全部取消。
+      //
+      // 早先这里只调了 `assistant.stop()`，一个 Agent 都没停；
+      // 用户点了停止，Agent 还在改文件——这条路径必须级联。
       if (method === 'POST' && action === 'stop') {
-        const assistant = orchestrator.getAssistant(projectId);
-        if (!assistant) return deny(404, '该项目的Assistant当前未加载');
-        assistant.stop();
-        return reply(200, { stopped: true });
+        const stopped = await orchestrator.stopAll(projectId);
+        return reply(200, {
+          stopped: true,
+          // 两个数都返回：界面据此说"停了 N 个"，而不是含糊地说"已停止"。
+          cancelledExecutors: stopped.cancelled.length,
+          failedExecutors: stopped.failed.length,
+        });
       }
 
       if (method === 'GET' && action === 'reports') {

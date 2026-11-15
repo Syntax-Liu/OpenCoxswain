@@ -64,6 +64,77 @@ describe('**核对是否真的派了**', () => {
   });
 });
 
+describe('**不带 id 的笼统声称**也要抓', () => {
+  // 实测 2026-11-15：模型回复「已派出，这两个都在跑」，
+  // 但本轮没调用任何工具，running=0。
+  // 原检测只认「已派出 + exe_ id」，这句不含 id 就漏了。
+  it('「已派出，两个都在跑」+ 实际没派 → 报错', () => {
+    const r = auditSpawnClaims('收到，这两件事我会一起并行派出两个只读 Agent。已派出，两个都在跑。', []);
+    assert.equal(r.wrong, true);
+    assert.equal(r.vagueClaim, true);
+    assert.deepEqual(r.phantomIds, []);
+  });
+
+  it('带数量的「已派出两个 Agent」+ 实际没派 → 报错', () => {
+    const r = auditSpawnClaims('已派出两个 Agent，它们会并行处理。', []);
+    assert.equal(r.wrong, true);
+    assert.equal(r.vagueClaim, true);
+  });
+
+  it('「都在跑」+ 实际没派 → 报错', () => {
+    const r = auditSpawnClaims('两个都在跑，稍等。', []);
+    assert.equal(r.wrong, true);
+    assert.equal(r.vagueClaim, true);
+  });
+
+  it('**真派了就不报**（同一句话）', () => {
+    const r = auditSpawnClaims('已派出，两个都在跑。', ['exe_a', 'exe_b']);
+    assert.equal(r.wrong, false);
+    assert.equal(r.vagueClaim, false);
+  });
+
+  it('普通叙述不误报', () => {
+    for (const text of [
+      '我先看一下这个项目。',
+      '要派 Agent 吗？',
+      '可以派两个并行做，你确认一下。',
+    ]) {
+      const r = auditSpawnClaims(text, []);
+      assert.equal(r.wrong, false, `误报：${text}`);
+    }
+  });
+
+  it('无 id 的纠正话术不含具体 id', () => {
+    const t = correctionText([], true);
+    assert.match(t, /更正/);
+    assert.match(t, /没有创建任何 Agent/);
+    assert.doesNotMatch(t, /exe_/);
+  });
+});
+
+describe('**id 与"派出"之间有文字**也要抓', () => {
+  // 实测 2026-11-15：模型写「我派出 Agent (exe_xxx) 进行只读统计」，
+  // "派出"和 id 之间隔着 "Agent ("，原正则要求紧邻，漏了。
+  it('「派出 Agent (exe_x)」能识别', () => {
+    const ids = claimsSpawn('收到，我派出 Agent (exe_mweq2c1l25rcy) 进行只读统计。');
+    assert.deepEqual(ids, ['exe_mweq2c1l25rcy']);
+  });
+
+  it('这种写法 + 实际没创建 → 报错', () => {
+    const r = auditSpawnClaims('我派出 Agent (exe_fake) 进行统计。', []);
+    assert.equal(r.wrong, true);
+    assert.deepEqual(r.phantomIds, ['exe_fake']);
+  });
+
+  it('「交给 exe_x 处理」也能识别', () => {
+    assert.deepEqual(claimsSpawn('这件事交给 exe_abc 处理'), ['exe_abc']);
+  });
+
+  it('只是提到 id 不误报', () => {
+    assert.deepEqual(claimsSpawn('数据库里没有 exe_abc 这条记录'), []);
+  });
+});
+
 describe('纠正话术', () => {
   it('**说明那句话不成立**，不说"可能"', () => {
     const t = correctionText(['exe_fake']);
