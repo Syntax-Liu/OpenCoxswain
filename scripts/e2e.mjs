@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openBrowser } from './lib/browser.mjs';
+import { MEMORY_COUNTS_SNIPPET } from './lib/memory-counts.mjs';
 
 const results = [];
 let passed = 0;
@@ -95,11 +96,10 @@ try {
   console.log('\n记忆分区（受控下拉，真机验证）');
   // ─────────────────────────────────────────────
 
-  await test('切换项目后记忆列表能加载出来', async () => {
+  await test('切换项目后记忆面板能加载出来', async () => {
     await b.click('button[aria-label="设置"]');
     await b.waitForSelector('#set-memory-project');
 
-    // 先选一个空值，再选真实项目——确保 change 真的触发
     const options = await b.evaluate(
       `[...document.querySelectorAll('#set-memory-project option')]
         .map((o) => o.value).filter(Boolean)`,
@@ -107,15 +107,15 @@ try {
     assert.ok(options.length > 0, '没有可选项目');
 
     await b.select('#set-memory-project', options[0]);
-    // 记忆加载是异步的，等区块出现
-    const appeared = await b.waitFor(
-      async () => {
-        const t = await b.text('.settings-body');
-        return (t ?? '').includes('待审核的候选');
-      },
-      10000,
-    );
-    assert.equal(appeared, true, '记忆区块没加载出来（接口或渲染有问题）');
+
+    // 加载完成的信号是「记忆区块的两个计数标签出现」。
+    // 不要用「待审核的候选」字样判断——没有候选时那行根本不渲染，
+    // 会把正常情况误判成加载失败。
+    const loaded = await b.waitFor(async () => {
+      const c = await b.evaluate(MEMORY_COUNTS_SNIPPET);
+      return c.candidates >= 0 && c.live >= 0;
+    }, 10000);
+    assert.equal(loaded, true, '记忆区块没加载出来（接口或渲染有问题）');
   });
 
   await test('已生效的记忆能显示出来，并带「遗忘」按钮', async () => {
@@ -154,6 +154,113 @@ try {
       await sleep(900);
     }
     assert.deepEqual(b.pageErrors, [], `切换项目时有页面异常：${b.pageErrors.join('\n')}`);
+    await b.press('Escape');
+    await sleep(300);
+  });
+
+  await test('接受一条候选：候选减少，已生效增加', async () => {
+    await b.click('button[aria-label="设置"]');
+    await b.waitForSelector('#set-memory-project');
+    // 上一条用例可能把下拉切到了别的项目（那些项目没候选），
+    // 这里显式选回第一个项目，保证读到有候选的那个。
+    const options = await b.evaluate(
+      `[...document.querySelectorAll('#set-memory-project option')]
+        .map((o) => o.value).filter(Boolean)`,
+    );
+    if (options[0]) {
+      await b.select('#set-memory-project', options[0]);
+      await sleep(2000);
+    }
+
+    const before = await b.evaluate(MEMORY_COUNTS_SNIPPET);
+
+    if (before.candidates <= 0) {
+      console.log('      （当前没有待审核候选，跳过）');
+      await b.press('Escape');
+      await sleep(300);
+      return;
+    }
+
+    // 点第一张候选卡片上的「接受」
+    const clicked = await b.evaluate(`(() => {
+      const card = [...document.querySelectorAll('.memory-item')]
+        .find((c) => [...c.querySelectorAll('button')]
+          .some((x) => x.textContent.trim() === '接受'));
+      if (!card) return 'not-found';
+      const btn = [...card.querySelectorAll('button')]
+        .find((x) => x.textContent.trim() === '接受');
+      btn.click();
+      return 'clicked';
+    })()`);
+    assert.equal(clicked, 'clicked', '找不到「接受」按钮');
+
+    // 接受后会重新拉取，等候选数下降
+    const dropped = await b.waitFor(
+      async () => {
+        const c = await b.evaluate(MEMORY_COUNTS_SNIPPET);
+        return c.candidates < before.candidates;
+      },
+      10000,
+    );
+    assert.equal(dropped, true, '接受后候选数没有下降（可能是没重新拉取）');
+
+    const after = await b.evaluate(MEMORY_COUNTS_SNIPPET);
+
+    assert.equal(
+      after.live,
+      before.live + 1,
+      `已生效应从 ${before.live} 增加到 ${before.live + 1}，实际 ${after.live}`,
+    );
+    await b.press('Escape');
+    await sleep(300);
+  });
+
+  await test('拒绝一条候选：候选减少，已生效不变', async () => {
+    await b.click('button[aria-label="设置"]');
+    await b.waitForSelector('#set-memory-project');
+    // 同上：显式选回第一个项目，保证读到有候选的那个
+    const options = await b.evaluate(
+      `[...document.querySelectorAll('#set-memory-project option')]
+        .map((o) => o.value).filter(Boolean)`,
+    );
+    if (options[0]) {
+      await b.select('#set-memory-project', options[0]);
+      await sleep(2000);
+    }
+
+    const before = await b.evaluate(MEMORY_COUNTS_SNIPPET);
+
+    if (before.candidates <= 0) {
+      console.log('      （当前没有待审核候选，跳过）');
+      await b.press('Escape');
+      await sleep(300);
+      return;
+    }
+
+    const clicked = await b.evaluate(`(() => {
+      const card = [...document.querySelectorAll('.memory-item')]
+        .find((c) => [...c.querySelectorAll('button')]
+          .some((x) => x.textContent.trim() === '不要'));
+      if (!card) return 'not-found';
+      const btn = [...card.querySelectorAll('button')]
+        .find((x) => x.textContent.trim() === '不要');
+      btn.click();
+      return 'clicked';
+    })()`);
+    assert.equal(clicked, 'clicked', '找不到「不要」按钮');
+
+    const dropped = await b.waitFor(
+      async () => {
+        const c = await b.evaluate(MEMORY_COUNTS_SNIPPET);
+        return c.candidates < before.candidates;
+      },
+      8000,
+    );
+    assert.equal(dropped, true, '拒绝后候选数没有下降');
+
+    const afterLive = (await b.evaluate(MEMORY_COUNTS_SNIPPET)).live;
+    assert.equal(afterLive, before.live, '拒绝不应该改变已生效数量');
+
     await b.press('Escape');
     await sleep(300);
   });
