@@ -652,7 +652,12 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return reply(200, { hits: enriched });
     }
 
-    const projectMatch = /^\/api\/projects\/([^/]+)(?:\/([a-z]+))?$/.exec(url.pathname);
+    // action 段允许小写字母、数字和连字符。
+    //
+    // 实测 2026-11-15：`/api/projects/:id/memory-list` 一直返回 404，
+    // 因为原来是 [a-z]+，匹配不了 `memory-list` 里的连字符，
+    // 整个 URL 直接不匹配 → 404。这类「路由静默失效」很难从日志看出来。
+    const projectMatch = /^\/api\/projects\/([^/]+)(?:\/([a-z][a-z0-9-]*))?$/.exec(url.pathname);
     if (projectMatch) {
       const projectId = decodeURIComponent(projectMatch[1]!);
       const action = projectMatch[2];
