@@ -20,6 +20,7 @@ import type { CostLedger, TokenGuard } from '../cost/budget.js';
 import type { AcceptancePolicy, AcceptanceResult, Criterion } from '../acceptance/criteria.js';
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 import type { MemoryKind } from '../memory/gate.js';
+import type { Plan, PlanStatus } from '../orchestrator/plan.js';
 import { EMPTY_METRICS, type RunMetrics } from '../cost/metrics.js';
 import type { ContentPart } from '../llm/types.js';
 import {
@@ -158,6 +159,15 @@ export interface ApprovalRow {
   readonly expiresAt: number;
 }
 
+/**
+ * 方案行。
+ *
+ * 直接复用 `Plan` 的形状——方案是**整体读写**的（步骤状态、改动记录一起变），
+ * 拆成多表反而要处理跨表一致性，收益不大。
+ * steps / amendments 以 JSON 存进两列。
+ */
+export type PlanRow = Plan;
+
 // ---------------------------------------------------------------------------
 // 副作用台账：出事时回答"它到底改了什么"
 // ---------------------------------------------------------------------------
@@ -288,6 +298,17 @@ export interface Store {
     status?: readonly ApprovalStatus[];
   }): ApprovalRow[];
 
+  // 方案
+  putPlan(row: PlanRow): Promise<void>;
+  getPlan(id: string): PlanRow | undefined;
+  /**
+   * 某项目当前活跃的方案（status 不是 done/superseded）。
+   *
+   * 一个项目同时只该有一条活跃方案；有多条时取最新的。
+   */
+  activePlanOf(projectId: string): PlanRow | undefined;
+  listPlans(filter?: { projectId?: string; status?: readonly PlanStatus[] }): PlanRow[];
+
   // 副作用台账
   putSideEffect(row: SideEffectRow): Promise<void>;
   getSideEffect(id: string): SideEffectRow | undefined;
@@ -323,6 +344,7 @@ export class MemoryStore implements Store {
   private readonly turns = new Map<string, TurnRow>();
   private readonly reports = new Map<string, ReportRow>();
   private readonly approvals = new Map<string, ApprovalRow>();
+  private readonly plans = new Map<string, PlanRow>();
   private readonly sideEffects = new Map<string, SideEffectRow>();
   private readonly candidates = new Map<string, MemoryCandidateRow>();
 
@@ -518,6 +540,33 @@ export class MemoryStore implements Store {
       .filter((a) => (filter.projectId ? a.projectId === filter.projectId : true))
       .filter((a) => (filter.executorId ? a.executorId === filter.executorId : true))
       .filter((a) => (filter.status ? filter.status.includes(a.status) : true))
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  // ── 方案 ──
+
+  async putPlan(row: PlanRow): Promise<void> {
+    this.plans.set(row.id, row);
+  }
+
+  getPlan(id: string): PlanRow | undefined {
+    return this.plans.get(id);
+  }
+
+  activePlanOf(projectId: string): PlanRow | undefined {
+    // 活跃 = 还没结束、也没作废。done 与 superseded 都不算活跃。
+    return [...this.plans.values()]
+      .filter((p) => p.projectId === projectId)
+      .filter((p) => p.status !== 'done' && p.status !== 'superseded')
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+  }
+
+  listPlans(
+    filter: { projectId?: string; status?: readonly PlanStatus[] } = {},
+  ): PlanRow[] {
+    return [...this.plans.values()]
+      .filter((p) => (filter.projectId ? p.projectId === filter.projectId : true))
+      .filter((p) => (filter.status ? filter.status.includes(p.status) : true))
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 

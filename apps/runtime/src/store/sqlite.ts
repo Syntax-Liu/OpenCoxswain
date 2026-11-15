@@ -38,6 +38,7 @@ import {
   type ExecutorStatus,
   type ProjectRow,
   type ReportRow,
+  type PlanRow,
   type SessionKind,
   type SessionRow,
   type Store,
@@ -48,6 +49,7 @@ import { INTERNAL_SOURCE_PREFIX } from './store.js';
 import type { CostLedger } from '../cost/budget.js';
 import type { SideEffectKind, SideEffectState } from '../security/side-effect.js';
 import type { ContentPart } from '../llm/types.js';
+import type { PlanStatus } from '../orchestrator/plan.js';
 import {
   searchMessages as searchMessageList,
   type SearchHit,
@@ -166,6 +168,20 @@ CREATE TABLE IF NOT EXISTS approval (
 );
 CREATE INDEX IF NOT EXISTS approval_project ON approval(project_id, created_at);
 CREATE INDEX IF NOT EXISTS approval_executor ON approval(executor_id, status);
+
+CREATE TABLE IF NOT EXISTS plan (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  goal TEXT NOT NULL,
+  -- 步骤与改动记录整体读写，用 JSON 存；拆表要处理跨表一致性，收益不大
+  steps TEXT NOT NULL,
+  amendments TEXT NOT NULL,
+  status TEXT NOT NULL,
+  approved_at INTEGER,
+  approved_by TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS plan_project ON plan(project_id, created_at);
 
 CREATE TABLE IF NOT EXISTS side_effect (
   id TEXT PRIMARY KEY,
@@ -783,6 +799,69 @@ export class SqliteStore implements Store {
     return rows.map(toApproval);
   }
 
+  // ── 方案 ──
+
+  async putPlan(row: PlanRow): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO plan (id, project_id, goal, steps, amendments, status, approved_at, approved_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           goal = excluded.goal,
+           steps = excluded.steps,
+           amendments = excluded.amendments,
+           status = excluded.status,
+           approved_at = excluded.approved_at,
+           approved_by = excluded.approved_by`,
+      )
+      .run(
+        row.id,
+        row.projectId,
+        row.goal,
+        JSON.stringify(row.steps),
+        JSON.stringify(row.amendments),
+        row.status,
+        row.approvedAt,
+        row.approvedBy,
+        row.createdAt,
+      );
+  }
+
+  getPlan(id: string): PlanRow | undefined {
+    const row = this.db.prepare('SELECT * FROM plan WHERE id = ?').get(id) as Row | undefined;
+    return row ? toPlan(row) : undefined;
+  }
+
+  activePlanOf(projectId: string): PlanRow | undefined {
+    // 活跃 = 还没结束、也没作废
+    const row = this.db
+      .prepare(
+        `SELECT * FROM plan
+          WHERE project_id = ? AND status NOT IN ('done', 'superseded')
+          ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get(projectId) as Row | undefined;
+    return row ? toPlan(row) : undefined;
+  }
+
+  listPlans(
+    filter: { projectId?: string; status?: readonly PlanStatus[] } = {},
+  ): PlanRow[] {
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (filter.projectId) {
+      where.push('project_id = ?');
+      params.push(filter.projectId);
+    }
+    if (filter.status && filter.status.length > 0) {
+      where.push(`status IN (${filter.status.map(() => '?').join(', ')})`);
+      params.push(...filter.status);
+    }
+    const sql = `SELECT * FROM plan${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at ASC`;
+    const rows = this.db.prepare(sql).all(...params) as Row[];
+    return rows.map(toPlan);
+  }
+
   // -------------------------------------------------------------------------
   // 副作用台账
   // -------------------------------------------------------------------------
@@ -1064,6 +1143,20 @@ function toApproval(raw: Row): ApprovalRow {
     createdAt: Number(raw.created_at),
     decidedAt: raw.decided_at === null ? null : Number(raw.decided_at),
     expiresAt: Number(raw.expires_at),
+  };
+}
+
+function toPlan(raw: Row): PlanRow {
+  return {
+    id: String(raw.id),
+    projectId: String(raw.project_id),
+    goal: String(raw.goal),
+    steps: JSON.parse(String(raw.steps)) as PlanRow['steps'],
+    amendments: JSON.parse(String(raw.amendments)) as PlanRow['amendments'],
+    status: String(raw.status) as PlanStatus,
+    approvedAt: raw.approved_at === null ? null : Number(raw.approved_at),
+    approvedBy: raw.approved_by === null ? null : (String(raw.approved_by) as 'user'),
+    createdAt: Number(raw.created_at),
   };
 }
 
