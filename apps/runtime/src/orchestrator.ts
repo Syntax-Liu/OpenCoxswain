@@ -642,6 +642,14 @@ export class Orchestrator extends EventEmitter {
     project: ProjectRow,
     assistant: AssistantSession,
     signal: AbortSignal,
+    /**
+     * 已经自动重试过几次。
+     *
+     * 用于「谎报已派出」的自动重试（见 docs/incident-spawn-claim.md）。
+     * 上限 1 次：重试仍失败就交给更正消息，不无限重试——
+     * 模型如果就是不肯调工具，重试多少次都一样。
+     */
+    retryCount = 0,
   ): Promise<void> {
     const inputs = assistant.inbox.drainForStep();
     for (const item of inputs) {
@@ -726,6 +734,35 @@ export class Orchestrator extends EventEmitter {
     // 提示词里已经写了"不许预告派活"，但软约束不够——
     // 这里在运行时补一道硬检查：说了但没派的，追加一条更正。
     const audit = auditSpawnClaims(finalText, spawnedThisTurn);
+
+    // **自动重试一次**。
+    //
+    // 实测（docs/incident-spawn-claim.md）：长会话里模型会模仿历史里的
+    // 「已派出 exe_xxx」句式，复现文字但不调用工具。老项目连续两次谎报，
+    // 同样的任务在新建项目里一次成功——根因是上下文里的范式模仿。
+    //
+    // 只纠正不重试的话，用户还得自己再说一遍。这里补一次自动重试：
+    // 把上一轮的错误回复从上下文里换掉，明确要求"必须调用工具"。
+    if (audit.wrong && retryCount < 1 && !signal.aborted) {
+      const correction =
+        '你上一条说「已派出」但本轮**没有调用任何工具**，实际没有创建 Agent。\n' +
+        '现在重新处理：如果这件事需要派活，**直接调用 spawn_executor**；' +
+        '不需要派活就直接回答，不要再声称「已派出」。';
+      this.emit('runtime', {
+        type: 'assistant_text',
+        projectId: project.id,
+        text: `（检测到未真实派活，正在重试一次）`,
+      } as RuntimeEvent);
+
+      // 重试：把刚才的错误回复从历史里剔除，换成明确的纠正指令。
+      // 标记为 system 来源：它是系统纠偏，不是用户说的话，不该显示在对话流里。
+      messages.pop();
+      messages.push({ role: 'user', content: correction });
+      await assistant.recordUser(correction, 'system', true);
+      void this.runAssistantTurn(project, assistant, signal, retryCount + 1);
+      return;
+    }
+
     if (audit.wrong) {
       const text = correctionText(audit.phantomIds, audit.vagueClaim);
       // **必须落库**：只 emit 的话，日志里能看到、界面刷新后就没了，
