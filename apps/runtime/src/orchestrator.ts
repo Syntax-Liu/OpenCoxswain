@@ -59,6 +59,12 @@ import {
   type PermissionStoreLike,
 } from './settings/permission.js';
 import type { PermissionLevel } from './settings/permission.js';
+import {
+  DEFAULT_PLAN_GATE,
+  planGateFor,
+  type PlanGateSettings,
+} from './settings/planGate.js';
+import { canSpawnStep } from './orchestrator/plan.js';
 import { MemoryModelStore, type ModelStoreLike } from './llm/modelStore.js';
 import type { ModelSettings } from './llm/models.js';
 import { mergeSkills, scanSkillRoot, type SkillSummary } from './skills/index.js';
@@ -121,6 +127,12 @@ export interface OrchestratorOptions {
   readonly closeSettings?: CloseSettingsStoreLike;
   /** 权限档位；不提供时默认「手动审批」。 */
   readonly permissions?: PermissionStoreLike;
+  /**
+   * 方案把关。**默认 `off`**——没有方案创建流程时强制拦截会让所有派活失败。
+   *
+   * 见 `settings/planGate.ts` 的说明：等方案创建流程做完再改默认值。
+   */
+  readonly planGate?: PlanGateSettings;
   /** 联网搜索配置的存取。不传时搜索工具永远"不可用"。 */
   readonly searchStore?: SearchStoreLike;
   /**
@@ -236,6 +248,8 @@ export class Orchestrator extends EventEmitter {
   private readonly scheduleStore: ScheduleStorage;
   private readonly closeStore: CloseSettingsStoreLike;
   private readonly permissionStore: PermissionStoreLike;
+  /** 方案把关设置（默认 off，见 settings/planGate.ts）。 */
+  private readonly planGate: PlanGateSettings;
   /**
    * 联网搜索配置。
    *
@@ -284,6 +298,7 @@ export class Orchestrator extends EventEmitter {
     this.scheduleStore = options.schedules ?? new MemoryScheduleStore();
     this.closeStore = options.closeSettings ?? new MemoryCloseSettings();
     this.permissionStore = options.permissions ?? new MemoryPermissionStore();
+  this.planGate = options.planGate ?? DEFAULT_PLAN_GATE;
     this.searchStore = options.searchStore ?? null;
     this.iconThemeStore = options.iconThemeStore ?? null;
     this.modelStore = options.models ?? new MemoryModelStore();
@@ -1026,6 +1041,32 @@ export class Orchestrator extends EventEmitter {
     if (!project) throw new Error(`项目 ${projectId} 不存在`);
     if (!input.label.trim() || !input.goal.trim()) {
       throw new Error('派活必须提供 label 与 goal');
+    }
+
+    // 方案把关：**默认 off**，开启后没批准的方案不许派活。
+    //
+    // 这是 `plan-approval.md` D1「方案给用户看完才开工」在代码里的落点。
+    // 之所以默认关闭：目前还没有「创建方案」的流程，
+    // 一上来就拦会让所有派活失败（见 settings/planGate.ts 的说明）。
+    //
+    // 用抛错而不是返回假 SpawnResult：`executor` 是必填字段，
+    // 造一个假对象会让调用方无法分辨"真派了但排队"和"根本没派"。
+    if (planGateFor(this.planGate, projectId) === 'on') {
+      const active = this.store.activePlanOf(projectId);
+      if (active) {
+        const gate = canSpawnStep(active);
+        if (!gate.allowed) {
+          const reason = gate.reason ?? '方案还没批准';
+          await this.recordReport({
+            projectId,
+            executorId: null,
+            kind: 'blocked',
+            body: `已拒绝派活：${reason}。\n方案批准之后才会开工。`,
+            needsUser: true,
+          });
+          throw new Error(`已拒绝派活：${reason}`);
+        }
+      }
     }
 
     // 用量止损：已经超了就别再派。这是**硬拒绝**，不是排队——
