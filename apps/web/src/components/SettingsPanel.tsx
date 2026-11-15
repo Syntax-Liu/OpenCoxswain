@@ -214,13 +214,117 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
         </section>
 
         <section className="settings-section">
-          <h3 className="settings-section-title">其他</h3>
+          <h3 className="settings-section-title">通用</h3>
+          <GeneralSection />
+        </section>
+
+        <section className="settings-section">
+          <h3 className="settings-section-title">关于其他设置</h3>
           <p className="settings-hint">
-            记忆、通用、手机通道、联网搜索的设置还没迁移到新界面，
+            记忆、手机通道、联网搜索还没迁移到新界面，
             暂时可以在旧界面（`apps/web-legacy`）里改，或直接编辑配置文件。
           </p>
         </section>
       </div>
     </div>
+  );
+}
+
+/** 通用：图标主题 + 关闭行为。 */
+function GeneralSection(): JSX.Element {
+  const api = useState(() => new ApiClient())[0];
+  const [iconTheme, setIconTheme] = useState<string | null>(null);
+  const [closeAction, setCloseAction] = useState<'tray' | 'quit' | null>(null);
+  const [running, setRunning] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.iconTheme().then((r) => setIconTheme(r.theme)).catch(() => undefined);
+    void api
+      .closeSettings()
+      .then((r) => {
+        setCloseAction(r.settings.closeAction);
+        setRunning(r.running);
+      })
+      .catch(() => undefined);
+  }, [api]);
+
+  const ICONS: readonly { id: string; label: string }[] = [
+    { id: 'violet', label: '紫' },
+    { id: 'mint', label: '薄荷' },
+    { id: 'sky', label: '天蓝' },
+    { id: 'coral', label: '珊瑚' },
+    { id: 'graphite', label: '石墨' },
+    { id: 'deep', label: '深蓝' },
+  ];
+
+  const chooseIcon = async (id: string): Promise<void> => {
+    setIconTheme(id);
+    try {
+      await api.setIconTheme(id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败');
+    }
+  };
+
+  const chooseClose = async (next: 'tray' | 'quit'): Promise<void> => {
+    setCloseAction(next);
+    try {
+      await api.setCloseAction(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败');
+    }
+  };
+
+  return (
+    <>
+      <div className="settings-field">
+        <span className="settings-label">应用图标</span>
+        <div className="settings-chips">
+          {ICONS.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              className={`btn btn--sm ${iconTheme === i.id ? 'btn--primary' : 'btn--secondary'}`}
+              onClick={() => void chooseIcon(i.id)}
+            >
+              {i.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-field">
+        <span className="settings-label">关闭窗口时</span>
+        <label className="settings-radio">
+          <input
+            type="radio"
+            name="closeAction"
+            checked={closeAction === 'tray'}
+            onChange={() => void chooseClose('tray')}
+          />
+          <span>
+            最小化到托盘
+            <span className="settings-hint">（Agent 继续运行）</span>
+          </span>
+        </label>
+        <label className="settings-radio">
+          <input
+            type="radio"
+            name="closeAction"
+            checked={closeAction === 'quit'}
+            onChange={() => void chooseClose('quit')}
+          />
+          <span>
+            直接退出软件
+            <span className="settings-hint">
+              {running > 0 ? `（当前有 ${running} 个 Agent 在跑，退出前会提示）` : '（有 Agent 在跑时会先提示）'}
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {error && <p className="settings-message">{error}</p>}
+    </>
   );
 }

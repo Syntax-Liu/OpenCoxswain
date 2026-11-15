@@ -1536,6 +1536,35 @@ select {
   flex-wrap: wrap;
 }
 
+.settings-label {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+.settings-chips {
+  display: flex;
+  gap: var(--g-1);
+  flex-wrap: wrap;
+}
+
+.settings-radio {
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+  padding: var(--g-1) 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.settings-radio input {
+  accent-color: var(--border-focus);
+}
+
+.settings-radio .settings-hint {
+  margin-left: var(--g-1);
+}
+
 .settings-message {
   margin: 0;
   font-size: var(--fs-sm);
