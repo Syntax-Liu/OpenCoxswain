@@ -11,12 +11,14 @@
  */
 import { useMemo } from 'react';
 import type { ExecutorDto } from '../api.js';
+import { DecisionCard } from './DecisionCard.js';
 import { RunnerLane, laneStatusOf } from './RunnerLane.js';
 
 export interface RunnerPanelProps {
   readonly executors: readonly ExecutorDto[];
   readonly onOpen: (id: string) => void;
-  readonly onDecide: (executorId: string) => void;
+  /** 回答某个执行者的卡点：经由 C 转达（架构里唯一的通道）。 */
+  readonly onAnswer: (executorId: string, text: string) => void;
 }
 
 /** 需要用户拍板的：有卡点且仍在跑的。 */
@@ -41,7 +43,7 @@ export function finishedOf(executors: readonly ExecutorDto[]): readonly Executor
 }
 
 export function RunnerPanel(props: RunnerPanelProps): JSX.Element {
-  const { executors, onOpen, onDecide } = props;
+  const { executors, onOpen, onAnswer } = props;
 
   const { asking, active, finished } = useMemo(
     () => ({
@@ -73,26 +75,12 @@ export function RunnerPanel(props: RunnerPanelProps): JSX.Element {
         {asking.length > 0 && (
           <div className="decisions">
             {asking.map((e) => (
-              <div className="decision" key={e.id}>
-                <span className="decision-from">{e.label}</span>
-                <p className="decision-q">{e.blockedReason ?? '需要你决定'}</p>
-                <div className="decision-actions">
-                  <button
-                    type="button"
-                    className="btn btn--primary btn--sm"
-                    onClick={() => onDecide(e.id)}
-                  >
-                    查看并处理
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => onOpen(e.id)}
-                  >
-                    看执行过程
-                  </button>
-                </div>
-              </div>
+              <DecisionCard
+                key={e.id}
+                executor={e}
+                onAnswer={(text) => onAnswer(e.id, text)}
+                onSeeTrace={() => onOpen(e.id)}
+              />
             ))}
           </div>
         )}

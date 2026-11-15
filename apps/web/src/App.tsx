@@ -210,7 +210,16 @@ export function App(): JSX.Element {
         </main>
 
         {showPanel && (
-          <RunnerPanel executors={executors} onOpen={openExecutor} onDecide={openExecutor} />
+          <RunnerPanel
+            executors={executors}
+            onOpen={openExecutor}
+            onAnswer={(executorId, text) => {
+              // 回答经由 C 转达：接口层没有「直接给某个 D 传话」的入口，
+              // 这就是架构规定的通道——C 负责把用户的话派给正确的 D。
+              const label = executors.find((e) => e.id === executorId)?.label ?? '执行者';
+              void send(`关于「${label}」：${text}`);
+            }}
+          />
         )}
       </div>
     </div>
