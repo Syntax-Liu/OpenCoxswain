@@ -22,6 +22,7 @@ import {
   type AppState,
 } from './state.js';
 import { ApprovalPanel } from './components/ApprovalPanel.js';
+import { CommandPalette } from './components/CommandPalette.js';
 import { Composer } from './components/Composer.js';
 import { ProjectSwitcher } from './components/ProjectSwitcher.js';
 import { RunnerPanel } from './components/RunnerPanel.js';
@@ -36,6 +37,7 @@ export function App(): JSX.Element {
   const [view, setView] = useState<View>({ kind: 'chat' });
   const [approvals, setApprovals] = useState<readonly ApprovalDto[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [connecting, setConnecting] = useState(true);
   // 连接状态三态：未知（首帧）/ 已连 / 已断。
   // 只有**曾经连上过**再断开才报"离线"——否则首帧会闪一下错误提示。
@@ -155,21 +157,28 @@ export function App(): JSX.Element {
     [api, state.currentProjectId],
   );
 
-  // ---- 快捷键：Esc 关设置，Ctrl+, 开设置 ----
+  // ---- 快捷键：Ctrl+K 命令面板，Ctrl+, 设置，Esc 逐层关闭 ----
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && settingsOpen) {
-        setSettingsOpen(false);
+      const mod = e.ctrlKey || e.metaKey;
+      if (e.key === 'Escape') {
+        if (paletteOpen) setPaletteOpen(false);
+        else if (settingsOpen) setSettingsOpen(false);
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+      if (mod && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
+      if (mod && e.key === ',') {
         e.preventDefault();
         setSettingsOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [settingsOpen]);
+  }, [settingsOpen, paletteOpen]);
 
   const executors = useMemo(() => visibleExecutors(state.executors), [state.executors]);
   const currentProject = useMemo(
@@ -279,6 +288,20 @@ export function App(): JSX.Element {
           ⚙
         </button>
       </header>
+
+      {paletteOpen && (
+        <CommandPalette
+          projects={state.projects}
+          executors={executors}
+          onClose={() => setPaletteOpen(false)}
+          onPickProject={(id) => {
+            setState((s) => ({ ...s, currentProjectId: id }));
+            setView({ kind: 'chat' });
+          }}
+          onOpenExecutor={openExecutor}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      )}
 
       {settingsOpen && (
         <div
