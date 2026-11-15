@@ -116,6 +116,44 @@ try {
       10000,
     );
     assert.equal(appeared, true, '记忆区块没加载出来（接口或渲染有问题）');
+  });
+
+  await test('已生效的记忆能显示出来，并带「遗忘」按钮', async () => {
+    // 承接上一条用例：设置面板还开着，记忆已加载
+    const items = await b.count('.memory-item');
+    if (items === 0) {
+      console.log('      （这个项目没有记忆，跳过条目断言）');
+      await b.press('Escape');
+      await sleep(300);
+      return;
+    }
+
+    const hasForget = await b.evaluate(
+      `[...document.querySelectorAll('.memory-item button')]
+        .some((x) => x.textContent.trim() === '遗忘')`,
+    );
+    const hasAccept = await b.evaluate(
+      `[...document.querySelectorAll('.memory-item button')]
+        .some((x) => x.textContent.trim() === '接受')`,
+    );
+    assert.ok(hasForget || hasAccept, '记忆条目上没有任何操作按钮');
+    await b.press('Escape');
+    await sleep(300);
+  });
+
+  await test('记忆分区的项目下拉能切换且不报错', async () => {
+    await b.click('button[aria-label="设置"]');
+    await b.waitForSelector('#set-memory-project');
+    const options = await b.evaluate(
+      `[...document.querySelectorAll('#set-memory-project option')]
+        .map((o) => o.value).filter(Boolean)`,
+    );
+    // 依次切到每一个项目，确认都不炸
+    for (const id of options) {
+      await b.select('#set-memory-project', id);
+      await sleep(900);
+    }
+    assert.deepEqual(b.pageErrors, [], `切换项目时有页面异常：${b.pageErrors.join('\n')}`);
     await b.press('Escape');
     await sleep(300);
   });
@@ -173,6 +211,67 @@ try {
     assert.ok(items > 0, '补全列表为空');
     await b.fill('.composer textarea', '');
     await sleep(300);
+  });
+
+  // ─────────────────────────────────────────────
+  console.log('\n待决策与审批');
+  // ─────────────────────────────────────────────
+
+  await test('待决策卡片结构完整（若有）', async () => {
+    const n = await b.count('.decision');
+    if (n === 0) {
+      console.log('      （当前没有待决策，跳过）');
+      return;
+    }
+    // 每张卡片都必须有输入框和发送按钮——这是重构时漏掉过的
+    const inputs = await b.count('.decision textarea');
+    assert.equal(inputs, n, `${n} 张卡片但只有 ${inputs} 个输入框`);
+
+    const sendButtons = await b.evaluate(
+      `[...document.querySelectorAll('.decision')].filter(
+        (c) => [...c.querySelectorAll('button')].some((x) => x.textContent.trim() === '发送')
+      ).length`,
+    );
+    assert.equal(sendButtons, n, `${n} 张卡片但只有 ${sendButtons} 张有发送按钮`);
+
+    // 空输入时发送必须禁用
+    const disabled = await b.evaluate(
+      `[...document.querySelectorAll('.decision button')]
+        .filter((x) => x.textContent.trim() === '发送')
+        .every((x) => x.disabled)`,
+    );
+    assert.equal(disabled, true, '空输入时发送按钮应该禁用');
+  });
+
+  await test('审批面板结构完整（若有）', async () => {
+    const n = await b.count('.approval');
+    if (n === 0) {
+      console.log('      （当前没有待审批，跳过）');
+      return;
+    }
+    // 审批必须显示「为什么」，否则用户无法判断
+    const hasWhy = await b.evaluate(
+      `[...document.querySelectorAll('.approval')].every(
+        (a) => (a.querySelector('.approval-why')?.textContent ?? '').length > 0
+      )`,
+    );
+    assert.equal(hasWhy, true, '有审批卡片没显示理由');
+
+    const hasTime = await b.evaluate(
+      `[...document.querySelectorAll('.approval')].every(
+        (a) => (a.querySelector('.approval-time')?.textContent ?? '').includes('剩')
+      )`,
+    );
+    assert.equal(hasTime, true, '有审批卡片没显示剩余时间');
+
+    // 必须有允许与拒绝两个动作
+    const labels = await b.evaluate(
+      `[...document.querySelectorAll('.approval')].flatMap(
+        (a) => [...a.querySelectorAll('button')].map((x) => x.textContent.trim())
+      )`,
+    );
+    assert.ok(labels.some((l) => l.includes('允许')), '缺「允许」');
+    assert.ok(labels.includes('拒绝'), '缺「拒绝」');
   });
 
   // ─────────────────────────────────────────────
