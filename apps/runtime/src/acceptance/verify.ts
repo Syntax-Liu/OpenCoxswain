@@ -21,6 +21,11 @@ import {
   type Criterion,
   type CriterionResult,
 } from './criteria.js';
+import {
+  checkCommandUsable,
+  firstProgramOf,
+  looksLikeCommandNotFound,
+} from './portability.js';
 
 const execAsync = promisify(exec);
 
@@ -82,6 +87,20 @@ async function verifyCommand(
     return { criterion, verdict: 'failed', note: 'command 类标准缺少 check 命令' };
   }
 
+  // **事前**：命令在本平台语法上就跑不了，不必执行。
+  //
+  // 实测（2026-11-15）：Windows 上 `test -f` / `grep` 不存在，退出码非 0，
+  // 会被当成「检查没通过」。用户看到「文件不存在」，其实文件在。
+  // 判 unverified 而不是 failed：这不是「做错了」，是「没法验证」。
+  const usable = checkCommandUsable(command);
+  if (!usable.usable) {
+    return {
+      criterion,
+      verdict: 'unverified',
+      note: `验收命令在当前平台无法执行：${usable.reason ?? '不可用'}`,
+    };
+  }
+
   // 复核命令也要过审批闸门：否则"验收"成了执行任意命令的后门。
   const decision = await options.approve('run_command', { command });
   if (!decision.approved) {
@@ -110,6 +129,23 @@ async function verifyCommand(
   } catch (error) {
     const err = error as { code?: unknown; stdout?: string; stderr?: string; message?: string };
     const detail = `${err.stdout ?? ''}\n${err.stderr ?? ''}`.trim() || err.message || '';
+
+    // **事后**：命令跑挂了，先分清是「程序不存在」还是「检查没过」。
+    //
+    // 二者对用户的含义完全不同：
+    //   - 检查没过 → Agent 没做到（failed，正确）
+    //   - 程序不存在 → 验收命令写错平台，Agent 可能是对的（unverified）
+    // 混为一谈会让所有验收安静地变红，看起来像 Agent 什么都没干。
+    if (looksLikeCommandNotFound(err.stderr ?? detail)) {
+      const program = firstProgramOf(command);
+      return {
+        criterion,
+        verdict: 'unverified',
+        note: `验收命令依赖的程序在本机不存在：${program || '未知'}。这不是「没做到」，是「没法验证」`,
+        output: detail.slice(0, 2000),
+      };
+    }
+
     return {
       criterion,
       verdict: 'failed',
