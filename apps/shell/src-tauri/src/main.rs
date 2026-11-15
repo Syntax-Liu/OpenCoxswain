@@ -526,10 +526,34 @@ fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-    // 用应用图标；取不到就退化成无图标托盘（不影响功能）。
-    if let Some(icon) = app.default_window_icon().cloned() {
-        builder = builder.icon(icon);
-    }
+    // **托盘图标必须显式给**。
+    //
+    // ## 之前的问题
+    //
+    // 这里是 `if let Some(icon)` —— 取不到就静默跳过，托盘变成无图标。
+    // 而 `tauri.conf.json` 的 `app.windows` 是空数组（窗口在 Rust 里手建），
+    // Tauri 不会自动加载窗口图标，`default_window_icon()` 返回 **None**。
+    //
+    // 结果是托盘项没有图标，Windows 用**蓝色占位方块**顶上。
+    // 每次启动重新注册一次，那个方块就在托盘历史里越叠越多——
+    // 用户看到的就是一整屏 `oc` 幽灵图标。
+    builder = match app.default_window_icon().cloned() {
+        Some(icon) => builder.icon(icon),
+        None => {
+            // **不能静默跳过**：没有图标就会变成占位方块。
+            //
+            // `from_app_icon_resource` 读的是 exe 里由 tauri-build 嵌入的图标
+            // （和资源管理器显示的是同一个），不依赖配置文件。
+            append_log("托盘：default_window_icon 为空，改用 exe 内嵌图标资源");
+            match tauri::image::Image::from_app_icon_resource(32) {
+                Ok(fallback) => builder.icon(fallback),
+                Err(error) => {
+                    append_log(&format!("托盘图标加载失败，将显示为占位方块：{error}"));
+                    builder
+                }
+            }
+        }
+    };
 
     builder.build(app)?;
     Ok(())
@@ -784,11 +808,22 @@ fn main() {
             }
         }
         tauri::RunEvent::Exit => {
-            // **先移除托盘图标再退出**。
-            // 进程被强杀时 Windows 来不及回收托盘，会留下"幽灵图标"
-            // （鼠标划过才消失）。显式隐藏能保证托盘干净。
-            if let Some(tray) = app.tray_by_id("main-tray") {
-                let _ = tray.set_visible(false);
+            // **真正注销托盘图标**，不是隐藏。
+            //
+            // ## 之前为什么留幽灵图标
+            //
+            // 这里原来是 `tray.set_visible(false)`，注释还写着
+            // "显式隐藏能保证托盘干净" —— **那是错的**。
+            //
+            // `set_visible(false)` 只是把图标从视觉上藏起来，
+            // Windows 侧的托盘身份没有注销。每次启动/退出都会
+            // 在（Shell 维护的）托盘历史里留下一条记录，
+            // 长时间用下来那个"隐藏图标"面板就满了——
+            // 用户看到的一整屏相同方块就是这么来的。
+            //
+            // `remove_tray_by_id` 才会真正销毁托盘项、通知 Shell 注销。
+            if let Some(tray) = app.remove_tray_by_id("main-tray") {
+                drop(tray);
             }
             if let Ok(mut slot) = app.state::<Runtime>().0.lock() {
                 if let Some(mut child) = slot.take() {
