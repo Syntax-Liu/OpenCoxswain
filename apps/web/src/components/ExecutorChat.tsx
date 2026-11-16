@@ -71,8 +71,8 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
         <div className="header-main">
           <h2>{props.executor.label}</h2>
           <p className="muted small">
-            {props.executor.access === 'readonly' ? '只读Agent' : 'Agent'} ·{' '}
-            {EXECUTOR_STATUS_LABEL[props.executor.status]}
+            {props.executor.access === 'readonly' ? '只读Agent' : 'Agent'}
+            <span className="meta-gap">{EXECUTOR_STATUS_LABEL[props.executor.status]}</span>
           </p>
         </div>
         {busy && (
@@ -311,7 +311,13 @@ export function MetricsLine({ executor }: { executor: ExecutorDto }): JSX.Elemen
 
   return (
     <span className="metrics-line" title="运行指标（不估算金额：单价随模型变动，请以服务商后台为准）">
-      {items.join(' · ')}
+      {/* **用布局留白分隔，不用中点**（desktop-agent-ui 规范）。
+          中点在这类密集指标里会让整行看起来像装饰而不是数据。 */}
+      {items.map((item, i) => (
+        <span key={item} className={i === 0 ? undefined : 'metric-gap'}>
+          {item}
+        </span>
+      ))}
     </span>
   );
 }

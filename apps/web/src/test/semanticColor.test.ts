@@ -85,8 +85,15 @@ describe('**待决策面板不许大面积用琥珀**', () => {
     assert.match(body, /background:\s*var\(--bg-panel\)/, '容器应该用普通面板色');
   });
 
-  it('左侧一条细边表示"需要处理"就够了', () => {
+  it('**不许用左彩条**（desktop-agent-ui 规范明确禁止）', () => {
+    // 原来的断言是「左侧一条 2px 细边表示需要处理」。
+    //
+    // 但桌面 UI 规范把「卡片左边缘彩色粗线」列为反模式：
+    // 它是过时的碎片化装饰，破坏整体现代感。
+    //
+    // 「需要处理」这个信号改由**背景色 + 标题图标**表达。
     const m = /\.decision-panel\s*\{([^}]*)\}/.exec(css);
-    assert.match(m?.[1] ?? '', /border-left:\s*2px solid var\(--accent\)/);
+    const body = m?.[1] ?? '';
+    assert.doesNotMatch(body, /border-left:\s*[2-9]px/, '不许用左彩条');
   });
 });

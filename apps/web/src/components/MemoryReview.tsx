@@ -46,7 +46,7 @@ export function MemoryReview(props: MemoryReviewProps): JSX.Element {
     <div className="memory-review">
       <div className="memory-head">
         <button type="button" className="btn btn--link" onClick={() => setOpen((v) => !v)}>
-          {open ? '收起记忆' : `记忆（${pending.length} 待确认 · 已记 ${totalActive}）`}
+          {open ? '收起记忆' : `记忆（${pending.length} 待确认，已记 ${totalActive}）`}
         </button>
         <button
           type="button"
@@ -93,7 +93,7 @@ export function MemoryReview(props: MemoryReviewProps): JSX.Element {
                       <div className="memory-meta">
                         <span className="memory-kind">{KIND_LABEL[c.kind] ?? c.kind}</span>
                         <span className="muted small">
-                          {c.scope === 'global' ? '全局' : '本项目'} · {c.source}
+                          {c.scope === 'global' ? '全局' : '本项目'}<span className="meta-gap">{c.source}</span>
                         </span>
                       </div>
                       <p className="memory-text">{c.text}</p>

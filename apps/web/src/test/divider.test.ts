@@ -54,15 +54,15 @@ describe('**分隔线必须画满整个高度**', () => {
     assert.match(m[1] ?? '', /flex:\s*1 1 auto/);
   });
 
-  it('分隔线是 1px solid + divider 色', () => {
+  it('分隔线是 0.5px solid + divider 色', () => {
     const body = rule('.rail');
-    assert.match(body, /border-left:\s*1px solid var\(--color-border-divider\)/);
+    assert.match(body, /border-left:\s*0\.5px solid var\(--color-border-divider\)/);
   });
 });
 
 describe('左侧栏同理', () => {
   it('.sidebar 的 border-right 用 divder 档', () => {
     const all = [...cleanCss.matchAll(/^\.sidebar\s*\{([^}]*)\}/gm)].map((m) => m[1] ?? '').join('\n');
-    assert.match(all, /border-right:\s*1px solid var\(--color-border-divider\)/);
+    assert.match(all, /border-right:\s*0\.5px solid var\(--color-border-divider\)/);
   });
 });

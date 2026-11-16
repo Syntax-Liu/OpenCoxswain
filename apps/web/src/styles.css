@@ -362,7 +362,7 @@ button {
   font-size: var(--fs-md);
   cursor: pointer;
   border-radius: var(--r-sm);
-  border: 1px solid transparent;
+  border: 0.5px solid transparent;
   /* 默认就是标准按钮的尺寸（--h-md），子类按需覆盖 */
   height: var(--h-md);
   padding: 0 var(--g-3);
@@ -425,7 +425,7 @@ button.wide {
 
 input {
   background: var(--color-surface-sunken);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-sm);
   padding: var(--g-15) var(--g-25);
   color: var(--color-label-primary);
@@ -498,7 +498,7 @@ select:disabled {
   align-items: center;
   justify-content: center;
   gap: var(--g-1);
-  border: 1px solid transparent;
+  border: 0.5px solid transparent;
   border-radius: var(--r-sm);
   font-family: inherit;
   cursor: pointer;
@@ -645,7 +645,7 @@ select:disabled {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--color-border-divider);
+  border-left: 0.5px solid var(--color-border-divider);
 }
 
 /* ---------- 侧边栏 ---------- */
@@ -655,7 +655,7 @@ select:disabled {
   flex-direction: column;
   background: var(--bg-sidebar);
   /* 和右栏一致：用 divider 档，保证一眼看出左边栏的边界 */
-  border-right: 1px solid var(--color-border-divider);
+  border-right: 0.5px solid var(--color-border-divider);
   min-height: 0;
   padding: var(--g-2) 0;
   gap: 0;
@@ -667,7 +667,7 @@ select:disabled {
   /* 两个导航项之间留 4px，否则和下方的"工作区"标题挤成一坨 */
   gap: var(--g-15);
   padding-bottom: var(--g-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
 }
 
 .nav-item {
@@ -809,7 +809,7 @@ select:disabled {
   font-size: var(--fs-xs);
   padding: 0 5px;
   border-radius: var(--r-sm);
-  border: 1px solid;
+  border: 0.5px solid;
   flex: none;
 }
 
@@ -828,7 +828,7 @@ select:disabled {
   align-items: center;
   justify-content: space-between;
   gap: var(--g-2);
-  border-top: 1px solid var(--border);
+  border-top: 0.5px solid var(--border);
   padding: var(--g-1) 14px;
   font-size: var(--fs-xs);
   color: var(--text-dim);
@@ -892,7 +892,7 @@ select:disabled {
 }
 
 .hint-card {
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 12px 14px;
   background: var(--bg-elevated);
@@ -1004,7 +1004,7 @@ select:disabled {
 /* ---------- D 的轨迹视图 ---------- */
 
 .goal-card {
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-left: 3px solid var(--accent-dim);
   border-radius: var(--r-sm);
   padding: 10px 14px;
@@ -1028,7 +1028,7 @@ select:disabled {
 .tool-badge {
   flex: none;
   font-size: var(--fs-xs);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-md);
   padding: 0 5px;
   color: var(--text-muted);
@@ -1065,7 +1065,7 @@ select:disabled {
 /* ---------- Supervisor B ---------- */
 
 .route-card {
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 14px 16px;
   max-width: 640px;
@@ -1089,7 +1089,7 @@ select:disabled {
   justify-content: space-between;
   width: 100%;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   color: var(--text);
 }
 
@@ -1121,7 +1121,7 @@ select:disabled {
 }
 
 .notice {
-  border: 1px solid var(--color-warn);
+  border: 0.5px solid var(--color-warn);
   background: var(--color-warn-dim);
   color: var(--warn);
   border-radius: var(--r-sm);
@@ -1142,7 +1142,7 @@ select:disabled {
 .md-h2 {
   font-size: var(--fs-md);
   padding-bottom: 3px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
 }
 
 .md-p {
@@ -1174,7 +1174,7 @@ select:disabled {
 
 .md-code {
   background: var(--color-code-inline);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-md);
   padding: 8px 10px;
   margin: 6px 0;
@@ -1199,7 +1199,7 @@ select:disabled {
 
 .md-table th,
 .md-table td {
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   padding: 4px 10px;
   text-align: left;
 }
@@ -1247,7 +1247,7 @@ select:disabled {
 }
 
 .advanced {
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 8px 10px;
 }
@@ -1278,7 +1278,7 @@ select:disabled {
 
 .modal {
   background: var(--bg-panel);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 20px;
   width: min(460px, 92vw);
@@ -1325,7 +1325,7 @@ select:disabled {
   left: 50%;
   transform: translateX(-50%);
   background: var(--color-danger-dim);
-  border: 1px solid var(--color-danger);
+  border: 0.5px solid var(--color-danger);
   color: var(--color-danger);
   padding: 9px 14px;
   border-radius: var(--r-sm);
@@ -1360,7 +1360,7 @@ select:disabled {
 /* ---------- Σ�ն������� ---------- */
 
 .approval-banner {
-  border-bottom: 1px solid var(--color-warn);
+  border-bottom: 0.5px solid var(--color-warn);
   background: var(--color-warn-dim);
   padding: 10px 24px;
   max-height: 42vh;
@@ -1390,7 +1390,7 @@ select:disabled {
 }
 
 .approval-item {
-  border: 1px solid var(--color-warn);
+  border: 0.5px solid var(--color-warn);
   border-radius: var(--r-sm);
   padding: 9px 11px;
   background: var(--bg-panel);
@@ -1408,7 +1408,7 @@ select:disabled {
 
 .approval-category {
   font-size: var(--fs-xs);
-  border: 1px solid var(--danger);
+  border: 0.5px solid var(--danger);
   color: var(--danger);
   border-radius: var(--r-md);
   padding: 0 6px;
@@ -1436,7 +1436,7 @@ select:disabled {
 .approval-args {
   margin: 0;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-md);
   padding: 8px 10px;
   font-size: var(--fs-sm);
@@ -1570,7 +1570,7 @@ select:disabled {
 /* ---------- �����ѡ���� ---------- */
 
 .memory-review {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   background: var(--bg-panel);
   flex: 0 0 auto;
   max-height: 34vh;
@@ -1610,7 +1610,7 @@ select:disabled {
 }
 
 .memory-list li {
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 8px 10px;
   background: var(--bg);
@@ -1625,7 +1625,7 @@ select:disabled {
 
 .memory-kind {
   font-size: var(--fs-xs);
-  border: 1px solid var(--accent-dim);
+  border: 0.5px solid var(--accent-dim);
   color: var(--accent);
   border-radius: var(--r-md);
   padding: 0 6px;
@@ -1673,7 +1673,7 @@ button.small {
   display: flex;
   gap: var(--g-15);
   margin-bottom: 7px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   padding-bottom: 5px;
 }
 
@@ -1705,7 +1705,7 @@ button.small {
 .im-settings {
   margin-top: 18px;
   padding-top: 14px;
-  border-top: 1px solid var(--border);
+  border-top: 0.5px solid var(--border);
 }
 
 .im-settings h3 {
@@ -1731,7 +1731,7 @@ button.small {
   gap: 9px;
   flex-wrap: wrap;
   background: var(--color-info-dim);
-  border-bottom: 1px solid var(--color-info);
+  border-bottom: 0.5px solid var(--color-info);
   font-size: var(--fs-md);
   flex: 0 0 auto;
   padding: var(--g-2) var(--g-4);
@@ -1772,7 +1772,7 @@ button.small {
   left: 0;
   right: 0;
   z-index: 30;
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-lg);
   padding: var(--g-3) var(--g-4);
   background: var(--bg-elevated);
@@ -1806,7 +1806,7 @@ button.small {
   align-items: flex-start;
   gap: var(--g-05);
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg);
   color: var(--text);
@@ -1838,7 +1838,7 @@ button.small {
   right: 8px;
   font-size: var(--fs-xs);
   color: var(--accent);
-  border: 1px solid var(--accent-dim);
+  border: 0.5px solid var(--accent-dim);
   border-radius: var(--r-md);
   padding: 0 4px;
 }
@@ -1933,7 +1933,7 @@ button.small {
 .composer textarea,
 .composer input {
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   color: var(--text);
   font-family: var(--font);
   font-size: var(--fs-md);
@@ -1973,7 +1973,7 @@ button.small {
 
 .md-body th,
 .md-body td {
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   padding: 3px 8px;
   text-align: left;
 }
@@ -2000,7 +2000,7 @@ button.small {
 
 .md-body pre {
   background: var(--color-code-block);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 8px 10px;
   overflow-x: auto;
@@ -2153,7 +2153,7 @@ button.small {
   flex: none;
   padding: 0 8px 0 12px;
   background: var(--bg-sidebar);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   user-select: none;
   padding-right: 0;
 }
@@ -2227,7 +2227,7 @@ button.small {
   min-width: 160px;
   padding: 4px 0;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-popover);
   display: flex;
@@ -2391,7 +2391,7 @@ button.small {
   width: 96px;
   padding: 2px 6px;
   opacity: 1;
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
   font-size: var(--fs-xs);
   background: var(--bg-input);
@@ -2458,7 +2458,7 @@ button.small {
 .header-badge {
   font-size: var(--fs-xs);
   color: var(--text-muted);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
   padding: 0 6px;
   line-height: 17px;
@@ -2484,7 +2484,7 @@ button.small {
   align-items: center;
   gap: var(--g-05);
   padding: 0 20px 4px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
 }
 
 .view-tab.active {
@@ -2653,7 +2653,7 @@ button.small {
   /* 模板浮层相对这个盒子定位（浮在它上方） */
   position: relative;
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-lg);
   padding: 6px 10px 4px;
 }
@@ -2691,7 +2691,7 @@ button.small {
 /* ---------- 设置里的关闭行为选项 ---------- */
 
 .field-group {
-  border-top: 1px solid var(--border);
+  border-top: 0.5px solid var(--border);
   margin-top: 14px;
   padding-top: 12px;
 }
@@ -2793,7 +2793,9 @@ body.is-resizing {
    密度高的界面里，一根竖线足够划出边界，又不抢注意力。 */
 .message.assistant .bubble {
   background: transparent;
-  border-left: 2px solid var(--color-border-subtle);
+  /* 左侧竖线区分 assistant 消息。**0.5px**（desktop-agent-ui 规范）：
+     原来的 2px 在中性灰上显得笨重，高 DPI 下也不精致。 */
+  border-left: 0.5px solid var(--color-border-subtle);
   border-radius: 0;
   padding-left: var(--g-3);
   padding-right: 0;
@@ -2818,7 +2820,7 @@ body.is-resizing {
   height: 28px;
   padding: 0 8px;
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-md);
   box-sizing: border-box;
 }
@@ -2882,7 +2884,7 @@ body.is-resizing {
   flex: none;
   font-size: var(--fs-sm);
   color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   gap: 20px;
 }
 
@@ -3016,7 +3018,7 @@ body.is-resizing {
   margin: 4px 0 6px 60px;
   padding: 8px 10px;
   background: var(--color-code-block);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text);
   font-family: var(--font-mono);
@@ -3076,7 +3078,7 @@ body.is-resizing {
   padding: 0 8px;
   font-size: var(--fs-sm);
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-md);
   color: var(--text);
 }
@@ -3184,7 +3186,7 @@ body.is-resizing {
   height: 38px;
   flex: none;
   padding: 0 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   background: var(--bg-sidebar);
 }
 
@@ -3202,7 +3204,7 @@ body.is-resizing {
 }
 
 .settings-nav {
-  border-right: 1px solid var(--border);
+  border-right: 0.5px solid var(--border);
   background: var(--bg-sidebar);
   padding: 10px 0;
   overflow-y: auto;
@@ -3273,7 +3275,7 @@ body.is-resizing {
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   font-size: var(--fs-sm);
   margin: 10px 0;
@@ -3294,7 +3296,7 @@ body.is-resizing {
   gap: var(--g-3);
   margin-top: 20px;
   padding-top: 14px;
-  border-top: 1px solid var(--border);
+  border-top: 0.5px solid var(--border);
 }
 
 .saved-hint {
@@ -3316,7 +3318,7 @@ body.is-resizing {
   align-items: flex-start;
   gap: var(--g-25);
   padding: var(--g-3) var(--g-4);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   cursor: pointer;
   background: var(--bg-elevated);
@@ -3368,7 +3370,7 @@ body.is-resizing {
   display: flex;
   flex-direction: column;
   gap: var(--g-05);
-  border-right: 1px solid var(--border);
+  border-right: 0.5px solid var(--border);
   padding-right: 12px;
   min-height: 120px;
   /* 左栏是 200px 固定宽（见 .model-layout）。子项默认 min-width:auto，
@@ -3504,7 +3506,7 @@ body.is-resizing {
   gap: var(--g-25);
   padding: 8px 12px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
 }
 
@@ -3563,9 +3565,6 @@ body.is-resizing {
   letter-spacing: 0.02em;
 }
 
-.batch-sep {
-  opacity: 0.5;
-}
 
 .batch-summary {
   color: var(--text-muted);
@@ -3631,7 +3630,7 @@ body.is-resizing {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  border: 1px solid var(--text-dim);
+  border: 0.5px solid var(--text-dim);
 }
 
 .batch-dot.done {
@@ -3805,7 +3804,7 @@ body.is-resizing {
   max-width: 320px;
   max-height: 240px;
   border-radius: var(--r-md);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   object-fit: contain;
   cursor: zoom-in;
   min-width: 48px;
@@ -3834,7 +3833,7 @@ body.is-resizing {
   width: 560px;
   max-width: 90vw;
   background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-md);
   box-shadow: 0 12px 48px var(--color-scrim);
   overflow: hidden;
@@ -3848,7 +3847,7 @@ body.is-resizing {
   padding: 14px 16px;
   background: var(--bg-input);
   border: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   color: var(--text-strong);
   font-size: var(--fs-md);
   outline: none;
@@ -3917,7 +3916,7 @@ body.is-resizing {
   display: flex;
   gap: var(--g-4);
   padding: 8px 16px;
-  border-top: 1px solid var(--border);
+  border-top: 0.5px solid var(--border);
   font-size: var(--fs-xs);
   color: var(--text-dim);
 }
@@ -3941,7 +3940,7 @@ body.is-resizing {
   min-width: 96px;
   padding: 2px 7px;
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -3967,7 +3966,7 @@ body.is-resizing {
   max-height: 260px;
   overflow-y: auto;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-md);
   box-shadow: 0 -6px 24px var(--c-scrim-45);
   z-index: 50;
@@ -4031,8 +4030,10 @@ body.is-resizing {
   margin: 0 16px 8px;
   padding: 8px 12px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-left: 2px solid var(--warn);
+  /* **不用左彩条**（desktop-agent-ui 规范明确禁止这个反模式）。
+     左边缘彩色粗线是过时的碎片化装饰，破坏整体现代感。
+     要表达「警告」用背景色和图标，不用线条。 */
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-md);
   font-size: var(--fs-sm);
   color: var(--text-muted);
@@ -4051,7 +4052,7 @@ body.is-resizing {
 .onboarding {
   padding: var(--g-5);
   background: var(--bg-panel);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-md);
   position: absolute;
   inset: 0;
@@ -4101,7 +4102,7 @@ body.is-resizing {
   gap: var(--g-1);
   padding: 12px 14px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--r-xl);
   text-align: left;
   cursor: pointer;
@@ -4135,7 +4136,7 @@ body.is-resizing {
 .onboarding-foot kbd {
   padding: 1px 4px;
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: var(--fs-xs);
@@ -4231,7 +4232,7 @@ body.is-resizing {
   max-width: calc(100vw - 40px);
   padding: 12px 14px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-strong);
   border-left-width: 3px;
   border-radius: var(--r-md);
   box-shadow: var(--shadow-modal);
@@ -4460,8 +4461,8 @@ body.is-resizing {
      一屏里冒出大片琥珀——"需要你操作"这个信号就被稀释了。
      现在只有标题的图标是琥珀，容器走普通面板色。 */
   background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
-  border-left: 2px solid var(--accent);
+  /* 同样不用左彩条：层级由背景和标题图标表达。 */
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--r-md);
   /* **高度有上限，展开也不许挤掉消息区**。
      实测原来占 240px（主区 27%），展开后能到 400px 以上，
@@ -4493,7 +4494,7 @@ body.is-resizing {
 
 .decision-item {
   padding: var(--g-1) 0;
-  border-top: 1px solid var(--border);
+  border-top: 0.5px solid var(--border);
   /* **面板是提示，不是正文。**
      实测原来每条 54px 高、字号 14px 与消息正文一样大，
      整块占主区 240px（27% 高度）——比消息还抢眼。
@@ -4623,7 +4624,7 @@ body.is-resizing {
   /* 分隔线用 strong 档：之前 subtle 几乎看不见，
      用户反馈「右侧边栏和中间的界限不明显」。 */
   /* 用 divider 档（20%），strong（11%）在深色背景上几乎看不见 */
-  border-left: 1px solid var(--color-border-divider);
+  border-left: 0.5px solid var(--color-border-divider);
   overflow: hidden;
 }
 
@@ -4634,7 +4635,7 @@ body.is-resizing {
   height: var(--h-lg);
   padding: 0 var(--g-3);
   flex: none;
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 0.5px solid var(--color-border-subtle);
 }
 
 .rail-label {
@@ -4664,7 +4665,7 @@ body.is-resizing {
 
 /* ---- 分区 ---- */
 .rail-section {
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 0.5px solid var(--color-border-subtle);
 }
 
 .rail-section:last-child {
@@ -5037,7 +5038,7 @@ body.is-resizing {
   padding: var(--g-1);
   list-style: none;
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-md);
   box-shadow: 0 8px 24px var(--c-scrim-45);
 }
@@ -5152,7 +5153,7 @@ body.is-resizing {
   height: var(--h-sm);
   padding: 0 var(--g-3);
   background: transparent;
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-full);
   color: var(--color-label-secondary);
   font-size: var(--fs-sm);
@@ -5170,7 +5171,7 @@ body.is-resizing {
   align-items: center;
   height: var(--h-sm);
   padding: 0 var(--g-3);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-full);
   color: var(--color-label-secondary);
 }
@@ -5241,7 +5242,7 @@ body.is-resizing {
   /* 有未读时靠 padding 撑宽，高度不变 */
 
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   box-shadow: 0 2px 8px var(--c-scrim-45);
   color: var(--color-label-secondary);
   font-size: var(--fs-xs);
@@ -5282,7 +5283,7 @@ body.is-resizing {
   max-width: 520px;
   padding: var(--g-2) var(--g-3);
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-left: 3px solid var(--color-success);
   border-radius: var(--r-md);
   box-shadow: 0 8px 24px var(--c-scrim-45);
@@ -5350,7 +5351,7 @@ body.is-resizing {
   padding: var(--g-1);
   list-style: none;
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-menu);
 }
@@ -5433,7 +5434,7 @@ body.is-resizing {
   gap: var(--g-2);
   padding: var(--g-3);
   background: var(--color-surface-panel);
-  border: 1px solid var(--color-border-subtle);
+  border: 0.5px solid var(--color-border-subtle);
   border-radius: var(--r-md);
   color: var(--color-label-primary);
   text-align: left;
@@ -5525,7 +5526,7 @@ body.is-resizing {
   padding: var(--g-1);
   list-style: none;
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-strong);
+  border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-menu);
 }
@@ -5711,7 +5712,7 @@ body.is-resizing {
 .send-btn:disabled {
   background: var(--color-surface-hover);
   color: var(--color-label-tertiary);
-  border: 1px solid var(--color-border-subtle);
+  border: 0.5px solid var(--color-border-subtle);
   cursor: default;
   opacity: 0.75;
 }
@@ -5743,7 +5744,7 @@ body.is-resizing {
   gap: var(--g-2);
   padding: var(--g-3) var(--g-2);
 
-  border: 1px solid var(--color-border-subtle);
+  border: 0.5px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
   background: var(--color-surface-panel);
   cursor: pointer;
@@ -5806,4 +5807,18 @@ body.is-resizing {
     animation: none;
     opacity: 0.6;
   }
+}
+
+/* ---- 元信息间距 ---- */
+/*
+ * **不用中点分隔符**（desktop-agent-ui 规范）。
+ * 中点在这类密集数据里会让整行看起来像装饰，而且断行时很脏。
+ * 改用布局留白，让排版自己表达分组。
+ */
+.meta-gap {
+  margin-left: var(--g-2);
+}
+
+.metric-gap {
+  margin-left: var(--g-2);
 }

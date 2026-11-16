@@ -105,6 +105,6 @@ describe('禁用态能看清', () => {
   it('**有描边**，不只靠底色', () => {
     const body = rule('.send-btn:disabled') ?? '';
     assert.ok(body, '没有 :disabled 规则');
-    assert.match(body, /border:\s*1px solid/, '禁用态没有描边，会和输入框背景糊在一起');
+    assert.match(body, /border:\s*0\.5px solid/, '禁用态没有描边，会和输入框背景糊在一起');
   });
 });

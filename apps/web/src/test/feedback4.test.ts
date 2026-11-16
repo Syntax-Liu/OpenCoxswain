@@ -101,7 +101,7 @@ describe('**右栏：新会话和 Supervisor 也有展开收起**', () => {
 describe('**右栏：分隔线明显 + 无内容不占位**', () => {
   it('分隔线用 divider 档（20% 白；strong 只有 11%，看不出来）', () => {
     const body = rule('.rail');
-    assert.match(body, /border-left:\s*1px solid var\(--color-border-divider\)/);
+    assert.match(body, /border-left:\s*0\.5px solid var\(--color-border-divider\)/);
   });
 
   it('无内容时整块不渲染', () => {

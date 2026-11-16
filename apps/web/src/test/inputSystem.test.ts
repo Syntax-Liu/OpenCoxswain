@@ -30,7 +30,7 @@ describe('**输入框有统一契约**', () => {
     const body = rule('input');
     assert.ok(body.length > 0, '缺少全局 input 规则');
     assert.match(body, /background:\s*var\(--color-surface-sunken\)/);
-    assert.match(body, /border:\s*1px solid var\(--color-border-strong\)/);
+    assert.match(body, /border:\s*0\.5px solid var\(--color-border-strong\)/);
     assert.match(body, /border-radius:\s*var\(--r-sm\)/);
   });
 

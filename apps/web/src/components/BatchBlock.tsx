@@ -43,7 +43,6 @@ export function BatchBlock(props: BatchBlockProps): JSX.Element {
         <span className="batch-rule" aria-hidden />
         <span className="batch-meta">
           <span className="batch-time">{time}</span>
-          <span className="batch-sep">·</span>
           <span className="batch-summary">{summary}</span>
         </span>
         <span className="batch-rule" aria-hidden />

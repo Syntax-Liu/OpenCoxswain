@@ -1336,7 +1336,8 @@ function SetupScreen({
 
   return (
     <div className="setup">
-      <h1>OpenCoxswain · 舵手</h1>
+      <h1>OpenCoxswain</h1>
+      <p className="muted onboarding-sub">舵手</p>
       <p className="muted">
         最后一步：填一个模型密钥。它只保存在本机
         <code>~/.opencoxswain/llm.json</code>，不会上传。
