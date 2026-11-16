@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { claimsSpawn, sanitizeSpawnClaims } from '../assistant/spawnClaim.js';
+import { claimsSpawn, claimsSpawnWithoutId, sanitizeSpawnClaims } from '../assistant/spawnClaim.js';
 
 /**
  * 从上下文里剔除"声称派活"的旧消息。
@@ -203,5 +203,43 @@ describe('污染比例判定', () => {
     const removed = msgs.length - cleaned.length;
     assert.equal(removed, 49, '49 条谎报样板都该清掉');
     assert.ok(removed > 10, '超过 10 条，触发整段清洗');
+  });
+});
+
+/**
+ * **承诺式**说法也要抓。
+ *
+ * ## 2026-11-16 用户实测（C1）
+ *
+ * > Assistant 说会重新派一个 Agent 来完成，但也没有派
+ *
+ * 它说的是**将来时**（"我会重新派一个"），不是"已派出"，
+ * 所以原来的规则全漏了。但对用户来说效果一样：
+ * 被告知会有动作，实际没有。
+ */
+describe('**承诺式说法**', () => {
+  it('「我会重新派一个 Agent」要抓到', () => {
+    assert.equal(claimsSpawnWithoutId('我会重新派一个 Agent 来完成'), true);
+  });
+
+  it('「我这就派一个」要抓到', () => {
+    assert.equal(claimsSpawnWithoutId('我这就派一个 Agent 去修'), true);
+  });
+
+  it('「马上派一个」「重新派一个」「再派一个」都算', () => {
+    for (const t of ['马上派一个 Agent', '重新派一个 Agent', '再派一个 Agent 处理']) {
+      assert.equal(claimsSpawnWithoutId(t), true, ` 没抓到`);
+    }
+  });
+
+  it('**「派一个 Agent 去查」是指令，不是承诺**', () => {
+    // 这是用户在说，不是 Assistant 在承诺。不能误判。
+    assert.equal(claimsSpawnWithoutId('派一个 Agent 去查日志'), false);
+  });
+
+  it('普通回答不误判', () => {
+    for (const t of ['这个问题的答案是 42', '我看了代码，问题在缓存']) {
+      assert.equal(claimsSpawnWithoutId(t), false, ` 被误判`);
+    }
   });
 });

@@ -167,11 +167,40 @@ async function verifyDiff(
       { cwd: options.rootPath, timeout: 30_000, windowsHide: true },
     );
     const lines = stdout.trim().split('\n').filter(Boolean);
-    if (lines.length === 0) {
+
+    // **新建的文件 git diff 看不到**。
+    //
+    // ## 2026-11-16 用户实测踩到
+    //
+    // 让 Agent 在项目根目录新建 hello.cpp 并写入内容。Agent 写好了，
+    // 人工核验也没问题，但系统复核报「工作区没有任何改动」，
+    // 于是判失败。
+    //
+    // 原因：`git diff` **只比已跟踪的文件**。新建的文件是 untracked，
+    // 在 diff 里根本不存在。
+    //
+    // 这不是边缘情况——「新建一个文件」是最常见的任务之一。
+    const { stdout: untrackedRaw } = await execAsync(
+      'git ls-files --others --exclude-standard',
+      { cwd: options.rootPath, timeout: 30_000, windowsHide: true },
+    );
+    const untracked = untrackedRaw.trim().split('\n').filter(Boolean);
+
+    if (lines.length === 0 && untracked.length === 0) {
       return {
         criterion,
         verdict: 'failed',
         note: '工作区没有任何改动——D 声称完成，但什么都没改',
+      };
+    }
+    // 全是新文件：说清楚是新建，不是"改了 N 个文件"。
+    if (lines.length === 0 && untracked.length > 0) {
+      const preview = untracked.slice(0, 3).join('、');
+      const more = untracked.length > 3 ? ` 等 ${untracked.length} 个` : '';
+      return {
+        criterion,
+        verdict: 'passed',
+        note: `新建了 ${untracked.length} 个文件：${preview}${more}`,
       };
     }
     let added = 0;
@@ -181,10 +210,11 @@ async function verifyDiff(
       added += Number(a) || 0;
       removed += Number(r) || 0;
     }
+    const extra = untracked.length > 0 ? `，另新建 ${untracked.length} 个文件` : '';
     return {
       criterion,
       verdict: 'passed',
-      note: `改了 ${lines.length} 个文件（+${added} / -${removed} 行）`,
+      note: `改了 ${lines.length} 个文件（+${added} / -${removed} 行）${extra}`,
       output: lines.slice(0, 50).join('\n'),
     };
   } catch (error) {
