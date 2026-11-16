@@ -1823,12 +1823,22 @@ export class Orchestrator extends EventEmitter {
 
     const target = this.store.getProject(row.projectId);
     if (!target) return;
+
+    // **计划进度变化不唤醒 Assistant**。
+    //
+    // 这类是"台账更新"，不是"用户需要被告知的事"。唤醒它会让模型
+    // 为了"报一下进度"白跑一轮，而真正要说的话（Agent 结果、
+    // 用户消息）反而被挤到后面。
+    const planTrigger = makeTrigger('plan_advanced', {
+      text: `${INTERNAL_NOTICE_PREFIX}\n${lines.join('\n')}`,
+    });
+    if (!shouldWake(planTrigger)) return;
+
     try {
-      await this.userSays(
-        target.id,
-        `${INTERNAL_NOTICE_PREFIX}\n${lines.join('\n')}`,
-        { source: 'executor', internal: true },
-      );
+      await this.userSays(target.id, planTrigger.text!, {
+        source: 'executor',
+        internal: true,
+      });
     } catch {
       // Assistant 不在场不影响事实：方案状态已经落库
     }
@@ -1849,8 +1859,16 @@ export class Orchestrator extends EventEmitter {
       `Agent「${row.label}」已被用户停止，没有跑完。\n` +
       (row.summary ? `它停之前完成的部分：${row.summary}` : '它没有留下阶段性结论。');
 
+    // **取消不唤醒**：是用户自己按的停止键，不用再跟他说一遍。
+    // 状态已经落库，侧栏会变。
+    const cancelTrigger = makeTrigger('worker_cancelled', {
+      text: `${INTERNAL_NOTICE_PREFIX}\n${body}`,
+      executorId: row.id,
+    });
+    if (!shouldWake(cancelTrigger)) return;
+
     try {
-      await this.userSays(project.id, `${INTERNAL_NOTICE_PREFIX}\n${body}`, {
+      await this.userSays(project.id, cancelTrigger.text!, {
         source: 'executor',
         internal: true,
       });
@@ -2360,12 +2378,20 @@ export class Orchestrator extends EventEmitter {
       '撞了写域，已排队等它跑完。\n' +
       `原因：${conflict.reason ?? '写域冲突'}`;
 
-    await this.userSays(
-      project.id,
-      `${INTERNAL_NOTICE_PREFIX}\n${body}\n\n` +
+    const conflictTrigger = makeTrigger('write_conflict', {
+      text:
+        `${INTERNAL_NOTICE_PREFIX}\n${body}\n\n` +
         '这不一定需要处理。但如果两件事本来就该并行，考虑换个做法（比如合并成一个任务，或者声明不同的写域）。',
-      { source: 'executor', internal: true },
-    );
+      executorId: waiting.id,
+    });
+    // **写域冲突不唤醒**：它是"你可能想换个做法"的提示，
+    // 不需要模型立刻去做什么。侧栏和待决策面板会显示。
+    if (!shouldWake(conflictTrigger)) return;
+
+    await this.userSays(project.id, conflictTrigger.text!, {
+      source: 'executor',
+      internal: true,
+    });
   }
 
   /**
@@ -2746,6 +2772,30 @@ export class Orchestrator extends EventEmitter {
           '（这只是提醒，还没有派活。确认后才会开始。）',
         needsUser: true,
       });
+
+      // **定时提醒要唤醒 Assistant**。
+      //
+      // 原来只落进待决策面板，用户得自己想起来去看。而定时任务的意义
+      // 恰恰是"到点了提醒我"——不告诉用户等于没提醒。
+      //
+      // 注意：**仍然只提醒，不派活**（模板和定时都不自动执行）。
+      const trigger = makeTrigger('schedule_fired', {
+        text:
+          `${INTERNAL_NOTICE_PREFIX}\n` +
+          `定时「${suggestion.title}」到点了：\n${suggestion.goal}\n\n` +
+          '请提醒用户，并说明这只是提醒、还没派活。**不要直接派 Agent**，' +
+          '等用户确认后再说。',
+      });
+      if (shouldWake(trigger)) {
+        try {
+          await this.userSays(suggestion.projectId, trigger.text!, {
+            source: 'schedule',
+            internal: true,
+          });
+        } catch {
+          // Assistant 不在场也不丢事实：report 已落库
+        }
+      }
     }
     return fired;
   }

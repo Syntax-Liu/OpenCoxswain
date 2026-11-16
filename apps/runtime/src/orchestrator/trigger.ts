@@ -59,7 +59,11 @@ export type TriggerKind =
   /** 定时/模板触发（要 Assistant 动）。 */
   | 'schedule_fired'
   /** 用户从手机上说话。 */
-  | 'im_message';
+  | 'im_message'
+  /** 计划（propose_plan 的方案）进度变化。 */
+  | 'plan_advanced'
+  /** 写域冲突，Agent 排队了。 */
+  | 'write_conflict';
 
 /**
  * 哪些状态变化要唤醒 Assistant。
@@ -85,6 +89,12 @@ export const TRIGGER_WAKE: Readonly<Record<TriggerKind, boolean>> = {
   settings_changed: false,
   schedule_fired: true,
   im_message: true,
+  // 方案进度是台账更新，不是"要用户知道的事"。
+  // 唤醒它会让模型专门跑一轮"报一下进度"，把真正要紧的话挤到后面。
+  plan_advanced: false,
+  // 写域冲突要提醒——它是"你可能想换个做法"的信号，
+  // 但**不需要模型去执行什么**，所以也不唤醒（只记录 + 侧栏提示）。
+  write_conflict: false,
 };
 
 /** 一个 trigger。 */

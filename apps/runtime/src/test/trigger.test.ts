@@ -104,9 +104,43 @@ describe('表的完整性', () => {
       'settings_changed',
       'schedule_fired',
       'im_message',
+      'plan_advanced',
+      'write_conflict',
     ];
     for (const k of kinds) {
       assert.equal(typeof TRIGGER_WAKE[k], 'boolean', `${k} 没有明确决定`);
     }
+  });
+});
+
+/**
+ * 状态变化的覆盖面（对齐 DSH「完全的 trigger」）。
+ *
+ * DSH 的原则：**不是所有状态变化都值得唤醒模型**。
+ * 唤醒一次要多跑一轮模型，成本不低；而有些变化只是台账更新，
+ * 侧栏已经会变，再来一句"我更新了进度"是噪音。
+ */
+describe('**台账类变化不唤醒**', () => {
+  it('方案进度（plan_advanced）不唤醒', () => {
+    assert.equal(TRIGGER_WAKE.plan_advanced, false);
+  });
+
+  it('写域冲突（write_conflict）不唤醒', () => {
+    // 它是"你可能想换个做法"的提示，不需要模型立刻做什么。
+    assert.equal(TRIGGER_WAKE.write_conflict, false);
+  });
+});
+
+describe('**要用户知道的变化必须唤醒**', () => {
+  it('定时到点要唤醒（否则定时就没意义了）', () => {
+    assert.equal(TRIGGER_WAKE.schedule_fired, true);
+  });
+
+  it('手机来的消息要唤醒', () => {
+    assert.equal(TRIGGER_WAKE.im_message, true);
+  });
+
+  it('审批被拒绝要唤醒', () => {
+    assert.equal(TRIGGER_WAKE.approval_rejected, true);
   });
 });
