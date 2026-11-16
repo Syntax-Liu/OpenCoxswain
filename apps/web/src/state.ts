@@ -90,11 +90,27 @@ export function applyEvent(state: AppState, seq: number, event: RuntimeEventDto)
     }
     case 'assistant_text': {
       if (event.projectId !== state.currentProjectId) return next;
+      // **不清空 streaming**（2026-11-16 实测踩到的）。
+      //
+      // 原来这里 `streaming: ''`，结果：一行字刚流出来就被清掉，
+      // 界面上表现为"闪一下然后消失"，用户看到的是整段蹦出。
+      //
+      // 原因：`assistant_text` 是**每一步**都发（含调工具前那一步），
+      // 不是"整轮结束"。拿它当定稿信号是错的。
+      //
+      // 现在：定稿进 messages，`streaming` 里只扣掉**已经定稿的那部分**，
+      // 剩下的继续显示——下一步的 delta 接着往上加，视觉上连续。
+      const settled = event.text;
+      const remaining =
+        settled && next.streaming.startsWith(settled)
+          ? next.streaming.slice(settled.length)
+          : next.streaming === settled
+            ? ''
+            : next.streaming;
       return {
         ...next,
         thinking: false,
-        // 定稿：清空流式缓冲，真正的消息进 messages。
-        streaming: '',
+        streaming: remaining,
         messages: mergeAssistantText(next.messages, event.text),
         // 项目列表里的"待决策"数字可能变了，等下一次快照刷新；这里不动。
       };

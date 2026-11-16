@@ -256,4 +256,31 @@ export class LlmProvider implements LlmClient {
     }
     return this.client.chat(request);
   }
+
+  /**
+   * 流式对话：转发给真正的 client。
+   *
+   * ## 为什么必须有这一个转发（2026-11-16 踩到的）
+   *
+   * 流式上线后用户反馈"仍然是整段蹦出来的"。查日志：
+   *
+   *     [诊断] llm=deferred 有chatStream=false
+   *
+   * `loop` 判断 `typeof llm.chatStream === 'function'` 决定走不走流式，
+   * 而 `this.llm` 是**这个 provider**，不是 `OpenAiCompatClient`。
+   * provider 只实现了 `chat`，所以永远走非流式——真 client 有流式能力
+   * 也用不上。
+   *
+   * 教训：**代理类必须转发它接口里的可选项**，否则被代理者的能力
+   * 会被静默吞掉，而且不报错。
+   */
+  async chatStream(
+    request: Parameters<OpenAiCompatClient['chat']>[0],
+    onDelta: (text: string) => void,
+  ) {
+    if (!this.client) {
+      throw new Error('尚未配置模型密钥：请在界面的设置里填写 API Key。');
+    }
+    return this.client.chatStream(request, onDelta);
+  }
 }

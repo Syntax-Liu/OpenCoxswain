@@ -180,16 +180,18 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
       // **优先流式**：让用户看到文字在长，而不是对着空屏等几十秒。
       //
       // client 没实现 chatStream 就退回非流式——老实现不用改。
-      response =
-        typeof llm.chatStream === 'function'
-          ? await llm.chatStream(chatRequest, (delta) => {
-              // 逐块上报。上层据此渲染"正在打字"的效果。
-              //
-              // **只报文字增量**，不在这里落库：最终文本由 done 事件
-              // 统一写，否则会写几十遍。
-              onDelta?.(delta);
-            })
-          : await llm.chat(chatRequest);
+      const canStream = typeof llm.chatStream === 'function';
+      if (canStream) {
+        response = await llm.chatStream!(chatRequest, (delta) => {
+          // 逐块上报。上层据此渲染"正在打字"的效果。
+          //
+          // **只报文字增量**，不在这里落库：最终文本由 done 事件
+          // 统一写，否则会写几十遍。
+          onDelta?.(delta);
+        });
+      } else {
+        response = await llm.chat(chatRequest);
+      }
     } catch (error) {
       if (signal.aborted) return;
       const message = errorText(error);

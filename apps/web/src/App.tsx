@@ -168,6 +168,16 @@ export function App(): JSX.Element {
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
+
+  /**
+   * 流式增量的累积缓冲。
+   *
+   * delta 到达频率远高于屏刷频率（一帧能来十几个），
+   * 所以先攒在 ref 里，rAF 每帧统一提交一次。
+   */
+  const pendingDelta = useRef('');
+  /** 这一帧是否已经排了提交。避免一帧内排几十个 rAF。 */
+  const rafPending = useRef(false);
   stateRef.current = state;
 
   const setError = useCallback((message: string | null) => {
@@ -287,6 +297,42 @@ export function App(): JSX.Element {
   useEffect(() => {
     const stream = new EventStream('', {
       onEvent: (item) => {
+        // **流式增量按帧提交**（2026-11-16 实测踩到的）。
+        //
+        // ## 试过但无效的
+        //
+        // React 18 把同一微任务里的多次 setState 合并。delta 一个 chunk
+        // 一个字地来，几十个挤在几毫秒内——浏览器实测：
+        //
+        //   后端：一次回复 119 个 delta（Node 侧抓 SSE 确认逐条到达）
+        //   前端：902 帧采样，流式气泡长度一直是 15，然后直接跳完整
+        //
+        // `flushSync` 也不行（React 只在同步渲染/事件处理器里强制同步，
+        // 这里是异步 SSE 回调）。
+        //
+        // ## 现在的做法
+        //
+        // delta 只累积到 ref，**每帧（rAF）统一提交一次**给 state。
+        // 既不被批处理吞掉，也不会一帧渲染几十次。
+        if (item.event.type === 'assistant_delta') {
+          pendingDelta.current += item.event.text;
+          const pid = item.event.projectId;
+          if (!rafPending.current) {
+            rafPending.current = true;
+            requestAnimationFrame(() => {
+              rafPending.current = false;
+              const text = pendingDelta.current;
+              if (!text) return;
+              pendingDelta.current = '';
+              setState((s) =>
+                s.currentProjectId === pid
+                  ? { ...s, thinking: false, streaming: s.streaming + text }
+                  : s,
+              );
+            });
+          }
+          return;
+        }
         setState((s) => applyEvent(s, item.seq, item.event));
         // 正在看某个 Agent 时，它结算了就重拉轨迹。
         const current = stateRef.current;
@@ -748,6 +794,10 @@ export function App(): JSX.Element {
         // **图片要一起放进本地列表**，否则发出去后图上就没了
         messages: appendUserMessage(s.messages, text, images),
         thinking: true,
+        // **新一轮清空流式缓冲**：上一轮的残留不该跟到这一轮来。
+        // 这是"整轮结束"的实际判定点——没有显式的 done 事件，
+        // 用"用户又说了一句"作为边界最简单也最准。
+        streaming: '',
       }));
       try {
         // 图片单独传：走多模态通道，由运行时按模型能力决定发不发

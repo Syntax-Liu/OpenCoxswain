@@ -72,11 +72,53 @@ describe('**流式累加**', () => {
   });
 });
 
-describe('**定稿后清空**', () => {
-  it('assistant_text 到达时 streaming 清掉（不重复显示）', () => {
+/**
+ * 定稿**不能直接清空**缓冲。
+ *
+ * ## 2026-11-16 实测踩到的
+ *
+ * 第一次实现是 `streaming: ''`——结果用户看到的是：
+ *
+ * > 似乎仍然是整段蹦出来的
+ *
+ * 前端采样证实：t=0.8s 时流式气泡出现了（长度 15），
+ * 下一帧就消失（-2 = 没有流式气泡），之后一直不出现。
+ *
+ * 原因：`assistant_text` 是**每一步**都发（含调工具前那一步），
+ * 不是"整轮结束"。拿它当定稿信号，一个字刚流出来就被清掉。
+ *
+ * 现在：定稿进 messages，`streaming` 里只扣掉**已定稿的那部分**，
+ * 剩下的继续显示，下一步的 delta 接着往上加。
+ */
+describe('**定稿只扣掉已定稿的部分**', () => {
+  it('缓冲和定稿完全相等时清空', () => {
     let s: AppState = { ...initialState, currentProjectId: 'p1', streaming: '你好呀' };
     s = apply(s, { type: 'assistant_text', projectId: 'p1', text: '你好呀' } as RuntimeEventDto);
-    assert.equal(s.streaming, '', '定稿后必须清空，否则同一段字显示两遍');
+    assert.equal(s.streaming, '', '内容已经完全定稿，缓冲该清空');
+  });
+
+  it('**缓冲比定稿长时保留剩余**（下一步还在写）', () => {
+    let s: AppState = {
+      ...initialState,
+      currentProjectId: 'p1',
+      streaming: '我先说明一下。接下来我去查文件',
+    };
+    s = apply(s, {
+      type: 'assistant_text',
+      projectId: 'p1',
+      text: '我先说明一下。',
+    } as RuntimeEventDto);
+    assert.equal(
+      s.streaming,
+      '接下来我去查文件',
+      '已经定稿那部分要扣掉，新写的要留着继续显示',
+    );
+  });
+
+  it('对不上的情况不清空（保守）', () => {
+    let s: AppState = { ...initialState, currentProjectId: 'p1', streaming: '完全不同的内容' };
+    s = apply(s, { type: 'assistant_text', projectId: 'p1', text: '别的' } as RuntimeEventDto);
+    assert.equal(s.streaming, '完全不同的内容', '对不上就别乱清');
   });
 
   it('定稿的内容进 messages', () => {
