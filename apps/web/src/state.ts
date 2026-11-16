@@ -90,23 +90,30 @@ export function applyEvent(state: AppState, seq: number, event: RuntimeEventDto)
     }
     case 'assistant_text': {
       if (event.projectId !== state.currentProjectId) return next;
-      // **不清空 streaming**（2026-11-16 实测踩到的）。
+      // ## 定稿和缓冲的关系（2026-11-16 实测踩了两轮才理清）
       //
-      // 原来这里 `streaming: ''`，结果：一行字刚流出来就被清掉，
-      // 界面上表现为"闪一下然后消失"，用户看到的是整段蹦出。
+      // `assistant_text` 是**每一步**都发（包括调工具前那一步），
+      // 不是"整轮结束"。所以不能简单地把它当"清空信号"——
+      // 那样一行字刚流出来就被清掉，表现为"闪一下然后消失"。
       //
-      // 原因：`assistant_text` 是**每一步**都发（含调工具前那一步），
-      // 不是"整轮结束"。拿它当定稿信号是错的。
+      // 正确的关系：
+      //   - 定稿的文本已经进 `messages`，由消息列表渲染
+      //   - `streaming` 缓冲里**重复的那部分要扣掉**，否则同一段字显示两遍
       //
-      // 现在：定稿进 messages，`streaming` 里只扣掉**已经定稿的那部分**，
-      // 剩下的继续显示——下一步的 delta 接着往上加，视觉上连续。
+      // 扣法：定稿是缓冲的前缀 → 扣掉；内容相同 → 清空；对不上 → 清空
+      // （对不上说明是新的一步，缓冲肯定是旧的）。
       const settled = event.text;
-      const remaining =
-        settled && next.streaming.startsWith(settled)
-          ? next.streaming.slice(settled.length)
-          : next.streaming === settled
-            ? ''
-            : next.streaming;
+      let remaining: string;
+      if (!next.streaming) {
+        remaining = '';
+      } else if (next.streaming === settled) {
+        remaining = '';
+      } else if (settled && next.streaming.startsWith(settled)) {
+        remaining = next.streaming.slice(settled.length);
+      } else {
+        // 定稿不是缓冲的前缀：这一步的缓冲已经没用了（进 messages 了）。
+        remaining = '';
+      }
       return {
         ...next,
         thinking: false,

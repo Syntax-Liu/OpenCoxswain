@@ -115,10 +115,12 @@ describe('**定稿只扣掉已定稿的部分**', () => {
     );
   });
 
-  it('对不上的情况不清空（保守）', () => {
-    let s: AppState = { ...initialState, currentProjectId: 'p1', streaming: '完全不同的内容' };
-    s = apply(s, { type: 'assistant_text', projectId: 'p1', text: '别的' } as RuntimeEventDto);
-    assert.equal(s.streaming, '完全不同的内容', '对不上就别乱清');
+  it('**对不上时清空**（那一步的缓冲已经进了 messages）', () => {
+    // 对不上的含义：定稿不是缓冲的前缀，说明缓冲是上一步的残留。
+    // 它已经通过 mergeAssistantText 进消息列表了，留着就是重复显示。
+    let s: AppState = { ...initialState, currentProjectId: 'p1', streaming: '上一步的残留' };
+    s = apply(s, { type: 'assistant_text', projectId: 'p1', text: '这一步的定稿' } as RuntimeEventDto);
+    assert.equal(s.streaming, '', '对不上就该清，否则同一段字显示两遍');
   });
 
   it('定稿的内容进 messages', () => {

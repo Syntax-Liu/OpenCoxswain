@@ -141,6 +141,23 @@ export function Conversation(props: ConversationProps): JSX.Element {
     (m) => (m.role === 'user' || m.role === 'assistant') && !m.internal,
   );
 
+  // **流式预览期间，隐藏最后一条 assistant 消息**（2026-11-16 实测）。
+  //
+  // `assistant_text` 是**每一步**都发，所以模型边生成，最后一条 message
+  // 就边被更新成同样的内容。此时流式气泡和这条 message 显示的是**同一段字**——
+  // 用户看到的是"重复 + 跳变"，而不是"在打字"。
+  //
+  // 采样证据：
+  //   1118ms  流式=15   最后一条=15
+  //   1403ms  流式=47   最后一条=47
+  //   2169ms  流式=79   最后一条=79      ← 两边长度一模一样
+  //
+  // 规则：有流式内容时，最后一条 assistant 交给流式气泡显示；
+  // 流式一结束（定稿），它自然回由 message 渲染，不会闪。
+  const streamingActive = Boolean(props.streaming);
+  const shown =
+    streamingActive && visible.at(-1)?.role === 'assistant' ? visible.slice(0, -1) : visible;
+
   // 会话身份：切项目/切会话时强制滚到底部。
   const scrollIdentity = `${props.project.id}:${props.draftKey}`;
   const scroll = useAutoScroll(visible.length, scrollIdentity);
@@ -350,11 +367,11 @@ export function Conversation(props: ConversationProps): JSX.Element {
           </div>
         )}
 
-        {visible.map((message, index) => {
-          const prev = visible[index - 1];
+        {shown.map((message, index) => {
+          const prev = shown[index - 1];
           const showTime = shouldShowTime(prev, message);
           // 这一条之后要插入的批次：按派出时间落在两条消息之间
-          const here = batchesBetween(message, visible[index + 1], allBatches);
+          const here = batchesBetween(message, shown[index + 1], allBatches);
           return (
             <div key={message.id}>
               {showTime && <div className="time-divider">{formatTime(message.at)}</div>}
@@ -369,7 +386,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
                   // 所以表现是追加一次新尝试。
                   const idx = visible.indexOf(message);
                   for (let i = idx - 1; i >= 0; i -= 1) {
-                    const prevMessage = visible[i];
+                    const prevMessage = shown[i];
                     if (prevMessage?.role === 'user') {
                       props.onSend(prevMessage.content);
                       break;
@@ -390,7 +407,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
         })}
 
         {/* 最后一条之后可能还有批次（刚派出去、还没回复） */}
-        {batchesBetween(visible[visible.length - 1], undefined, allBatches).map((batch) => (
+        {batchesBetween(shown[shown.length - 1], undefined, allBatches).map((batch) => (
           <BatchBlock
             key={batch.id}
             batch={batch}
@@ -399,12 +416,14 @@ export function Conversation(props: ConversationProps): JSX.Element {
         ))}
 
         {/*
-          **流式文字**：模型正在生成的那一段。
-          
-          和 thinking 的区别：thinking 是"还没有字"，这里是"字在长"。
-          收到定稿（assistant_text）后 streaming 清空，真正的消息由 messages 渲染。
-          
-          加了光标，让用户看得出还在写。
+          **流式预览**：模型正在生成的那一段。
+
+          和 messages 的关系（2026-11-16 实测理清）：
+          - streaming 是**临时预览**，只在生成过程中显示
+          - 定稿后 streaming 清空，同一份内容由 messages 渲染
+          - 两者**不能同时显示**，否则同一段字出现两遍，用户看到的就是"整段"
+
+          加光标，让用户看得出还在写。
         */}
         {props.streaming && (
           <div className="message assistant streaming">
