@@ -176,12 +176,33 @@ fn log_path() -> Option<PathBuf> {
     Some(dir.join("runtime.log"))
 }
 
+/// 单个日志文件的上限：超过就把旧的挪成 `.1`。
+///
+/// ## 为什么需要（2026-11-16）
+///
+/// 原来纯 append，永不轮转。用户跑了一周 `runtime.log` 已经 141 KB，
+/// 长期运行会无限增长——磁盘占满后写入失败，然后 `log_file()` 返回
+/// `None`，**日志从此静默消失**（调用方是 `let _ = writeln!`，吞掉错误）。
+///
+/// 5 MB 对一个日志足够大：正常使用几周都到不了。
+const LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
+
 fn log_file() -> Option<File> {
-    OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path()?)
-        .ok()
+    let path = log_path()?;
+
+    // 超过上限就轮转一次：runtime.log → runtime.log.1（覆盖旧的 .1）。
+    //
+    // 只保留一份备份：够用来排查"上一次运行发生了什么"，
+    // 再多就是垃圾。不做按日期归档——那是日志系统的活，不是应用该管的。
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > LOG_MAX_BYTES {
+            let backup = path.with_extension("log.1");
+            // rename 失败（文件被占用等）不阻断写入——总比没有日志好。
+            let _ = std::fs::rename(&path, backup);
+        }
+    }
+
+    OpenOptions::new().create(true).append(true).open(path).ok()
 }
 
 fn append_log(line: &str) {

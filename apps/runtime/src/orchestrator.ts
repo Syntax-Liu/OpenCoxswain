@@ -1822,14 +1822,30 @@ export class Orchestrator extends EventEmitter {
         }
 
         if (acceptance?.verdict === 'failed') {
-          // 复核失败 → 判失败，**不允许人工覆盖**。
+          // **判失败时要说清"为什么"，不能只报一句"命令失败"**（2026-11-16 用户实测）。
+          //
+          // 实况：权限档位降成「仅可查看」后派了个写文件的任务。
+          // Agent 的结论写得很清楚：
+          //
+          //     **结论：任务没能完成 —— 这个任务被配置为"只读任务"……
+          //       尝试两种方式写入都被拒绝……没有绕过限制**
+          //
+          // 但复核只报「命令失败（退出码 1）」，用户看不出是权限拦住了，
+          // 会以为程序坏了。
+          //
+          // 这里补一句：如果 Agent 自己说了是权限问题，就把它带出来。
+          const permissionHint = /只读|权限|禁止写|被拒绝|readonly/i.test(
+            outcome.finalText ?? '',
+          )
+            ? '\n\n它自己的话里提到权限受限——如果你确实想让它改，先看右下角的权限档位。'
+            : '';
           await this.finishExecutor(
             ready.id,
             'failed',
             `[卡点分类：需用户决定] 系统复核未通过：${acceptance.results
               .filter((r) => r.verdict === 'failed')
               .map((r) => `${r.criterion.desc}（${r.note}）`)
-              .join('；')}`,
+              .join('；')}${permissionHint}`,
             outcome.finalText,
           );
         } else {
