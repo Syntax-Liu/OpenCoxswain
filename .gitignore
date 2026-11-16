@@ -65,3 +65,6 @@ test-artifacts/
 
 # 临时验证脚本（不提交）
 .*.mjs
+
+# 自动化测试结果（不提交）
+.suite-result.json
