@@ -429,7 +429,10 @@ export function Conversation(props: ConversationProps): JSX.Element {
           <div className="message assistant streaming">
             <span className="msg-role">Assistant</span>
             <div className="bubble">
-              <span dangerouslySetInnerHTML={{ __html: renderMarkdown(props.streaming) }} />
+              {/* **直接渲染 ReactNode**，不能用 dangerouslySetInnerHTML。
+                  `renderMarkdown` 返回的是 `ReactNode[]`，不是 HTML 字符串——
+                  塞给 innerHTML 会变成 "[object Object],[object Object]"。 */}
+              {renderMarkdown(props.streaming)}
               <span className="stream-cursor" aria-hidden="true" />
             </div>
           </div>

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import { applyEvent, initialState } from '../state.js';
@@ -152,5 +153,49 @@ describe('**空 delta 不产生空气泡**', () => {
       { type: 'assistant_delta', projectId: 'p1', text: '' } as RuntimeEventDto,
     );
     assert.equal(s.streaming, '');
+  });
+});
+
+/**
+ * `renderMarkdown` 返回的是 ReactNode[]，**不是 HTML 字符串**。
+ *
+ * ## 2026-11-16 用户录屏反馈
+ *
+ * > 先显示一些 [Object]，这些是流式传输的，然后就直接一段蹦出来了
+ *
+ * 我之前写的是：
+ *
+ *     <span dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
+ *
+ * 把 ReactNode[] 塞给 innerHTML，浏览器只能拼成
+ * `[object Object],[object Object],[object Object]`。
+ *
+ * 用户看到的是**一坨 [Object]，然后突然变成完整回复**——
+ * 流式一直在跑，但根本没显示出来。
+ */
+describe('**流式气泡必须直接渲染 ReactNode**', () => {
+  const src = readFileSync(
+    new URL('../../src/components/Conversation.tsx', import.meta.url),
+    'utf8',
+  );
+
+  it('不能用 dangerouslySetInnerHTML 包 renderMarkdown', () => {
+    assert.ok(
+      !/dangerouslySetInnerHTML=\{\{\s*__html:\s*renderMarkdown/.test(src),
+      'renderMarkdown 返回 ReactNode[]，塞给 innerHTML 会显示 [object Object]',
+    );
+  });
+
+  it('直接用表达式渲染', () => {
+    assert.match(src, /\{renderMarkdown\(props\.streaming\)\}/, '流式文字没被渲染');
+  });
+
+  it('renderMarkdown 的签名确实是 ReactNode[]', () => {
+    const md = readFileSync(new URL('../../src/components/Markdown.tsx', import.meta.url), 'utf8');
+    assert.match(
+      md,
+      /export function renderMarkdown\(text: string\): ReactNode\[\]/,
+      '签名变了，这条防护需要重新检查',
+    );
   });
 });
