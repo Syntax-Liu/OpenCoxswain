@@ -64,8 +64,28 @@ const STOP_PATTERNS: readonly RegExp[] = [
   /^(?:别|不用|不要)(?:再)?(?:做|干|派|跑)了?\s*[！!。.]*$/,
 ];
 
-/** 不需要回应的内容（客套、纯感叹）。 */
-const IGNORE_PATTERNS: readonly RegExp[] = [
+/**
+ * 客套话。
+ *
+ * ## 2026-11-16 用户实测后改了设计
+ *
+ * 原来判成 `ignore`：**不回复**。
+ *
+ * 用户的反馈：
+ *
+ * > 用户说客套话，只需要让 Assistant 自己回复即可，但是实际测试之后，
+ * > 发了"谢谢"会卡住，进入超长时间的等待。**不做 ignore 是因为
+ * > 客套话是无限多的，ignore 做不完全，而且问题会有很多**。
+ *
+ * 三条都对：
+ *
+ * 1. **不回复就是 bug**：界面上你说了话，却永远等不到回应
+ * 2. **永远做不全**：「辛苦了」「麻烦了」「不错」…… 列不完
+ * 3. **误判代价大**：「好的」有时真是确认指令，不回复就卡住了
+ *
+ * 所以现在只用来**降噪**：客套话照常回复，但不派 Agent。
+ */
+const PLEASANTRY_PATTERNS: readonly RegExp[] = [
   /^(?:谢谢|多谢|感谢|thanks|thx)\s*[！!。.]*$/i,
   /^(?:好的?|嗯|ok|okay|收到|了解|明白)\s*[！!。.]*$/i,
   /^(?:哈哈+|233+)\s*[！!。.]*$/,
@@ -113,12 +133,17 @@ export function evaluate(text: string, runningCount = 0): EvalResult {
     }
   }
 
-  // ---- 2. 忽略 ----
-  for (const re of IGNORE_PATTERNS) {
+  // ---- 2. 客套话 ----
+  //
+  // **照常回复**，只是不该派 Agent。
+  //
+  // 原来这里返回 `ignore`（不回复），用户实测："发了'谢谢'会卡住，
+  // 进入超长时间的等待"。界面上你说了话却永远等不到回应，这是 bug 不是优化。
+  for (const re of PLEASANTRY_PATTERNS) {
     if (re.test(t)) {
       return {
-        decision: 'ignore',
-        reason: '客套话，不需要行动',
+        decision: 'defer',
+        reason: '客套话：正常回应即可，不要派 Agent',
         byRule: true,
       };
     }

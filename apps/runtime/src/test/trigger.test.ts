@@ -45,8 +45,13 @@ describe('唤醒策略表', () => {
     assert.equal(TRIGGER_WAKE.worker_started, false);
   });
 
-  it('**取消不唤醒**（是用户自己按的，不用再跟他说一遍）', () => {
-    assert.equal(TRIGGER_WAKE.worker_cancelled, false);
+  it('**取消要唤醒**（要说清停在哪、问要不要继续）', () => {
+    // 2026-11-16 用户实测后改的。原来设成 false，理由是"用户自己按的
+    // 不用再说"。用户指出这是错的：
+    //
+    // > 即使是用户主动取消，Assistant 也需要提示用户 Agent 被暂停了，
+    // > 然后问是否需要继续。也确实不能问"为什么取消"。
+    assert.equal(TRIGGER_WAKE.worker_cancelled, true);
   });
 
   it('**配置变更不唤醒**', () => {

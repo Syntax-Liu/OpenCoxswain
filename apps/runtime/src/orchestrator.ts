@@ -729,14 +729,8 @@ export class Orchestrator extends EventEmitter {
       const running = runningList.length;
       const verdict = evaluate(text, running);
 
-      if (verdict.decision === 'ignore') {
-        // 客套话：不进 Assistant 上下文，也不唤醒它。
-        //
-        // 但要**落库**——用户说的每句话都该留痕，只是不该让模型
-        // 为此跑一轮。界面仍会显示这条消息，Assistant 不回。
-        await assistant.recordUser(text, options.source ?? 'webapp', false, options.images);
-        return;
-      }
+      // 客套话不走 ignore（2026-11-16 用户实测：发「谢谢」会卡住，
+      // 界面永远等不到回复）。现在照常交给 Assistant 回一句，只是不派活。
 
       if (verdict.decision === 'stop' && running > 0) {
         // **停下来**：直接把决定交给 Assistant，让它列出该停哪些。
@@ -2044,13 +2038,24 @@ export class Orchestrator extends EventEmitter {
     if (!project) return;
 
     const body =
-      `Agent「${row.label}」已被用户停止，没有跑完。\n` +
-      (row.summary ? `它停之前完成的部分：${row.summary}` : '它没有留下阶段性结论。');
+      `Agent「${row.label}」已按你的要求停下，没有跑完。\n` +
+      (row.summary ? `它停之前做到：${row.summary}` : '它没有留下阶段性结论。');
 
-    // **取消不唤醒**：是用户自己按的停止键，不用再跟他说一遍。
-    // 状态已经落库，侧栏会变。
+    // **取消要告诉用户**（2026-11-16 用户实测后改的）。
+    //
+    // 原来设成不唤醒，理由是"用户自己按的不用再说"。用户指出这是错的：
+    //
+    // > 即使是用户主动取消，Assistant 也需要提示用户 Agent 被暂停了，
+    // > 然后问是否需要继续。也确实不能问"为什么取消"。
+    //
+    // 对——用户按了停止之后，界面上只剩一个灰卡片，他不知道停到哪了、
+    // 已经做完的部分还在不在。该主动说一句，但**不该反问为什么**。
     const cancelTrigger = makeTrigger('worker_cancelled', {
-      text: `${INTERNAL_NOTICE_PREFIX}\n${body}`,
+      text:
+        `${INTERNAL_NOTICE_PREFIX}\n${body}\n\n` +
+        '请用一两句话告诉用户：它停在哪一步、已经完成的部分还在不在，' +
+        '并问一句**要不要继续**。\n' +
+        '**不要问用户为什么取消**——那是他的决定，不需要解释。',
       executorId: row.id,
     });
     if (!shouldWake(cancelTrigger)) return;

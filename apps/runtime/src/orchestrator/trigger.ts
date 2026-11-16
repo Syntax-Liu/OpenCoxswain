@@ -81,8 +81,16 @@ export const TRIGGER_WAKE: Readonly<Record<TriggerKind, boolean>> = {
   worker_failed: true,
   // 卡住了要用户拍板。
   worker_attention: true,
-  // 取消是用户自己按的，不用再跟他说一遍。
-  worker_cancelled: false,
+  // **取消也要说一声**（2026-11-16 用户实测后改的）。
+  //
+  // 原来设成 false，理由是"用户自己按的不用再说"。用户指出这是错的：
+  //
+  // > 即使是用户主动取消，Assistant 也需要提示用户 Agent 被暂停了，
+  // > 然后问是否需要继续。也确实不能问"为什么取消"。
+  //
+  // 对——用户按了停止之后，界面上只剩一个灰掉的卡片，
+  // 他不知道**停到哪了**、**已经做完的部分还在不在**。
+  worker_cancelled: true,
   // 开始跑只是状态，侧栏已经会变。
   worker_started: false,
   approval_rejected: true,

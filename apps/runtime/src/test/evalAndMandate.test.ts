@@ -42,16 +42,44 @@ describe('**停信号**', () => {
   });
 });
 
-describe('**忽略信号**', () => {
-  it('「谢谢」「好的」「收到」→ ignore', () => {
+/**
+ * 客套话**照常回复**。
+ *
+ * ## 2026-11-16 用户实测后改的设计
+ *
+ * 原来判成 ignore（不回复）。用户反馈：
+ *
+ * > 用户说客套话，只需要让 Assistant 自己回复即可，但是实际测试之后，
+ * > 发了"谢谢"会卡住，进入超长时间的等待。**不做 ignore 是因为
+ * > 客套话是无限多的，ignore 做不完全，而且问题会有很多**。
+ *
+ * 三条都对：
+ *   1. 不回复就是 bug —— 界面上你说了话却永远等不到回应
+ *   2. 永远做不全 —— 「辛苦了」「麻烦了」「不错」列不完
+ *   3. 误判代价大 —— 「好的」有时真是确认指令
+ *
+ * 现在只用来降噪：照常回复，但不派 Agent。
+ */
+describe('**客套话照常回复**', () => {
+  it('「谢谢」「好的」「收到」不判 ignore', () => {
     for (const t of ['谢谢', '好的', '收到', 'ok', '嗯']) {
-      assert.equal(evaluate(t, 0).decision, 'ignore', `${t} 没被忽略`);
+      assert.notEqual(evaluate(t, 0).decision, 'ignore', `${t} 被判成不回复了`);
     }
   });
 
+  it('交给 Assistant 正常回应，byRule=true', () => {
+    const r = evaluate('谢谢', 0);
+    assert.equal(r.decision, 'defer');
+    assert.equal(r.byRule, true);
+  });
+
+  it('理由里说明不要派活', () => {
+    assert.match(evaluate('谢谢', 0).reason, /不要派 Agent/);
+  });
+
   it('带标点也认', () => {
-    assert.equal(evaluate('谢谢！', 0).decision, 'ignore');
-    assert.equal(evaluate('好的。', 0).decision, 'ignore');
+    assert.equal(evaluate('谢谢！', 0).byRule, true);
+    assert.equal(evaluate('好的。', 0).byRule, true);
   });
 });
 
