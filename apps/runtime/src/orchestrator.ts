@@ -393,6 +393,23 @@ export class Orchestrator extends EventEmitter {
       rootPath: project.displayPath,
       criteria: executor.criteria,
       policy: executor.policy,
+      // **告诉复核这是不是"用户要求的只读任务"**（2026-11-16 用户实测）。
+      //
+      // 只读 Agent 完成后被 `diff` 判失败：「没有改动任何文件」。
+      // 可只读任务本来就不许改文件——做得越对越通不过。
+      //
+      // ## 判据用 writeScope 而不是 access
+      //
+      // 两者含义不同：
+      //
+      //   writeScope === ['readonly']  → **用户要求只读**，diff 不适用
+      //   writeScope 有真实路径        → 用户想写，只是权限档位降级了
+      //
+      // 第二种仍然该因为"什么都没改"判失败——那正是谎报的典型特征，
+      // 不能因为权限不够就放过。
+      ...(executor.writeScope.length === 1 && executor.writeScope[0] === 'readonly'
+        ? { readonlyTask: true }
+        : {}),
       // 复核命令同样过审批闸门，防止用验收命令绕过 A2。
       approve: (tool, args) => this.approveFor(project.id, executor.id, tool, args),
       ...(this.commandTimeoutMs !== undefined ? { defaultTimeoutMs: this.commandTimeoutMs } : {}),

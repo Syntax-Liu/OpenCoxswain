@@ -1,0 +1,55 @@
+{
+  "project": "prj_mwj3z3e118fgw",
+  "results": [
+    {
+      "id": "A1",
+      "ok": false,
+      "detail": "流式帧 0，不同长度 0 种（≥8 算通过）"
+    },
+    {
+      "id": "A1b",
+      "ok": true,
+      "detail": "没有 [object Object]"
+    },
+    {
+      "id": "A2",
+      "ok": true,
+      "detail": "追问回复 31 字"
+    },
+    {
+      "id": "A4",
+      "ok": true,
+      "detail": "回复: 收到"
+    },
+    {
+      "id": "D1",
+      "ok": true,
+      "detail": "回复了: \"不客气，随时喊我。\""
+    },
+    {
+      "id": "D3",
+      "ok": true,
+      "detail": "无 Agent 时「算了」→ 正常回应"
+    },
+    {
+      "id": "D4",
+      "ok": true,
+      "detail": "当作提问回答 131 字"
+    },
+    {
+      "id": "B1",
+      "ok": true,
+      "detail": "Agent 从 0 → 1（running）"
+    },
+    {
+      "id": "B6",
+      "ok": true,
+      "detail": "等 3s，检测到完成后的汇报"
+    },
+    {
+      "id": "B2",
+      "ok": false,
+      "detail": "状态: failed"
+    }
+  ]
+}

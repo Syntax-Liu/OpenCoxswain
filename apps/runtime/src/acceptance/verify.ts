@@ -33,6 +33,19 @@ export interface VerifyOptions {
   readonly rootPath: string;
   readonly criteria: readonly Criterion[];
   readonly policy: AcceptancePolicy;
+  /**
+   * 这次复核的是**只读任务**吗。
+   *
+   * ## 2026-11-16 用户实测：只读任务被判失败
+   *
+   * 派一个只读 Agent 数 .md 文件，Agent 干完了，系统复核却报：
+   *
+   *     系统复核未通过：没有改动任何文件（只读任务）（命令失败（退出码 128））
+   *
+   * **只读任务本来就不该改文件。** 拿 diff（要求有改动）去验它，
+   * 逻辑上就是矛盾的——它做得越对，越通不过。
+   */
+  readonly readonlyTask?: boolean;
   /** 默认 120s。 */
   readonly defaultTimeoutMs?: number;
   /**
@@ -57,6 +70,21 @@ export async function verify(options: VerifyOptions): Promise<AcceptanceResult> 
         results.push(await verifyCommand(options, criterion));
         break;
       case 'diff':
+        // **只读任务不该用 diff 验**（2026-11-16 用户实测）。
+        //
+        // 派只读 Agent 数 .md 文件，它干完了，复核却报
+        // 「没有改动任何文件（只读任务）（命令失败（退出码 128））」。
+        //
+        // 只读任务本来就不许改文件，拿"必须有改动"去验它，
+        // 等于做得越对越通不过。这种情况直接判通过并说明原因。
+        if (options.readonlyTask) {
+          results.push({
+            criterion,
+            verdict: 'passed',
+            note: '只读任务：不改文件是预期行为，这条标准不适用',
+          });
+          break;
+        }
         results.push(await verifyDiff(options, criterion));
         break;
       case 'human':
