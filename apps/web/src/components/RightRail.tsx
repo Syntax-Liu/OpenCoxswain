@@ -25,7 +25,7 @@
  */
 import { type ReactNode, useState } from 'react';
 
-import { IconChevron, IconClose, IconFolder, IconGlobe, IconPlus, IconSettings } from './icons.js';
+import { IconClose, IconFolder, IconGlobe, IconPlus, IconSettings } from './icons.js';
 
 export interface RightRailProps {
   /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
@@ -33,49 +33,67 @@ export interface RightRailProps {
 
   /** 待决策面板（传 null 表示没有）。 */
   readonly decisions?: ReactNode;
+  /** 改动视图：最近几轮 Agent 改了什么，点进去看 Diff。 */
+  readonly changes?: ReactNode;
   /** 工作区文件区。 */
   readonly files?: ReactNode;
-  /** 快捷操作区。 */
-  readonly actions?: ReactNode;
   /** 没有任何内容时显示的东西（照 DSH 的四张功能卡片）。 */
   readonly emptyState?: ReactNode;
+  /** 改动条数，显示在页签上。 */
+  readonly changeCount?: number;
+  /**
+   * 当前页签（受控）。
+   *
+   * 外部要能切页签——比如「工作区文件」卡片点了要跳到「文件」页。
+   * 不传就是非受控，组件自己管。
+   */
+  readonly activeTab?: string;
+  readonly onTabChange?: (id: string) => void;
   /** 关闭右栏。 */
   readonly onClose?: () => void;
   /** 决策条数，显示在标题上。 */
   readonly decisionCount?: number;
 }
 
-/** 一个可折叠的分区。 */
-function Section(props: {
-  title: string;
-  badge?: number;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}): JSX.Element {
-  const [open, setOpen] = useState(props.defaultOpen ?? true);
-  return (
-    <section className={`rail-section${open ? ' open' : ''}`}>
-      <button
-        type="button"
-        className="rail-head"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span className="rail-caret">
-          <IconChevron size={12} direction={open ? 'down' : 'right'} />
-        </span>
-        <span className="rail-title">{props.title}</span>
-        {props.badge !== undefined && props.badge > 0 && (
-          <span className="rail-badge">{props.badge}</span>
-        )}
-      </button>
-      {open && <div className="rail-body">{props.children}</div>}
-    </section>
-  );
-}
-
+/**
+ * 右栏：**横向多标签页**（2026-11-16 用户要求，照 DSH）。
+ *
+ * ## 为什么从纵向分区改过来
+ *
+ * 原来三块（待决策 / 工作区文件 / 快捷操作）纵向堆在一起，每块可折叠。
+ * 问题是它们**互相抢垂直空间**：待决策展开就看不见文件，
+ * 而且用户得一路滚下去才知道下面还有东西。
+ *
+ * 用户的原话：
+ *
+ * > 既然做了，那就像 DSH 这样吧，侧边栏可以放多个页面
+ *
+ * 改成标签后每块独占整个右栏高度，切过去就是完整内容。
+ */
 export function RightRail(props: RightRailProps): JSX.Element {
-  const iconTheme = props.iconTheme;
+  // 有哪些页签：只有传了内容的才出。
+  const tabs = [
+    { id: 'start' as const, title: '开始', node: props.emptyState, badge: 0 },
+    {
+      id: 'decisions' as const,
+      title: '待决策',
+      node: props.decisions,
+      badge: props.decisionCount ?? 0,
+    },
+    { id: 'changes' as const, title: '改动', node: props.changes, badge: props.changeCount ?? 0 },
+    { id: 'files' as const, title: '文件', node: props.files, badge: 0 },
+  ].filter((t) => t.node);
+
+  const [selfActive, setSelfActive] = useState<string>(tabs[0]?.id ?? 'start');
+  const active = props.activeTab ?? selfActive;
+  const setActive = (id: string): void => {
+    if (props.onTabChange) props.onTabChange(id);
+    else setSelfActive(id);
+  };
+
+  // 当前页签没内容时（比如待决策被清空），退回第一个可用的。
+  const current = tabs.find((t) => t.id === active) ?? tabs[0];
+
   return (
     <aside className="rail" aria-label="侧边栏">
       <div className="rail-top">
@@ -87,25 +105,25 @@ export function RightRail(props: RightRailProps): JSX.Element {
         )}
       </div>
 
-      <div className="rail-scroll">
-        {/* **没有内容时显示功能卡片**（照 DSH）：
-            之前是留一片空白，用户以为坏了。 */}
-        {!props.decisions && !props.files && !props.actions && props.emptyState}
-        {props.decisions && (
-          <Section title="待决策" badge={props.decisionCount} defaultOpen>
-            {props.decisions}
-          </Section>
-        )}
-        {props.files && (
-          <Section title="工作区文件" defaultOpen={false}>
-            {props.files}
-          </Section>
-        )}
-        {props.actions && (
-          <Section title="快捷操作" defaultOpen>
-            {props.actions}
-          </Section>
-        )}
+      {/* 页签条：内容多时自己横向滚，不压缩标签文字 */}
+      <div className="rail-tabs" role="tablist">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={current?.id === t.id}
+            className={`rail-tab${current?.id === t.id ? ' active' : ''}`}
+            onClick={() => setActive(t.id)}
+          >
+            {t.title}
+            {t.badge > 0 && <span className="rail-badge">{t.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="rail-scroll" role="tabpanel">
+        {current?.node}
       </div>
     </aside>
   );

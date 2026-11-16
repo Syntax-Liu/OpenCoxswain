@@ -101,7 +101,10 @@ describe('**4. 右栏空状态有功能卡片**', () => {
   });
 
   it('右栏在没有内容时渲染空状态', () => {
-    assert.match(rightRail, /!props\.decisions && !props\.files && !props\.actions && props\.emptyState/);
+    // 改成页签后不再用"三个 prop 都为空"的条件式渲染，
+    // 而是把 emptyState 当成「开始」页签的内容——**意图没变**：
+    // 没东西可显示时给出功能卡片，而不是一片空白让人以为坏了。
+    assert.match(rightRail, /title: '开始', node: props\.emptyState/);
   });
 
   it('App 传了 emptyState', () => {

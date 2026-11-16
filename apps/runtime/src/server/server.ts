@@ -968,6 +968,16 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           effects: store.listSideEffects({ executorId }),
         });
       }
+
+      // **改动 Diff**：这个 Agent 改过的每个文件的"改之前 / 改之后"。
+      //
+      // 数据来自文件快照（写之前存的）+ 磁盘当前内容，
+      // 正是界面上双栏对比需要的两列。
+      if (method === 'GET' && action === 'diff') {
+        const exists = store.getExecutor(executorId);
+        if (!exists) return deny(404, 'Agent 不存在');
+        return reply(200, { files: await orchestrator.diffForExecutor(executorId) });
+      }
     }
 
     // ---- Supervisor 的路由 ----

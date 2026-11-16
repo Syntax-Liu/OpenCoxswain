@@ -16,7 +16,7 @@
  * 决定怎么展示。
  */
 import { EventEmitter } from 'node:events';
-import { stat as fsStat } from 'node:fs/promises';
+import { readFile, stat as fsStat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -2340,6 +2340,83 @@ export class Orchestrator extends EventEmitter {
         `已把「${project.name}」移出工作区。磁盘上的文件没有动，` +
         '历史记录也都保留着——需要时可以重新打开同一个目录。',
     };
+  }
+
+  /**
+   * 一个 Agent（= 一轮）改过的所有文件的差异。
+   *
+   * ## 数据从哪来
+   *
+   * 每次写文件前系统会把**原内容**存进快照
+   * （`~/.opencoxswain/snapshots/<副作用id>/<相对路径>`）。
+   * 所以这里只要：
+   *
+   *   改之前 = 快照
+   *   改之后 = 磁盘当前内容
+   *
+   * 正好是界面上双栏 Diff 需要的两列。
+   *
+   * ## 不加载的情况
+   *
+   * 文件太大（超过快照上限）或读不出来时，`before`/`after` 给 null，
+   * 前端显示「内容过大，无法预览」——**不猜也不假装空文件**。
+   */
+  async diffForExecutor(executorId: string): Promise<
+    Array<{
+      path: string;
+      before: string | null;
+      after: string | null;
+      status: 'added' | 'modified' | 'removed' | 'unknown';
+    }>
+  > {
+    const effectList = this.store.listSideEffects({ executorId });
+    const executor = this.store.getExecutor(executorId);
+    if (!executor) return [];
+    const project = this.store.getProject(executor.projectId);
+    if (!project) return [];
+
+    // **只处理文件写入**：命令执行没有"内容"可对比。
+    // `fs.delete` 也算——删除前后的差异正是用户最想看的。
+    const writes = effectList.filter((e) => e.kind === 'fs.write' || e.kind === 'fs.delete');
+
+    // 同一个文件被改多次：只保留最后一次（快照会按副作用 id 分开存）。
+    const seen = new Set<string>();
+    const out: Array<{
+      path: string;
+      before: string | null;
+      after: string | null;
+      status: 'added' | 'modified' | 'removed' | 'unknown';
+    }> = [];
+
+    for (const effect of [...writes].reverse()) {
+      if (seen.has(effect.target)) continue;
+      seen.add(effect.target);
+
+      const snap = await this.snapshots
+        .load(effect.id, effect.target)
+        .catch(() => null);
+
+      let after: string | null = null;
+      try {
+        after = await readFile(path.resolve(project.rootPath, effect.target), 'utf8');
+      } catch {
+        after = null;
+      }
+
+      // 快照说"之前不存在" → 这是新建的
+      const before = snap?.existed ? snap.content : null;
+      const status: 'added' | 'modified' | 'removed' | 'unknown' = !snap
+        ? 'unknown'
+        : before === null && after !== null
+          ? 'added'
+          : before !== null && after === null
+            ? 'removed'
+            : 'modified';
+
+      out.push({ path: effect.target, before, after, status });
+    }
+
+    return out;
   }
 
   /**

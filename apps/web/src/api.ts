@@ -247,6 +247,19 @@ export interface SideEffectDto {
   readonly settledAt: number | null;
 }
 
+/**
+ * 一个文件在某次改动前后的内容。
+ *
+ * `before` / `after` 为 **null 表示读不到**（文件过大、已删除、没有快照），
+ * 不是"空文件"——界面必须区分这两种情况。
+ */
+export interface DiffFileDto {
+  readonly path: string;
+  readonly before: string | null;
+  readonly after: string | null;
+  readonly status: 'added' | 'modified' | 'removed' | 'unknown';
+}
+
 export interface MemoryCandidateDto {
   readonly id: string;
   readonly projectId: string;
@@ -589,6 +602,16 @@ export class ApiClient {
   /** 某个 Agent的副作用台账：它到底改了什么。 */
   executorEffects(executorId: string): Promise<{ effects: SideEffectDto[] }> {
     return this.request(`/api/executors/${encodeURIComponent(executorId)}/effects`);
+  }
+
+  /**
+   * 这个 Agent 改过的文件差异（改之前 / 改之后）。
+   *
+   * `before` / `after` 为 null 表示读不到（文件太大、已删除、无快照）。
+   * 界面要如实显示"无法预览"，不能当成空文件——那会让人以为内容被清空了。
+   */
+  executorDiff(executorId: string): Promise<{ files: DiffFileDto[] }> {
+    return this.request(`/api/executors/${encodeURIComponent(executorId)}/diff`);
   }
 
   /** 记忆候选列表。 */

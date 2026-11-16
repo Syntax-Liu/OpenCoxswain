@@ -43,6 +43,8 @@ import { Conversation } from './components/Conversation.js';
 import { readIconTheme, writeIconTheme } from './iconTheme.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
 import { RailEmptyState, RightRail } from './components/RightRail.js';
+import { ChangesPanel } from './components/ChangesPanel.js';
+import { FilePanel } from './components/FilePanel.js';
 import { ProjectPicker } from './components/ProjectPicker.js';
 import { NewSession } from './components/NewSession.js';
 import { ExecutorChat } from './components/ExecutorChat.js';
@@ -165,6 +167,9 @@ export function App(): JSX.Element {
    */
   const [railWidth, setRailWidth] = useState(320);
   const [railCollapsed, setRailCollapsed] = useState(false);
+
+  /** 右栏当前页签（受控，让「工作区文件」卡片能跳到「文件」页）。 */
+  const [railTab, setRailTab] = useState<string>('start');
 
   const streamRef = useRef<EventStream | null>(null);
   const stateRef = useRef(state);
@@ -1179,8 +1184,11 @@ export function App(): JSX.Element {
         <div className="rail-slot" style={{ display: railCollapsed || !hasRailContent ? 'none' : undefined }}>
       <RightRail
         onClose={() => setRailCollapsed(true)}
+        activeTab={railTab}
+        onTabChange={(id) => setRailTab(id)}
         emptyState={
           <RailEmptyState
+            onOpenFiles={currentProject ? () => setRailTab('files') : undefined}
             onOpenFolder={currentProject ? () => {
               // 在资源管理器里打开项目目录
               void navigator.clipboard?.writeText(currentProject.displayPath);
@@ -1202,6 +1210,20 @@ export function App(): JSX.Element {
               }}
               onDismiss={(id) => void handleAcknowledge(id)}
             />
+          ) : null
+        }
+        changes={
+          inProject && currentProject ? (
+            <ChangesPanel
+              api={api}
+              executors={state.executors.filter((e) => e.projectId === currentProject.id)}
+              onOpenExecutor={(id) => void openExecutor(currentProject.id, id)}
+            />
+          ) : null
+        }
+        files={
+          inProject && currentProject ? (
+            <FilePanel api={api} projectId={currentProject.id} />
           ) : null
         }
       />

@@ -4649,8 +4649,53 @@ body.is-resizing {
 
 .rail-label {
   font-size: var(--fs-sm);
-  color: var(--color-label-secondary);
+  color: var(--color-label-secondary);}
+
+/* ---- 右栏页签（照 DSH：侧边栏放多个页面）---- */
+/*
+ * 原来三块纵向堆叠、各自折叠，抢垂直空间：
+ * 待决策展开就看不见文件，还得往下滚才知道有别的。
+ * 改成页签后每块独占整个右栏高度。
+ */
+.rail-tabs {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--g-05);
+  padding: 0 var(--g-2) var(--g-1);
+  border-bottom: 0.5px solid var(--color-border-subtle);
+  /* 页签多了横向滚，不压字 */
+  overflow-x: auto;
 }
+
+/* 页签条的滚动条藏起来：它只是个切换器，不该出现滚动条 */
+.rail-tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+.rail-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-1);
+  height: var(--h-md);
+  padding: 0 var(--g-2);
+  border-radius: var(--r-sm);
+  color: var(--color-label-secondary);
+  white-space: nowrap;
+}
+
+.rail-tab:hover {
+  color: var(--color-label-primary);
+  background: var(--color-fill-subtle);
+}
+
+.rail-tab.active {
+  color: var(--color-label-primary);
+  background: var(--color-fill-subtle);
+  font-weight: 500;
+}
+
 
 .rail-close {
   background: transparent;
@@ -5830,4 +5875,261 @@ body.is-resizing {
 
 .metric-gap {
   margin-left: var(--g-2);
+}
+
+/* ---- 右栏「改动」：按轮列出 Agent 的改动 ---- */
+.changes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-05);
+}
+
+.changes-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  height: auto;
+  min-height: var(--h-md);
+  padding: var(--g-1) var(--g-2);
+  border-radius: var(--r-sm);
+  text-align: left;
+  color: var(--color-label-primary);
+}
+
+.changes-item:hover,
+.changes-item.open {
+  background: var(--color-fill-subtle);
+}
+
+.changes-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+
+.changes-meta {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--color-label-tertiary);
+}
+
+.changes-detail {
+  padding: var(--g-2) 0 var(--g-2) var(--g-2);
+}
+
+.changes-open {
+  margin-top: var(--g-2);
+  font-size: var(--fs-xs);
+}
+
+/* ---- Diff 双栏 ---- */
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-2);
+  min-width: 0;
+}
+
+.diff-file-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--g-05);
+}
+
+.diff-file-tab {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  color: var(--color-label-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-file-tab.active {
+  background: var(--color-fill-subtle);
+  color: var(--color-label-primary);
+}
+
+.diff-file {
+  border: 0.5px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.diff-file-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  padding: var(--g-1) var(--g-2);
+  border-bottom: 0.5px solid var(--color-border-subtle);
+  background: var(--color-fill-subtle);
+}
+
+.diff-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  color: var(--color-label-primary);
+}
+
+.diff-stat {
+  flex: none;
+  display: inline-flex;
+  gap: var(--g-1);
+  font-size: var(--fs-xs);
+  /* 数字会变，锁等宽防抖 */
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-add {
+  color: var(--color-success);
+}
+
+.diff-del {
+  color: var(--color-danger);
+}
+
+.diff-body {
+  max-height: 420px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+
+.diff-row {
+  display: grid;
+  grid-template-columns: 3ch minmax(0, 1fr) 3ch minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
+}
+
+.diff-no {
+  padding: 0 var(--g-1);
+  text-align: right;
+  color: var(--color-label-tertiary);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-cell {
+  padding: 0 var(--g-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-width: 0;
+  border-left: 0.5px solid var(--color-border-subtle);
+}
+
+/* 增：右边绿；删：左边红；改：两边各标 */
+.diff-row.kind-add .diff-cell:last-child {
+  background: var(--color-success-dim);
+}
+
+.diff-row.kind-remove .diff-cell:first-of-type {
+  background: var(--color-danger-dim);
+}
+
+.diff-row.kind-change .diff-cell:first-of-type {
+  background: var(--color-danger-dim);
+}
+
+.diff-row.kind-change .diff-cell:last-child {
+  background: var(--color-success-dim);
+}
+
+.diff-unavailable {
+  padding: var(--g-2);
+  font-size: var(--fs-xs);
+  color: var(--color-label-tertiary);
+}
+
+/* ---- 文件树 ---- */
+.file-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  min-width: 0;
+}
+
+.file-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-node {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  height: auto;
+  min-height: var(--h-sm);
+  padding: 0 var(--g-1);
+  border-radius: var(--r-xs);
+  text-align: left;
+  color: var(--color-label-secondary);
+  font-size: var(--fs-xs);
+}
+
+.file-node:hover,
+.file-node.active {
+  background: var(--color-fill-subtle);
+  color: var(--color-label-primary);
+}
+
+.file-node-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-node-size {
+  flex: none;
+  color: var(--color-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-preview {
+  border-top: 0.5px solid var(--color-border-subtle);
+  padding-top: var(--g-2);
+  min-width: 0;
+}
+
+.file-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  margin-bottom: var(--g-1);
+}
+
+.file-preview-body {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: var(--g-2);
+  background: var(--color-fill-subtle);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
