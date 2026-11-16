@@ -37,6 +37,8 @@ export interface ConversationProps {
   readonly projectPicker?: React.ReactNode;
   readonly messages: readonly MessageDto[];
   readonly thinking: boolean;
+  /** 流式过程中累积的临时文字（定稿后清空）。 */
+  readonly streaming?: string;
   /** 记忆候选审阅区（可折叠），放在顶部。 */
   readonly memoryReview?: React.ReactNode;
   /** 模板选择器，放在输入框下方。 */
@@ -396,7 +398,25 @@ export function Conversation(props: ConversationProps): JSX.Element {
           />
         ))}
 
-        {props.thinking && (
+        {/*
+          **流式文字**：模型正在生成的那一段。
+          
+          和 thinking 的区别：thinking 是"还没有字"，这里是"字在长"。
+          收到定稿（assistant_text）后 streaming 清空，真正的消息由 messages 渲染。
+          
+          加了光标，让用户看得出还在写。
+        */}
+        {props.streaming && (
+          <div className="message assistant streaming">
+            <span className="msg-role">Assistant</span>
+            <div className="bubble">
+              <span dangerouslySetInnerHTML={{ __html: renderMarkdown(props.streaming) }} />
+              <span className="stream-cursor" aria-hidden="true" />
+            </div>
+          </div>
+        )}
+
+        {props.thinking && !props.streaming && (
           <div className="message assistant">
             <span className="msg-role">Assistant</span>
             <div className="bubble">

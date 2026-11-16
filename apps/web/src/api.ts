@@ -149,6 +149,7 @@ export interface ReportDto {
 
 export type RuntimeEventDto =
   | { readonly type: 'assistant_text'; readonly projectId: string; readonly text: string }
+  | { readonly type: 'assistant_delta'; readonly projectId: string; readonly text: string }
   | { readonly type: 'executor_started'; readonly projectId: string; readonly executor: ExecutorDto }
   | {
       readonly type: 'executor_queued';

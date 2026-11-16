@@ -26,6 +26,15 @@ export interface AppState {
   readonly error: string | null;
   /** 正在等待 C 回复（发出消息后置 true，收到 assistant_text 后 false）。 */
   readonly thinking: boolean;
+  /**
+   * 流式过程中的**临时**文字。
+   *
+   * 模型边生成边推 `assistant_delta`，这里累加。收到 `assistant_text`
+   * （定稿）时清空——真正的消息由 messages 承载。
+   *
+   * **不落库**：它是过程，刷新就没了，这是对的。
+   */
+  readonly streaming: string;
 }
 
 export const initialState: AppState = {
@@ -39,6 +48,7 @@ export const initialState: AppState = {
   appliedSeq: 0,
   error: null,
   thinking: false,
+  streaming: '',
 };
 
 /** 合并一次快照。 */
@@ -71,11 +81,20 @@ export function applyEvent(state: AppState, seq: number, event: RuntimeEventDto)
   const next = { ...state, appliedSeq: Math.max(state.appliedSeq, seq) };
 
   switch (event.type) {
+    case 'assistant_delta': {
+      if (event.projectId !== state.currentProjectId) return next;
+      // **累加**：每个 delta 是一小段，拼起来才是完整回复。
+      //
+      // thinking 立刻置 false：文字已经在长了，不该再显示"思考中"。
+      return { ...next, thinking: false, streaming: next.streaming + event.text };
+    }
     case 'assistant_text': {
       if (event.projectId !== state.currentProjectId) return next;
       return {
         ...next,
         thinking: false,
+        // 定稿：清空流式缓冲，真正的消息进 messages。
+        streaming: '',
         messages: mergeAssistantText(next.messages, event.text),
         // 项目列表里的"待决策"数字可能变了，等下一次快照刷新；这里不动。
       };

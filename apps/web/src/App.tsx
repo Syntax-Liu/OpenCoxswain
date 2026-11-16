@@ -1036,6 +1036,7 @@ export function App(): JSX.Element {
               if (currentProject) setView({ kind: 'executor', projectId: currentProject.id, executorId: id });
             }}
             thinking={state.thinking}
+            streaming={state.streaming}
             railOpen={!railCollapsed}
             onToggleRail={() => setRailCollapsed((v) => !v)}
             projectPicker={

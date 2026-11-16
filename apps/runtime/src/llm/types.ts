@@ -163,6 +163,27 @@ export interface LlmChatResponse {
 export interface LlmClient {
   readonly name: string;
   chat(request: LlmChatRequest): Promise<LlmChatResponse>;
+  /**
+   * 流式对话：文字边生成边通过 `onDelta` 吐出来。
+   *
+   * ## 为什么单开一个方法而不是给 chat 加参数
+   *
+   * `chat` 有几十个调用点（验收、摘要、记忆……），它们只要最终结果。
+   * 加参数会让每个调用点都要想"传不传 onDelta"。
+   *
+   * 单开一个方法，只有真正需要流式的地方（用户看得见的对话）才用它。
+   *
+   * ## 返回值和 chat 完全一样
+   *
+   * 流式只是"提前看到过程"，最终结果的结构不变：
+   * 照样有 text / toolCalls / usage / reasoningContent。
+   *
+   * **可选**：不实现就退回非流式（老 client 不用改）。
+   */
+  chatStream?(
+    request: LlmChatRequest,
+    onDelta: (text: string) => void,
+  ): Promise<LlmChatResponse>;
 }
 
 /** 会话里持久化的一条消息（比 ChatMessage 多时间与来源，供 UI 与审计）。 */
@@ -275,6 +296,180 @@ export class OpenAiCompatClient implements LlmClient {
 
   constructor(private readonly config: LlmConfig) {}
 
+  /** 构造请求体。流式和非流式共用，避免两处漂移。 */
+  private buildBody(request: LlmChatRequest, stream = false): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      model: this.config.model,
+      // supportsImages 默认 false：**保守**。没声明支持的模型一律按不支持处理，
+      // 避免"发了图片被 400"这种不可预期的失败。
+      messages: toWireMessages(request.messages, {
+        supportsImages: this.config.supportsImages === true,
+      }),
+    };
+    if (request.tools.length > 0) {
+      body.tools = request.tools.map((t) => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+      }));
+    }
+    if (this.config.maxTokens !== undefined) body.max_tokens = this.config.maxTokens;
+    if (this.config.temperature !== undefined) body.temperature = this.config.temperature;
+    if (stream) {
+      body.stream = true;
+      // 要求服务端在最后一个 chunk 带上 usage，否则流式拿不到 token 数。
+      body.stream_options = { include_usage: true };
+    }
+    return body;
+  }
+
+  /**
+   * 流式对话。
+   *
+   * ## 为什么需要
+   *
+   * 2026-11-16 用户实测：
+   *
+   * > 整一段一次性蹦出
+   * > 不能在我发送第一条的时候马上回复（即使不能马上回复也应该留个对话框占个位）
+   *
+   * 原来 `chat` 是等整段生成完才返回，用户对着空屏幕等几十秒。
+   *
+   * ## 怎么拼起来
+   *
+   * 服务端发的是 SSE，每个 `data:` 是一小块。文字在
+   * `choices[0].delta.content`，工具调用在 `delta.tool_calls`
+   * （**分多次到达，要按 index 拼参数**）。
+   *
+   * 拼完之后返回的结构和 `chat` 完全一样——上层不用区分。
+   */
+  async chatStream(
+    request: LlmChatRequest,
+    onDelta: (text: string) => void,
+  ): Promise<LlmChatResponse> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT);
+    const onAbort = (): void => controller.abort();
+    request.signal.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const url = `${this.config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify(this.buildBody(request, true)),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status} ${truncate(detail, 500)}`);
+      }
+      if (!response.body) {
+        throw new Error('服务端没有返回流');
+      }
+
+      let text = '';
+      let reasoning = '';
+      // 工具调用按 index 累积：一个调用可能分好几个 chunk 传参数。
+      const calls = new Map<number, { id: string; name: string; args: string }>();
+      let usage: Record<string, unknown> = {};
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE 以空行分隔事件。最后一段可能不完整，留在 buffer 里等下次。
+        let sep = buffer.indexOf('\n\n');
+        while (sep >= 0) {
+          const raw = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          sep = buffer.indexOf('\n\n');
+
+          for (const line of raw.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (!data || data === '[DONE]') continue;
+
+            let chunk: {
+              choices?: Array<{
+                delta?: {
+                  content?: string | null;
+                  reasoning_content?: string | null;
+                  tool_calls?: Array<{
+                    index?: number;
+                    id?: string;
+                    function?: { name?: string; arguments?: string };
+                  }>;
+                };
+              }>;
+              usage?: Record<string, unknown>;
+            };
+            try {
+              chunk = JSON.parse(data);
+            } catch {
+              continue; // 半个 chunk，跳过
+            }
+
+            // usage 通常只在最后一个 chunk 里（stream_options.include_usage）。
+            if (chunk.usage) usage = chunk.usage;
+
+            const delta = chunk.choices?.[0]?.delta;
+            if (!delta) continue;
+
+            if (delta.reasoning_content) reasoning += delta.reasoning_content;
+
+            if (delta.content) {
+              text += delta.content;
+              // **逐块吐给上层**：这是流式的全部意义。
+              onDelta(delta.content);
+            }
+
+            for (const call of delta.tool_calls ?? []) {
+              const idx = call.index ?? 0;
+              const prev = calls.get(idx) ?? { id: '', name: '', args: '' };
+              calls.set(idx, {
+                // id 和 name 只在第一块出现，后面是空的——空值不要覆盖。
+                id: call.id ?? prev.id,
+                name: call.function?.name ?? prev.name,
+                args: prev.args + (call.function?.arguments ?? ''),
+              });
+            }
+          }
+        }
+      }
+
+      const toolCalls: LlmToolCall[] = [...calls.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([index, c]) => ({
+          id: c.id || `call_${index}`,
+          name: c.name || 'unknown',
+          args: parseArgs(c.args),
+        }));
+
+      const cached = readCachedTokens(usage);
+      return {
+        text,
+        toolCalls,
+        tokensIn: Number(usage.prompt_tokens) || 0,
+        tokensOut: Number(usage.completion_tokens) || 0,
+        ...(cached !== undefined ? { cachedTokens: cached } : {}),
+        ...(reasoning ? { reasoningContent: reasoning } : {}),
+      };
+    } finally {
+      clearTimeout(timer);
+      request.signal.removeEventListener('abort', onAbort);
+    }
+  }
+
   async chat(request: LlmChatRequest): Promise<LlmChatResponse> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT);
@@ -282,25 +477,9 @@ export class OpenAiCompatClient implements LlmClient {
     request.signal.addEventListener('abort', onAbort, { once: true });
 
     try {
-      const body: Record<string, unknown> = {
-        model: this.config.model,
-        // supportsImages 默认 false：**保守**。没声明支持的模型一律按不支持处理，
-        // 避免"发了图片被 400"这种不可预期的失败。
-        messages: toWireMessages(request.messages, {
-          supportsImages: this.config.supportsImages === true,
-        }),
-      };
-      if (request.tools.length > 0) {
-        body.tools = request.tools.map((t) => ({
-          type: 'function',
-          function: { name: t.name, description: t.description, parameters: t.parameters },
-        }));
-      }
-      if (this.config.maxTokens !== undefined) body.max_tokens = this.config.maxTokens;
-      if (this.config.temperature !== undefined) body.temperature = this.config.temperature;
+      const body = this.buildBody(request);
 
       const url = `${this.config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-      const payload = JSON.stringify(body);
 
       const response = await fetch(url, {
         method: 'POST',

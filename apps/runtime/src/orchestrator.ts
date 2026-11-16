@@ -177,6 +177,18 @@ export interface OrchestratorOptions {
 /** 运行时对外事件。上层据此推送 UI / IM / 日志。 */
 export type RuntimeEvent =
   | { readonly type: 'assistant_text'; readonly projectId: string; readonly text: string }
+  /**
+   * 流式文字增量。
+   *
+   * 模型每吐一小段就发一条，前端据此渲染"正在打字"。
+   *
+   * **和 assistant_text 的区别**：
+   * - `assistant_delta` 是过程，可能几十条，**不落库**
+   * - `assistant_text` 是结果，一条，落库
+   *
+   * 前端收到 delta 就往气泡里追加，收到 text 就定稿。
+   */
+  | { readonly type: 'assistant_delta'; readonly projectId: string; readonly text: string }
   | { readonly type: 'executor_started'; readonly projectId: string; readonly executor: ExecutorRow }
   | { readonly type: 'executor_queued'; readonly projectId: string; readonly executor: ExecutorRow; readonly reason: string }
   | { readonly type: 'executor_settled'; readonly projectId: string; readonly executor: ExecutorRow; readonly ok: boolean }
@@ -904,6 +916,17 @@ export class Orchestrator extends EventEmitter {
       signal,
       // 本轮之后新到的消息留给下一轮，不在本轮中途插入 —— 这正是"不打断"。
       drainInputs: () => [],
+      // **流式**：把模型吐的字逐块推给前端。
+      //
+      // 只推给 UI，不落库——最终文本由下面的 assistant_text 统一写。
+      // 落库几十遍会把消息表撑爆，而且刷新后会出现几十条重复。
+      onDelta: (delta) => {
+        this.emit('runtime', {
+          type: 'assistant_delta',
+          projectId: project.id,
+          text: delta,
+        } as RuntimeEvent);
+      },
     })) {
       if (event.type === 'assistant_text') {
         this.emit('runtime', {
