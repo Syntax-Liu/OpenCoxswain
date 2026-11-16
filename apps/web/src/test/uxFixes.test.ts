@@ -172,3 +172,44 @@ describe('**流式时自动跟随**', () => {
     assert.match(conv, /props\.streaming\?\.length/, '没传流式内容长度');
   });
 });
+
+/**
+ * **切项目必须清掉上一个项目的内容**（2026-11-16 用户反馈）。
+ *
+ * 用户截图：两个全新的空项目（test1 / advmath）显示的是
+ * OpenCoxswain 项目里的同一段对话。
+ *
+ * 原因：
+ *   1. `messages` 要等 `refreshProject` 的网络请求回来才替换，
+ *      中间旧内容还挂在屏幕上
+ *   2. `streaming`（流式缓冲）和 `thinking` **根本没人清过**
+ */
+describe('**切项目清空旧内容**', () => {
+  const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+
+  it('openAssistant 清空 messages', () => {
+    const start = app.indexOf('const openAssistant');
+    assert.ok(start > 0, '找不到 openAssistant');
+    const block = app.slice(start, start + 1200);
+    assert.match(block, /messages: \[\]/, '切项目时没清 messages');
+  });
+
+  it('openAssistant 清空 streaming', () => {
+    const start = app.indexOf('const openAssistant');
+    const block = app.slice(start, start + 1200);
+    assert.match(block, /streaming: ''/, '切项目时没清 streaming —— 会残留上一段半截的字');
+  });
+
+  it('openAssistant 清空 thinking', () => {
+    const start = app.indexOf('const openAssistant');
+    const block = app.slice(start, start + 1200);
+    assert.match(block, /thinking: false/, '切项目时没清 thinking');
+  });
+
+  it('openExecutor 也清', () => {
+    const start = app.indexOf('const openExecutor');
+    assert.ok(start > 0);
+    const block = app.slice(start, start + 1200);
+    assert.match(block, /streaming: ''/, 'openExecutor 没清 streaming');
+  });
+});

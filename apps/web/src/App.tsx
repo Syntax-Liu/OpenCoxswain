@@ -243,7 +243,26 @@ export function App(): JSX.Element {
 
   const openAssistant = useCallback(
     async (projectId: string) => {
-      setState((s) => ({ ...s, currentProjectId: projectId }));
+      // **切项目时立刻清空上一个项目的内容**（2026-11-16 用户反馈）。
+      //
+      // 现象：新建的空项目里显示了上一个项目的对话。
+      //
+      // 原因有两个：
+      //   1. `messages` 要等 `refreshProject` 的网络请求回来才替换，
+      //      中间这段旧内容还挂在屏幕上
+      //   2. `streaming`（流式缓冲）和 `thinking` 根本没人清过——
+      //      如果切走时正在生成，回来还能看到上一段半截的字
+      //
+      // 现在：先原子地清掉，再拉新的。宁可闪一下空白，也不能显示错的内容。
+      setState((s) => ({
+        ...s,
+        currentProjectId: projectId,
+        messages: [],
+        streaming: '',
+        thinking: false,
+        reports: [],
+        error: null,
+      }));
       setView({ kind: 'assistant', projectId });
       try {
         await refreshProject(projectId);
@@ -256,10 +275,23 @@ export function App(): JSX.Element {
 
   const openExecutor = useCallback(
     async (projectId: string, executorId: string) => {
-      setState((s) => ({ ...s, currentProjectId: projectId }));
+      // 和 openAssistant 同理：切走时要把上一个项目的对话清掉，
+      // 否则再看回主对话会残留错的内容。
+      setState((s) => ({
+        ...s,
+        currentProjectId: projectId,
+        streaming: '',
+        thinking: false,
+      }));
       setView({ kind: 'executor', projectId, executorId });
       setTranscript({ executorId, messages: [], loading: true });
       setEffects([]);
+      // 保证主对话里的消息也是这个项目的（切项目时可能还没拉过）。
+      try {
+        await refreshProject(projectId);
+      } catch {
+        // 拉不到不影响看 Agent 详情
+      }
       try {
         const detail = await api.executorMessages(executorId);
         setTranscript({ executorId, messages: detail.messages, loading: false });
