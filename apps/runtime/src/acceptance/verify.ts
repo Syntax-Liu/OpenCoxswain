@@ -186,11 +186,55 @@ async function verifyCommand(
     //
     // 判 unverified 而不是 failed：**这不是「没做到」，是「没法验证」**。
     // 对只读任务尤其重要——它本来就不该改文件。
-    if (/fatal:\s*not a git repository|not a git repo/i.test(detail)) {
+    if (/fatal:\s*not a git repository|not a git repo|Not a git repository/i.test(detail)) {
       return {
         criterion,
         verdict: 'unverified',
         note: '这个目录不是 git 仓库，验收命令（git …）无法执行。这不是「没做到」，是「没法验证」',
+        output: detail.slice(0, 2000),
+      };
+    }
+
+    // **findstr 匹配中文会因编码失败**（2026-11-16 用户实测）。
+    //
+    // 实况：Agent 把 ro-test.txt 改成「完全权限已修改」（确实改了），
+    // Assistant 的验收命令是：
+    //
+    //     findstr /C:"已修改" ro-test.txt
+    //
+    // 退出码 1，判 failed。但内容里明明有「已修改」。
+    //
+    // 原因：findstr 用**系统代码页**（中文 Windows 是 GBK）去匹配，
+    // 而文件是 UTF-8。两边字节完全不同，永远匹配不上。
+    //
+    // 实测验证：
+    //     文件写 "完全权限已修改"（UTF-8 无 BOM）
+    //     findstr /C:"已修改" t.txt  →  退出码 1，无输出
+    //
+    // 判 unverified：命令本身是好的，只是工具和编码不兼容。
+    // 让用户自己看一眼文件就知道——比误判成"没做到"好。
+    if (/^findstr\b/i.test(command.trim()) && /[^\x00-\x7F]/.test(command)) {
+      // **换成 PowerShell 重试，而不是直接放弃**。
+      //
+      // findstr 用系统代码页（中文 Windows 是 GBK）去匹配 UTF-8 文件，
+      // 字节对不上永远失败。但 PowerShell 能正确读 UTF-8：
+      //
+      //     实测同一文件：
+      //       findstr /C:"已修改" t.txt        → 退出码 1（错）
+      //       Select-String -Pattern "已修改"  → 匹配成功（对）
+      //
+      // 所以：拿 findstr 的参数转成 Select-String 再跑一次。
+      // 成功了就用结果，转换不了才退回 unverified。
+      const retried = await retryWithPowerShell(command, options.rootPath, timeout);
+      if (retried) {
+        return { criterion, ...retried };
+      }
+      return {
+        criterion,
+        verdict: 'unverified',
+        note:
+          'findstr 匹配中文会因代码页不匹配而失败（文件是 UTF-8，findstr 用系统代码页）。' +
+          '这不是「没做到」，是「工具和编码不兼容」——请直接看文件内容确认',
         output: detail.slice(0, 2000),
       };
     }
@@ -273,4 +317,46 @@ async function verifyDiff(
       note: `无法统计改动（项目可能不是 git 仓库）：${error instanceof Error ? error.message : String(error)}`,
     };
   }
+}
+
+/**
+ * 把 `findstr /C:"文本" 文件` 换成 PowerShell 版重跑。
+ *
+ * ## 为什么需要
+ *
+ * findstr 用系统代码页匹配，UTF-8 文件里的中文永远匹配不上。
+ * PowerShell 的 Select-String 能正确读 UTF-8。
+ *
+ * @returns 转换成功时返回复核结果；认不出命令形状返回 null
+ */
+async function retryWithPowerShell(
+  command: string,
+  rootPath: string,
+  timeout: number,
+): Promise<{ verdict: 'passed' | 'failed'; note: string; output: string } | null> {
+  // 只认 `findstr /C:"xxx" file` 这一种形状，其他一律不猜。
+  const m = /^findstr\s+\/C:"([^"]+)"\s+(\S+)\s*$/i.exec(command.trim());
+  if (!m) return null;
+  const [, pattern, file] = m;
+  if (!pattern || !file) return null;
+
+  // 用 -SimpleMatch 避免把中文里的正则元字符当语法。
+  const ps = `Select-String -Path '${file.replace(/'/g, "''")}' -Pattern '${pattern.replace(/'/g, "''")}' -SimpleMatch -Quiet`;
+  try {
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, {
+      cwd: rootPath,
+      timeout,
+      windowsHide: true,
+    });
+    if (/true/i.test(stdout)) {
+      return {
+        verdict: 'passed',
+        note: '命令通过（findstr 因编码不匹配失败，已用 PowerShell 复核成功）',
+        output: stdout.trim().slice(0, 2000),
+      };
+    }
+  } catch {
+    // PowerShell 也失败：交给上层判 unverified
+  }
+  return null;
 }

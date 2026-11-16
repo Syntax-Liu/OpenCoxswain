@@ -117,3 +117,47 @@ describe('**非 git 目录里的 git 验收命令**', () => {
     assert.match(r.results[0]?.note ?? '', /不是 git 仓库/, '要说清是没法验证');
   });
 });
+
+/**
+ * **findstr 匹配中文会因编码失败**（2026-11-16 用户实测）。
+ *
+ * 实况：Agent 把 ro-test.txt 改成「完全权限已修改」（确实改了），
+ * Assistant 的验收命令是 `findstr /C:"已修改" ro-test.txt`，
+ * 退出码 1 判 failed——但内容里明明有「已修改」。
+ *
+ * 原因：findstr 用**系统代码页**（GBK）匹配，文件是 UTF-8，字节对不上。
+ *
+ * 实测同一文件：
+ *   findstr /C:"已修改" t.txt        → 退出码 1（错）
+ *   Select-String -Pattern "已修改"  → 匹配成功（对）
+ *
+ * 所以不能只判 unverified 放弃——换成 PowerShell 重试。
+ */
+describe('**findstr 中文编码问题**', () => {
+  it('UTF-8 中文文件用 findstr 匹配不到，但 PowerShell 能', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ocx-enc-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 't.txt'), '完全权限已修改', 'utf8');
+
+    const r = await verify({
+      rootPath: dir,
+      criteria: [
+        { id: 'c', type: 'command', desc: '内容已变为已修改', check: 'findstr /C:"已修改" t.txt' },
+      ],
+      policy: 'auto',
+      approve: async () => ({ approved: true, reason: '测试放行' }),
+    });
+
+    // 不能判 failed——内容确实是对的
+    assert.notEqual(
+      r.results[0]?.verdict,
+      'failed',
+      `不该判失败：${r.results[0]?.note}`,
+    );
+    assert.match(
+      r.results[0]?.note ?? '',
+      /PowerShell|编码/,
+      '要说清是编码问题/已换工具复核',
+    );
+  });
+});
