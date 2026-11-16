@@ -59,3 +59,6 @@ target/
 dsh-superagent-prototype-main/
 
 .ui-shots/
+
+# 手动测试时 Agent 产生的文件（不提交）
+test-artifacts/
