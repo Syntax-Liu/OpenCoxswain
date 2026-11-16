@@ -213,3 +213,66 @@ describe('**切项目清空旧内容**', () => {
     assert.match(block, /streaming: ''/, 'openExecutor 没清 streaming');
   });
 });
+
+/**
+ * desktop-agent-ui 硬性门禁：输入法与输入框。
+ *
+ * ## 1. 中文输入法选词时按 Enter 不能发送
+ *
+ * 中文用户敲 `nihao` 看到候选框，按 Enter 是**选词**，不是发送。
+ * 不挡的话：每选一次词就发一条消息，内容还是半截拼音。
+ *
+ * ## 2. 输入框高度要自适应
+ *
+ * 原来 `rows={2}` 固定两行：敲到第 5 行时前 3 行要靠内部滚翻上去，
+ * 看不到刚打的字。
+ */
+describe('**输入法安全发送**', () => {
+  const conv = readFileSync(
+    new URL('../../src/components/Conversation.tsx', import.meta.url),
+    'utf8',
+  );
+
+  it('监听 compositionstart/end', () => {
+    assert.match(conv, /onCompositionStart/, '没有监听组词开始');
+    assert.match(conv, /onCompositionEnd/, '没有监听组词结束');
+  });
+
+  it('**三重判断缺一不可**', () => {
+    assert.match(conv, /isComposingRef\.current/, '缺 isComposing 状态');
+    assert.match(conv, /isComposing/, '缺原生 isComposing');
+    assert.match(conv, /keyCode === 229/, '缺 keyCode 229（老浏览器组词期）');
+    assert.match(conv, /500/, '缺 500ms 守卫（部分输入法 compositionend 后才发 keydown）');
+  });
+
+  it('组词期间直接 return，不发送', () => {
+    const start = conv.indexOf('const composing');
+    const block = conv.slice(start, start + 600);
+    assert.match(block, /if \(composing\) return/, '组词时没拦住');
+  });
+});
+
+describe('**输入框高度自适应**', () => {
+  const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+
+  it('用 field-sizing: content', () => {
+    assert.match(css, /field-sizing:\s*content/, '没有自适应高度');
+  });
+
+  // **先把注释剥掉再匹配**：CSS 注释里也有花括号和 "height" 字样，
+  // 不剥的话正则会在注释处截断，断言假失败。
+  const cssNoComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('高度要能 auto（不然 field-sizing 不生效）', () => {
+    const m = /\.composer textarea\s*\{([^}]*)\}/.exec(cssNoComments);
+    assert.ok(m, '找不到 .composer textarea');
+    assert.match(m[1] ?? '', /height:\s*auto/, '缺 height: auto');
+  });
+
+  it('有上限且超限能滚', () => {
+    const m = /\.composer textarea\s*\{([^}]*)\}/.exec(cssNoComments);
+    const body = m?.[1] ?? '';
+    assert.match(body, /max-height/, '没有上限');
+    assert.match(body, /overflow-y:\s*auto/, '超限不能滚');
+  });
+});

@@ -988,9 +988,22 @@ select:disabled {
 
 .composer textarea {
   width: 100%;
+  /* **高度随内容自适应**（desktop-agent-ui：input 自适应高度验收）。
+   
+     原来只有 `rows={2}` 固定两行：用户敲到第 5 行时，前 3 行要
+     靠内部滚动翻上去，看不到刚打的字。
+   
+     `height: auto` + `field-sizing: content` 让浏览器按内容算高度，
+     到 max-height 就停止增长并转为内部滚动——正是要的行为。
+     
+     不支持的浏览器退回 rows=2 的固定高度，不会更差。 */
+  height: auto;
+  field-sizing: content;
   min-height: var(--composer-min-height);
   max-height: var(--composer-max-height);
   resize: none;
+  /* 到上限之后必须能滚：否则多出来的字就看不见了。 */
+  overflow-y: auto;
 }
 
 .composer-actions {

@@ -162,6 +162,13 @@ export function Conversation(props: ConversationProps): JSX.Element {
   const scrollIdentity = `${props.project.id}:${props.draftKey}`;
   // 第三个参数是**流式内容的长度**：流式时消息条数不变，只有它在长。
   // 不传的话输出过程中视图不会跟着往下走（2026-11-16 反馈）。
+  // **输入法状态**（desktop-agent-ui 硬性门禁）。
+  //
+  // 中文/日文输入法在候选词阶段按 Enter 是"选词"，不是"发送"。
+  // 不做保护的话，用户每选一次词就发一条消息，内容还是半截拼音。
+  const isComposingRef = useRef(false);
+  const lastCompositionEndRef = useRef(0);
+
   const scroll = useAutoScroll(
     visible.length,
     scrollIdentity,
@@ -532,6 +539,15 @@ export function Conversation(props: ConversationProps): JSX.Element {
               const caret = e.target.selectionStart ?? e.target.value.length;
               setMention(detectMention(e.target.value, caret));
             }}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isComposingRef.current = false;
+              // 记下结束时刻：部分输入法会在这之后立刻发一个 Enter keydown，
+              // 那一刻 isComposing 已经是 false 了，只能靠时间窗挡。
+              lastCompositionEndRef.current = Date.now();
+            }}
             onPaste={(e) => {
               // 粘贴截图：直接从剪贴板取文件。这是最高频的附件入口。
               const files = Array.from(e.clipboardData.files);
@@ -541,10 +557,26 @@ export function Conversation(props: ConversationProps): JSX.Element {
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
+              if (e.key !== 'Enter' || e.shiftKey) return;
+              // **中文输入法选词时的回车绝不能发送**（desktop-agent-ui 硬性门禁）。
+              //
+              // 中文用户敲 `nihao` 看到候选框，按 Enter 是**选词**，不是发送。
+              // 不挡的话：每选一次词就发一次消息，而且发出去的是拼音。
+              //
+              // 三重判断，缺一不可：
+              //   1. `isComposing` —— 标准属性，Chrome/Edge 都支持
+              //   2. `keyCode === 229` —— 老浏览器里组词期间的 keyCode
+              //   3. 500ms 守卫 —— 部分输入法（尤其微软拼音）在 compositionend
+              //      **之后**才触发 keydown，那一瞬间前两个判断都已经恢复 false，
+              //      只有时间窗能挡住
+              const composing =
+                isComposingRef.current ||
+                e.nativeEvent.isComposing ||
+                e.nativeEvent.keyCode === 229 ||
+                Date.now() - lastCompositionEndRef.current < 500;
+              if (composing) return;
+              e.preventDefault();
+              submit();
             }}
             rows={2}
           />
