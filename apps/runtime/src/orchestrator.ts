@@ -27,6 +27,7 @@ import { INTERNAL_SOURCE_PREFIX } from './store/store.js';
 import { makeTrigger, shouldWake } from './orchestrator/trigger.js';
 import { evaluate } from './ticket/eval.js';
 import { createMandate } from './ticket/mandate.js';
+import { routeToSubscriber } from './ticket/subscription.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
@@ -651,9 +652,38 @@ export class Orchestrator extends EventEmitter {
     // 只对**用户真正说的话**分类。内部通知（结算、定时）由 trigger
     // 决定唤醒与否，不需要再走一遍分类。
     if (!options.internal) {
-      const running = this.store
-        .listExecutors({ projectId })
-        .filter((e) => e.status === 'running' || e.status === 'starting').length;
+      const executors = this.store.listExecutors({ projectId });
+      const runningList = executors
+        .filter((e) => e.status === 'running' || e.status === 'starting')
+        .map((e) => ({ id: e.id, label: e.label, status: e.status }));
+
+      // **Subscription：唯一在跑的 Agent 会自动收到补充消息**。
+      //
+      // 对齐 DSH：*后续讨论无需任何人再次 @ agent 就能抵达执行器。*
+      //
+      // 顺序很重要：**先看订阅，再走评估**。DSH 原话是
+      // "通过这种方式抵达工单的人的消息**不进入评估**"——
+      // 因为它已经明确是给那个 Agent 的补充，不是新工作。
+      const route = routeToSubscriber(runningList, text);
+      if (route.kind === 'executor') {
+        try {
+          await this.userSaysToExecutor(route.executorId, text);
+          this.emit('runtime', {
+            type: 'assistant_text',
+            projectId,
+            text: `（这句话已直接转给正在跑的 Agent「${route.reason}」，没有派新的）`,
+          } as RuntimeEvent);
+        } catch (error) {
+          this.emit('runtime', {
+            type: 'assistant_text',
+            projectId,
+            text: `（补充指令没能送达 Agent：${errorText(error)}）`,
+          } as RuntimeEvent);
+        }
+        return;
+      }
+
+      const running = runningList.length;
       const verdict = evaluate(text, running);
 
       if (verdict.decision === 'ignore') {
