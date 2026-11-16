@@ -22,6 +22,14 @@ export function AttachmentStrip(props: AttachmentStripProps): JSX.Element | null
           key={att.id}
           className={`btn btn--secondary btn--sm attachment-chip${att.warning ? ' has-warning' : ''}`}
           title={att.warning ?? describeAttachment(att)}
+          /* **原生 View Transitions**（desktop-agent-ui：附件卡片过渡流畅度）。
+           *
+           * 用 id 命名，浏览器就能在增删/换位时把**同一个** chip 从旧位置
+           * 平移到新位置，而不是让它瞬间跳过去。
+           *
+           * 这是纯声明式：不支持的 WebView 会直接忽略这个未知属性，
+           * 行为与改动前完全一致——不需要写任何能力探测或降级分支。 */
+          style={{ viewTransitionName: `attach-${att.id}` }}
         >
           {att.kind === 'image' && att.dataUrl ? (
             <img className="attachment-thumb" src={att.dataUrl} alt={att.name} />

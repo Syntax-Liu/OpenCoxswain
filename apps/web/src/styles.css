@@ -1287,6 +1287,8 @@ select:disabled {
   display: grid;
   place-items: center;
   z-index: 20;
+  /* 弹窗开合时背景页面不能横向跳：预留槽位（desktop-agent-ui）。 */
+  scrollbar-gutter: stable;
 }
 
 .modal {
@@ -2595,6 +2597,14 @@ button.small {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* **预留滚动条槽位**（desktop-agent-ui：弹窗滚动槽位防抖）。
+   *
+   * 不预留时：打开设置页/弹窗 → 浮层盖住滚动条 → 槽位消失 →
+   * 整页内容横向跳 2~3px。关掉又跳回去。文字密集的对话区特别明显。
+   *
+   * 只用 `scrollbar-gutter`，**绝不用 `scrollbar-width`**——
+   * 后者会让 `::-webkit-scrollbar` 的宽度失效（controlSpec.test.ts 有断言守着）。 */
+  scrollbar-gutter: stable;
 }
 
 /* ============================================================
@@ -3176,6 +3186,8 @@ body.is-resizing {
   inset: 0;
   z-index: 500;
   background: var(--bg);
+  /* 全屏浮层自己也可能滚：同样预留槽位，避免内容横向跳动。 */
+  scrollbar-gutter: stable;
   /* 让出顶部标题栏的高度。
    *
    * 之前是 `inset: 0` —— 整屏铺满，把自绘标题栏连同最小化/最大化/关闭
