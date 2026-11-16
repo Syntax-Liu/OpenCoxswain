@@ -16,7 +16,6 @@ import { AppIcon } from './AppIcon.js';
 import { buildStatus } from './statusMetrics.js';
 import { PermissionPicker } from './PermissionPicker.js';
 import { describeWait } from './waitStatus.js';
-import { composerHint } from './composerHint.js';
 import { Onboarding } from './Onboarding.js';
 import { shouldShowOnboarding } from './starterGuide.js';
 import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
@@ -269,14 +268,6 @@ export function Conversation(props: ConversationProps): JSX.Element {
     return () => clearInterval(timer);
   }, [props.thinking]);
 
-  /** 输入区提示：Agent 在跑时告诉用户可以继续说。 */
-  const hint = composerHint({
-    thinking: props.thinking,
-    runningAgents: (props.executors ?? []).filter(
-      (e) => e.status === 'running' || e.status === 'starting',
-    ).length,
-  });
-
   const waitStatus = useMemo(() => {
     const elapsed = waitStartedAt === null ? 0 : now - waitStartedAt;
     const runningAgents = (props.executors ?? []).filter(
@@ -356,9 +347,11 @@ export function Conversation(props: ConversationProps): JSX.Element {
               <AppIcon size={36} theme={iconTheme} />
               <h1>从这里开始</h1>
             </div>
-            <p className="welcome-sub">
-              说一句想做的事，我会拆给 Agent 去干；也可以连续发，不会打断。
-            </p>
+            {/* **不写副标题**（desktop-agent-ui：去除冗余解释文本）。
+                原来这里是一句「说一句想做的事，我会拆给 Agent 去干；
+                也可以连续发，不会打断」——说明书式的自我解释，
+                既占地方又没告诉用户任何布局本身说不出的信息。
+                下面的示例按钮已经在教怎么用了，让它们自己说话。 */}
             <div className="welcome-examples">
               <span>试试：</span>
               <button type="button" className="welcome-example" onClick={() => {
@@ -491,9 +484,6 @@ export function Conversation(props: ConversationProps): JSX.Element {
         }}
       >
         {attachments.dragging && <div className="drop-hint">松手添加附件</div>}
-
-        {/* 在跑时告诉用户可以继续说——这个能力一直有，但界面没说过 */}
-        {hint && <div className={`composer-hint tone-${hint.tone}`}>{hint.text}</div>}
 
         {/* @ 引用：输入 @ 后弹出文件选择器 */}
         {mention.active && (

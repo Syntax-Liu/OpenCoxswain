@@ -4353,22 +4353,6 @@ body.is-resizing {
   overflow-y: auto;
 }
 
-/* 输入区提示：告诉用户可以继续说 */
-.composer-hint {
-  padding: 6px 12px 0;
-  font-size: var(--fs-xs);
-  line-height: 1.5;
-}
-
-.composer-hint.tone-quiet {
-  color: var(--text-dim);
-}
-
-/* 有 Agent 在跑时稍微亮一点——这时才是真的需要用户知道 */
-.composer-hint.tone-active {
-  color: var(--warn);
-}
-
 /* ============================================================
    侧栏批次分组：同一轮派的 Agent 连成一组
    ============================================================ */
