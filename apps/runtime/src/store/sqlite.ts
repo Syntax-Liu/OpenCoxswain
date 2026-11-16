@@ -56,7 +56,7 @@ import {
   type SearchableMessage,
 } from '../search/fulltext.js';
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS executor (
   acceptance TEXT,
   -- v10：这个 Agent 执行方案的哪一步（NULL = 非方案任务）
   plan_step_id TEXT,
+  -- v11：授权快照（对齐 DSH 的 Mandate）。JSON。
+  mandate TEXT,
   created_at INTEGER NOT NULL,
   ended_at INTEGER
 );
@@ -290,6 +292,20 @@ export class SqliteStore implements Store {
       // 老数据为 NULL（不是方案内的任务），行为与之前一致。
       if (version < 10 && !this.hasColumn('executor', 'plan_step_id')) {
         this.db.exec('ALTER TABLE executor ADD COLUMN plan_step_id TEXT;');
+      }
+      // v10 → v11：executor 表新增 mandate（授权快照）。
+      //
+      // 对齐 DSH 的 Mandate：派活那一刻把权限档位、写域、授权强度
+      // **快照**下来，Agent 全程用它。
+      //
+      // 为什么不能"每次工具调用现查全局权限"：那样用户改权限会
+      // 影响**正在跑**的任务。用户以为是"以后才生效"，实际当下的活
+      // 也换了规则——这是最容易被忽略的一类越权。
+      //
+      // 老数据为 NULL：没法还原当时用的是什么档位，按"不限制"处理
+      // （保持原有行为，不因为升级就卡住老任务）。
+      if (version < 11 && !this.hasColumn('executor', 'mandate')) {
+        this.db.exec('ALTER TABLE executor ADD COLUMN mandate TEXT;');
       }
       this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
       // v3 → v4 只是新增 approval 表，SCHEMA 里的 CREATE IF NOT EXISTS 已覆盖，
@@ -553,8 +569,8 @@ export class SqliteStore implements Store {
     this.db
       .prepare(
         `INSERT INTO executor (id, project_id, session_id, label, goal, access, write_scope, status, summary, blocked_reason,
-           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, model_ms, context_tokens, criteria, policy, acceptance, plan_step_id, created_at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           turns, steps, tokens_in, tokens_out, cached_tokens, duration_ms, model_ms, context_tokens, criteria, policy, acceptance, plan_step_id, created_at, ended_at, mandate)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            status = excluded.status,
            summary = excluded.summary,
@@ -569,6 +585,7 @@ export class SqliteStore implements Store {
            context_tokens = excluded.context_tokens,
            acceptance = excluded.acceptance,
            plan_step_id = excluded.plan_step_id,
+           mandate = excluded.mandate,
            ended_at = excluded.ended_at`,
       )
       .run(
@@ -596,6 +613,7 @@ export class SqliteStore implements Store {
         row.planStepId ?? null,
         row.createdAt,
         row.endedAt,
+        row.mandate ? JSON.stringify(row.mandate) : null,
       );
   }
 
@@ -1078,6 +1096,7 @@ function toExecutor(raw: Row): ExecutorRow {
         : 'unverified_only',
     acceptance: parseJsonField(raw.acceptance, null),
     planStepId: raw.plan_step_id === null || raw.plan_step_id === undefined ? null : String(raw.plan_step_id),
+    mandate: parseMandate(raw.mandate),
     createdAt: Number(raw.created_at),
     endedAt: raw.ended_at === null ? null : Number(raw.ended_at),
   };
@@ -1183,3 +1202,27 @@ function toReport(raw: Row): ReportRow {  return {
 }
 
 export { isExecutorTerminal };
+
+/**
+ * 解析授权快照。
+ *
+ * 坏了就返回 undefined（不是 null）：调用方据此区分
+ * "老数据没有授权快照"和"明确没有授权"。
+ */
+function parseMandate(raw: unknown) {
+  if (typeof raw !== 'string' || !raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.level !== 'string') return undefined;
+    return {
+      policyVersion: Number(parsed.policyVersion) || 0,
+      level: parsed.level as 'readonly' | 'manual' | 'auto' | 'full',
+      scope: Array.isArray(parsed.scope) ? parsed.scope.map(String) : [],
+      strength: (parsed.strength as 'explicit' | 'inferred' | 'automatic') ?? 'inferred',
+      grantedBy: String(parsed.grantedBy ?? 'system'),
+      grantedAt: Number(parsed.grantedAt) || 0,
+    };
+  } catch {
+    return undefined;
+  }
+}

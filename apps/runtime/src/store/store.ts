@@ -113,6 +113,22 @@ export interface ExecutorRow {
    * 非方案内的临时任务为 null。
    */
   readonly planStepId?: string | null;
+  /**
+   * 授权快照（对齐 DSH 的 Mandate）。
+   *
+   * 派活那一刻把权限档位和写域**定格**，Agent 全程用它。
+   * 之后用户改全局权限只影响新派的活，不影响这个。
+   *
+   * 老数据没有这个字段（升级前派的活），按"不额外限制"处理。
+   */
+  readonly mandate?: {
+    readonly policyVersion: number;
+    readonly level: 'readonly' | 'manual' | 'auto' | 'full';
+    readonly scope: readonly string[];
+    readonly strength: 'explicit' | 'inferred' | 'automatic';
+    readonly grantedBy: string;
+    readonly grantedAt: number;
+  };
   readonly createdAt: number;
   readonly endedAt: number | null;
 }

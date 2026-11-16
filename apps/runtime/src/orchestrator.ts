@@ -25,6 +25,8 @@ import { Gate, normalizeWriteScopes, parseScopeClaim, type ScopeClaim } from './
 import { decideSession, detectUserIntent } from './orchestrator/sessionPolicy.js';
 import { INTERNAL_SOURCE_PREFIX } from './store/store.js';
 import { makeTrigger, shouldWake } from './orchestrator/trigger.js';
+import { evaluate } from './ticket/eval.js';
+import { createMandate } from './ticket/mandate.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
@@ -207,6 +209,16 @@ export interface SpawnInput {
   readonly criteria?: readonly Criterion[];
   /** 验收策略，默认 unverified_only。 */
   readonly policy?: AcceptancePolicy;
+  /**
+   * 授权强度（进授权快照）。
+   *
+   * - `explicit`  用户明确要求了这件事
+   * - `inferred`  Assistant 自己判断该做（默认）
+   * - `automatic` 系统按规则自动派（定时、模板）
+   */
+  readonly strength?: 'explicit' | 'inferred' | 'automatic';
+  /** 谁授权的：'user' | 'assistant' | 'schedule' | 'template'。 */
+  readonly grantedBy?: string;
   /**
    * 用户这次说的话。
    *
@@ -633,6 +645,44 @@ export class Orchestrator extends EventEmitter {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`项目 ${projectId} 不存在`);
     const assistant = await this.ensureAssistant(project);
+
+    // **Eval：先判断这条消息该怎么处理**（对齐 DSH 的评估层）。
+    //
+    // 只对**用户真正说的话**分类。内部通知（结算、定时）由 trigger
+    // 决定唤醒与否，不需要再走一遍分类。
+    if (!options.internal) {
+      const running = this.store
+        .listExecutors({ projectId })
+        .filter((e) => e.status === 'running' || e.status === 'starting').length;
+      const verdict = evaluate(text, running);
+
+      if (verdict.decision === 'ignore') {
+        // 客套话：不进 Assistant 上下文，也不唤醒它。
+        //
+        // 但要**落库**——用户说的每句话都该留痕，只是不该让模型
+        // 为此跑一轮。界面仍会显示这条消息，Assistant 不回。
+        await assistant.recordUser(text, options.source ?? 'webapp', false, options.images);
+        return;
+      }
+
+      if (verdict.decision === 'stop' && running > 0) {
+        // **停下来**：直接把决定交给 Assistant，让它列出该停哪些。
+        //
+        // 不在这里直接 kill——"停"可能只指某一个 Agent，
+        // Assistant 知道上下文，由它判断。
+        const stopHint =
+          `用户说「${text}」，意思是要停下来。\n` +
+          `当前有 ${running} 个 Agent 在跑。请确认停哪些：` +
+          '如果只有一个在跑就直接 cancel_executor；' +
+          '有多个时先列出来问用户停哪个，不要一次全停。';
+        assistant.say(stopHint, {
+          source: 'eval',
+          internal: true,
+        });
+        void this.pumpAssistant(project).catch(() => {});
+        return;
+      }
+    }
 
     assistant.say(text, {
       ...(options.source ? { source: options.source } : {}),
@@ -1385,6 +1435,9 @@ export class Orchestrator extends EventEmitter {
     // 判断逻辑在 sessionPolicy.ts；这里只拿结果。
     const session = this.chooseSession(project, input.goal.trim(), input.userText ?? '');
 
+    // 授权快照要用当前的权限档位——在这里一次取好。
+    const mandateLevel = await this.effectivePermission(projectId);
+
     const executor: ExecutorRow = {
       id: newId('exe'),
       projectId,
@@ -1401,6 +1454,23 @@ export class Orchestrator extends EventEmitter {
       policy: input.policy ?? 'unverified_only',
       acceptance: null,
       ...(input.planStepId ? { planStepId: input.planStepId } : {}),
+      // **授权快照**（对齐 DSH 的 Mandate）。
+      //
+      // 派活那一刻把权限档位和写域定格。之后用户改全局权限，
+      // 只影响新派的活——**正在跑的这个仍然用它被授权时的规则**。
+      //
+      // 这是"不可变"的实际含义：用户以为改权限是"以后生效"，
+      // 如果现查全局值，当下的任务会跟着换规则，那就是他没想到的越权。
+      mandate: createMandate({
+        level: mandateLevel,
+        scope: claim.scopes,
+        // 强度由派活来源决定：用户明确说了就是 explicit，
+        // Assistant 自己判断要派是 inferred，定时/模板是 automatic。
+        strength: input.strength ?? 'inferred',
+        grantedBy: input.grantedBy ?? 'assistant',
+        policyVersion: this.permissionPolicyVersion(),
+        now,
+      }),
       createdAt: now,
       endedAt: null,
     };
@@ -2678,6 +2748,31 @@ export class Orchestrator extends EventEmitter {
   /** 当前**生效**的权限档位（按项目解析）。 */
   effectivePermission(projectId?: string | null): Promise<PermissionLevel> {
     return this.permissionStore.load().then((s) => levelForProject(s, projectId));
+  }
+
+  /**
+   * 权限策略的同步快照 + 版本号。
+   *
+   * ## 为什么需要同步版本
+   *
+   * `spawn` 里要生成授权快照（Mandate），而它需要**当前**档位和版本。
+   * `effectivePermission` 是 async 的，在 `spawn` 里 await 一次可以，
+   * 但版本号得有个稳定的来源。
+   *
+   * 做法：每次权限变更时把版本号 +1，存进内存。
+   * **进程重启后版本号归零**——这不是问题：重启后所有工单都已结算，
+   * 没有"在途工单需要重新校验"的场景。
+   */
+  private permissionVersion = 1;
+
+  /** 当前权限策略版本（用于授权快照和重新校验）。 */
+  permissionPolicyVersion(): number {
+    return this.permissionVersion;
+  }
+
+  /** 权限变更后调用：推进版本号，让在途工单恢复时能发现策略变了。 */
+  bumpPermissionVersion(): void {
+    this.permissionVersion += 1;
   }
 
   async closeSettings(): Promise<CloseSettings> {
