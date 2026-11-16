@@ -81,3 +81,39 @@ describe('**权限降级的写任务仍然判失败**', () => {
     assert.equal(r.results[0]?.verdict, 'failed', '权限不够不是放过"什么都没改"的理由');
   });
 });
+
+/**
+ * **git 命令在非仓库目录里跑不了**（2026-11-16 用户实测）。
+ *
+ * 实况：派只读 Agent 数 .md 文件，Assistant 自己加了验收标准
+ * `git status --porcelain`（想验证"没有改动任何文件"）。
+ * 但那个项目不是 git 仓库，git 返回 128：
+ *
+ *     系统复核未通过：没有改动任何文件（只读任务）（命令失败（退出码 128））
+ *
+ * Agent 明明干对了，却判失败。
+ *
+ * 判 unverified 而不是 failed：**这不是「没做到」，是「没法验证」**。
+ */
+describe('**非 git 目录里的 git 验收命令**', () => {
+  it('git status 在非仓库里 → unverified（不是 failed）', async () => {
+    const dir = makeRepo();
+    rmSync(join(dir, '.git'), { recursive: true, force: true });
+
+    const r = await verify({
+      rootPath: dir,
+      criteria: [
+        { id: 'ro', type: 'command', desc: '没有改动任何文件', check: 'git status --porcelain' },
+      ],
+      policy: 'auto',
+      approve: async () => ({ approved: true, reason: '测试放行' }),
+    });
+
+    assert.equal(
+      r.results[0]?.verdict,
+      'unverified',
+      `不该判失败：${r.results[0]?.note}`,
+    );
+    assert.match(r.results[0]?.note ?? '', /不是 git 仓库/, '要说清是没法验证');
+  });
+});

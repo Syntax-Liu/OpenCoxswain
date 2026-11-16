@@ -174,6 +174,27 @@ async function verifyCommand(
       };
     }
 
+    // **git 命令在非仓库目录里跑不了**（2026-11-16 用户实测）。
+    //
+    // 实况：派只读 Agent 数 .md 文件，Assistant 自己加了验收标准
+    // `git status --porcelain`（想验证"没有改动任何文件"）。
+    // 但那个项目不是 git 仓库，git 返回 128：
+    //
+    //     系统复核未通过：没有改动任何文件（只读任务）（命令失败（退出码 128））
+    //
+    // Agent 明明干对了，却判失败。
+    //
+    // 判 unverified 而不是 failed：**这不是「没做到」，是「没法验证」**。
+    // 对只读任务尤其重要——它本来就不该改文件。
+    if (/fatal:\s*not a git repository|not a git repo/i.test(detail)) {
+      return {
+        criterion,
+        verdict: 'unverified',
+        note: '这个目录不是 git 仓库，验收命令（git …）无法执行。这不是「没做到」，是「没法验证」',
+        output: detail.slice(0, 2000),
+      };
+    }
+
     return {
       criterion,
       verdict: 'failed',
