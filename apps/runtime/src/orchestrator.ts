@@ -28,6 +28,11 @@ import { makeTrigger, shouldWake } from './orchestrator/trigger.js';
 import { evaluate } from './ticket/eval.js';
 import { createMandate } from './ticket/mandate.js';
 import { routeToSubscriber } from './ticket/subscription.js';
+import {
+  admit,
+  DEFAULT_SOURCES,
+  type SourceKind,
+} from './ticket/source.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
@@ -641,11 +646,49 @@ export class Orchestrator extends EventEmitter {
       internal?: boolean;
       /** 图片附件。**只有图片走这里**，文本文件的内容已经拼进 text。 */
       images?: readonly ContentPart[];
+      /**
+       * 这条消息来自哪个**来源**（对齐 DSH 的 Source）。
+       *
+       * 不传就按 'web' 处理（本机界面）。
+       * 来源决定接收范围（是否要 @）和授权强度。
+       */
+      sourceKind?: SourceKind;
+      /** 这条消息有没有指向 agent（IM 里就是有没有 @）。默认 true。 */
+      mentionsAgent?: boolean;
     } = {},
   ): Promise<void> {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`项目 ${projectId} 不存在`);
     const assistant = await this.ensureAssistant(project);
+
+    // **Source 准入**：不该进来的消息在进上下文之前就丢掉。
+    //
+    // 对齐 DSH：*在监听范围之外的触发**进入领域之前**就丢弃它们。*
+    //
+    // 为什么必须在这里丢：一旦进了 Assistant 的上下文，模型就对它
+    // 发言了——用户会看到一条无中生有的回复。
+    //
+    // 内部通知（结算、定时）不走准入：它们不是"来源"，是系统自己
+    // 产生的事件，已经由 trigger 决定唤醒与否。
+    if (!options.internal) {
+      const kind = options.sourceKind ?? 'web';
+      const config = DEFAULT_SOURCES[kind];
+      const gate = admit(
+        {
+          source: kind,
+          actor: 'local-user',
+          text,
+          mentionsAgent: options.mentionsAgent ?? true,
+        },
+        config,
+      );
+      if (!gate.accept) {
+        // 丢弃但**留痕**：用户说过的每句话都要能查到，
+        // 只是不让模型处理它。
+        await assistant.recordUser(text, `dropped:${kind}`, false, options.images);
+        return;
+      }
+    }
 
     // **Eval：先判断这条消息该怎么处理**（对齐 DSH 的评估层）。
     //

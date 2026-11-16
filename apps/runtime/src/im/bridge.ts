@@ -159,7 +159,20 @@ export class ImBridge {
     const assistantSessionId = project.assistantSessionId;
     const before = this.options.store.messages(assistantSessionId).length;
 
-    await this.options.orchestrator.userSays(project.id, text, { source: 'im:telegram' });
+    // **走 Source 准入**（对齐 DSH）。
+    //
+    // 白名单已经挡掉了未绑定的 chat；这里再走一次 Source 层的规则，
+    // 让"什么算一个事件"和 Web 端用同一套判断。
+    //
+    // `mentionsAgent: true` 的依据：白名单里的 chat 是通过
+    // "第一个发消息的人自动绑定"建立的，等于用户主动找过这个 bot。
+    // 群聊场景如果嫌吵，把 im 的 scope 改成 mention-only 后，
+    // 这里应该改成按消息里的 @ 判断（Telegram 的 entities 字段）。
+    await this.options.orchestrator.userSays(project.id, text, {
+      source: 'im:telegram',
+      sourceKind: 'im',
+      mentionsAgent: true,
+    });
 
     const reply = await this.waitForReply(assistantSessionId, before);
     if (reply.trim()) {
