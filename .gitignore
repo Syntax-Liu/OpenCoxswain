@@ -62,3 +62,6 @@ dsh-superagent-prototype-main/
 
 # 手动测试时 Agent 产生的文件（不提交）
 test-artifacts/
+
+# 临时验证脚本（不提交）
+.*.mjs
