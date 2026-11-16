@@ -112,3 +112,37 @@ describe('**结算不走成功/失败**', () => {
     assert.match(block, /makeTrigger\('worker_attention'/, '没用 attention 类型的通知');
   });
 });
+
+/**
+ * **说了"交回"但没调工具**（2026-11-16 用户实测）。
+ *
+ * 实况：Agent 的最后一句是
+ *
+ *     **结论：分支 B —— `src/` 里没有任何登录 / 认证相关代码，
+ *       因此不做任何修改，交回。**
+ *
+ * 但它**没有调用 `hand_back` 工具**，于是被记成 `done`。
+ * Assistant 和用户都以为它做完了。
+ *
+ * 和"谎报已派出"是同一类问题：**文字不等于动作**。
+ */
+describe('**文字说交回也要被识别**', () => {
+  const src = readFileSync(new URL('../../src/orchestrator.ts', import.meta.url), 'utf8');
+
+  it('结算时检查文本里有没有"交回"', () => {
+    assert.match(src, /claimsHandback/, '没有检查文字里的交回声明');
+  });
+
+  it('识别到就标成 handback', () => {
+    const start = src.indexOf('claimsHandback');
+    const block = src.slice(start, start + 900);
+    assert.match(block, /'handback'/, '没有改成 handback 状态');
+  });
+
+  it('工具描述里强调"必须真的调用"', () => {
+    const ex = readFileSync(new URL('../../src/executor/executor.ts', import.meta.url), 'utf8');
+    const start = ex.indexOf("name: 'hand_back'");
+    const block = ex.slice(start, start + 1500);
+    assert.match(block, /光在回复里写/, '没强调光说没用');
+  });
+});

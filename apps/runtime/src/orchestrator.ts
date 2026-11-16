@@ -1784,6 +1784,33 @@ export class Orchestrator extends EventEmitter {
         return;
       }
 
+      // **说了"交回"但没调工具**（2026-11-16 用户实测）。
+      //
+      // 实况：Agent 的最后一句是
+      //
+      //     **结论：分支 B —— `src/` 里没有任何登录 / 认证相关代码，
+      //       因此不做任何修改，交回。**
+      //
+      // 但它**没有调用 `hand_back` 工具**，于是被记成 `done`。
+      // Assistant 和用户都以为它做完了，实际那个"交回"的结论没走正式通道。
+      //
+      // 和"谎报已派出"是同一类问题：文字不等于动作。
+      // 这里改成 handback，让结论走对的路。
+      const claimsHandback =
+        /交回|不在我(的)?范围|不属于我|前提不成立/.test(outcome.finalText ?? '') &&
+        outcome.ok;
+      if (claimsHandback) {
+        await this.finishExecutor(
+          ready.id,
+          'handback',
+          `已交回（Agent 在结论里说明，未调用 hand_back 工具）`,
+          outcome.finalText,
+        );
+        this.gate.release(ready.id);
+        this.executorAborts.delete(ready.id);
+        return;
+      }
+
       if (outcome.ok) {
         // **独立复核**：D 说完成不算，先由系统自己验一遍。
         const acceptance = await this.runAcceptance(project, ready, () =>

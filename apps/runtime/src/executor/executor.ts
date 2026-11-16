@@ -350,7 +350,12 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
         '只是觉得难、想放弃 —— 那要继续做或者报失败，不要交回。\n' +
         '\n## 交回不是失败\n' +
         '你发现的东西会原样带给 Assistant，作为下一步的依据。\n' +
-        '**一定要写清你查到了什么**，否则交回等于白干。',
+        '**一定要写清你查到了什么**，否则交回等于白干。\n' +
+        '\n## ⚠ 必须在文字之外真的调用这个工具\n' +
+        '**光在回复里写"我交回"不算交回。** 系统只看这个工具有没有被调用：\n' +
+        '没调用就按"完成"记录，用户会以为你做完了，实际什么结论都没传出去。\n' +
+        '（实测 2026-11-16：你说了"分支 B——交回"，但没调用工具，\n' +
+        '状态被记成 done，Assistant 和用户都不知道你想交回。）',
       parameters: {
         type: 'object',
         additionalProperties: false,
