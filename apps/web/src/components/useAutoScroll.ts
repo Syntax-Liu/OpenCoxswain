@@ -29,8 +29,16 @@ export interface AutoScroll {
  *   **变化时强制滚到底部**——用户切到一个会话，期望看到最新内容，
  *   而不是停在顶部。之前只监听条数，切换两个消息数相同的会话时
  *   就完全不会滚动（用户反馈"每次打开 Assistant 都在最顶部"）。
+ * @param contentToken **流式内容长度**。
+ *   流式输出时消息**条数不变**，只有字符在增加。只监听条数的话，
+ *   文字一直往下长而视图不动，用户得自己往下扒拉（2026-11-16 反馈）。
+ *   传 `streaming.length` 即可。
  */
-export function useAutoScroll(dependency: number, identity?: string): AutoScroll {
+export function useAutoScroll(
+  dependency: number,
+  identity?: string,
+  contentToken?: number,
+): AutoScroll {
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
@@ -87,6 +95,22 @@ export function useAutoScroll(dependency: number, identity?: string): AutoScroll
       setUnread((n) => n + delta);
     }
   }, [dependency]);
+
+  // **流式内容增长时跟随**（2026-11-16 反馈：输出时不会自动翻到底部）。
+  //
+  // 这一条和上面的 `dependency` 分开写，因为触发条件不同：
+  //   - dependency 变化 = 多了一条消息
+  //   - contentToken 变化 = 同一条消息变长了（流式）
+  //
+  // 流式时**每帧都可能变化**，所以只做最轻的事：直接设 scrollTop。
+  // 不加未读计数——正在输出不算"未读"，用户就在看。
+  useEffect(() => {
+    if (contentToken === undefined) return;
+    if (!atBottomRef.current) return;
+    const el = ref.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [contentToken]);
 
   // **会话切换：立刻到底。**
   //

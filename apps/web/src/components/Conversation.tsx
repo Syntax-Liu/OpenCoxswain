@@ -160,7 +160,13 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
   // 会话身份：切项目/切会话时强制滚到底部。
   const scrollIdentity = `${props.project.id}:${props.draftKey}`;
-  const scroll = useAutoScroll(visible.length, scrollIdentity);
+  // 第三个参数是**流式内容的长度**：流式时消息条数不变，只有它在长。
+  // 不传的话输出过程中视图不会跟着往下走（2026-11-16 反馈）。
+  const scroll = useAutoScroll(
+    visible.length,
+    scrollIdentity,
+    props.streaming?.length ?? 0,
+  );
 
   const submit = (): void => {
     const text = draft.trim();

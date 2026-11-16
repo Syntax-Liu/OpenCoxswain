@@ -48,7 +48,8 @@ describe('**问题1：打开会话必须在底部**', () => {
   });
 
   it('Conversation 传了 identity', () => {
-    assert.match(conversation, /useAutoScroll\(visible\.length, scrollIdentity\)/);
+    // 现在还多传了流式内容长度（2026-11-16：输出时视图不跟随）
+      assert.match(conversation, /useAutoScroll\(\s*visible\.length,\s*scrollIdentity,\s*props\.streaming/);
   });
 
   it('identity 能区分不同会话', () => {
@@ -121,5 +122,53 @@ describe('**问题3：图标在视口里必须居中**', () => {
 
   it('所有图标都用统一视口', () => {
     assert.match(icons, /viewBox: '0 0 16 16'/);
+  });
+});
+
+/**
+ * **流式输出时视图要跟着往下走**（2026-11-16 反馈）。
+ *
+ * 用户：
+ *
+ * > 输出时不会自动翻到底部
+ *
+ * 根因：`useAutoScroll` 只监听**消息条数**。流式时条数不变，
+ * 只有字符在增加——文字一直往下长，视图纹丝不动。
+ */
+describe('**流式时自动跟随**', () => {
+  const hook = readFileSync(
+    new URL('../../src/components/useAutoScroll.ts', import.meta.url),
+    'utf8',
+  );
+
+  it('useAutoScroll 接受第三个参数（内容长度）', () => {
+    assert.match(
+      hook,
+      /contentToken\?: number/,
+      '没有内容长度参数 —— 流式时不会跟随',
+    );
+  });
+
+  it('内容变化时滚到底', () => {
+    const start = hook.indexOf('[contentToken]');
+    assert.ok(start > 0, '没有监听 contentToken 的 effect');
+    // 往前找这个 effect 的实现
+    const block = hook.slice(Math.max(0, start - 500), start);
+    assert.match(block, /scrollTop = el\.scrollHeight/, '内容变化时没滚到底');
+  });
+
+  it('**用户往上翻时不打扰**', () => {
+    // 和消息条数的逻辑一致：不在底部就别拽回来。
+    const start = hook.indexOf('[contentToken]');
+    const block = hook.slice(Math.max(0, start - 500), start);
+    assert.match(block, /atBottomRef\.current/, '没检查用户是否在底部');
+  });
+
+  it('Conversation 把 streaming 长度传进去了', () => {
+    const conv = readFileSync(
+      new URL('../../src/components/Conversation.tsx', import.meta.url),
+      'utf8',
+    );
+    assert.match(conv, /props\.streaming\?\.length/, '没传流式内容长度');
   });
 });
