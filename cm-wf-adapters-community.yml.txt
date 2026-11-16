@@ -1,0 +1,38 @@
+name: Adapter Community Checks
+
+# 社区适配器校验：清单字段、脚本静态红线、api 夹具回放、索引一致性。
+on:
+  pull_request:
+    paths:
+      - 'adapters-community/**'
+      - 'docs/adapters/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'adapters-community/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adapters-community-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate adapter community
+        run: node adapters-community/tools/validate.mjs

@@ -1295,7 +1295,7 @@ export async function runExecutor(options: RunExecutorOptions): Promise<Executor
     llm: options.llm,
     toolHost,
     messages: messages as Parameters<typeof runLoop>[0]['messages'],
-    maxSteps: options.maxSteps ?? 40,
+    maxSteps: options.maxSteps ?? 80,
     signal: options.signal,
     ...(options.drainInputs ? { drainInputs: options.drainInputs } : {}),
   })) {

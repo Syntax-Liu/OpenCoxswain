@@ -176,7 +176,13 @@ export interface OrchestratorOptions {
 
 /** 运行时对外事件。上层据此推送 UI / IM / 日志。 */
 export type RuntimeEvent =
-  | { readonly type: 'assistant_text'; readonly projectId: string; readonly text: string }
+  | {
+      readonly type: 'assistant_text';
+      readonly projectId: string;
+      readonly text: string;
+      /** 是不是这一步的最终答复（false = 调工具前的说明）。 */
+      readonly final?: boolean;
+    }
   /**
    * 流式文字增量。
    *
@@ -334,7 +340,14 @@ export class Orchestrator extends EventEmitter {
     this.llm = options.llm;
     this.maxConcurrent = options.maxConcurrentExecutors ?? 5;
     this.gate = new Gate(this.maxConcurrent);
-    this.maxStepsPerExecutor = options.maxStepsPerExecutor ?? 40;
+    // **默认 80 步**（2026-11-16 用户实测：40 步不够）。
+    //
+    // 截图里"读取 OpenCoxswain 仓库内容概览"这种**只读**任务也撞了 40 轮上限。
+    // 只读任务要读很多文件才敢下结论，40 步经常刚看一半就断。
+    //
+    // 上限的作用是防死循环，不是省 token——真卡住的 Agent 早就停了，
+    // 而正常任务被砍断的代价是"什么都没做完"。
+    this.maxStepsPerExecutor = options.maxStepsPerExecutor ?? 80;
     this.commandTimeoutMs = options.commandTimeoutMs;
     this.readMemory = options.readMemory;
     this.memory = options.memory;
@@ -933,6 +946,12 @@ export class Orchestrator extends EventEmitter {
           type: 'assistant_text',
           projectId: project.id,
           text: event.text,
+          // **必须传 final**（2026-11-16 用户截图：同一段显示两遍）。
+          //
+          // `final: false` 是调工具前的说明；`final: true` 是这一步讲完了。
+          // 前端据此决定追加还是替换——真答复会把之前的说明一起重说，
+          // 无脑追加就出现「结论：已派出…」出现两次。
+          final: event.final,
         } as RuntimeEvent);
       }
       if (event.type === 'done') finalText = event.finalText;
@@ -975,8 +994,19 @@ export class Orchestrator extends EventEmitter {
     //
     // 代价：这一轮没派成的活要等用户下一句。但"结果没汇报"比
     // "多问一句"糟得多：用户不知道活干完了。
-    const reportingTurn = messages.some(
-      (m) => m.role === 'user' && (m.content ?? '').includes(INTERNAL_NOTICE_PREFIX),
+    // **只看本轮新到的输入**（2026-11-16 用户截图）。
+    //
+    // 原来扫的是**整个历史**：`messages.some(...)`。只要有任意一条历史结算
+    // 通知，就永远算"汇报轮"——于是谎报永远不重试，Agent 永远派不出去。
+    //
+    // 截图里的表现：
+    //
+    //   结论：已派出了一个 Agent ... (id: exe_mwj36qo914pz8)
+    //   （注：上面这句话只是预告，没有真的派出去。需要的话说一声。）
+    //
+    // 检测抓到了，但因为是"汇报轮"所以只提示、不重试，用户永远等不到结果。
+    const reportingTurn = inputs.some(
+      (i) => i.internal && i.text.includes(INTERNAL_NOTICE_PREFIX),
     );
 
     // **谎报的回复不写进历史**。

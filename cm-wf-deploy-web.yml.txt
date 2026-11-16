@@ -1,0 +1,149 @@
+name: Deploy Web to CloudBase
+
+# 何时触发：
+# 1) 推送到 main 且改动落在 web/ 目录下（改站点才部署，改安卓代码不会误触发）
+# 2) 手动触发（GitHub 页面 Actions -> Deploy Web to CloudBase -> Run workflow）
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+      - 'tools/cloudbase/**'
+  workflow_dispatch:
+
+# 同一个分支只跑一份部署，后来的排队，不会并发覆盖
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: false
+
+# 最小权限：这个工作流只读仓库、用 Secrets 登录 CloudBase，不需要写仓库或发布。
+permissions:
+  contents: read
+
+env:
+  TCB_ENV: coursemeow-d6gywwh2kd8dca6c8
+  SITE_BASE: https://www.nexoraism.com
+
+jobs:
+  deploy:
+    name: tcb hosting deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 CloudBase CLI
+        # 锁定版本：不锁的话上游发新版会悄悄改变 tcb hosting 的行为，部署可能在不相关提交上失败。
+        # 3.9.1 是 2026-11-09 时 npm registry 的 latest，与当前 CI 实际装到的版本一致。
+        run: npm install -g @cloudbase/cli@3.9.1
+
+      - name: 用 API 密钥登录 CloudBase
+        # tcb login --apiKeyId <SecretId> --apiKey <SecretKey> 是非交互登录方式
+        run: |
+          tcb login \
+            --apiKeyId "${{ secrets.CLOUDBASE_SECRET_ID }}" \
+            --apiKey "${{ secrets.CLOUDBASE_SECRET_KEY }}"
+
+      - name: 部署 web 目录到静态网站托管
+        # 整目录上传，保留 coursemeow/ 与 assets/ 子目录层级；覆盖默认域名
+        run: tcb hosting deploy ./web -e "$TCB_ENV"
+
+      - name: 清理远端残留文件
+        # hosting deploy 只覆盖不删除：旧截图、废弃 CSS、被替换的位图二维码要显式删掉，
+        # 否则删掉本地文件后线上仍然 200 可直取（H1/M3）。
+        run: |
+          set -u
+          tcb hosting delete assets/shots --dir -e "$TCB_ENV" \
+            || echo "assets/shots 远端已不存在（或删除失败，交由下方自检判定）"
+          tcb hosting delete assets/style.css -e "$TCB_ENV" || true
+          tcb hosting delete assets/download/nexoraism-official-qrcode.png -e "$TCB_ENV" || true
+
+      - name: 配置自定义域强制 HTTPS 与 HSTS
+        # CloudBase CLI 没有响应头配置命令，改走 Manager SDK 的 HTTP 服务路由 API：
+        # 把 www.nexoraism.com 设为 HTTP_TO_HTTPS，并在响应头追加 HSTS。
+        # 平台不支持或权限不足时只告警，不阻断部署，最终由自检如实报告。
+        id: https
+        continue-on-error: true
+        env:
+          TC_SECRET_ID: ${{ secrets.CLOUDBASE_SECRET_ID }}
+          TC_SECRET_KEY: ${{ secrets.CLOUDBASE_SECRET_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/tcbmeta"
+          npm install --no-save --prefix "$RUNNER_TEMP/tcbmeta" @cloudbase/manager-node@5.10.2 >/dev/null
+          NODE_PATH="$RUNNER_TEMP/tcbmeta/node_modules" node tools/cloudbase/https-hsts.js
+
+      - name: 部署后自检
+        # 校验公网自定义域上的真实路由；清理项必须 404；HTTP 跳转与 HSTS 如实报告，
+        # 只有在上一步配置成功后才作为硬性失败条件，避免平台限制导致长期红灯。
+        run: |
+          set -u
+          fail=0
+          echo "== 真实路由（应 200） =="
+          for p in / /download.html /privacy.html /terms.html /coursemeow/ /assets/site.js /robots.txt /sitemap.xml; do
+            code=$(curl -sL -o /dev/null -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$SITE_BASE$p?check=$(date +%s)")
+            echo "$p -> $code"
+            [ "$code" = "200" ] || fail=1
+          done
+
+          echo "== 已删除的远端残留（应 404） =="
+          REMOVED="/assets/style.css
+          /assets/download/nexoraism-official-qrcode.png
+          /assets/shots/course-detail.png
+          /assets/shots/day.png
+          /assets/shots/import-entry.png
+          /assets/shots/new-timetable.png
+          /assets/shots/settings-appearance.png
+          /assets/shots/settings-color.png
+          /assets/shots/timetable-switch.png
+          /assets/shots/week.png
+          /assets/shots/widget-preview-countdown.png
+          /assets/shots/widget-preview-in-class.png
+          /assets/shots/widget-preview-next.png
+          /assets/shots/widget-preview-today.png
+          /assets/shots/widget-preview-tomorrow.png"
+          for attempt in 1 2 3; do
+            clean=1
+            for p in $REMOVED; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$SITE_BASE$p?nocache=$(date +%s)$attempt")
+              echo "$p -> $code"
+              [ "$code" = "404" ] || clean=0
+            done
+            if [ "$clean" = "1" ]; then break; fi
+            echo "仍有残留命中（可能是 CDN 缓存），${attempt}/3 次后重试…"
+            sleep 30
+          done
+          [ "$clean" = "1" ] || fail=1
+
+          echo "== HTTP 强制跳转 / HSTS =="
+          # 域名级配置提交后有数秒下发延迟，HSTS 最多重试 4 次
+          hsts=""
+          for attempt in 1 2 3 4; do
+            hsts=$(curl -sI -H 'Cache-Control: no-cache' "$SITE_BASE/?check=$(date +%s)" | tr -d '\r' | awk -F': ' 'tolower($1)=="strict-transport-security"{print $2}')
+            if [ -n "$hsts" ]; then break; fi
+            sleep 15
+          done
+          http_line=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -H 'Cache-Control: no-cache' "http://www.nexoraism.com/?check=$(date +%s)")
+          echo "http -> $http_line"
+          echo "strict-transport-security: ${hsts:-（缺失）}"
+
+          if [ -f "$RUNNER_TEMP/hsts-enabled" ]; then
+            code=${http_line%% *}
+            case "$code" in
+              301|302|307|308) ;;
+              *) fail=1 ;;
+            esac
+            [[ "$http_line" == *"https://"* ]] || fail=1
+            [ -n "$hsts" ] || fail=1
+          else
+            echo "::warning::强制 HTTPS / HSTS 未能通过 API 配置（平台限制），记为已知风险"
+          fi
+
+          exit $fail

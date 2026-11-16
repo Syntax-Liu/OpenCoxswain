@@ -1,0 +1,25 @@
+name: Release APK (GitHub Only)
+
+# 「只上 GitHub、不发蒲公英」的发布流程。
+#
+# 和 release.yml（全流程发版）的区别只有一点：不传蒲公英、不生成二维码，
+# 安装包只进产物仓库（固定标签 Android-Latest，永远只留最新一版）。
+# 适用场景：还没想好要不要发给外部测试用户，先出个包放仓库里验证/存档。
+#
+# 两种发法二选一：
+#   - 本地跑 release.ps1（脚本会提示用哪条流程）
+#   - Actions 页面手动 Run workflow（下面这个）
+# 产物仓库同样由 build-apk.yml 内部负责，这里只把 upload_pgyer 传成 false。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android APK (GitHub Only)
+    uses: ./.github/workflows/build-apk.yml
+    with:
+      upload_pgyer: false
+    secrets: inherit

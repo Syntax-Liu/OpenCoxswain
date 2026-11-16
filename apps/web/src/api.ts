@@ -148,7 +148,21 @@ export interface ReportDto {
 }
 
 export type RuntimeEventDto =
-  | { readonly type: 'assistant_text'; readonly projectId: string; readonly text: string }
+  | {
+      readonly type: 'assistant_text';
+      readonly projectId: string;
+      readonly text: string;
+      /**
+       * 是不是**这一步的最终答复**。
+       *
+       * alse = 调工具前的说明文字（后面还有动作）
+       * 	rue  = 讲完了
+       *
+       * 前端据此决定是**追加**还是**替换**：真答复会把之前的说明
+       * 一起重说一遍，无脑追加就会出现"同一段显示两遍"。
+       */
+      readonly final?: boolean;
+    }
   | { readonly type: 'assistant_delta'; readonly projectId: string; readonly text: string }
   | { readonly type: 'executor_started'; readonly projectId: string; readonly executor: ExecutorDto }
   | {

@@ -1,0 +1,62 @@
+name: Governance Checks
+
+# 治理检查：文档一致性与提交信息规范。
+#
+# 触发：
+#   - 推送到 main（每次提交都校验文档与提交信息）
+#   - Pull Request（未来若有贡献者）
+#   - 手动 Run workflow（补查用）
+#
+# 权限只读：这个工作流不写仓库、不发版。发版相关的标签/版本一致性检查在
+# build-apk.yml 里（tag 触发时执行，属于发布阻断项）。
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # fetch-depth: 0 是提交信息校验需要的：要读本次推送范围内每一个提交。
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 文档一致性：相对链接可打开、每份工程文档在索引中恰好一次、无同名正文。
+      - name: Check docs consistency
+        run: node tools/check-docs.mjs
+
+      # 提交信息：只查本次推送新增的提交，不回查历史。
+      - name: Check commit messages
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "首次推送或新建分支，跳过提交信息校验"
+          else
+            node tools/check-commits.mjs "${BEFORE}..${AFTER}"
+          fi
+
+      - name: Check pull request commit messages
+        if: github.event_name == 'pull_request'
+        run: node tools/check-commits.mjs "origin/${{ github.base_ref }}..HEAD"

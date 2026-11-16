@@ -118,7 +118,29 @@ export function applyEvent(state: AppState, seq: number, event: RuntimeEventDto)
         ...next,
         thinking: false,
         streaming: remaining,
-        messages: mergeAssistantText(next.messages, event.text),
+        // **按 final 决定合并方式**（2026-11-16 用户截图：同一段显示两遍）。
+        //
+        // 用户看到的是：
+        //
+        //   Assistant
+        //     结论：已派出只读 Agent 统计 docs…
+        //     做了什么：派出一个 writeScope 为 readonly 的 Agent…
+        //
+        //   Assistant                    ← 又一遍
+        //     我先派一个只读 Agent 去统计。结论：已派出只读 Agent…
+        //     做了什么：派出一个 writeScope 为 readonly 的 Agent…
+        //
+        // 原因：`final: true` 的真答复**会把调工具前的说明一起重说一遍**，
+        // 而前端无脑追加，就拼成了两遍。
+        //
+        // 现在：
+        //   - final=false（调工具前的说明）→ 追加，是过程的补充
+        //   - final=true （这一步讲完了）  → **替换**本步的临时内容
+        messages: mergeAssistantText(
+          next.messages,
+          event.text,
+          event.final !== false ? 'replace' : 'append',
+        ),
         // 项目列表里的"待决策"数字可能变了，等下一次快照刷新；这里不动。
       };
     }
@@ -167,21 +189,57 @@ export function upsertExecutor(
 }
 
 /**
- * 追加一段助手文本。
+ * 合并一段助手文本。
  *
- * 合并规则：如果上一条是"同一轮刚产生的助手消息"（保留源标记），
- * 就拼到它后面；否则新建一条。这样 Assistant 的"收到，我派 X 去做"和随后的
- * 结论不会变成两条割裂的消息。
+ * `mode`：
+ * - `append`：调工具前的说明，拼到本步已有内容后面
+ * - `replace`：这一步讲完了的真答复，**替换**本步内容
+ *
+ * ## 为什么需要 replace（2026-11-16 用户截图）
+ *
+ * 用户看到同一段显示两遍：
+ *
+ *     Assistant
+ *       结论：已派出只读 Agent 统计 docs…
+ *       做了什么：派出一个 writeScope 为 readonly 的 Agent…
+ *
+ *     Assistant
+ *       我先派一个只读 Agent 去统计。结论：已派出只读 Agent…
+ *       做了什么：派出一个 writeScope 为 readonly 的 Agent…
+ *
+ * 因为模型的真答复（final=true）**会把调工具前那段说明一起重说一遍**。
+ * 无脑追加就拼成了两遍，还错位。
  */
 export function mergeAssistantText(
   messages: readonly MessageDto[],
   text: string,
+  mode: 'append' | 'replace' = 'append',
 ): MessageDto[] {
   const last = messages.at(-1);
   if (last && last.role === 'assistant' && last.source === 'assistant-stream') {
+    // **replace 只在"同一步内"生效**。
+    //
+    // `assistant-stream` 标记会一直留在最后一条上。如果用户过十分钟又问一句，
+    // 那条还是没有落库的临时消息——此时 replace 会把**上一轮的真答复**覆盖掉。
+    //
+    // 所以加时间窗：超过 2 分钟就不认为是"这一步"了，改成新建一条。
+    const fresh = Date.now() - last.at < 2 * 60_000;
+    if (!fresh) {
+      return [
+        ...messages,
+        {
+          id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          role: 'assistant',
+          content: text,
+          source: 'assistant-stream',
+          at: Date.now(),
+        },
+      ];
+    }
     const merged: MessageDto = {
       ...last,
-      content: `${last.content}\n\n${text}`.trim(),
+      // replace 时用新文本覆盖本步内容——模型已经把话讲全了。
+      content: mode === 'replace' ? text : `${last.content}\n\n${text}`.trim(),
       at: Date.now(),
     };
     return [...messages.slice(0, -1), merged];
