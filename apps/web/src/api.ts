@@ -12,7 +12,14 @@
  * - 若收到 `gap` 事件，说明错过太多，**重拉快照**而不是继续拼增量。
  */
 
-export type ExecutorStatus = 'starting' | 'running' | 'done' | 'failed' | 'cancelled';
+export type ExecutorStatus =
+  | 'starting'
+  | 'running'
+  | 'done'
+  | 'failed'
+  | 'cancelled'
+  /** 交回：Agent 判断这活不该它做，把发现交回给 Assistant。 */
+  | 'handback';
 
 export interface ProjectDto {
   readonly id: string;

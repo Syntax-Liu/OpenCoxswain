@@ -338,6 +338,41 @@ export function executorTools(input: { readonly mcpTools?: readonly McpTool[] } 
         },
       },
     },
+    {
+      name: 'hand_back',
+      description:
+        '把这个任务**交回**给 Assistant，说明它不该由你继续做。' +
+        '\n\n## 什么时候用\n' +
+        '你查清之后发现：任务的前提不成立（要修的东西根本没问题）、\n' +
+        '根因在别处（你被派来修登录，实际是数据库连接池配错）、\n' +
+        '或者需要的权限/环境你没有。\n' +
+        '\n## 什么时候别用\n' +
+        '只是觉得难、想放弃 —— 那要继续做或者报失败，不要交回。\n' +
+        '\n## 交回不是失败\n' +
+        '你发现的东西会原样带给 Assistant，作为下一步的依据。\n' +
+        '**一定要写清你查到了什么**，否则交回等于白干。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['reason', 'findings'],
+        properties: {
+          reason: {
+            type: 'string',
+            description: '为什么这件事不该由你做（一句话说清）',
+          },
+          findings: {
+            type: 'string',
+            description:
+              '你查到的全部事实：证据、文件路径、行号、实际数值。' +
+              '**这一段会原样转给 Assistant**，越具体越好。',
+          },
+          suggest: {
+            type: 'string',
+            description: '建议下一步该查/该做什么（可选，但很有用）',
+          },
+        },
+      },
+    },
   ];
 
   // MCP 工具：schema 直接复用，不做转换——避免我们的理解偏差导致参数校验不一致。
@@ -614,7 +649,16 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
         const result = await runTool();
         return await settle(result);
 
-        async function runTool(): Promise<{ ok: boolean; content: string }> {
+        async function runTool(): Promise<{
+          ok: boolean;
+          content: string;
+          /**
+           * Agent 主动交回任务（对齐 DSH 的 Handback）。
+           *
+           * 设置后 runLoop 立刻结束，状态标记为 handback 而不是 failed。
+           */
+          handback?: { reason: string; findings: string; suggest?: string };
+        }> {
         // MCP 工具：名字形如 `<server>__<tool>`，转发给对应服务器。
         // 放在 switch 之前判断，这样新增 MCP 工具不用改 switch。
         const mcpTool = (options.mcpTools ?? []).find((t) => t.name === name);
@@ -675,6 +719,36 @@ export function createExecutorToolHost(options: ExecutorToolHostOptions): ToolHo
             return {
               ok: true,
               content: `<skill_content name="${full.name}">\n${full.content.slice(0, maxOutput)}\n</skill_content>`,
+            };
+          }
+          case 'hand_back': {
+            // **交回给 Assistant**（对齐 DSH 的 Handback）。
+            //
+            // 只读操作：它不改任何东西，只是表明"这活不该我干"。
+            // 返回 handback 字段后，runLoop 会立刻结束本轮。
+            const reason = String(args.reason ?? '').trim();
+            const findings = String(args.findings ?? '').trim();
+
+            // 必须写清理由和发现，否则交回等于白干：
+            // Assistant 拿不到任何信息，还得重头查一遍。
+            if (!reason || !findings) {
+              return {
+                ok: false,
+                content:
+                  '交回必须同时写清 reason（为什么不归你做）和 findings（你查到了什么）。' +
+                  'Assistant 要靠 findings 决定下一步，空着等于白查一遍。',
+              };
+            }
+
+            const suggest = String(args.suggest ?? '').trim();
+            return {
+              ok: true,
+              content: '已交回给 Assistant。',
+              handback: {
+                reason,
+                findings,
+                ...(suggest ? { suggest } : {}),
+              },
             };
           }
           case 'edit_file': {

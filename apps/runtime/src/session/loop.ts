@@ -30,6 +30,17 @@ export interface ToolHost {
   execute(call: { readonly name: string; readonly args: Record<string, unknown> }): Promise<{
     readonly ok: boolean;
     readonly content: string;
+    /**
+     * Agent 主动交回任务（对齐 DSH 的 Handback）。
+     *
+     * 设置后循环**立刻结束**，不再让模型继续推理——
+     * 它已经判断这件事不该由它做，再问下去只会得到勉强完成的活。
+     */
+    readonly handback?: {
+      readonly reason: string;
+      readonly findings: string;
+      readonly suggest?: string;
+    };
   }>;
 }
 
@@ -39,6 +50,19 @@ export type LoopEvent =
   | { readonly type: 'assistant_text'; readonly text: string; readonly final: boolean }
   | { readonly type: 'tool_call'; readonly name: string; readonly args: Record<string, unknown> }
   | { readonly type: 'tool_result'; readonly name: string; readonly ok: boolean; readonly preview: string }
+  /**
+   * Agent 主动交回任务（对齐 DSH 的 Handback）。
+   *
+   * 出现这个事件后循环立刻结束。上层据此把状态标成 handback
+   * 而不是 failed——**交回不是失败**：Agent 发现了问题的真正所在，
+   * 这比硬着头皮做完更有价值。
+   */
+  | {
+      readonly type: 'handback';
+      readonly reason: string;
+      readonly findings: string;
+      readonly suggest?: string;
+    }
   | {
       readonly type: 'usage';
       readonly tokensIn: number;
@@ -206,7 +230,7 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
       const args = call.args ?? {};
       yield { type: 'tool_call', name: call.name, args };
 
-      let result: { ok: boolean; content: string };
+      let result: Awaited<ReturnType<ToolHost['execute']>>;
       try {
         result = await toolHost.execute({ name: call.name, args });
       } catch (error) {
@@ -221,6 +245,25 @@ export async function* runLoop(options: RunLoopOptions): AsyncGenerator<LoopEven
         ok: result.ok,
         preview: result.content.slice(0, 300),
       };
+
+      // **交回：立刻结束循环**（对齐 DSH 的 Handback）。
+      //
+      // 不再把 tool 结果回灌给模型——它已经判断这件事不该由它做。
+      // 继续问下去只会得到"勉强完成的活"，那比交回更糟。
+      //
+      // 把 findings 当最终文本带出去：上层据此通知 Assistant，
+      // 让 Agent 查到的东西不白费。
+      if (result.handback) {
+        const hb = result.handback;
+        yield {
+          type: 'handback',
+          reason: hb.reason,
+          findings: hb.findings,
+          ...(hb.suggest ? { suggest: hb.suggest } : {}),
+        };
+        yield { type: 'done', finalText: hb.findings, steps: step + 1 };
+        return;
+      }
 
       messages.push({
         role: 'tool',

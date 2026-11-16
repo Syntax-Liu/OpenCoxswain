@@ -197,4 +197,7 @@ export const EXECUTOR_STATUS_LABEL: Record<ExecutorDto['status'], string> = {
   done: '已完成',
   failed: '未完成',
   cancelled: '已取消',
+  // **交回**是独立状态，不能说成"未完成"。
+  // Agent 是干对了的——它发现了问题在别处，这跟出错是两回事。
+  handback: '已交回',
 };

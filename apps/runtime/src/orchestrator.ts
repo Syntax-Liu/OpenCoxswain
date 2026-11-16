@@ -1704,6 +1704,22 @@ export class Orchestrator extends EventEmitter {
           .map((e) => (e.type === 'error' ? e.message : ''))
           .join(' ')}`,
       );
+      // **交回优先判断**（对齐 DSH 的 Handback）。
+      //
+      // Agent 说"这活不该我干"时，不走成功/失败任何一条路：
+      // 它既不是做完了，也不是出错了。硬塞进其中任何一边都会误导用户。
+      const handback = outcome.events.find((e) => e.type === 'handback');
+      if (handback && handback.type === 'handback') {
+        const detail =
+          `原因：${handback.reason}\n\n` +
+          `它查到的：\n${handback.findings}` +
+          (handback.suggest ? `\n\n建议下一步：${handback.suggest}` : '');
+        await this.finishExecutor(ready.id, 'handback', `已交回：${handback.reason}`, detail);
+        this.gate.release(ready.id);
+        this.executorAborts.delete(ready.id);
+        return;
+      }
+
       if (outcome.ok) {
         // **独立复核**：D 说完成不算，先由系统自己验一遍。
         const acceptance = await this.runAcceptance(project, ready, () =>
@@ -1856,7 +1872,7 @@ export class Orchestrator extends EventEmitter {
 
   private async finishExecutor(
     id: string,
-    status: 'done' | 'failed' | 'cancelled',
+    status: 'done' | 'failed' | 'cancelled' | 'handback',
     blockedReason: string | null,
     summary?: string,
     /** 
@@ -1891,6 +1907,35 @@ export class Orchestrator extends EventEmitter {
     // 由调用方自己说清楚原因，不在这里重复。
     if (status === 'cancelled' && cancelledBy !== 'system') {
       await this.notifyCancelled(row);
+    }
+
+    // **交回也要告诉 Assistant**（对齐 DSH 的 Handback）。
+    //
+    // 而且比"完成"更需要它：Agent 发现了根因在别处，
+    // 得有人决定接下来做什么。用 worker_attention（要决策的那种），
+    // 不是 worker_report（汇报结果那种）。
+    if (status === 'handback') {
+      const back = this.store.getExecutor(id) ?? row;
+      const trigger = makeTrigger('worker_attention', {
+        text:
+          `${INTERNAL_NOTICE_PREFIX}\n` +
+          `Agent「${back.label}」把任务**交回**了，它判断这件事不该由它继续做。\n\n` +
+          `${back.blockedReason ?? ''}\n\n` +
+          `它查到的东西：\n${back.summary ?? '（没有留下细节）'}\n\n` +
+          '请判断下一步：是派一个新 Agent 按它的发现继续，还是告诉用户这件的实情。' +
+          '**不要假装它完成了**。',
+        executorId: id,
+      });
+      if (shouldWake(trigger)) {
+        try {
+          await this.userSays(back.projectId, trigger.text!, {
+            source: 'executor',
+            internal: true,
+          });
+        } catch {
+          // Assistant 不在场也不丢事实：状态已落库
+        }
+      }
     }
 
     // 方案推进：这个 Agent 如果是某一步的执行者，回填结果并决定下一步。

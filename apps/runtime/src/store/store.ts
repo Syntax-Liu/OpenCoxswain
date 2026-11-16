@@ -33,8 +33,44 @@ import {
 // 领域类型
 // ---------------------------------------------------------------------------
 
-export type ExecutorStatus = 'starting' | 'running' | 'done' | 'failed' | 'cancelled';
-export const EXECUTOR_TERMINAL: readonly ExecutorStatus[] = ['done', 'failed', 'cancelled'];
+export type ExecutorStatus =
+  | 'starting'
+  | 'running'
+  | 'done'
+  | 'failed'
+  | 'cancelled'
+  /**
+   * **交回**（对齐 DSH 的 Handback）。
+   *
+   * Agent 判断"这活不该我干 / 前提不成立"，主动交回给 Assistant 重新安排。
+   *
+   * ## 为什么不能算 failed
+   *
+   * 原来这三种情况都落在 ailed 里：
+   *
+   *   1. 真出错（OOM、网络断、代码崩）
+   *   2. 不知道怎么做（指令不清）
+   *   3. **判断出这活不归我干**
+   *
+   * 用户看到"失败"必须点进去才知道是哪种。而第 3 种其实是
+   * **Agent 干对了**——它发现了问题的真正所在，这比硬着头皮做完更有价值。
+   *
+   * 调研类 Agent 尤其常遇到：让查登录问题，查出来是连接池配置。
+   * 现在这些宝贵的发现都被当成失败淹没了。
+   */
+  | 'handback';
+/**
+ * 已经结束、不会再自己推进的状态。
+ *
+ * **handback 必须在这里**：交回之后 Agent 就不跑了。
+ * 漏掉它会让界面上一直显示"运行中"，而实际上什么在动。
+ */
+export const EXECUTOR_TERMINAL: readonly ExecutorStatus[] = [
+  'done',
+  'failed',
+  'cancelled',
+  'handback',
+];
 
 /**
  * Agent 的文件访问形态。

@@ -61,6 +61,11 @@ export function toneForStatus(status: string): SemanticTone {
       return 'danger';
     case 'cancelled':
       return 'muted';
+    case 'handback':
+      // **不是 danger**：交回不是失败。
+      // 用 info 表示"有情况要你注意"，但它是好消息——
+      // Agent 发现了问题在别处，省了你去踩坑。
+      return 'info';
     default:
       return 'muted';
   }
