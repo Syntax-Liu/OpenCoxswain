@@ -118,3 +118,7 @@ skills-research-report.md
 
 # 截图脚本（scripts/screenshot-theme.mjs）的默认输出
 shot-*.png
+
+# 已归档的旧架构（不参与构建、零引用），本地保留以便回查
+/legacy/
+/legacy-icons/

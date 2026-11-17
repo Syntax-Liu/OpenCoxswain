@@ -23,7 +23,6 @@
     "check:release": "node scripts/release-ready.mjs",
     "check:self": "node scripts/self-check.mjs",
     "typecheck": "pnpm --filter @opencoxswain/runtime --filter @opencoxswain/web --filter @opencoxswain/shell typecheck",
-    "typecheck:legacy": "pnpm -r --no-bail typecheck",
     "runtime": "node apps/runtime/dist/cli.js",
     "web": "pnpm --filter @opencoxswain/web dev",
     "app:stage": "node scripts/stage-shell.mjs",
@@ -33,12 +32,7 @@
     "app:check": "cargo check --manifest-path apps/shell/src-tauri/Cargo.toml",
     "release:manifest": "node scripts/make-latest-json.mjs",
     "release:serve": "node scripts/update-server.mjs",
-    "release:verify": "node scripts/verify-update.mjs",
-    "desktop": "pnpm --filter @opencoxswain/desktop desktop:dev",
-    "desktop:build": "pnpm --filter @opencoxswain/desktop desktop:build",
-    "desktop:release": "pnpm --filter @opencoxswain/desktop desktop:release",
-    "package:daemon": "node scripts/package-daemon.mjs",
-    "dev:legacy": "node scripts/dev.mjs"
+    "release:verify": "node scripts/verify-update.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
