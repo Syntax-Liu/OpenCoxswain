@@ -36,6 +36,7 @@ import {
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
 import type { StepDescription } from './executor/step.js';
+import { StepThrottle } from './orchestrator/stepThrottle.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
 import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
@@ -306,12 +307,20 @@ export class Orchestrator extends EventEmitter {
   private readonly assistants = new Map<string, AssistantSession>();
   /** Agent 的中途输入通道：executorId → 待注入文本。 */
   private readonly executorInputs = new Map<string, string[]>();
-  /** 上次成功发出 `executor_step` 的时间戳（节流用）。 */
-  private readonly lastStepEmit = new Map<string, number>();
-  /** 节流窗口内积压的最新一步（窗口结束时补发）。 */
-  private readonly pendingStep = new Map<string, { step: StepDescription; projectId: string }>();
-  /** 每个 Agent 的补发定时器。 */
-  private readonly stepTimers = new Map<string, NodeJS.Timeout>();
+  /**
+   * 步骤节流：把连续的「Agent 做了什么」合并成「现在在做什么」。
+   *
+   * 逻辑独立在 `orchestrator/stepThrottle.ts`——它有自己的状态机
+   * （三个 Map + 定时器），和编排逻辑没有耦合。
+   */
+  private readonly stepThrottle = new StepThrottle((item) => {
+    this.emit('runtime', {
+      type: 'executor_step',
+      projectId: item.projectId,
+      executorId: item.executorId,
+      step: item.step,
+    } as RuntimeEvent);
+  });
   /** Agent 的中止控制器。 */
   private readonly executorAborts = new Map<string, AbortController>();
   /** 本次运行中止是否由用量止损触发（用于写准确的失败原因）。 */
@@ -504,38 +513,7 @@ export class Orchestrator extends EventEmitter {
        * 保留最后一条才符合"现在在做什么"。
        */
       onStep: (executorId, step) => {
-        const now = Date.now();
-        const last = this.lastStepEmit.get(executorId) ?? 0;
-        if (now - last < 300) {
-          // 记住最新一条，等节流窗口结束再补发
-          this.pendingStep.set(executorId, { step, projectId: input.projectId });
-          if (!this.stepTimers.has(executorId)) {
-            const timer = setTimeout(() => {
-              this.stepTimers.delete(executorId);
-              const pending = this.pendingStep.get(executorId);
-              if (!pending) return;
-              this.pendingStep.delete(executorId);
-              this.lastStepEmit.set(executorId, Date.now());
-              this.emit('runtime', {
-                type: 'executor_step',
-                projectId: pending.projectId,
-                executorId,
-                step: pending.step,
-              } as RuntimeEvent);
-            }, 300);
-            // 不要让定时器拖住进程退出
-            timer.unref?.();
-            this.stepTimers.set(executorId, timer);
-          }
-          return;
-        }
-        this.lastStepEmit.set(executorId, now);
-        this.emit('runtime', {
-          type: 'executor_step',
-          projectId: input.projectId,
-          executorId,
-          step,
-        } as RuntimeEvent);
+        this.stepThrottle.report(executorId, input.projectId, step);
       },
       // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
       onProgressMetrics: (_executorId, partial) => {

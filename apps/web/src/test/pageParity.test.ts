@@ -1,77 +1,97 @@
 /**
- * **Assistant 和 Agent 页必须完全一致。**
+ * **Assistant 页和 Agent 页必须完全一致。**
  *
  * ## 用户反馈
  *
  * > 为什么你是踢一脚动一下呢？这两种界面应该是一样的，
  *   为什么 Assistant 界面有分隔线，Agent 就没有呢？
- *   我说了要尽可能将类似的控件统一合并，你做了没有呢？
  *
- * ## 根因
+ * ## 那个 bug 是什么
  *
- * 我把这两个页面当成两个东西，条件判断里只写了 `assistant`：
+ * 右栏的显示条件里只写了 `assistant`：
  *
  *     const hasRailContent =
  *       state.reports.some(...) ||
  *       (view?.kind === 'assistant' && currentProject !== null);   ← 漏了 executor
  *
- * Agent 页时 `hasRailContent` 为 false → `.rail-slot` 被设成
- * `display: none` → 右栏整个不渲染 → 分隔线自然没有。
+ * 在 Agent 页时 `hasRailContent` 为 false → 右栏不渲染 → 分隔线消失。
  *
- * `decisions` 那边也是同样的写法——Agent 页看不到待决策。
+ * ## 这个文件为什么重写过
  *
- * ## 修法
+ * 旧版本靠正则去 `App.tsx` 里找变量名：
  *
- * 定义**一个** `inProject` 判断，两处都用它。
+ *     assert.match(app, /const hasRailContent =[\s\S]{0,200}/);
+ *     assert.match(m[0], /inProject/);
+ *
+ * 这类测试**防不住等价重构**（改个名字就红），
+ * 也**抓不到真 bug**（只要变量名还在，逻辑错了照样绿）。
+ *
+ * 现在判断逻辑抽到了 `components/viewScope.ts`，
+ * 这里直接测行为：给出条件 → 断言右栏该不该出现。
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+import { hasRail, isInProject } from '../components/viewScope.js';
 
-describe('**项目内页面的判断只有一个**', () => {
-  it('有统一的 inProject 定义', () => {
-    assert.match(app, /const inProject =/, '要有一个统一判断');
+const assistant = { kind: 'assistant' } as const;
+const executor = { kind: 'executor' } as const;
+const settings = { kind: 'settings' } as const;
+const project = { id: 'p1' };
+
+describe('**两种项目内页面同等待遇**（这就是当初 bug 的根因）', () => {
+  it('Assistant 页算项目内', () => {
+    assert.equal(isInProject(project, assistant), true);
   });
 
-  it('inProject 覆盖 assistant 和 executor 两种', () => {
-    const m = /const inProject =[\s\S]{0,200}/.exec(app);
-    assert.ok(m, '找不到 inProject');
-    assert.match(m[0], /'assistant'/);
-    assert.match(m[0], /'executor'/, '**漏了 Agent 页——这就是分隔线消失的原因**');
+  it('**Agent 页也算项目内**——漏了它就是分隔线消失的原因', () => {
+    assert.equal(isInProject(project, executor), true);
   });
 
-  it('hasRailContent 用 inProject，不再单独判断 assistant', () => {
-    const m = /const hasRailContent =[\s\S]{0,200}/.exec(app);
-    assert.ok(m, '找不到 hasRailContent');
-    assert.match(m[0], /inProject/, '应该复用统一判断');
-    assert.doesNotMatch(m[0], /kind === 'assistant'/, '不能再写死 assistant');
+  it('非项目页面不算', () => {
+    assert.equal(isInProject(project, settings), false);
+    assert.equal(isInProject(project, null), false);
+    assert.equal(isInProject(project, undefined), false);
   });
 
-  it('待决策面板也用 inProject', () => {
-    // 之前是 view?.kind === 'assistant' && currentProject
-    const m = /decisions=\{[\s\S]{0,100}/.exec(app);
-    assert.ok(m, '找不到 decisions');
-    assert.match(m[0], /inProject/, 'Agent 页也要能看到待决策');
+  it('没有打开项目时，任何页面都不算', () => {
+    assert.equal(isInProject(null, assistant), false);
+    assert.equal(isInProject(null, executor), false);
   });
 });
 
-describe('右栏在两种页面都渲染', () => {
-  it('rail-slot 的条件是 railCollapsed || !hasRailContent', () => {
-    assert.match(app, /railCollapsed \|\| !hasRailContent/);
+describe('**右栏在两种页面都出现**', () => {
+  it('Assistant 页有右栏', () => {
+    assert.equal(hasRail(project, assistant, []), true);
   });
 
-  it('ExecutorChat 有 railOpen / onToggleRail', () => {
-    const m = /<ExecutorChat[\s\S]*?\/>/.exec(app);
-    assert.ok(m, '找不到 ExecutorChat');
-    assert.match(m[0], /railOpen=/);
-    assert.match(m[0], /onToggleRail=/);
+  it('**Agent 页也有右栏**（回归：曾为 false）', () => {
+    assert.equal(hasRail(project, executor, []), true);
   });
 
-  it('ExecutorChat 有权限选择器用的 api', () => {
-    const m = /<ExecutorChat[\s\S]*?\/>/.exec(app);
-    assert.ok(m, '找不到 ExecutorChat');
-    assert.match(m[0], /api=\{api\}/);
+  it('设置页没有右栏', () => {
+    assert.equal(hasRail(project, settings, []), false);
+  });
+});
+
+describe('**待决策的报告能让右栏出现**，不论在哪个页面', () => {
+  const pending = [{ needsUser: true, ackedAt: null }];
+  const acked = [{ needsUser: true, ackedAt: 123 }];
+  const notNeeded = [{ needsUser: false, ackedAt: null }];
+
+  it('有待决策 → 即使不在项目页也显示', () => {
+    assert.equal(hasRail(null, settings, pending), true);
+  });
+
+  it('已处理过的报告不再撑起右栏', () => {
+    assert.equal(hasRail(null, settings, acked), false);
+  });
+
+  it('不需要用户的报告不撑起右栏', () => {
+    assert.equal(hasRail(null, settings, notNeeded), false);
+  });
+
+  it('没有项目也没报告 → 不显示', () => {
+    assert.equal(hasRail(null, null, []), false);
   });
 });

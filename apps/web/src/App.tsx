@@ -63,6 +63,7 @@ import { CommandPalette, type PaletteItem } from './components/CommandPalette.js
 import { resolveShortcut } from './shortcuts.js';
 import { ERROR_KIND_LABEL, classifyError } from './components/errorDisplay.js';
 import { recoveryOptions } from './components/recoveryOptions.js';
+import { hasRail, isInProject } from './components/viewScope.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
@@ -973,12 +974,10 @@ export function App(): JSX.Element {
    * 整块不渲染——用户看到的差别就是"Assistant 有分隔线，Agent 没有"。
    * 统一成一个判断，以后加页面类型只改这里。
    */
-  const inProject = currentProject !== null &&
-    (view?.kind === 'assistant' || view?.kind === 'executor');
-
-  const hasRailContent =
-    state.reports.some((r) => r.needsUser && !r.ackedAt) ||
-    inProject;
+  // 判断逻辑在 viewScope.ts 里，可单测——这里只做调用。
+  // 两者的 bug 根因见那个文件的注释（Agent 页曾漏判导致右栏不渲染）。
+  const inProject = isInProject(currentProject, view);
+  const hasRailContent = hasRail(currentProject, view, state.reports);
 
   const currentExecutor: ExecutorDto | null =
     view?.kind === 'executor'

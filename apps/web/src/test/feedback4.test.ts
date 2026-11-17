@@ -105,12 +105,12 @@ describe('**右栏：分隔线明显 + 无内容不占位**', () => {
   });
 
   it('无内容时整块不渲染', () => {
-    assert.match(app, /const hasRailContent/);
     assert.match(app, /railCollapsed \|\| !hasRailContent/);
   });
 
   it('hasRailContent 的定义在各页面之间', () => {
-    // 新会话/Supervisor 页面没有项目上下文 → 右栏不该占位
-    assert.match(app, /state\.reports\.some\(\(r\) => r\.needsUser && !r\.ackedAt\)/);
+    // 判断逻辑已抽到 components/viewScope.ts，这里守的是"App 用的是它"。
+    // 具体行为（哪些页面算项目内、报告怎么撑起右栏）由 pageParity.test.ts 测。
+    assert.match(app, /hasRailContent = hasRail\(/, 'App 应调用统一的 hasRail 判断');
   });
 });
