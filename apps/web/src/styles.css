@@ -996,9 +996,17 @@ select:disabled {
   align-items: center;
   gap: var(--g-05);
   width: 100%;
-  /* padding: 0 —— 曾在这里设过 padding-left:12px，后被 padding:0 覆盖。
-     合并时以**最终生效**的 padding:0 为准，视觉不变。 */
-  padding: 0;
+  /**
+   * **左右内边距要和 `.thread-item` 对齐。**
+   *
+   * 之前这里是 `padding: 0`，而会话项是 `0 12px 0 24px`——项目名贴着
+   * 侧栏最左边，下面的会话名缩进 24px，两者左边缘对不齐，看起来像
+   * 项目名"破了框"。
+   *
+   * 数值与 `.thread-item` 保持一致：左边 24px（挂在下面那层），
+   * 右边 12px（给状态标签和右边距留位）。
+   */
+  padding: 0 var(--g-3) 0 var(--g-5);
   margin-top: var(--g-2);
   background: transparent;
   border: none;
