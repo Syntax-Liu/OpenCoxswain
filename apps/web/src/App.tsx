@@ -62,6 +62,7 @@ import { readSavedSidebarWidth, saveSidebarWidth } from './sidebarWidth.js';
 import { CommandPalette, type PaletteItem } from './components/CommandPalette.js';
 import { resolveShortcut } from './shortcuts.js';
 import { ERROR_KIND_LABEL, classifyError } from './components/errorDisplay.js';
+import { recoveryOptions } from './components/recoveryOptions.js';
 import { TemplatePicker } from './components/TemplatePicker.js';
 import { TitleBar } from './components/TitleBar.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
@@ -140,6 +141,30 @@ export function App(): JSX.Element {
   const [approvals, setApprovals] = useState<ApprovalDto[]>([]);
   /** 当前查看的Agent 的副作用台账。 */
   const [effects, setEffects] = useState<SideEffectDto[]>([]);
+
+  /**
+   * 出错时**真正可用**的出路。
+   *
+   * 为什么不提供「从失败的那一步重试」：runtime 只有文件快照，
+   * 没有对话上下文与循环状态的版本化（见 recoveryOptions.ts 的注释）。
+   * 带全量历史重跑会让模型以为改过了——那是幻觉，不是重试。
+   *
+   * 所以这里只列**接了真实能力**的选项：不可用的直接不出现，
+   * 而不是渲染一个 disabled 按钮让人以为"以后会可用"。
+   */
+  const recoveries = useMemo(
+    () =>
+      recoveryOptions({
+        // 台账里有可撤销的文件写入 → 才能「回滚改动」。
+        // 判定与 ExecutorChat 的 canUndo 保持一致：文件写入 + 可逆 + 已成功。
+        hasReversibleEffects: effects.some(
+          (e) => e.kind === 'fs.write' && e.reversible && e.state === 'succeeded',
+        ),
+        // 正在看某个 Agent → 才能「接着跟它说」
+        canResume: view?.kind === 'executor',
+      }),
+    [effects, view],
+  );
   /** 记忆候选。 */
   const [memories, setMemories] = useState<MemoryCandidateDto[]>([]);
   const [activeMemories, setActiveMemories] = useState<{
@@ -1387,6 +1412,31 @@ export function App(): JSX.Element {
               {errorInfo.preserved}
             </p>
           )}
+          {/* 失败后的出路：只列**真正可用**的（见 recoveries 的注释）。
+              不做"从第 N 步重试"——runtime 支撑不了，硬做会产生幻觉。 */}
+          <div className="error-card-recovery">
+            {recoveries.map((opt) => (
+              <Button
+                key={opt.kind}
+                variant="secondary"
+                size="sm"
+                title={opt.hint}
+                onClick={() => {
+                  if (opt.kind === 'rollback' && view?.kind === 'executor') {
+                    void handleRollbackAll(view.projectId, view.executorId);
+                  } else if (opt.kind === 'ask' && view?.kind === 'executor') {
+                    void openExecutor(view.projectId, view.executorId);
+                  } else {
+                    // 『重新说一次』只是收起错误、把焦点还给输入框。
+                    // **不假装在重试**——它会当作新一轮任务。
+                    setError(null);
+                  }
+                }}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
           <details className="error-card-detail">
             <summary>原始信息</summary>
             <pre>{errorInfo.detail}</pre>

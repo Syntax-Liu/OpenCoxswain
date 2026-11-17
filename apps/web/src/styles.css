@@ -4537,6 +4537,15 @@ body.is-resizing {
   font-size: var(--fs-xs);
 }
 
+/* 失败后的出路（UD-03 的替代方案）。
+   只渲染真正可用的选项——不做 disabled 占位。 */
+.error-card-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--g-1);
+  margin-top: var(--g-2);
+}
+
 /* 原始信息默认折叠：需要时看，不需要时不干扰 */
 .error-card-detail {
   font-size: var(--fs-xs);
