@@ -71,3 +71,7 @@ test-artifacts/
 
 # 界面体检用的隔离 home（假密钥，不含真实配置）
 .audit-home/
+
+# 本地凭据文件（含 GitHub PAT）——绝不入库
+OpenCoxswain_Github.txt
+*_Github.txt
