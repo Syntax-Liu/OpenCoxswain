@@ -14,6 +14,34 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /** 距离底部多少像素以内算"在底部"。 */
 const NEAR_BOTTOM_PX = 80;
 
+/**
+ * 判断当前是否贴在底部。
+ *
+ * 抽成纯函数是为了**能测**：hook 本身要渲染才能测，
+ * 而本项目的测试基础设施明确回避渲染（`browser.mjs` 记着原因：
+ * happy-dom + React 18 下受控组件不可靠）。纯计算没有这个问题。
+ */
+export function computeAtBottom(
+  scrollTop: number,
+  scrollHeight: number,
+  clientHeight: number,
+): boolean {
+  const distance = scrollHeight - scrollTop - clientHeight;
+  return distance <= NEAR_BOTTOM_PX;
+}
+
+/**
+ * 来了新消息之后，未读数应该是多少。
+ *
+ * - 贴底 → 清零（用户就在看，不算未读）
+ * - 上翻 → 累加（用户在看历史，得告诉他来了几条）
+ */
+export function nextUnread(current: number, delta: number, atBottom: boolean): number {
+  if (atBottom) return 0;
+  if (delta <= 0) return current;
+  return current + delta;
+}
+
 export interface AutoScroll {
   readonly ref: React.RefObject<HTMLDivElement>;
   /** 是否贴底部（用于决定是否显示"回到底部"）。 */
@@ -60,8 +88,7 @@ export function useAutoScroll(
     const el = ref.current;
     if (!el) return;
     const onScroll = (): void => {
-      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const near = distance <= NEAR_BOTTOM_PX;
+      const near = computeAtBottom(el.scrollTop, el.scrollHeight, el.clientHeight);
       atBottomRef.current = near;
       setAtBottom(near);
       if (near) setUnread(0);
@@ -92,7 +119,7 @@ export function useAutoScroll(
         });
       }
     } else {
-      setUnread((n) => n + delta);
+      setUnread((n) => nextUnread(n, delta, false));
     }
   }, [dependency]);
 

@@ -471,3 +471,34 @@ describe('Supervisor 图标和图标库风格统一', () => {
     assert.match(body, /<path d="M8 \d/, '缺少从中心节点出发的连线');
   });
 });
+
+describe('**权限级别常驻可见（UD-04）**', () => {
+  // 来源：design-research/03 D3 —— 用户应该始终知道 Agent 现在被授权做什么。
+  const picker = readFileSync(
+    new URL('../../src/components/PermissionPicker.tsx', import.meta.url),
+    'utf8',
+  );
+  const conversation = readFileSync(
+    new URL('../../src/components/Conversation.tsx', import.meta.url),
+    'utf8',
+  );
+
+  it('按钮上显示的是**当前级别**，不是固定文案', () => {
+    // active 是当前选项，label 是它的中文名
+    assert.match(
+      picker,
+      /active\?\.label/,
+      '按钮应渲染当前级别（active?.label），否则用户每次都要点开才知道',
+    );
+  });
+
+  it('不能只显示占位文字「权限」', () => {
+    // 允许 `?? '权限'` 作为加载/失败时的兜底，但不允许把它当唯一内容
+    const hasFallbackOnly = /\{[^}]*'权限'[^}]*\}/.test(picker) && !/active\?\.label/.test(picker);
+    assert.equal(hasFallbackOnly, false, '只有兜底文案时用户看不出当前级别');
+  });
+
+  it('权限选择器常驻在输入区（不是藏在设置里）', () => {
+    assert.match(conversation, /<PermissionPicker/, '输入区应直接渲染权限选择器');
+  });
+});

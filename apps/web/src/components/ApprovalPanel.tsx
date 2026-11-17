@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { ApprovalDto } from '../api.js';
 import { Button, DangerButton, TextButton, TextInput } from '../ui/index.js';
+import { firstTimeNote, markNoteSeen } from './approvalImpact.js';
 
 export interface ApprovalPanelProps {
   readonly approvals: readonly ApprovalDto[];
@@ -72,8 +73,23 @@ function ApprovalItem({
   const [reason, setReason] = useState('');
   const [expanded, setExpanded] = useState(false);
 
+  // 首次提示：只在用户**还没做过这类决定**时出现。
+  // 用 useState 冻结初值——标记发生在决定之后，所以同一次渲染里不会突然消失。
+  const [note] = useState(() => firstTimeNote(approval.category));
+
   const remaining = Math.max(0, approval.expiresAt - Date.now());
   const minutes = Math.floor(remaining / 60000);
+
+  /**
+   * 做出决定后记下"这类动作提示过了"。
+   *
+   * **必须在用户点完之后才标记**——在渲染时标记的话，
+   * 用户还没看就被记成"看过"，提示等于白做。
+   */
+  const decide = (fn: (r: string) => void): void => {
+    markNoteSeen(approval.category);
+    fn(reason);
+  };
 
   return (
     <li className="approval-item">
@@ -96,6 +112,10 @@ function ApprovalItem({
 
       <p className="approval-why">{approval.why}</p>
 
+      {/* 首次遇到这类动作时，多一句"它意味着什么"（UD-05）。
+          每类只出现一次，且**不增加确认步骤**——只是把后果说清楚。 */}
+      {note && <p className="approval-impact">{note}</p>}
+
       <TextButton onClick={() => setExpanded((v) => !v)}>{expanded ? '收起详情' : '查看完整参数'}</TextButton>
       {expanded && (
         <pre className="approval-args">
@@ -107,9 +127,9 @@ function ApprovalItem({
         <TextInput value={reason}
           placeholder="理由（可选，会告诉Agent）"
           onChange={(e) => setReason(e.target.value)} />
-        <DangerButton onClick={() => onReject(reason)}>拒绝
+        <DangerButton onClick={() => decide(onReject)}>拒绝
         </DangerButton>
-        <Button onClick={() => onApprove(reason)}>批准执行
+        <Button onClick={() => decide(onApprove)}>批准执行
         </Button>
       </div>
     </li>

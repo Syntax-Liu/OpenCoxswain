@@ -3807,6 +3807,29 @@ body.is-resizing {
   font-variant-numeric: tabular-nums;
 }
 
+/* 完成后的中间层摘要（UD-02）：「3 个文件 · 12 步」。
+   独立一行，只在结束时出现——运行中侧栏不会变高。 */
+.batch-task-detail {
+  margin: 0;
+  padding-left: var(--g-4);
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 首次遇到高影响动作时的后果说明（UD-05）。
+   每类只出现一次，不是每次审批都有——所以可以写得稍微显眼一点。 */
+.approval-impact {
+  margin: 0 0 var(--g-2);
+  padding: var(--g-1) var(--g-2);
+  border-left: 2px solid var(--color-warn);
+  background: var(--color-fill-subtle);
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
 .batch-task-duration {
   flex: none;
   width: 46px;

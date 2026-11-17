@@ -1,6 +1,7 @@
 import type { ExecutorDto } from '../api.js';
 import {
   describeBatch,
+  describeTaskDetail,
   statusDotClass,
   toTaskLine,
   type Batch,
@@ -55,6 +56,8 @@ export function BatchBlock(props: BatchBlockProps): JSX.Element {
           // 运行中且有当前步骤时，用步骤文字替换掉泛泛的「执行中」。
           // 用户看到"修改 login.tsx"比"执行中"有用得多，而且不用额外占一行。
           const step = agent.status === 'running' ? agent.currentStep?.label : undefined;
+          // 完成后的一行摘要（UD-02 中间层）。拿不到就返回 null，不渲染。
+          const detail = describeTaskDetail(agent);
           return (
             <li key={agent.id}>
               <ListItem
@@ -76,6 +79,9 @@ export function BatchBlock(props: BatchBlockProps): JSX.Element {
                 </span>
                 <span className="batch-task-duration">{line.duration ?? ''}</span>
               </ListItem>
+              {/* 中间层摘要：**独立一行**，不挤进上面那行。
+                  只在结束时出现，所以运行中侧栏不会变高。 */}
+              {detail && <p className="batch-task-detail">{detail}</p>}
             </li>
           );
         })}

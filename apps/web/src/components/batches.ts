@@ -166,3 +166,41 @@ export function statusDotClass(status: TaskLine['status']): string {
 export function isNotableBatch(batch: Batch): boolean {
   return batch.agents.length > 1;
 }
+
+/**
+ * Agent 完成后的一行摘要（UD-02 的中间层）。
+ *
+ * ## 为什么需要
+ *
+ * 现在侧栏只有「名字 + 状态 + 耗时」，想知道它**干了多少活**必须点进轨迹页。
+ * 中间缺了一层：一句摘要就够了。
+ *
+ * 来源：design-research/03 A3 —— 默认给摘要，细节折叠。
+ *
+ * ## 数据从哪来
+ *
+ * **只用已有的 `metrics.steps`（工具调用次数）**，不新增字段、不做估算。
+ * 拿不到就返回 null，界面不渲染这一行——**不编造**。
+ *
+ * @param filesChanged 改动的文件数（可选）。传了才显示「N 个文件」。
+ */
+export function describeTaskDetail(
+  agent: ExecutorDto,
+  filesChanged?: number,
+): string | null {
+  // 只有结束时才有"干了多少活"这个说法
+  if (agent.endedAt === null) return null;
+
+  const steps = agent.metrics?.steps ?? 0;
+  const parts: string[] = [];
+
+  // 文件数是**可选**信息：调用方拿不到就不说「0 个文件」
+  if (typeof filesChanged === 'number' && filesChanged > 0 && agent.status === 'done') {
+    parts.push(`${filesChanged} 个文件`);
+  }
+
+  if (steps > 0) parts.push(`${steps} 步`);
+
+  if (parts.length === 0) return null;
+  return parts.join(' · ');
+}
