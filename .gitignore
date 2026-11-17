@@ -75,3 +75,6 @@ test-artifacts/
 # 本地凭据文件（含 GitHub PAT）——绝不入库
 OpenCoxswain_Github.txt
 *_Github.txt
+
+# git 凭据提示被重定向到当前目录时产生的垃圾文件（Windows 保留名）
+CON
