@@ -6574,3 +6574,51 @@ body.is-resizing {
 .change-diff-body .diff-row {
   grid-template-columns: 5ch minmax(0, 1fr) 5ch minmax(0, 1fr);
 }
+
+/* ============================================================
+   减少动效（prefers-reduced-motion）统一覆盖层
+   ------------------------------------------------------------
+   为什么放在文件最后：这是覆盖层，要压过前面所有 animation 声明。
+
+   现状（改动前）：5 种动画只有 2 种处理了减少动效——
+     .typing i          blink         ❌
+     .batch-dot.running batch-pulse   ✅（单独一处，保留不动）
+     .waiting-dots i    waiting-pulse ❌
+     .notice-card       notice-in     ❌
+     .stream-cursor     stream-blink  ✅（单独一处，保留不动）
+
+   缺的三个恰恰都是「Agent 正在工作时一直转」的，最影响这批用户。
+   参考 WCAG 2.3.3 Animation from Interactions。
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  /* 打字/等待指示点：停掉跳动。
+     **不用 display:none**——三个点还在，只是不动，信息不丢。 */
+  .typing i,
+  .waiting-dots i {
+    animation: none;
+    opacity: 0.5;
+  }
+
+  /* 提示条入场：直接出现，不做位移动画 */
+  .notice-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* 全局兜底：以后新增的循环/过渡动画自动被收住，
+     不用每次加动画都回来补一遍。
+
+     用 duration≈0 + 只播 1 次而不是 `animation: none`：
+     有些动画承担信息（例如 .batch-dot 表示"在跑"），
+     让它**瞬间完成并停在终态**，比直接删掉更安全。 */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
