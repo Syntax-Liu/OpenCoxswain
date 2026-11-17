@@ -74,9 +74,9 @@ describe('**发送按钮是正圆**', () => {
 });
 
 describe('**三个页面的发送按钮一致**', () => {
-  it('都用 .send-btn', () => {
+  it('都用 ui/SendButton（它内部渲染 .send-btn）', () => {
     for (const page of PAGES) {
-      assert.match(page.src, /className="send-btn"/, `${page.name} 没用 .send-btn`);
+      assert.match(page.src, /<SendButton\b/, `${page.name} 没用 ui/SendButton`);
     }
   });
 
@@ -94,10 +94,14 @@ describe('**三个页面的发送按钮一致**', () => {
     assert.doesNotMatch(active, /帮我找/, 'Supervisor 还在用「帮我找」文字按钮');
   });
 
-  it('三个都有 aria-label="发送"', () => {
+  it('都有可读名字（SendButton 默认「发送」）', () => {
+    // 迁移到 ui/SendButton：aria-label 由组件统一给默认值 "发送"，
+    // 调用方不必也不能漏写。这里守「用的是 SendButton」这一层即可。
     for (const page of PAGES) {
-      assert.match(page.src, /aria-label="发送"/, `${page.name} 缺 aria-label`);
+      assert.match(page.src, /<SendButton\b/, `${page.name} 没用 SendButton`);
     }
+    const uiSrc = readFileSync(new URL('../../src/ui/OptionItem.tsx', import.meta.url), 'utf8');
+    assert.match(uiSrc, /label = '发送'/, 'SendButton 应该有默认 label "发送"');
   });
 });
 

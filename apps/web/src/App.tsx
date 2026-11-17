@@ -67,6 +67,7 @@ import { TitleBar } from './components/TitleBar.js';
 import { OpenProjectDialog } from './components/OpenProjectDialog.js';
 import { SettingsPage } from './components/SettingsPage.js';
 import { draftKey } from './drafts.js';
+import { Button, IconButton, TextInput } from './ui/index.js';
 
 type View =
   | { readonly kind: 'assistant'; readonly projectId: string }
@@ -1353,14 +1354,12 @@ export function App(): JSX.Element {
       {notice && (
         <div className="notice-card" role="status">
           <span className="notice-card-text">{notice}</span>
-          <button
-            type="button"
-            className="notice-card-close"
+          <IconButton
+            label="关闭"
             onClick={() => setNotice(null)}
-            aria-label="关闭"
           >
             ×
-          </button>
+          </IconButton>
         </div>
       )}
 
@@ -1371,14 +1370,12 @@ export function App(): JSX.Element {
           <div className="error-card-head">
             <span className="error-card-kind">{ERROR_KIND_LABEL[errorInfo.kind]}</span>
             <span className="error-card-title">{errorInfo.title}</span>
-            <button
-              type="button"
-              className="error-card-close"
+            <IconButton
+              label="关闭"
               onClick={() => setError(null)}
-              aria-label="关闭"
             >
               ×
-            </button>
+            </IconButton>
           </div>
           <p className="error-card-action">{errorInfo.action}</p>
           <details className="error-card-detail">
@@ -1441,35 +1438,31 @@ function SetupScreen({
 
       <label className="field">
         <span>API Key</span>
-        <input
-          autoFocus
+        <TextInput autoFocus
           type="password"
           value={apiKey}
           placeholder="sk-..."
           onChange={(e) => setApiKey(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') void submit();
-          }}
-        />
+          }} />
       </label>
 
       <details className="advanced">
         <summary>高级设置（端点 / 模型）</summary>
         <label className="field">
           <span>端点</span>
-          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+          <TextInput value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
         </label>
         <label className="field">
           <span>模型</span>
-          <input value={model} onChange={(e) => setModel(e.target.value)} />
+          <TextInput value={model} onChange={(e) => setModel(e.target.value)} />
         </label>
       </details>
 
       {error && <p className="form-error">{error}</p>}
 
-      <button type="button" className="btn btn--primary btn--md wide" onClick={() => void submit()} disabled={busy}>
-        {busy ? '保存中…' : '开始使用'}
-      </button>
+      <Button onClick={() => void submit()} disabled={busy} wide>{busy ? '保存中…' : '开始使用'}</Button>
     </div>
   );
 }

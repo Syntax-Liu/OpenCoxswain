@@ -7,6 +7,7 @@ import { renderMarkdown } from './Markdown.js';
 import { clearDraft, draftKey as draftKeyFor, loadDraft, saveDraft } from '../drafts.js';
 import { IconSidebar } from './icons.js';
 import { PermissionPicker } from './PermissionPicker.js';
+import { Button, IconButton, TextButton, Textarea } from '../ui/index.js';
 
 export interface ExecutorChatProps {
   readonly executor: ExecutorDto;
@@ -65,9 +66,8 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
   return (
     <div className="conversation">
       <header className="conversation-header">
-        <button type="button" className="btn btn--ghost btn--sm" onClick={props.onBack}>
-          ← 返回
-        </button>
+        <Button onClick={props.onBack} variant="ghost" size="sm">← 返回
+        </Button>
         <div className="header-main">
           <h2>{props.executor.label}</h2>
           <p className="muted small">
@@ -76,22 +76,13 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
           </p>
         </div>
         {busy && (
-          <button type="button" className="btn btn--ghost btn--md" onClick={props.onCancel}>
-            取消
-          </button>
+          <Button onClick={props.onCancel} variant="ghost">取消
+          </Button>
         )}
         {/* 侧边栏开关：和主对话 / Supervisor / 新会话保持一致 */}
         {props.onToggleRail && (
           <div className="header-side">
-            <button
-              type="button"
-              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
-              onClick={props.onToggleRail}
-              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
-              aria-pressed={props.railOpen}
-            >
-              <IconSidebar size={16} />
-            </button>
+            <IconButton onClick={props.onToggleRail} aria-pressed={props.railOpen} label={props.railOpen ? '收起侧边栏' : '展开侧边栏'} size="sm" className={`rail-toggle ${props.railOpen ? ' active' : ''}`}><IconSidebar size={16} /></IconButton>
           </div>
         )}
       </header>
@@ -137,8 +128,7 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
             所以 Agent 页的输入框是一条裸线，而主对话是有边框圆角的盒子。
             两个页面的对话框看起来是两种东西。 */}
         <div className="composer-box">
-          <textarea
-            value={draft}
+          <Textarea value={draft}
             placeholder={busy ? 'Agent还在跑，等它结束再追问…' : '继续追问这个 Agent（它会带着原有上下文继续）'}
             disabled={busy}
             onChange={(e) => updateDraft(e.target.value)}
@@ -148,17 +138,15 @@ export function ExecutorChat(props: ExecutorChatProps): JSX.Element {
                 submit();
               }
             }}
-            rows={3}
-          />
+            rows={3} />
           <div className="composer-bar">
             <div className="composer-left">
               {/* 权限随时可调（照 DSH） */}
               {props.api && <PermissionPicker api={props.api} projectId={props.executor.projectId} />}
               <MetricsLine executor={props.executor} />
             </div>
-            <button type="button" className="btn btn--primary btn--sm" onClick={submit} disabled={busy || !draft.trim()}>
-              发送
-            </button>
+            <Button onClick={submit} disabled={busy || !draft.trim()} size="sm">发送
+            </Button>
           </div>
         </div>
       </div>
@@ -215,14 +203,8 @@ function EffectsBlock({
         {/* 整轮回滚：一次退回这一轮所有文件改动，不用点 N 次撤销。
             **只有 2 个以上可撤销文件时才显示**——一个文件的话单条撤销更快。 */}
         {onRollbackAll && effects.filter(canUndo).length > 1 && (
-          <button
-            type="button"
-            className="btn btn--link eff-rollback-all"
-            title="把这一轮改过的文件全部恢复到改动前"
-            onClick={onRollbackAll}
-          >
-            全部回滚
-          </button>
+          <TextButton onClick={onRollbackAll} className="eff-rollback-all">全部回滚
+          </TextButton>
         )}
       </div>
       <ul className="effects-list">
@@ -238,14 +220,8 @@ function EffectsBlock({
               {/* 可撤销的给一个按钮——之前只标了"不可撤销"，
                   能撤的反而没有任何入口 */}
               {canUndo(e) && onUndo && (
-                <button
-                  type="button"
-                  className="btn btn--link eff-undo"
-                  title="把这个文件恢复到这次改动之前"
-                  onClick={() => onUndo(e.id)}
-                >
-                  撤销
-                </button>
+                <TextButton onClick={() => onUndo(e.id)} className="eff-undo">撤销
+                </TextButton>
               )}
             </span>
           </li>

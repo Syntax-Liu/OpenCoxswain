@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { ApiClient, ProjectDto } from '../api.js';
 import { IconSend, IconSidebar, IconSupervisor } from './icons.js';
+import { Button, IconButton, ListItem, SendButton, Textarea } from '../ui/index.js';
 
 export interface GlobalAssistantProps {
   /** 右侧边栏是否展开（和主对话保持一致）。 */
@@ -72,15 +73,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
         {/* 侧边栏开关：和主对话一样常驻在标题行最右边 */}
         {props.onToggleRail && (
           <div className="header-side">
-            <button
-              type="button"
-              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
-              onClick={props.onToggleRail}
-              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
-              aria-pressed={props.railOpen}
-            >
-              <IconSidebar size={16} />
-            </button>
+            <IconButton onClick={props.onToggleRail} aria-pressed={props.railOpen} label={props.railOpen ? '收起侧边栏' : '展开侧边栏'} size="sm" className={`rail-toggle ${props.railOpen ? ' active' : ''}`}><IconSidebar size={16} /></IconButton>
           </div>
         )}
       </header>
@@ -123,15 +116,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
                 <ul className="route-list">
                   {result.candidates.map((c) => (
                     <li key={c.projectId}>
-                      <button
-                        type="button"
-                        className="route-item"
-                        onClick={() => void handoff(c.projectId, c.name)}
-                        disabled={busy}
-                      >
-                        <span className="route-name">{c.name}</span>
-                        <span className="route-score">分数 {c.score}</span>
-                      </button>
+                      <ListItem onClick={() => void handoff(c.projectId, c.name)} disabled={busy} variant={"route-item"}><span className="route-name">{c.name}</span><span className="route-score">分数 {c.score}</span></ListItem>
                       <ul className="route-reasons">
                         {c.reasons.map((r, i) => (
                           <li key={i}>{r}</li>
@@ -155,23 +140,12 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
                   </ul>
                 </div>
                 <div className="route-actions">
-                  <button
-                    type="button"
-                    className="btn btn--primary btn--md"
-                    onClick={() =>
+                  <Button onClick={() =>
                       void handoff(result.candidates[0]!.projectId, result.candidates[0]!.name)
-                    }
-                    disabled={busy}
-                  >
-                    把原话转交给它
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--md"
-                    onClick={() => props.onOpenAssistant(result.candidates[0]!.projectId)}
-                  >
-                    直接打开项目
-                  </button>
+                    } disabled={busy}>把原话转交给它
+                  </Button>
+                  <Button onClick={() => props.onOpenAssistant(result.candidates[0]!.projectId)} variant="ghost">直接打开项目
+                  </Button>
                 </div>
               </>
             )}
@@ -187,8 +161,7 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
             之前这里是 `.composer > textarea`，少了 box 这一层，
             所以输入框是一条裸线，和主对话、Agent 页都不一样。 */}
         <div className="composer-box">
-          <textarea
-            value={query}
+          <Textarea value={query}
             placeholder="比如：把文档那件事推进一下"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -197,23 +170,18 @@ export function GlobalAssistant(props: GlobalAssistantProps): JSX.Element {
                 void ask();
               }
             }}
-            rows={3}
-          />
+            rows={3} />
           <div className="composer-bar">
             <div className="composer-left" />
             {/* **和其它页用同一个圆形箭头按钮**。
                 之前这里是文字按钮「帮我找」，形状、颜色都和
                 主对话/新会话对不上——同一个"发送"动作不该长两样。 */}
-            <button
-              type="button"
-              className="send-btn"
+            <SendButton
               onClick={() => void ask()}
               disabled={busy || !query.trim()}
-              aria-label="发送"
-              title="发送（Enter）"
             >
               <IconSend size={16} />
-            </button>
+            </SendButton>
           </div>
         </div>
       </div>

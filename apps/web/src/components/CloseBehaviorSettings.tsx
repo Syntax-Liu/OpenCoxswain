@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient } from '../api.js';
+import { TextInput } from '../ui/index.js';
 
 /**
  * 关闭行为设置面板。
@@ -38,24 +39,20 @@ export function CloseBehaviorSettings(props: { api: ApiClient }): JSX.Element {
     <div className="settings-group">
       <h3 className="settings-subhead">关闭窗口时</h3>
       <label className="radio-row">
-        <input
-          type="radio"
+        <TextInput type="radio"
           name="closeAction"
           checked={action === 'tray'}
-          onChange={() => void choose('tray')}
-        />
+          onChange={() => void choose('tray')} />
         <span>
           最小化到系统托盘
           <span className="muted small">（Agent 继续运行）</span>
         </span>
       </label>
       <label className="radio-row">
-        <input
-          type="radio"
+        <TextInput type="radio"
           name="closeAction"
           checked={action === 'quit'}
-          onChange={() => void choose('quit')}
-        />
+          onChange={() => void choose('quit')} />
         <span>
           直接退出软件
           <span className="muted small">

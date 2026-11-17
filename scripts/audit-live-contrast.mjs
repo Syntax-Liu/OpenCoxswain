@@ -126,6 +126,8 @@ try {
   })()
   `;
 
+  let failed = false;
+
   for (const theme of ['dark', 'light']) {
     await send('Page.navigate', { url: `${BASE}?c=${Date.now()}` });
     await sleep(1600);
@@ -143,9 +145,12 @@ try {
         `         color=${o.color} bg=${o.bg} size=${o.size} class="${o.cls}"`,
       );
     }
+    // 只打印不失败，等于这条检查没做。发现一处就非 0。
+    if (list.length > 0) failed = true;
   }
 
   ws.close();
+  if (failed) process.exitCode = 1;
 } finally {
   chrome.kill();
 }

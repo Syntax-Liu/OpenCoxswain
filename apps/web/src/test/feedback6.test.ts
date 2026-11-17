@@ -109,7 +109,9 @@ describe('**3. 没有浏览器原生 select**', () => {
   });
 
   it('用的是统一的 Select 组件', () => {
-    assert.match(modelPanel, /from '\.\/Select\.js'/);
-    assert.match(imSettings, /from '\.\/Select\.js'/);
+    // 迁移后 Select 从 ui/ 统一出口导入（它内部仍指向 components/Select.tsx）
+    const re = /import \{[^}]*\bSelect\b[^}]*\} from '\.\.\/ui\/index\.js'/;
+    assert.match(modelPanel, re);
+    assert.match(imSettings, re);
   });
 });

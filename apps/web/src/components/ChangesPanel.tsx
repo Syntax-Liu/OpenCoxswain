@@ -19,6 +19,7 @@
  * 与 DSH 的「第 N 轮改动」是同一语义。
  */
 import type { ApiClient, ExecutorDto } from '../api.js';
+import { ListItem } from '../ui/index.js';
 
 export interface ChangesPanelProps {
   readonly api: ApiClient;
@@ -54,15 +55,7 @@ export function ChangesPanel(props: ChangesPanelProps): JSX.Element {
       <ul className="changes-list">
         {candidates.map((e) => (
           <li key={e.id}>
-            <button
-              type="button"
-              className="changes-item"
-              onClick={() => props.onOpenChanges(e.id)}
-              title={e.goal}
-            >
-              <span className="changes-label">{e.label}</span>
-              <span className="changes-meta">{STATUS_TEXT[e.status] ?? e.status}</span>
-            </button>
+            <ListItem onClick={() => props.onOpenChanges(e.id)} title={e.goal} variant={"changes-item"}><span className="changes-label">{e.label}</span><span className="changes-meta">{STATUS_TEXT[e.status] ?? e.status}</span></ListItem>
           </li>
         ))}
       </ul>

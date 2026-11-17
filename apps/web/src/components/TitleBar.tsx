@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { WindowButton } from '../ui/index.js';
 
 /**
  * 自绘标题栏。
@@ -92,31 +93,21 @@ export function TitleBar(props: TitleBarProps): JSX.Element {
 
         {desktop && (
           <div className="title-bar-actions">
-            <button type="button" className="win-btn" title="最小化" onClick={() => void act('minimize')}>
+            <WindowButton label="最小化" onClick={() => void act('minimize')}>
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
                 <path d="M0 5h10" stroke="currentColor" strokeWidth="1" />
               </svg>
-            </button>
-            <button
-              type="button"
-              className="win-btn"
-              title="最大化 / 还原"
-              onClick={() => void act('toggle_maximize')}
-            >
+            </WindowButton>
+            <WindowButton label="最大化 / 还原" onClick={() => void act('toggle_maximize')}>
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
                 <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" />
               </svg>
-            </button>
-            <button
-              type="button"
-              className="win-btn win-close"
-              title="关闭（隐藏到托盘）"
-              onClick={() => void act('close')}
-            >
+            </WindowButton>
+            <WindowButton label="关闭" close onClick={() => void act('close')}>
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
                 <path d="M0 0l10 10M10 0L0 10" stroke="currentColor" strokeWidth="1" />
               </svg>
-            </button>
+            </WindowButton>
           </div>
         )}
       </div>

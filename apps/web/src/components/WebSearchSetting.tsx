@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient } from '../api.js';
+import { Button, TextInput } from '../ui/index.js';
 
 export interface WebSearchSettingProps {
   readonly api: ApiClient;
@@ -79,24 +80,20 @@ export function WebSearchSetting(props: WebSearchSettingProps): JSX.Element {
 
       <label className="field">
         <span>搜索服务地址</span>
-        <input
-          type="text"
+        <TextInput type="text"
           value={endpoint}
           placeholder="https://api.example.com/search"
           onChange={(e) => setEndpoint(e.target.value)}
-          disabled={loading}
-        />
+          disabled={loading} />
       </label>
 
       <label className="field">
         <span>密钥</span>
-        <input
-          type="password"
+        <TextInput type="password"
           value={apiKey}
           placeholder={configured ? '已保存（留空则不修改）' : 'sk-...'}
           onChange={(e) => setApiKey(e.target.value)}
-          disabled={loading}
-        />
+          disabled={loading} />
       </label>
 
       <p className="muted small">
@@ -108,9 +105,7 @@ export function WebSearchSetting(props: WebSearchSettingProps): JSX.Element {
       <div className="settings-actions">
         {configured && <span className="saved-hint">已配置</span>}
         {message && <span className="saved-hint">{message}</span>}
-        <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={saving || loading}>
-          {saving ? '保存中…' : '保存'}
-        </button>
+        <Button onClick={() => void save()} disabled={saving || loading}>{saving ? '保存中…' : '保存'}</Button>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button, TextInput } from '../ui/index.js';
 
 export interface OpenProjectDialogProps {
   readonly onCancel: () => void;
@@ -26,33 +27,27 @@ export function OpenProjectDialog(props: OpenProjectDialogProps): JSX.Element {
 
         <label className="field">
           <span>项目路径</span>
-          <input
-            autoFocus
+          <TextInput autoFocus
             value={rootPath}
             placeholder="D:\work\my-app"
             onChange={(e) => setRootPath(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit();
-            }}
-          />
+            }} />
         </label>
 
         <label className="field">
           <span>显示名（可选）</span>
-          <input
-            value={name}
+          <TextInput value={name}
             placeholder="缺省取路径最后一段"
-            onChange={(e) => setName(e.target.value)}
-          />
+            onChange={(e) => setName(e.target.value)} />
         </label>
 
         <div className="modal-actions">
-          <button type="button" className="btn btn--ghost btn--md" onClick={props.onCancel}>
-            取消
-          </button>
-          <button type="button" className="btn btn--primary btn--md" onClick={submit} disabled={!rootPath.trim()}>
-            打开
-          </button>
+          <Button onClick={props.onCancel} variant="ghost">取消
+          </Button>
+          <Button onClick={submit} disabled={!rootPath.trim()}>打开
+          </Button>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import type { Attachment } from './attachments.js';
 import { describeAttachment } from './attachments.js';
+import { IconButton } from '../ui/index.js';
 
 /**
  * 附件预览条：显示在输入框上方。
@@ -43,15 +44,13 @@ export function AttachmentStrip(props: AttachmentStripProps): JSX.Element | null
 
           {att.warning && <span className="attachment-warn">!</span>}
 
-          <button
-            type="button"
-            className="attachment-remove"
+          <IconButton
+            label={`移除 ${att.name}`}
             title="移除"
-            aria-label={`移除 ${att.name}`}
             onClick={() => props.onRemove(att.id)}
           >
             ×
-          </button>
+          </IconButton>
         </div>
       ))}
     </div>

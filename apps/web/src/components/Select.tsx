@@ -21,6 +21,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { IconCheck, IconChevron } from './icons.js';
+import { Button, OptionItem } from '../ui/index.js';
 
 export interface SelectOption {
   readonly value: string;
@@ -105,33 +106,19 @@ export function Select(props: SelectProps): JSX.Element {
 
   return (
     <div className="ui-select" ref={rootRef}>
-      <button
-        type="button"
-        className={`btn btn--secondary btn--md ui-select-btn${open ? ' open' : ''}`}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={onKeyDown}
-        disabled={props.disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        {...(props.ariaLabel ? { 'aria-label': props.ariaLabel } : {})}
-      >
-        <span className={`ui-select-value${current ? '' : ' placeholder'}`}>
+      <Button onClick={() => setOpen((v) => !v)} onKeyDown={onKeyDown} disabled={props.disabled} aria-haspopup="listbox" aria-expanded={open} variant="secondary" className={`ui-select-btn ${open ? ' open' : ''}`}><span className={`ui-select-value${current ? '' : ' placeholder'}`}>
           {current?.label ?? props.placeholder ?? '请选择'}
-        </span>
-        <IconChevron size={12} direction={open ? 'down' : 'right'} />
-      </button>
+        </span><IconChevron size={12} direction={open ? 'down' : 'right'} /></Button>
 
       {open && (
         <ul className="ui-select-menu" role="listbox" ref={listRef}>
           {props.options.map((o, i) => (
             <li key={o.value}>
-              <button
-                type="button"
+              <OptionItem
                 role="option"
-                aria-selected={o.value === props.value}
-                className={`ui-select-item${o.value === props.value ? ' active' : ''}${
-                  i === activeIndex ? ' focused' : ''
-                }`}
+                selected={o.value === props.value}
+                variant="ui-select-item"
+                extraClass={i === activeIndex ? 'focused' : undefined}
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => choose(o.value)}
               >
@@ -142,7 +129,7 @@ export function Select(props: SelectProps): JSX.Element {
                   <span className="ui-select-item-label">{o.label}</span>
                   {o.hint && <span className="ui-select-item-hint">{o.hint}</span>}
                 </span>
-              </button>
+              </OptionItem>
             </li>
           ))}
         </ul>

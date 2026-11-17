@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { MemoryCandidateDto } from '../api.js';
+import { Button, OptionItem, TextButton } from '../ui/index.js';
 
 export interface MemoryEntryView {
   readonly id: string;
@@ -45,36 +46,25 @@ export function MemoryReview(props: MemoryReviewProps): JSX.Element {
   return (
     <div className="memory-review">
       <div className="memory-head">
-        <button type="button" className="btn btn--link" onClick={() => setOpen((v) => !v)}>
-          {open ? '收起记忆' : `记忆（${pending.length} 待确认，已记 ${totalActive}）`}
-        </button>
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm"
-          onClick={props.onExtract}
-          disabled={props.busy}
-        >
-          {props.busy ? '提炼中…' : '从最近对话提炼'}
-        </button>
+        <TextButton onClick={() => setOpen((v) => !v)}>{open ? '收起记忆' : `记忆（${pending.length} 待确认，已记 ${totalActive}）`}</TextButton>
+        <Button onClick={props.onExtract} disabled={props.busy} variant="ghost" size="sm">{props.busy ? '提炼中…' : '从最近对话提炼'}</Button>
       </div>
 
       {open && (
         <div className="memory-body">
           <div className="memory-tabs">
-            <button
-              type="button"
-              className={tab === 'pending' ? 'active' : ''}
+            <OptionItem
+              selected={tab === 'pending'}
               onClick={() => setTab('pending')}
             >
               待确认 {pending.length > 0 ? `(${pending.length})` : ''}
-            </button>
-            <button
-              type="button"
-              className={tab === 'active' ? 'active' : ''}
+            </OptionItem>
+            <OptionItem
+              selected={tab === 'active'}
               onClick={() => setTab('active')}
             >
               已生效 ({totalActive})
-            </button>
+            </OptionItem>
           </div>
 
           {tab === 'pending' &&
@@ -98,20 +88,10 @@ export function MemoryReview(props: MemoryReviewProps): JSX.Element {
                       </div>
                       <p className="memory-text">{c.text}</p>
                       <div className="memory-actions">
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--sm"
-                          onClick={() => props.onDismiss(c.id)}
-                        >
-                          忽略
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--primary btn--sm"
-                          onClick={() => props.onAccept(c.id)}
-                        >
-                          记住
-                        </button>
+                        <Button onClick={() => props.onDismiss(c.id)} variant="ghost" size="sm">忽略
+                        </Button>
+                        <Button onClick={() => props.onAccept(c.id)} size="sm">记住
+                        </Button>
                       </div>
                     </li>
                   ))}
@@ -161,15 +141,8 @@ function ActiveGroup({
             <div className="memory-meta">
               <span className="memory-kind">{KIND_LABEL[e.kind] ?? e.kind}</span>
               <span className="muted small">{e.source}</span>
-              <button
-                type="button"
-                className="btn btn--link"
-                style={{ marginLeft: 'auto' }}
-                onClick={() => onForget(e.id)}
-                title="删掉这条记忆"
-              >
-                忘记
-              </button>
+              <TextButton style={{ marginLeft: 'auto' }} onClick={() => onForget(e.id)}>忘记
+              </TextButton>
             </div>
             <p className="memory-text">{e.text}</p>
           </li>

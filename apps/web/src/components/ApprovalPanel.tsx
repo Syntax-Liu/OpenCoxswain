@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { ApprovalDto } from '../api.js';
+import { Button, DangerButton, TextButton, TextInput } from '../ui/index.js';
 
 export interface ApprovalPanelProps {
   readonly approvals: readonly ApprovalDto[];
@@ -95,9 +96,7 @@ function ApprovalItem({
 
       <p className="approval-why">{approval.why}</p>
 
-      <button type="button" className="btn btn--link" onClick={() => setExpanded((v) => !v)}>
-        {expanded ? '收起详情' : '查看完整参数'}
-      </button>
+      <TextButton onClick={() => setExpanded((v) => !v)}>{expanded ? '收起详情' : '查看完整参数'}</TextButton>
       {expanded && (
         <pre className="approval-args">
           {approval.tool} {approval.args}
@@ -105,17 +104,13 @@ function ApprovalItem({
       )}
 
       <div className="approval-actions">
-        <input
-          value={reason}
+        <TextInput value={reason}
           placeholder="理由（可选，会告诉Agent）"
-          onChange={(e) => setReason(e.target.value)}
-        />
-        <button type="button" className="btn btn--danger btn--md" onClick={() => onReject(reason)}>
-          拒绝
-        </button>
-        <button type="button" className="btn btn--primary btn--md" onClick={() => onApprove(reason)}>
-          批准执行
-        </button>
+          onChange={(e) => setReason(e.target.value)} />
+        <DangerButton onClick={() => onReject(reason)}>拒绝
+        </DangerButton>
+        <Button onClick={() => onApprove(reason)}>批准执行
+        </Button>
       </div>
     </li>
   );

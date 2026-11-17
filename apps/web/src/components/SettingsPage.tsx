@@ -17,6 +17,7 @@ import {
 import { ThemeSetting } from './ThemeSetting.js';
 import { shortcutHelp } from '../shortcuts.js';
 import { ModelSettingsPanel } from './ModelSettingsPanel.js';
+import { Button, OptionItem } from '../ui/index.js';
 
 /**
  * 设置页（独立页面，照 TRAE / DSH 的组织方式）。
@@ -78,26 +79,25 @@ export function SettingsPage(props: SettingsPageProps): JSX.Element {
     <div className="settings-page">
       {/* 顶部：返回 + 菜单栏（照 DSH 的样子） */}
       <header className="settings-topbar">
-        <button type="button" className="btn btn--ghost btn--sm" onClick={props.onClose}>
-          ← 返回应用
-        </button>
+        <Button onClick={props.onClose} variant="ghost" size="sm">← 返回应用
+        </Button>
         <span className="settings-title">设置</span>
       </header>
 
       <div className="settings-body">
         <nav className="settings-nav">
           {SECTIONS.map((s) => (
-            <button
+            <OptionItem
               key={s.id}
-              type="button"
-              className={`settings-nav-item${section === s.id ? ' active' : ''}`}
+              variant="settings-nav-item"
+              selected={section === s.id}
               onClick={() => setSection(s.id)}
             >
               <span className="settings-nav-icon">
                 <s.icon size={16} />
               </span>
               {s.label}
-            </button>
+            </OptionItem>
           ))}
         </nav>
 

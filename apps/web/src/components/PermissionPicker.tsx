@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ApiClient, PermissionLevelDto } from '../api.js';
 import { IconCheck, IconChevron, IconShield } from './icons.js';
+import { Button, OptionItem } from '../ui/index.js';
 
 export interface PermissionPickerProps {
   readonly api: ApiClient;
@@ -96,28 +97,16 @@ export function PermissionPicker(props: PermissionPickerProps): JSX.Element | nu
 
   return (
     <div className="perm-picker" ref={ref}>
-      <button
-        type="button"
-        className="btn btn--secondary btn--sm"
-        onClick={() => setOpen((v) => !v)}
-        title={active?.hint ?? '权限'}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        <IconShield size={14} />
-        <span className="perm-picker-label">{active?.label ?? '权限'}</span>
-        <IconChevron size={12} direction={open ? 'down' : 'right'} />
-      </button>
+      <Button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="listbox" variant="secondary" size="sm"><IconShield size={14} /><span className="perm-picker-label">{active?.label ?? '权限'}</span><IconChevron size={12} direction={open ? 'down' : 'right'} /></Button>
 
       {open && (
         <ul className="perm-picker-menu" role="listbox">
           {levels.map((l) => (
             <li key={l.id}>
-              <button
-                type="button"
+              <OptionItem
                 role="option"
-                aria-selected={l.id === current}
-                className={`perm-picker-item${l.id === current ? ' active' : ''}`}
+                selected={l.id === current}
+                variant="perm-picker-item"
                 onClick={() => void choose(l.id)}
                 disabled={busy}
               >
@@ -126,7 +115,7 @@ export function PermissionPicker(props: PermissionPickerProps): JSX.Element | nu
                   <span className="perm-picker-item-label">{l.label}</span>
                   <span className="perm-picker-item-hint">{l.hint}</span>
                 </span>
-              </button>
+              </OptionItem>
             </li>
           ))}
         </ul>

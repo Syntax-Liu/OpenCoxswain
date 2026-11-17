@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ListItem, TextInput } from '../ui/index.js';
 
 /**
  * 命令面板（Ctrl+K）。
@@ -126,8 +127,7 @@ export function CommandPalette(props: CommandPaletteProps): JSX.Element {
         role="dialog"
         aria-label="命令面板"
       >
-        <input
-          ref={inputRef}
+        <TextInput ref={inputRef}
           className="palette-input"
           value={query}
           placeholder="搜索项目、会话或动作…"
@@ -146,8 +146,7 @@ export function CommandPalette(props: CommandPaletteProps): JSX.Element {
               e.preventDefault();
               props.onClose();
             }
-          }}
-        />
+          }} />
 
         <div className="palette-list" ref={listRef}>
           {filtered.length === 0 && (
@@ -160,16 +159,7 @@ export function CommandPalette(props: CommandPaletteProps): JSX.Element {
             return (
               <div key={item.id}>
                 {showGroup && <div className="palette-group">{item.group}</div>}
-                <button
-                  type="button"
-                  data-index={index}
-                  className={`palette-item${index === active ? ' active' : ''}`}
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => runItem(item)}
-                >
-                  <span className="palette-label">{item.label}</span>
-                  {item.hint && <span className="palette-hint">{item.hint}</span>}
-                </button>
+                <ListItem data-index={index} onMouseEnter={() => setActive(index)} onClick={() => runItem(item)} variant={"palette-item"}><span className="palette-label">{item.label}</span>{item.hint && <span className="palette-hint">{item.hint}</span>}</ListItem>
               </div>
             );
           })}

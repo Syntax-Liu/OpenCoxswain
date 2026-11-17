@@ -9,6 +9,7 @@
 import { IconClose } from './icons.js';
 import type { MainTab } from './mainTabs.js';
 import { CHAT_TAB_ID } from './mainTabs.js';
+import { IconButton, OptionItem } from '../ui/index.js';
 
 export interface MainTabBarProps {
   readonly tabs: readonly MainTab[];
@@ -29,29 +30,20 @@ export function MainTabBar(props: MainTabBarProps): JSX.Element | null {
         const closable = tab.id !== CHAT_TAB_ID;
         return (
           <div key={tab.id} className={`main-tab${active ? ' active' : ''}`}>
-            <button
-              type="button"
+            <OptionItem
               role="tab"
-              aria-selected={active}
-              className="main-tab-label"
+              selected={active}
+              variant="main-tab-label"
               onClick={() => props.onActivate(tab.id)}
               title={tab.title}
             >
               {tab.title}
-            </button>
+            </OptionItem>
             {closable && (
-              <button
-                type="button"
-                className="main-tab-close"
-                title="关闭"
-                aria-label={`关闭 ${tab.title}`}
-                onClick={(e) => {
+              <IconButton title="关闭" aria-label={`关闭 ${tab.title}`} onClick={(e) => {
                   e.stopPropagation();
                   props.onClose(tab.id);
-                }}
-              >
-                <IconClose size={12} />
-              </button>
+                }} label={"关闭"}><IconClose size={12} /></IconButton>
             )}
           </div>
         );

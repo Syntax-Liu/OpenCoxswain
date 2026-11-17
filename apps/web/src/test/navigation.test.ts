@@ -97,17 +97,19 @@ describe('**导航高亮跟着视图走**', () => {
   });
 
   it('「新会话」有 active 判断', () => {
-    const m = /className=\{[^}]*nav-item[^}]*\}/.exec(sidebar);
-    assert.ok(m, '找不到新会话的 className');
-    // 两个 nav-item 的 className 都要有 active 判断
-    const navClasses = [...sidebar.matchAll(/className=\{[^}]*nav-item[^}]*\}/g)].map((x) => x[0]);
-    for (const cls of navClasses) {
-      assert.match(cls, /active/, `这个 nav-item 没有 active 判断: ${cls}`);
+    // 迁移到 ui/ListItem 后，高亮不再靠手拼 ' active' 类，
+    // 而是 selected 属性。两个导航项都必须有 selected。
+    const items = [...sidebar.matchAll(/<ListItem[\s\S]*?variant="nav-item"[\s\S]*?>/g)].map(
+      (x) => x[0],
+    );
+    assert.ok(items.length >= 2, '找不到两个 nav-item 的 ListItem');
+    for (const item of items) {
+      assert.match(item, /selected=\{/, `这个 nav-item 没有 selected 判断: ${item}`);
     }
   });
 
   it('新会话的 active 判断基于 view.kind === new', () => {
-    assert.match(sidebar, /props\.view\.kind === 'new' \? ' active' : ''/);
+    assert.match(sidebar, /selected=\{props\.view\.kind === 'new'\}/);
   });
 
   it('**App 不再把 new 转成 global**', () => {

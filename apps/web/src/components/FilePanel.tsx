@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { ApiClient, FileEntryDto } from '../api.js';
+import { ListItem, TextButton } from '../ui/index.js';
 
 export interface FilePanelProps {
   readonly api: ApiClient;
@@ -118,10 +119,7 @@ export function FilePanel(props: FilePanelProps): JSX.Element {
         const open = openDirs.includes(n.path);
         return (
           <li key={n.path}>
-            <button
-              type="button"
-              className={`file-node${n.isDir ? ' dir' : ''}${previewPath === n.path ? ' active' : ''}`}
-              onClick={() => {
+            <ListItem onClick={() => {
                 if (n.isDir) {
                   setOpenDirs((prev) =>
                     prev.includes(n.path) ? prev.filter((p) => p !== n.path) : [...prev, n.path],
@@ -129,12 +127,7 @@ export function FilePanel(props: FilePanelProps): JSX.Element {
                 } else {
                   void openFile(n.path);
                 }
-              }}
-              title={n.path}
-            >
-              <span className="file-node-name">{n.isDir ? (open ? '▾ ' : '▸ ') + n.name : n.name}</span>
-              {!n.isDir && <span className="file-node-size">{formatSize(n.size)}</span>}
-            </button>
+              }} title={n.path} variant={"file-node"}><span className="file-node-name">{n.isDir ? (open ? '▾ ' : '▸ ') + n.name : n.name}</span>{!n.isDir && <span className="file-node-size">{formatSize(n.size)}</span>}</ListItem>
             {n.isDir && open && renderLevel(childrenOf(all, n.path), depth + 1)}
           </li>
         );
@@ -150,9 +143,8 @@ export function FilePanel(props: FilePanelProps): JSX.Element {
         <div className="file-preview">
           <div className="file-preview-head">
             <span className="diff-path">{previewPath}</span>
-            <button type="button" className="btn btn--link" onClick={() => setPreviewPath(null)}>
-              收起
-            </button>
+            <TextButton onClick={() => setPreviewPath(null)}>收起
+            </TextButton>
           </div>
           {previewError ? (
             <p className="rail-empty-text">{previewError}</p>

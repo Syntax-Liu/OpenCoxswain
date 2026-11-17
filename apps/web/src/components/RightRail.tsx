@@ -26,6 +26,7 @@
 import { type ReactNode, useState } from 'react';
 
 import { IconClose, IconFolder, IconGlobe, IconPlus, IconSettings } from './icons.js';
+import { IconButton, ListItem, OptionItem } from '../ui/index.js';
 
 export interface RightRailProps {
   /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
@@ -99,26 +100,23 @@ export function RightRail(props: RightRailProps): JSX.Element {
       <div className="rail-top">
         <span className="rail-label">开始</span>
         {props.onClose && (
-          <button type="button" className="rail-close" onClick={props.onClose} title="收起侧边栏">
-            <IconClose size={14} />
-          </button>
+          <IconButton onClick={props.onClose} title="收起侧边栏" label={"收起侧边栏"}><IconClose size={14} /></IconButton>
         )}
       </div>
 
       {/* 页签条：内容多时自己横向滚，不压缩标签文字 */}
       <div className="rail-tabs" role="tablist">
         {tabs.map((t) => (
-          <button
+          <OptionItem
             key={t.id}
-            type="button"
             role="tab"
-            aria-selected={current?.id === t.id}
-            className={`rail-tab${current?.id === t.id ? ' active' : ''}`}
+            selected={current?.id === t.id}
+            variant="rail-tab"
             onClick={() => setActive(t.id)}
           >
             {t.title}
             {t.badge > 0 && <span className="rail-badge">{t.badge}</span>}
-          </button>
+          </OptionItem>
         ))}
       </div>
 
@@ -191,13 +189,13 @@ export function RailEmptyState(props: {
   return (
     <div className="rail-empty">
       {cards.map((card) => (
-        <button key={card.key} type="button" className="rail-empty-card" onClick={card.onClick}>
+        <ListItem key={card.key} variant="rail-empty-card" onClick={card.onClick}>
           <span className="rail-empty-icon">{card.icon}</span>
           <span className="rail-empty-body">
             <span className="rail-empty-title">{card.title}</span>
             <span className="rail-empty-hint">{card.hint}</span>
           </span>
-        </button>
+        </ListItem>
       ))}
     </div>
   );

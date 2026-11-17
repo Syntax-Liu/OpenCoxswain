@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ApiClient } from '../api.js';
 import type { FileEntryDto } from '../api.js';
+import { OptionItem } from '../ui/index.js';
 
 /**
  * @ 引用文件的选择器。
@@ -73,11 +74,11 @@ export function MentionPicker(props: MentionPickerProps): JSX.Element {
       {!loading && shown.length === 0 && <div className="mention-empty">没有匹配的文件</div>}
 
       {shown.map((file, index) => (
-        <button
+        <OptionItem
           key={file.path}
-          type="button"
           data-index={index}
-          className={`mention-item${index === active ? ' active' : ''}`}
+          variant="mention-item"
+          selected={index === active}
           onMouseEnter={() => setActive(index)}
           // 用 onMouseDown 而不是 onClick：click 会先让输入框失焦，
           // 焦点一丢选择器就可能被关掉，点击就失效了。
@@ -88,7 +89,7 @@ export function MentionPicker(props: MentionPickerProps): JSX.Element {
         >
           <span className="mention-name">{file.name}</span>
           <span className="mention-path">{file.path}</span>
-        </button>
+        </OptionItem>
       ))}
     </div>
   );

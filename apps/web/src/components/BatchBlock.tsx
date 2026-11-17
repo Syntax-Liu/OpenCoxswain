@@ -5,6 +5,7 @@ import {
   toTaskLine,
   type Batch,
 } from './batches.js';
+import { ListItem } from '../ui/index.js';
 
 /**
  * 批次线：本产品的签名元素。
@@ -53,9 +54,9 @@ export function BatchBlock(props: BatchBlockProps): JSX.Element {
           const line = toTaskLine(agent);
           return (
             <li key={agent.id}>
-              <button
-                type="button"
-                className={`batch-task ${line.status}`}
+              <ListItem
+                variant="batch-task"
+                extraStatus={line.status}
                 onClick={() => props.onOpen(agent.id)}
                 title={agent.goal}
               >
@@ -63,7 +64,7 @@ export function BatchBlock(props: BatchBlockProps): JSX.Element {
                 <span className="batch-task-label">{line.label}</span>
                 <span className="batch-task-status">{STATUS_LABEL[line.status] ?? ''}</span>
                 <span className="batch-task-duration">{line.duration ?? ''}</span>
-              </button>
+              </ListItem>
             </li>
           );
         })}

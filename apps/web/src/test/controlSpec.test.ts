@@ -326,17 +326,27 @@ describe('**右栏关掉后还能重新打开**', () => {
   });
 
   it('展开时按钮高亮', () => {
-    // 迁移到 .btn 契约后类名字符串变成
-    // `btn btn--ghost btn--sm btn--icon rail-toggle${railOpen ? ' active' : ''}`
-    // 断言的是「rail-toggle 后面跟着 active 条件」这个意图。
-    assert.match(conv, /rail-toggle\$\{[^}]*active/);
+    // 迁移到 ui/IconButton 后，类名不再手拼，而是：
+    //   className={`rail-toggle ${props.railOpen ? ' active' : ''}`}
+    // 断言「rail-toggle 的高亮跟着 railOpen 走」这个意图。
+    const idx = conv.indexOf('rail-toggle');
+    assert.ok(idx > 0, '找不到 rail-toggle');
+    const segment = conv.slice(idx, idx + 200);
+    // 实际写法是 `${props.railOpen ? ' active' : ''}`——条件在前、类名在后。
+    // 注意 `${…}` 里有 `}`，所以不能用 [^}]*
+    assert.match(
+      segment,
+      /railOpen\s*\?\s*' active'\s*:\s*''/,
+      'rail-toggle 的高亮应该由 railOpen 决定',
+    );
   });
 
   it('按钮有 aria-pressed 和 title（可访问）', () => {
     const idx = conv.indexOf('rail-toggle');
-    const block = conv.slice(idx, idx + 400);
+    const block = conv.slice(Math.max(0, idx - 400), idx + 400);
     assert.match(block, /aria-pressed=/, '缺少 aria-pressed');
-    assert.match(block, /title=/, '缺少 title');
+    // IconButton 的 title 由 label 兜底，title 或 label 有一个即可
+    assert.match(block, /title=|label=/, '缺少 title / label');
   });
 
   it('收起时整块隐藏（不留 1px 边框）', () => {
@@ -417,9 +427,13 @@ describe('**「新会话」和「添加项目」不再重复**', () => {
   });
 
   it('侧栏就两个导航项：新会话 + Supervisor', () => {
-    // 两个都用 nav-item（结构完全一样），只有图标和文字不同。
+    // 两个都用 ui/ListItem variant="nav-item"（结构完全一样），只有图标和文字不同。
     assert.match(sidebar, /onClick=\{props\.onNewSession\}/, '缺新会话');
-    assert.match(sidebar, /nav-item\$\{props\.view\.kind === 'global'/, '缺 Supervisor');
+    assert.match(
+      sidebar,
+      /variant="nav-item"[\s\S]{0,160}selected=\{props\.view\.kind === 'global'\}/,
+      '缺 Supervisor（应为 ListItem variant="nav-item"）',
+    );
   });
 
   it('**项目选择器在输入区**', () => {

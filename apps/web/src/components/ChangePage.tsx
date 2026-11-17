@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ApiClient, DiffFileDto, ExecutorDto } from '../api.js';
 import { diffLines, diffStats, toHunks } from './diff.js';
+import { Button, ListItem } from '../ui/index.js';
 
 export interface ChangePageProps {
   readonly api: ApiClient;
@@ -96,9 +97,8 @@ export function ChangePage(props: ChangePageProps): JSX.Element {
             <span className="diff-del"> -{totals.removed}</span>
           </p>
         </div>
-        <button type="button" className="btn btn--secondary btn--md" onClick={props.onClose}>
-          关闭
-        </button>
+        <Button onClick={props.onClose} variant="secondary">关闭
+        </Button>
       </header>
 
       {loading && <p className="rail-empty-text">读取中…</p>}
@@ -117,18 +117,10 @@ export function ChangePage(props: ChangePageProps): JSX.Element {
                 const s = diffStats(diffLines(f.before, f.after));
                 return (
                   <li key={f.path}>
-                    <button
-                      type="button"
-                      className={`change-file${f.path === selected ? ' active' : ''}`}
-                      onClick={() => setSelected(f.path)}
-                      title={f.path}
-                    >
-                      <span className="change-file-name">{f.path}</span>
-                      <span className="change-file-stat">
+                    <ListItem onClick={() => setSelected(f.path)} title={f.path} variant={"change-file"}><span className="change-file-name">{f.path}</span><span className="change-file-stat">
                         <span className="diff-add">+{s.added}</span>
                         <span className="diff-del">-{s.removed}</span>
-                      </span>
-                    </button>
+                      </span></ListItem>
                   </li>
                 );
               })}

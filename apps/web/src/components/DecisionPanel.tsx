@@ -21,6 +21,7 @@ import {
   visibleDecisions,
 } from './decisions.js';
 import { renderMarkdown } from './Markdown.js';
+import { ListItem, TextButton } from '../ui/index.js';
 
 export interface DecisionPanelProps {
   readonly reports: readonly ReportDto[];
@@ -54,14 +55,7 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
       <ul className="decision-list">
         {shown.map((item) => (
           <li key={item.id} className="decision-item">
-            <button
-              type="button"
-              className="decision-summary"
-              aria-expanded={expanded === item.id}
-              onClick={() => setExpanded((v) => (v === item.id ? null : item.id))}
-            >
-              {summarizeDecision(item.body)}
-            </button>
+            <ListItem aria-expanded={expanded === item.id} onClick={() => setExpanded((v) => (v === item.id ? null : item.id))} variant={"decision-summary"}>{summarizeDecision(item.body)}</ListItem>
 
             {expanded === item.id && (
               <div className="decision-body md-body">{renderMarkdown(item.body)}</div>
@@ -75,23 +69,12 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
                 不影响可访问性。 */}
             <div className="decision-actions">
               {props.onFocusDecision && (
-                <button
-                  type="button"
-                  className="btn btn--link"
-                  onClick={() => props.onFocusDecision!(item.id, item.body)}
-                >
-                  我来回答
-                </button>
+                <TextButton onClick={() => props.onFocusDecision!(item.id, item.body)}>我来回答
+                </TextButton>
               )}
               {props.onDismiss && (
-                <button
-                  type="button"
-                  className="btn btn--link muted"
-                  title="标记为已看过，之后不再出现在这个面板里"
-                  onClick={() => props.onDismiss!(item.id)}
-                >
-                  标记已看过
-                </button>
+                <TextButton onClick={() => props.onDismiss!(item.id)} className="muted">标记已看过
+                </TextButton>
               )}
             </div>
           </li>
@@ -99,14 +82,12 @@ export function DecisionPanel(props: DecisionPanelProps): JSX.Element | null {
       </ul>
 
       {hidden > 0 && (
-        <button type="button" className="btn btn--link decision-more" onClick={() => setShowAll(true)}>
-          还有 {hidden} 件（展开）
-        </button>
+        <TextButton onClick={() => setShowAll(true)} className="decision-more">还有 {hidden}件（展开）
+        </TextButton>
       )}
       {showAll && items.length > DECISION_VISIBLE_LIMIT && (
-        <button type="button" className="btn btn--link muted decision-more" onClick={() => setShowAll(false)}>
-          收起
-        </button>
+        <TextButton onClick={() => setShowAll(false)} className="muted decision-more">收起
+        </TextButton>
       )}
     </div>
   );

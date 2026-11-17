@@ -21,6 +21,7 @@ import { useState } from 'react';
 
 import type { ProjectDto } from '../api.js';
 import { IconChevron, IconFolder, IconPlus } from './icons.js';
+import { Button, ListItem } from '../ui/index.js';
 
 export interface ProjectPickerProps {
   readonly projects: readonly ProjectDto[];
@@ -37,53 +38,26 @@ export function ProjectPicker(props: ProjectPickerProps): JSX.Element {
 
   return (
     <div className="project-picker">
-      <button
-        type="button"
-        className="btn btn--ghost btn--sm project-picker-btn"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        <IconFolder size={14} />
-        <span className="project-picker-name">{current ? current.name : '选择项目'}</span>
-        <IconChevron size={12} direction={open ? 'down' : 'right'} />
-      </button>
+      <Button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="listbox" variant="ghost" size="sm" className="project-picker-btn"><IconFolder size={14} /><span className="project-picker-name">{current ? current.name : '选择项目'}</span><IconChevron size={12} direction={open ? 'down' : 'right'} /></Button>
 
       {open && (
         <ul className="project-picker-menu" role="listbox">
           {props.projects.map((p) => (
             <li key={p.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={p.id === props.currentId}
-                className={`project-picker-item${p.id === props.currentId ? ' active' : ''}`}
-                onClick={() => {
+              <ListItem aria-selected={p.id === props.currentId} onClick={() => {
                   setOpen(false);
                   props.onPick(p.id);
-                }}
-              >
-                <IconFolder size={14} />
-                <span className="project-picker-item-name">{p.name}</span>
-                <span className="project-picker-item-path" title={p.displayPath}>
+                }} variant={"project-picker-item"}><IconFolder size={14} /><span className="project-picker-item-name">{p.name}</span><span className="project-picker-item-path" title={p.displayPath}>
                   {p.displayPath}
-                </span>
-              </button>
+                </span></ListItem>
             </li>
           ))}
           <li className="project-picker-sep" role="separator" />
           <li>
-            <button
-              type="button"
-              className="project-picker-item project-picker-create"
-              onClick={() => {
+            <ListItem onClick={() => {
                 setOpen(false);
                 props.onCreate();
-              }}
-            >
-              <IconPlus size={14} />
-              <span>打开或新建项目</span>
-            </button>
+              }} variant={"project-picker-item"}><IconPlus size={14} /><span>打开或新建项目</span></ListItem>
           </li>
         </ul>
       )}

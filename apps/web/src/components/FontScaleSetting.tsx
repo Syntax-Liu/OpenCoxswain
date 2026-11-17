@@ -14,6 +14,7 @@ import {
   parseFontScale,
   type FontScale,
 } from './fontScale.js';
+import { Button } from '../ui/index.js';
 
 export function FontScaleSetting(): JSX.Element {
   const [scale, setScale] = useState<FontScale>(() => {
@@ -44,15 +45,7 @@ export function FontScaleSetting(): JSX.Element {
       <span className="field-label">界面字号</span>
       <div className="font-scale-row">
         {FONT_SCALE_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={`btn btn--secondary btn--sm${scale === option.id ? ' active' : ''}`}
-            aria-pressed={scale === option.id}
-            onClick={() => pick(option.id)}
-          >
-            {option.label}
-          </button>
+          <Button key={option.id} aria-pressed={scale === option.id} onClick={() => pick(option.id)} variant="secondary" size="sm" className={`${scale === option.id ? ' active' : ''}`}>{option.label}</Button>
         ))}
       </div>
       <p className="muted small">

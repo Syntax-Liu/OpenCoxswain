@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { ApiClient, UpdateCheckDto } from '../api.js';
 import { IconDownload } from './icons.js';
+import { TextButton } from '../ui/index.js';
 
 /**
  * 更新提示条。
@@ -54,9 +55,8 @@ export function UpdateBanner({
           GitHub Releases
         </a>
       </span>
-      <button type="button" className="btn btn--link" onClick={() => setDismissed(true)}>
-        知道了
-      </button>
+      <TextButton onClick={() => setDismissed(true)}>知道了
+      </TextButton>
     </div>
   );
 }

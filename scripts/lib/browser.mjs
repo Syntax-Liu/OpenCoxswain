@@ -70,6 +70,10 @@ export async function openBrowser(options = {}) {
       '--hide-scrollbars',
       '--no-first-run',
       '--no-default-browser-check',
+      // 沙箱/受限账户下 crashpad 起不来会让 Chrome 自杀了事（crashpad_client_win.cc:142）。
+      // 体检与 e2e 都不需要崩溃上报，关掉反而更稳。
+      '--disable-crash-reporter',
+      '--disable-breakpad',
       `--remote-debugging-port=${port}`,
       `--window-size=${width},${height}`,
       `--user-data-dir=${userDir}`,

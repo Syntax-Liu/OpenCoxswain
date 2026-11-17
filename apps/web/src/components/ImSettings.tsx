@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient, ImStatusDto, ProjectDto } from '../api.js';
-import { Select } from './Select.js';
+import { Button, Select, TextInput } from '../ui/index.js';
 
 export interface ImSettingsProps {
   readonly api: ApiClient;
@@ -86,12 +86,10 @@ export function ImSettings(props: ImSettingsProps): JSX.Element {
 
       <label className="field">
         <span>Bot Token</span>
-        <input
-          type="password"
+        <TextInput type="password"
           value={token}
           placeholder={status?.hasToken ? '已配置，留空则不修改' : '从 @BotFather 获取'}
-          onChange={(e) => setToken(e.target.value)}
-        />
+          onChange={(e) => setToken(e.target.value)} />
       </label>
 
       <label className="field">
@@ -118,13 +116,10 @@ export function ImSettings(props: ImSettingsProps): JSX.Element {
 
       <div className="modal-actions">
         {status?.hasToken && (
-          <button type="button" className="btn btn--ghost btn--md" onClick={() => void clear()} disabled={busy}>
-            清除
-          </button>
+          <Button onClick={() => void clear()} disabled={busy} variant="ghost">清除
+          </Button>
         )}
-        <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={busy}>
-          {busy ? '保存中…' : '保存通道设置'}
-        </button>
+        <Button onClick={() => void save()} disabled={busy}>{busy ? '保存中…' : '保存通道设置'}</Button>
       </div>
     </section>
   );

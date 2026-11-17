@@ -1,4 +1,5 @@
 import { STARTER_EXAMPLES, markOnboardingSeen, type StarterExample } from './starterGuide.js';
+import { ListItem, TextButton } from '../ui/index.js';
 
 /**
  * 首次使用的引导面板。
@@ -26,16 +27,11 @@ export function Onboarding(props: OnboardingProps): JSX.Element {
     <div className="onboarding">
       <div className="onboarding-head">
         <h3>试着让它干活</h3>
-        <button
-          type="button"
-          className="btn btn--link onboarding-dismiss"
-          onClick={() => {
+        <TextButton onClick={() => {
             markOnboardingSeen();
             props.onDismiss();
-          }}
-        >
-          知道了
-        </button>
+          }} className="onboarding-dismiss">知道了
+        </TextButton>
       </div>
 
       <p className="onboarding-lead">
@@ -45,15 +41,14 @@ export function Onboarding(props: OnboardingProps): JSX.Element {
 
       <div className="onboarding-examples">
         {STARTER_EXAMPLES.map((example) => (
-          <button
+          <ListItem
             key={example.id}
-            type="button"
-            className="onboarding-card"
+            variant="onboarding-card"
             onClick={() => pick(example)}
           >
             <span className="onboarding-card-title">{example.title}</span>
             <span className="onboarding-card-hint">{example.hint}</span>
-          </button>
+          </ListItem>
         ))}
       </div>
 

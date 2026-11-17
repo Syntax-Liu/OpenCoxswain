@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { Select } from './Select.js';
 import type { ApiClient, ModelConfigDto, ModelParamsDto, SettingsStatus } from '../api.js';
+import { Button, OptionItem, Select, TextButton, TextInput } from '../ui/index.js';
 
 /**
  * 模型设置面板：多模型 + 参数 + 角色绑定。
@@ -138,19 +138,18 @@ export function ModelSettingsPanel(props: {
             </p>
           )}
           {models.map((m) => (
-            <button
+            <OptionItem
               key={m.id}
-              type="button"
-              className={`model-item${m.id === selectedId ? ' active' : ''}`}
+              variant="model-item"
+              selected={m.id === selectedId}
               onClick={() => setSelectedId(m.id)}
             >
               <span className="model-item-name">{m.name || '(未命名)'}</span>
               <span className="model-item-id">{m.model}</span>
-            </button>
+            </OptionItem>
           ))}
-          <button type="button" className="btn btn--ghost btn--sm model-add" onClick={addModel}>
-            ＋ 新增模型
-          </button>
+          <Button onClick={addModel} variant="ghost" size="sm" className="model-add">＋ 新增模型
+          </Button>
         </div>
 
         {/* 右：选中模型的详情 */}
@@ -161,46 +160,35 @@ export function ModelSettingsPanel(props: {
             <>
               <div className="model-detail-head">
                 <h3>{selected.name || '未命名'}</h3>
-                <button
-                  type="button"
-                  className="btn btn--link danger-link"
-                  onClick={() => removeModel(selected.id)}
-                >
-                  删除
-                </button>
+                <TextButton onClick={() => removeModel(selected.id)} className="danger-link">删除
+                </TextButton>
               </div>
 
               <label className="field">
                 <span>显示名</span>
-                <input value={selected.name} onChange={(e) => update({ name: e.target.value })} />
+                <TextInput value={selected.name} onChange={(e) => update({ name: e.target.value })} />
               </label>
 
               <label className="field">
                 <span>端点</span>
-                <input
-                  value={selected.baseUrl}
+                <TextInput value={selected.baseUrl}
                   placeholder="https://api.deepseek.com/v1"
-                  onChange={(e) => update({ baseUrl: e.target.value })}
-                />
+                  onChange={(e) => update({ baseUrl: e.target.value })} />
               </label>
 
               <label className="field">
                 <span>模型名</span>
-                <input
-                  value={selected.model}
+                <TextInput value={selected.model}
                   placeholder="deepseek-chat"
-                  onChange={(e) => update({ model: e.target.value })}
-                />
+                  onChange={(e) => update({ model: e.target.value })} />
               </label>
 
               <label className="field">
                 <span>API Key</span>
-                <input
-                  type="password"
+                <TextInput type="password"
                   value={selected.apiKey}
                   placeholder={selected.apiKey ? '已填写' : 'sk-...'}
-                  onChange={(e) => update({ apiKey: e.target.value })}
-                />
+                  onChange={(e) => update({ apiKey: e.target.value })} />
               </label>
 
               <h4 className="settings-subhead">参数</h4>
@@ -223,8 +211,7 @@ export function ModelSettingsPanel(props: {
               <div className="field-row">
                 <label className="field">
                   <span>Temperature</span>
-                  <input
-                    type="number"
+                  <TextInput type="number"
                     min={0}
                     max={2}
                     step={0.1}
@@ -234,13 +221,11 @@ export function ModelSettingsPanel(props: {
                       updateParam({
                         temperature: e.target.value === '' ? undefined : Number(e.target.value),
                       })
-                    }
-                  />
+                    } />
                 </label>
                 <label className="field">
                   <span>Top P</span>
-                  <input
-                    type="number"
+                  <TextInput type="number"
                     min={0}
                     max={1}
                     step={0.05}
@@ -248,16 +233,14 @@ export function ModelSettingsPanel(props: {
                     placeholder="0–1"
                     onChange={(e) =>
                       updateParam({ topP: e.target.value === '' ? undefined : Number(e.target.value) })
-                    }
-                  />
+                    } />
                 </label>
               </div>
 
               <div className="field-row">
                 <label className="field">
                   <span>上下文长度</span>
-                  <input
-                    type="number"
+                  <TextInput type="number"
                     min={1024}
                     value={selected.params.contextLength ?? ''}
                     placeholder="服务端默认"
@@ -265,13 +248,11 @@ export function ModelSettingsPanel(props: {
                       updateParam({
                         contextLength: e.target.value === '' ? undefined : Number(e.target.value),
                       })
-                    }
-                  />
+                    } />
                 </label>
                 <label className="field">
                   <span>工具调用轮数</span>
-                  <input
-                    type="number"
+                  <TextInput type="number"
                     min={1}
                     max={200}
                     value={selected.params.maxToolRounds ?? ''}
@@ -280,17 +261,14 @@ export function ModelSettingsPanel(props: {
                       updateParam({
                         maxToolRounds: e.target.value === '' ? undefined : Number(e.target.value),
                       })
-                    }
-                  />
+                    } />
                 </label>
               </div>
 
               <label className="check-row">
-                <input
-                  type="checkbox"
+                <TextInput type="checkbox"
                   checked={selected.params.supportsImages ?? false}
-                  onChange={(e) => updateParam({ supportsImages: e.target.checked })}
-                />
+                  onChange={(e) => updateParam({ supportsImages: e.target.checked })} />
                 <span>支持图片输入</span>
               </label>
             </>
@@ -334,9 +312,7 @@ export function ModelSettingsPanel(props: {
 
       <div className="settings-actions">
         {saved && <span className="saved-hint">已保存</span>}
-        <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={busy}>
-          {busy ? '保存中…' : '保存模型设置'}
-        </button>
+        <Button onClick={() => void save()} disabled={busy}>{busy ? '保存中…' : '保存模型设置'}</Button>
       </div>
     </section>
   );

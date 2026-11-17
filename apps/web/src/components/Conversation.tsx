@@ -21,6 +21,7 @@ import { shouldShowOnboarding } from './starterGuide.js';
 import { clearDraft, loadDraft, saveDraft } from '../drafts.js';
 import { MentionPicker, applyMention, detectMention, type MentionState } from './MentionPicker.js';
 import type { ApiClient } from '../api.js';
+import { Button, IconButton, OptionItem, SendButton, TextButton, TextInput, Textarea } from '../ui/index.js';
 
 export interface ConversationProps {
   /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
@@ -293,40 +294,17 @@ export function Conversation(props: ConversationProps): JSX.Element {
               DSH 的做法就是这个位置放一个固定按钮，
               展开时高亮、收起时灰——位置不变，永远找得到。 */}
           {props.onToggleRail && (
-            <button
-              type="button"
-              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
-              onClick={props.onToggleRail}
-              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
-              aria-pressed={props.railOpen}
-            >
-              <IconSidebar size={16} />
-            </button>
+            <IconButton onClick={props.onToggleRail} aria-pressed={props.railOpen} label={props.railOpen ? '收起侧边栏' : '展开侧边栏'} size="sm" className={`rail-toggle ${props.railOpen ? ' active' : ''}`}><IconSidebar size={16} /></IconButton>
           )}
         </div>
       </header>
 
       {/* 标签页：对话 / 轨迹（照 DSH） */}
       <div className="view-tabs" role="tablist">
-        <button
-          type="button"
-          className={`btn btn--ghost btn--md view-tab${tab === 'chat' ? ' active' : ''}`}
-          role="tab"
-          aria-selected={tab === 'chat'}
-          onClick={() => setTab('chat')}
-        >
-          对话
-        </button>
-        <button
-          type="button"
-          className={`btn btn--ghost btn--md view-tab${tab === 'trace' ? ' active' : ''}`}
-          role="tab"
-          aria-selected={tab === 'trace'}
-          onClick={() => setTab('trace')}
-        >
-          轨迹
-          {traceCount > 0 && <span className="view-tab-count">{traceCount}</span>}
-        </button>
+        <Button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')} variant="ghost" className={`view-tab ${tab === 'chat' ? ' active' : ''}`}>对话
+        </Button>
+        <Button role="tab" aria-selected={tab === 'trace'} onClick={() => setTab('trace')} variant="ghost" className={`view-tab ${tab === 'trace' ? ' active' : ''}`}>轨迹
+          {traceCount > 0 && <span className="view-tab-count">{traceCount}</span>}</Button>
         <span className="view-tab-more" aria-hidden>⋯</span>
       </div>
 
@@ -354,21 +332,18 @@ export function Conversation(props: ConversationProps): JSX.Element {
                 下面的示例按钮已经在教怎么用了，让它们自己说话。 */}
             <div className="welcome-examples">
               <span>试试：</span>
-              <button type="button" className="welcome-example" onClick={() => {
+              <Button onClick={() => {
                 updateDraft('查一下这个项目的目录结构（只读）');
-              }}>
-                查一下项目结构（只读）
-              </button>
-              <button type="button" className="welcome-example" onClick={() => {
+              }} pill>查一下项目结构（只读）
+              </Button>
+              <Button onClick={() => {
                 updateDraft('给最近改动的功能补测试');
-              }}>
-                给最近改动的功能补测试
-              </button>
-              <button type="button" className="welcome-example" onClick={() => {
+              }} pill>给最近改动的功能补测试
+              </Button>
+              <Button onClick={() => {
                 updateDraft('把这段逻辑重构成组件');
-              }}>
-                重构一段逻辑
-              </button>
+              }} pill>重构一段逻辑
+              </Button>
             </div>
           </div>
         )}
@@ -503,15 +478,15 @@ export function Conversation(props: ConversationProps): JSX.Element {
         {/* **回到底部：挂在输入区上沿之外**，不挡消息内容。
             跟着输入区走，输入框多高都不会压到内容。 */}
         {!scroll.atBottom && (
-          <button
-            type="button"
-            className={`jump-bottom${scroll.unread > 0 ? ' has-unread' : ''}`}
+          <OptionItem
+            variant="jump-bottom"
+            extraClass={scroll.unread > 0 ? 'has-unread' : undefined}
             onClick={scroll.scrollToBottom}
             title={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
             aria-label={scroll.unread > 0 ? `${scroll.unread} 条新消息` : '回到底部'}
           >
             {scroll.unread > 0 ? <span>{scroll.unread}</span> : <IconChevron size={14} direction="down" />}
-          </button>
+          </OptionItem>
         )}
 
         <div className="composer-box">
@@ -520,8 +495,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
           )}
           <AttachmentStrip attachments={attachments.attachments} onRemove={attachments.remove} />
 
-          <textarea
-            value={draft}
+          <Textarea value={draft}
             placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话（可拖入文件）"
             onChange={(e) => {
               updateDraft(e.target.value);
@@ -568,24 +542,15 @@ export function Conversation(props: ConversationProps): JSX.Element {
               e.preventDefault();
               submit();
             }}
-            rows={2}
-          />
+            rows={2} />
           <div className="composer-bar">
             <div className="composer-left">
               {/* **权限随时可调**（照 DSH）：不用去设置页来回切 */}
               <PermissionPicker api={props.api} projectId={props.project.id} />
               {/* 选择文件：拖入和粘贴之外的第三条路，
                   也是唯一对不习惯拖拽的用户友好的入口 */}
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                title="添加附件（也可以直接拖入或粘贴）"
-                onClick={() => fileInput.current?.click()}
-              >
-                <IconPlus size={14} />
-              </button>
-              <input
-                ref={fileInput}
+              <Button onClick={() => fileInput.current?.click()} variant="ghost" size="sm"><IconPlus size={14} /></Button>
+              <TextInput ref={fileInput}
                 type="file"
                 multiple
                 hidden
@@ -593,31 +558,19 @@ export function Conversation(props: ConversationProps): JSX.Element {
                   if (e.target.files) void attachments.add(e.target.files);
                   // 清空 value，否则选同一个文件第二次不会触发 change
                   e.target.value = '';
-                }}
-              />
+                }} />
               {props.templatePicker}
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                onClick={props.onStop}
-                title="停止当前这轮"
-              >
-                停止
-              </button>
+              <Button onClick={props.onStop} variant="secondary" size="sm">停止
+              </Button>
             </div>
-            {/* **不套 btn 系统**：通用按钮是胶囊/矩形语义，
-                套上去会得到 40×26 的椭圆。
-                .send-btn 自己保证宽高相等 → 正圆。 */}
-            <button
-              type="button"
-              className="send-btn"
+            {/* 发送按钮：34×34 正圆。形状是刻意的（见 ui/OptionItem.tsx），
+                但出处必须统一——全站 3 个发送按钮都用 SendButton。 */}
+            <SendButton
               onClick={submit}
               disabled={!draft.trim()}
-              aria-label="发送"
-              title="发送（Enter）"
             >
               <IconSend size={16} />
-            </button>
+            </SendButton>
           </div>
         </div>
       </div>
@@ -647,14 +600,8 @@ export function Conversation(props: ConversationProps): JSX.Element {
             {contextUsage.level === 'compacted' ? 'ⓘ' : '⚠'}
           </span>
           <span className="context-banner-text">{contextUsage.message}</span>
-          <button
-            type="button"
-            className="btn btn--link context-banner-close"
-            title="知道了，不再显示"
-            onClick={() => setDismissedBanner(true)}
-          >
-            知道了
-          </button>
+          <TextButton onClick={() => setDismissedBanner(true)} className="context-banner-close">知道了
+          </TextButton>
         </div>
       )}
 

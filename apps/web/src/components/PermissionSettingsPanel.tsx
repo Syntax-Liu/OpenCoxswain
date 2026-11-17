@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient } from '../api.js';
+import { TextInput } from '../ui/index.js';
 
 /** 权限档位面板。 */
 export function PermissionSettingsPanel(props: { api: ApiClient }): JSX.Element {
@@ -45,13 +46,11 @@ export function PermissionSettingsPanel(props: { api: ApiClient }): JSX.Element 
       <div className="perm-list">
         {levels.map((level) => (
           <label key={level.id} className={`perm-row${current === level.id ? ' active' : ''}`}>
-            <input
-              type="radio"
+            <TextInput type="radio"
               name="permission"
               checked={current === level.id}
               disabled={busy}
-              onChange={() => void choose(level.id)}
-            />
+              onChange={() => void choose(level.id)} />
             <span className="perm-text">
               <span className="perm-label">{level.label}</span>
               <span className="perm-hint">{level.hint}</span>

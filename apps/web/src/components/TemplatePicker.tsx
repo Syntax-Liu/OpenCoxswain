@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { ApiClient, TaskTemplateDto } from '../api.js';
+import { Button, OptionItem, TextButton, TextInput, Textarea } from '../ui/index.js';
 
 /** 内置模板的展示名与说明（与后端对应）。 */
 const PRESET: Record<string, { icon: string; hint: string }> = {
@@ -75,9 +76,8 @@ export function TemplatePicker(props: TemplatePickerProps): JSX.Element {
 
   if (!open) {
     return (
-      <button type="button" className="btn btn--ghost btn--sm" onClick={() => void load()}>
-        用模板
-      </button>
+      <Button onClick={() => void load()} variant="ghost" size="sm">用模板
+      </Button>
     );
   }
 
@@ -86,46 +86,40 @@ export function TemplatePicker(props: TemplatePickerProps): JSX.Element {
       <div className="template-head">
         <strong>选一个模板</strong>
         <span className="muted small">填好之后还要你自己点发送</span>
-        <button type="button" className="btn btn--link" onClick={() => setOpen(false)}>
-          收起
-        </button>
+        <TextButton onClick={() => setOpen(false)}>收起
+        </TextButton>
       </div>
 
       <div className="template-grid">
         {templates.map((t) => {
           const preset = PRESET[t.id] ?? { icon: '•', hint: t.whenToUse };
           return (
-            <button
+            <OptionItem
               key={t.id}
-              type="button"
-              className={`template-card${selected === t.id ? ' active' : ''}`}
+              variant="template-card"
+              selected={selected === t.id}
               onClick={() => setSelected(t.id)}
             >
               <span className="template-icon">{preset.icon}</span>
               <span className="template-name">{t.name}</span>
               <span className="template-hint">{preset.hint}</span>
               {t.readonly && <span className="template-tag">只读</span>}
-            </button>
+            </OptionItem>
           );
         })}
       </div>
 
       {selected && (
         <div className="template-form">
-          <input
-            value={label}
+          <TextInput value={label}
             placeholder="标题（可留空，默认用模板名）"
-            onChange={(e) => setLabel(e.target.value)}
-          />
-          <textarea
-            value={goal}
+            onChange={(e) => setLabel(e.target.value)} />
+          <Textarea value={goal}
             placeholder="具体要做什么（模板已帮你写好结构，填 {} 处即可）"
             rows={4}
-            onChange={(e) => setGoal(e.target.value)}
-          />
-          <button type="button" className="btn btn--primary btn--sm" onClick={() => void use()}>
-            填入输入框
-          </button>
+            onChange={(e) => setGoal(e.target.value)} />
+          <Button onClick={() => void use()} size="sm">填入输入框
+          </Button>
         </div>
       )}
 

@@ -11,6 +11,7 @@
  */
 import type { DiffFileDto } from '../api.js';
 import { diffLines, diffStats } from './diff.js';
+import { OptionItem } from '../ui/index.js';
 
 export interface DiffViewProps {
   readonly files: readonly DiffFileDto[];
@@ -83,14 +84,14 @@ export function DiffView(props: DiffViewProps): JSX.Element {
       {props.files.length > 1 && (
         <div className="diff-file-tabs">
           {props.files.map((f) => (
-            <button
+            <OptionItem
               key={f.path}
-              type="button"
-              className={`diff-file-tab${f.path === current.path ? ' active' : ''}`}
+              variant="diff-file-tab"
+              selected={f.path === current.path}
               onClick={() => props.onSelect?.(f.path)}
             >
               {f.path}
-            </button>
+            </OptionItem>
           ))}
         </div>
       )}

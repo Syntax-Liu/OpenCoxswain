@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { IconCheck, IconCopy, IconEdit, IconRetry } from './icons.js';
 import { actionsFor, type MessageRole } from './messageCapabilities.js';
+import { IconButton } from '../ui/index.js';
 
 /**
  * 消息操作：重试、编辑、重发、复制。
@@ -76,57 +77,25 @@ export function MessageActions(props: MessageActionsProps): JSX.Element {
   return (
     <span className="msg-actions">
       {available.canRetry && props.onRetry && (
-        <button
-          type="button"
-          className="btn btn--ghost btn--md btn--icon-md"
-          title="重新回答"
-          aria-label="重新回答"
-          onClick={props.onRetry}
-        >
-          <IconRetry size={14} />
-        </button>
+        <IconButton onClick={props.onRetry} label={"重新回答"}><IconRetry size={14} /></IconButton>
       )}
 
       {available.canEdit && props.onEdit && (
-        <button
-          type="button"
-          className="btn btn--ghost btn--md btn--icon-md"
-          title="编辑后重发"
-          aria-label="编辑后重发"
-          onClick={props.onEdit}
-        >
-          <IconEdit size={14} />
-        </button>
+        <IconButton onClick={props.onEdit} label={"编辑后重发"}><IconEdit size={14} /></IconButton>
       )}
 
       {available.canResend && props.onResend && (
-        <button
-          type="button"
-          className="btn btn--ghost btn--md btn--icon-md"
-          title="原样重发"
-          aria-label="原样重发"
-          onClick={props.onResend}
-        >
-          <IconRetry size={14} />
-        </button>
+        <IconButton onClick={props.onResend} label={"原样重发"}><IconRetry size={14} /></IconButton>
       )}
 
       {available.canCopy && (
-        <button
-          type="button"
-          className={`btn btn--ghost btn--md btn--icon-md${copied ? ' done' : ''}`}
-          title={copied ? '已复制' : '复制'}
-          aria-label={copied ? '已复制' : '复制'}
-          onClick={async () => {
+        <IconButton onClick={async () => {
             const ok = await copyText(props.content);
             if (ok) {
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             }
-          }}
-        >
-          {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-        </button>
+          }} label={copied ? '已复制' : '复制'} className={`${copied ? ' done' : ''}`}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</IconButton>
       )}
     </span>
   );

@@ -11,6 +11,7 @@
  */
 import { ICON_THEMES } from '../iconTheme.js';
 import { AppIcon } from './AppIcon.js';
+import { OptionItem } from '../ui/index.js';
 
 export interface IconThemeSettingProps {
   readonly value: string;
@@ -29,19 +30,20 @@ export function IconThemeSetting({ value, onChange }: IconThemeSettingProps): JS
         {ICON_THEMES.map((theme) => {
           const active = theme.id === value;
           return (
-            <button
+            <OptionItem
               key={theme.id}
-              type="button"
               role="radio"
               aria-checked={active}
               aria-label={theme.label}
               title={theme.label}
-              className={`icon-theme-option${active ? ' is-active' : ''}`}
+              variant="icon-theme-option"
+              selected={active}
+              extraClass={active ? 'is-active' : ''}
               onClick={() => onChange(theme.id)}
             >
               <AppIcon size={40} theme={theme.id} />
               <span className="icon-theme-label">{theme.label}</span>
-            </button>
+            </OptionItem>
           );
         })}
       </div>

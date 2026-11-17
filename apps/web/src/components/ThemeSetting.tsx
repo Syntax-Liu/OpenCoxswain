@@ -12,6 +12,7 @@ import {
   parseTheme,
   type Theme,
 } from './theme.js';
+import { Button } from '../ui/index.js';
 
 function readSaved(): Theme {
   try {
@@ -42,16 +43,7 @@ export function ThemeSetting(): JSX.Element {
       </div>
       <div className="theme-row" role="radiogroup" aria-label="主题">
         {THEME_OPTIONS.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={theme === o.id}
-            className={`btn btn--secondary btn--sm${theme === o.id ? ' active' : ''}`}
-            onClick={() => choose(o.id)}
-          >
-            {o.label}
-          </button>
+          <Button key={o.id} role="radio" aria-checked={theme === o.id} onClick={() => choose(o.id)} variant="secondary" size="sm" className={`${theme === o.id ? ' active' : ''}`}>{o.label}</Button>
         ))}
       </div>
     </div>

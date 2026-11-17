@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { ApiClient, ProjectDto, SettingsStatus } from '../api.js';
 import { ImSettings } from './ImSettings.js';
+import { Button, TextInput } from '../ui/index.js';
 
 export interface SettingsDialogProps {
   readonly api: ApiClient;
@@ -105,26 +106,24 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
 
         <label className="field">
           <span>API Key</span>
-          <input
-            autoFocus
+          <TextInput autoFocus
             type="password"
             value={apiKey}
             placeholder={props.status.configured ? '已配置，重新填写可覆盖' : 'sk-...'}
             onChange={(e) => setApiKey(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void save();
-            }}
-          />
+            }} />
         </label>
 
         <label className="field">
           <span>端点（可选）</span>
-          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+          <TextInput value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
         </label>
 
         <label className="field">
           <span>模型（可选）</span>
-          <input value={model} onChange={(e) => setModel(e.target.value)} />
+          <TextInput value={model} onChange={(e) => setModel(e.target.value)} />
         </label>
 
         {error && <p className="form-error">{error}</p>}
@@ -133,24 +132,20 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
         <div className="field-group">
           <h3>关闭窗口时</h3>
           <label className="radio-row">
-            <input
-              type="radio"
+            <TextInput type="radio"
               name="closeAction"
               checked={closeAction === 'tray'}
-              onChange={() => void saveCloseAction('tray')}
-            />
+              onChange={() => void saveCloseAction('tray')} />
             <span>
               最小化到系统托盘
               <span className="muted small">（Agent 继续运行）</span>
             </span>
           </label>
           <label className="radio-row">
-            <input
-              type="radio"
+            <TextInput type="radio"
               name="closeAction"
               checked={closeAction === 'quit'}
-              onChange={() => void saveCloseAction('quit')}
-            />
+              onChange={() => void saveCloseAction('quit')} />
             <span>
               直接退出软件
               <span className="muted small">（有 Agent 在跑时会先提示）</span>
@@ -160,16 +155,12 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
 
         <div className="modal-actions">
           {props.status.configured && props.status.source === 'file' && (
-            <button type="button" className="btn btn--ghost btn--md" onClick={() => void clear()} disabled={busy}>
-              清除
-            </button>
+            <Button onClick={() => void clear()} disabled={busy} variant="ghost">清除
+            </Button>
           )}
-          <button type="button" className="btn btn--ghost btn--md" onClick={props.onClose} disabled={busy}>
-            取消
-          </button>
-          <button type="button" className="btn btn--primary btn--md" onClick={() => void save()} disabled={busy}>
-            {busy ? '保存中…' : '保存'}
-          </button>
+          <Button onClick={props.onClose} disabled={busy} variant="ghost">取消
+          </Button>
+          <Button onClick={() => void save()} disabled={busy}>{busy ? '保存中…' : '保存'}</Button>
         </div>
 
         <ImSettings api={props.api} projects={props.projects ?? []} />

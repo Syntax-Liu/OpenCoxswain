@@ -63,7 +63,7 @@
   --c-neutral-700: #1f262f;   /* 选中 */
   --c-neutral-650: #262e39;   /* 选中悬停 */
 
-  --c-neutral-600: #626971;   /* 元信息（2.52→3.0） */
+  --c-neutral-600: #7d858d;   /* 元信息（3.43→5.10，AA 达标） */
   --c-neutral-500: #7d858d;   /* 次要文字（4.40→4.5，raised 底上达标） */
   --c-neutral-300: #c4cbd3;   /* 正文 */
   --c-neutral-100: #e8eaed;   /* 标题、关键值 */
@@ -72,6 +72,8 @@
   --c-amber-600: #6b4f22;
   --c-amber-500: #c98b4b;
   --c-amber-400: #e0a04a;
+  /* 文字用的琥珀：暗色下与填充色同值即可（暗底上本来就够亮） */
+  --c-amber-450: #e0a04a;
   --c-amber-300: #eab366;
 
   /* 功能色（低饱和，不与琥珀抢注意力） */
@@ -158,6 +160,9 @@
 
   /* 状态：**琥珀只表示"需要你操作"**（见 semanticColor.ts） */
   --color-action: var(--c-amber-400);
+  /* 琥珀色**文字**（文字按钮、链接）。与填充色分开：
+     填充色要亮（压白字），文字色要暗（压浅底）——一个值满足不了两头。 */
+  --color-action-text: var(--c-amber-450);
   --color-action-hover: var(--c-amber-300);
   --color-action-dim: var(--c-amber-600);
   --color-warn: var(--c-amber-500);
@@ -573,11 +578,11 @@ select:disabled {
   border: none;
   padding: 0;
   height: auto;
-  color: var(--color-action);
+  color: var(--color-action-text);
 }
 
 .btn--link:hover:not(:disabled) {
-  color: var(--color-action-hover);
+  color: var(--color-action-text);
   text-decoration: underline;
 }
 
@@ -628,6 +633,139 @@ select:disabled {
 
 .small {
   font-size: var(--fs-sm);
+}
+
+/* ============================================================
+   控件层（apps/web/src/ui/）的配套规则
+   ------------------------------------------------------------
+   这一节只服务 `src/ui/` 里的组件，**不要**在这里写业务样式。
+
+   背景：控件以前只活在 CSS 注释里（"新代码必须遵守 .btn 契约"），
+   TSX 里没有对应的组件，所以加新界面的人拿不到按钮，
+   只能写裸 <button> 或现场糊一个 .xxx-btn。
+   现在契约有了组件，这里补上组件需要、而旧 CSS 没有的东西。
+   ============================================================ */
+
+/* ---- Text truncate：截断四件套，缺一不可 ---- */
+/* 缺 nowrap      → 换行，没有省略号
+   缺 hidden      → ellipsis 不生效
+   缺 ellipsis    → 字直接被切掉一半（用户说的"文字溢出"）
+   缺 min-width:0 → flex 子项不收缩，上面三条都没机会生效 */
+.text-truncate {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 截断元素的父级如果是 flex/grid 项，也必须能收缩 */
+.text-container {
+  min-width: 0;
+}
+
+/* 比正文暗一档的元信息 */
+.text-dim {
+  color: var(--color-label-tertiary);
+}
+
+/* ---- Field：标签 + 控件 + 说明 ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  min-width: 0;
+}
+
+.field-label {
+  font-size: var(--fs-sm);
+  color: var(--color-label-secondary);
+  font-weight: 500;
+}
+
+.field-required {
+  color: var(--color-danger);
+  margin-left: 2px;
+}
+
+.field-msg {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-label-tertiary);
+}
+
+.field--error .field-msg {
+  color: var(--color-danger);
+}
+
+.field--error .input {
+  border-color: var(--color-danger);
+}
+
+.field-hint-inline {
+  color: var(--color-label-primary);
+}
+
+/* ============================================================
+   ListItem：列表行骨架（src/ui/ListItem.tsx）
+   ------------------------------------------------------------
+   以前 nav-item / thread-item / route-item / changes-item /
+   change-file / file-node / palette-item 各写各的骨架：
+   行高有 26/28/30，悬停色有三四种，选中态各用各的背景。
+
+   这里只收**共同部分**——撑满整行、左对齐、可点击区域、焦点环、
+   过渡曲线。各场景的专属样式（缩进层级、图标 20px、左侧强调条）
+   仍留在原来的类里，所以这一轮视觉零变化。
+   ============================================================ */
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--g-2);
+  width: 100%;
+  /* 行高来自档位，不写死 px */
+  height: var(--h-md);
+  padding: 0 var(--g-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--color-label-primary);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.list-item--compact {
+  height: var(--h-sm);
+  font-size: var(--fs-sm);
+}
+
+.list-item--roomy {
+  height: var(--h-lg);
+}
+
+.list-item:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.list-item.is-selected {
+  background: var(--color-surface-selected);
+  color: var(--color-label-primary);
+}
+
+.list-item:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.list-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* ---------- 总布局 ---------- */
@@ -750,6 +888,10 @@ select:disabled {
 
 .folder-name {
   flex: 1;
+  /* **必须**：flex 子项默认 min-width:auto，不写这条，
+     下面的 overflow / text-overflow / nowrap 三条全部失效，
+     长项目名会撑破侧栏而不是显示省略号。 */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1361,7 +1503,7 @@ select:disabled {
   padding: 0 2px;
 }
 
-/* ---------- ����ָ�� ---------- */
+/* ---------- 指标行（轮次 / 工具调用 / token / 吞吐） ---------- */
 
 .metrics-line {
   margin-right: auto;
@@ -1372,7 +1514,7 @@ select:disabled {
   cursor: help;
 }
 
-/* ---------- Σ�ն������� ---------- */
+/* ---------- 危险动作审批条 ---------- */
 
 .approval-banner {
   border-bottom: 0.5px solid var(--color-warn);
@@ -1477,7 +1619,7 @@ select:disabled {
 .approval-actions input:focus {
 }
 
-/* ---------- ���ս�� ---------- */
+/* ---------- 验收结果 ---------- */
 
 .acceptance {
   margin-top: 8px;
@@ -1521,7 +1663,7 @@ select:disabled {
 .acc-desc { color: var(--text); }
 .acc-note { color: var(--text-muted); font-size: var(--fs-sm); }
 
-/* ---------- ������̨�� ---------- */
+/* ---------- 副作用台账 ---------- */
 
 .effects {
   margin-top: 8px;
@@ -1582,7 +1724,7 @@ select:disabled {
   font-size: var(--fs-xs);
 }
 
-/* ---------- �����ѡ���� ---------- */
+/* ---------- 记忆候选审阅 ---------- */
 
 .memory-review {
   border-bottom: 0.5px solid var(--border);
@@ -1665,7 +1807,7 @@ button.small {
   height: var(--h-sm);
 }
 
-/* ---------- B4 ����ϸ�� ---------- */
+/* ---------- 侧栏筛选 ---------- */
 
 .sidebar-filter {
   display: flex;
@@ -1715,7 +1857,7 @@ button.small {
   margin: 0 0 5px;
 }
 
-/* ---------- IM ͨ������ ---------- */
+/* ---------- IM 通道设置 ---------- */
 
 .im-settings {
   margin-top: 18px;
@@ -1738,7 +1880,7 @@ button.small {
   font-size: var(--fs-md);
 }
 
-/* ---------- ������ʾ ---------- */
+/* ---------- 更新提示 ---------- */
 
 .update-banner {
   display: flex;
@@ -1775,7 +1917,7 @@ button.small {
   margin-left: auto;
   height: auto;}
 
-/* ---------- ����ģ�� ---------- */
+/* ---------- 任务模板 ---------- */
 
 .template-picker {
   /* **浮在输入框上方**，不要挤进工具栏那一行。
@@ -5023,7 +5165,7 @@ body.is-resizing {
   --c-neutral-700: #cfd3d6;   /* 选中 */
   --c-neutral-650: #c2c7cc;
 
-  --c-neutral-600: #83878c;   /* 元信息（1.80→3.0） */
+  --c-neutral-600: #64686e;   /* 元信息（3.46→5.36，AA 达标） */
   --c-neutral-500: #676a70;   /* 次要文字（3.13→4.5） */
   --c-neutral-300: #43454a;   /* 正文（暗色里的 #c4cbd3 反过来） */
   --c-neutral-100: #0f1115;   /* 标题（DSH 实测） */
@@ -5031,7 +5173,9 @@ body.is-resizing {
   /* 琥珀：亮色下要更深才看得清 */
   --c-amber-600: #b57615;
   --c-amber-500: #c07524;
-  --c-amber-400: #be7511;
+  --c-amber-400: #a8620a;
+  /* 文字用的深琥珀：压在浅底上要过 AA（5.23:1），比填充色更深 */
+  --c-amber-450: #9a5a08;
   --c-amber-300: #a8620a;
 
   /* 功能色：亮色下压暗 */
@@ -5045,6 +5189,38 @@ body.is-resizing {
 
   /* 浅色主题下琥珀被压暗，主按钮文字改用白色 */
   --color-on-action: var(--c-on-accent-light);
+
+  /* ---- 补齐：暗色有、亮色漏掉的原始色 ----
+     这些变量在暗色块里定义了、亮色块里漏了，于是 var() 解析成空值。
+     表现是「分隔线不见了」「弹窗没阴影」「代码块背景透明」。
+     themeTriplet.test.ts 守着这条，再漏就红。 */
+
+  /* 结构分隔线：亮色下比 overlay-11 深一档才看得出两块区域 */
+  --c-overlay-20: rgba(0, 0, 0, 0.22);
+
+  /* 阴影：暗色用白低透明度，亮色必须用黑 */
+  --c-scrim-45: rgba(15, 17, 21, 0.16);
+  --c-scrim-50: rgba(15, 17, 21, 0.2);
+  --c-scrim-55: rgba(15, 17, 21, 0.24);
+
+  /* 语义底的淡色：亮色下压暗一档，在浅底上仍可见 */
+  --c-danger-15: rgba(179, 33, 28, 0.12);
+  --c-warn-35: rgba(181, 118, 21, 0.18);
+  --c-info-35: rgba(37, 99, 235, 0.14);
+
+  /* 代码块：亮色下浅底深字（对齐 VS Code 亮色主题） */
+  --c-code-bg: #f6f7f9;
+  --c-code-fg: #a3411a;
+  --c-code-block: #f0f2f5;
+  --c-code-inline: #eef0f4;
+
+  /* 轨迹泳道分色：亮色下压暗，保持三条可分辨 */
+  --c-trace-user: #2563eb;
+  --c-trace-assistant: #7c3aed;
+  --c-trace-tool: #047857;
+
+  /* 深琥珀：亮色下比 amber-500 再深一档 */
+  --c-amber-600: #8a5a10;
 }
 
 /* 亮色下的阴影：DSH 的卡片有柔和投影，暗色下不需要 */
@@ -5074,6 +5250,8 @@ body.is-resizing {
 
 .project-picker-name {
   max-width: 180px;
+  /* 同 .folder-name：flex 子项要能收缩，否则长名字撑破按钮 */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

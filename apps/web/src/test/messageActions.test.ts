@@ -27,9 +27,10 @@ function rule(selector: string): string {
 
 describe('**操作按钮是图标，不是文字**', () => {
   it('用图标按钮组件，而不是文字链 .link', () => {
-    // 迁移到 .btn 组件契约后，断言应检查「这是一个图标按钮」这件事本身，
-    // 而不是钉死某个历史类名 .msg-action-btn。
-    assert.match(actions, /className="btn btn--ghost btn--md btn--icon-md"/);
+    // 迁移到 ui/IconButton 后，类名由 buttonClassName() 统一生成，
+    // 断言应检查「这是一个图标按钮」这件事本身，
+    // 而不是钉死某个历史类名。
+    assert.match(actions, /<IconButton/);
     assert.doesNotMatch(actions, /className="link"/, '不该再用文字链');
   });
 
@@ -89,11 +90,15 @@ describe('**按钮尺寸和布局照 DSH**', () => {
 });
 
 describe('按钮可访问性', () => {
-  it('每个按钮都有 aria-label', () => {
-    const btns = [...actions.matchAll(/<button[\s\S]*?>/g)];
-    assert.ok(btns.length >= 4);
-    for (const b of btns) {
-      assert.match(b[0], /aria-label=/, `这个按钮缺 aria-label：${b[0].slice(0, 60)}`);
+  it('每个按钮都有可读名字', () => {
+    // 迁移到 ui/IconButton 后，名字由必填的 label 提供（组件内部渲染成
+    // aria-label + title）。缺 label 是**编译不过**的，这里再守一道：
+    // 按 `<IconButton` 切成片段再查 label，避免被属性里的 `=>` 截断。
+    const chunks = actions.split(/<IconButton\b/).slice(1);
+    assert.ok(chunks.length >= 4, `只找到 ${chunks.length} 个 IconButton，应至少 4 个`);
+    for (const body of chunks) {
+      const segment = body.slice(0, 400);
+      assert.match(segment, /\blabel=/, `这个按钮缺 label：${segment.slice(0, 60)}`);
     }
   });
 

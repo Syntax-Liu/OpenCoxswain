@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { MessageDto } from '../api.js';
 import { TRACE_FILTERS, countByFilter, filterTrace, type TraceFilter } from './traceFilter.js';
 import { buildTrace, describeSpan, timelineSegments } from './trace.js';
+import { Button, ListItem, TextInput } from '../ui/index.js';
 
 /**
  * 轨迹页（照 DeepSeek Harness）。
@@ -64,28 +65,17 @@ export function TraceView(props: TraceViewProps): JSX.Element {
           <span className="trace-stat-key">工具调用</span>
           <span className="trace-stat-value">{trace.counts.tool}</span>
         </span>
-        <input
-          className="trace-search"
+        <TextInput className="trace-search"
           value={query}
           placeholder="搜索轨迹"
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="搜索轨迹"
-        />
+          aria-label="搜索轨迹" />
       </div>
 
       {/* 筛子：几十上百条记录里，先缩小范围再找 */}
       <div className="trace-filters" role="group" aria-label="筛选轨迹">
         {TRACE_FILTERS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={`btn btn--ghost btn--sm${filter === option.id ? ' active' : ''}`}
-            aria-pressed={filter === option.id}
-            onClick={() => setFilter(option.id)}
-          >
-            {option.label}
-            <span className="trace-filter-count">{counts[option.id]}</span>
-          </button>
+          <Button key={option.id} aria-pressed={filter === option.id} onClick={() => setFilter(option.id)} variant="ghost" size="sm" className={`${filter === option.id ? ' active' : ''}`}>{option.label}<span className="trace-filter-count">{counts[option.id]}</span></Button>
         ))}
       </div>
 
@@ -102,14 +92,7 @@ export function TraceView(props: TraceViewProps): JSX.Element {
           <li key={entry.id} className={`trace-row ${entry.kind}`}>
             <span className="trace-dot" aria-hidden />
             <span className="trace-label">{entry.label}</span>
-            <button
-              type="button"
-              className="trace-title"
-              onClick={() => setExpanded(expanded === entry.id ? null : entry.id)}
-              title={expanded === entry.id ? '收起' : '展开完整内容'}
-            >
-              {entry.title}
-            </button>
+            <ListItem onClick={() => setExpanded(expanded === entry.id ? null : entry.id)} title={expanded === entry.id ? '收起' : '展开完整内容'} variant={"trace-title"}>{entry.title}</ListItem>
             <span className="trace-time">{formatTime(entry.at)}</span>
             {expanded === entry.id && <pre className="trace-detail">{entry.detail}</pre>}
           </li>

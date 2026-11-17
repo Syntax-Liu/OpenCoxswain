@@ -21,6 +21,7 @@ import type { ProjectDto } from '../api.js';
 import { IconSend, IconSidebar } from './icons.js';
 import { AppIcon } from './AppIcon.js';
 import { ProjectPicker } from './ProjectPicker.js';
+import { IconButton, SendButton, Textarea } from '../ui/index.js';
 
 export interface NewSessionProps {
   /** 应用图标配色（用户选的）。不传就用紫罗兰。 */
@@ -55,15 +56,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
         </div>
         {props.onToggleRail && (
           <div className="header-side">
-            <button
-              type="button"
-              className={`btn btn--ghost btn--sm btn--icon rail-toggle${props.railOpen ? ' active' : ''}`}
-              onClick={props.onToggleRail}
-              title={props.railOpen ? '收起侧边栏' : '展开侧边栏'}
-              aria-pressed={props.railOpen}
-            >
-              <IconSidebar size={16} />
-            </button>
+            <IconButton onClick={props.onToggleRail} aria-pressed={props.railOpen} label={props.railOpen ? '收起侧边栏' : '展开侧边栏'} size="sm" className={`rail-toggle ${props.railOpen ? ' active' : ''}`}><IconSidebar size={16} /></IconButton>
           </div>
         )}
       </header>
@@ -90,8 +83,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
             />
           </div>
 
-          <textarea
-            value={draft}
+          <Textarea value={draft}
             placeholder="选好项目后，在这里说要做什么"
             onChange={(e) => {
               setDraft(e.target.value);
@@ -103,8 +95,7 @@ export function NewSession(props: NewSessionProps): JSX.Element {
                 submit();
               }
             }}
-            rows={2}
-          />
+            rows={2} />
 
           <div className="composer-bar">
             <div className="composer-left">
@@ -113,16 +104,12 @@ export function NewSession(props: NewSessionProps): JSX.Element {
             {/* **和 Conversation 用同一个按钮**：
                 之前这里写的是文字 `↑`、没有图标，
                 而主对话用 IconSend —— 两个页面同一个动作长得不一样。 */}
-            <button
-              type="button"
-              className="send-btn"
+            <SendButton
               onClick={submit}
               disabled={!draft.trim()}
-              aria-label="发送"
-              title="发送（Enter）"
             >
               <IconSend size={16} />
-            </button>
+            </SendButton>
           </div>
         </div>
       </div>

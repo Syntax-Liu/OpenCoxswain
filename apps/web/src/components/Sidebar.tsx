@@ -11,6 +11,7 @@ import {
   readSavedSidebarWidth,
   saveSidebarWidth,
 } from '../sidebarWidth.js';
+import { Button, IconButton, ListItem, MenuItem, TextButton, TextInput } from '../ui/index.js';
 
 export interface SidebarProps {
   readonly projects: readonly ProjectDto[];
@@ -169,22 +170,22 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
           现在两个都是 .nav-item，只有图标和文字不同。 */}
       <nav className="nav-main">
-        <button
-          type="button"
-          className={`nav-item${props.view.kind === 'new' ? ' active' : ''}`}
+        <ListItem
+          variant="nav-item"
+          selected={props.view.kind === 'new'}
           onClick={props.onNewSession}
         >
           <IconNewChat size={20} className="nav-icon" />
           新会话
-        </button>
-        <button
-          type="button"
-          className={`nav-item${props.view.kind === 'global' ? ' active' : ''}`}
+        </ListItem>
+        <ListItem
+          variant="nav-item"
+          selected={props.view.kind === 'global'}
           onClick={props.onOpenGlobal}
         >
           <IconSupervisor size={20} className="nav-icon is-triangle" />
           Supervisor
-        </button>
+        </ListItem>
         {/* **「添加项目」已移除**：它和「新会话」绑的是同一个 onOpenProject，
             点下去完全一样。现在"打开/新建项目"挪到新会话输入框旁的项目选择器里。 */}
       </nav>
@@ -198,8 +199,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
               <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-            <input
-              ref={searchRef}
+            <TextInput ref={searchRef}
               className="search-input"
               value={query}
               placeholder="搜索会话名称"
@@ -210,45 +210,23 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                   setSearchOpen(false);
                 }
               }}
-              aria-label="搜索会话名称"
-            />
-            <button
-              type="button"
-              className="search-clear"
-              title="关闭搜索"
-              onClick={() => {
+              aria-label="搜索会话名称" />
+            <IconButton title="关闭搜索" onClick={() => {
                 setQuery('');
                 setSearchOpen(false);
-              }}
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+              }} label={"关闭搜索"}><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
                 <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </button>
+              </svg></IconButton>
           </span>
         ) : (
           <>
             <span className="workspace-title">工作区</span>
             <span className="workspace-actions">
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm btn--icon"
-                title="搜索"
-                onClick={() => setSearchOpen(true)}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <IconButton onClick={() => setSearchOpen(true)} label={"搜索"} size="sm"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
                   <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
                   <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className={`btn btn--ghost btn--sm btn--icon${onlyRunning ? ' active' : ''}`}
-                title={onlyRunning ? '显示全部' : '只看在跑'}
-                aria-pressed={onlyRunning}
-                onClick={() => setOnlyRunning((v) => !v)}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                </svg></IconButton>
+              <IconButton aria-pressed={onlyRunning} onClick={() => setOnlyRunning((v) => !v)} label={onlyRunning ? '显示全部' : '只看在跑'} size="sm" className={`${onlyRunning ? ' active' : ''}`}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
                   <path
                     d="M4.5 2.5v11M4.5 13.5 2 11M4.5 13.5 7 11M11.5 13.5v-11M11.5 2.5 9 5M11.5 2.5 14 5"
                     stroke="currentColor"
@@ -256,18 +234,15 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
-                </svg>
-              </button>
-          <button type="button" className="btn btn--ghost btn--sm btn--icon" title="新建项目" onClick={props.onOpenProject}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                </svg></IconButton>
+          <IconButton onClick={props.onOpenProject} label={"新建项目"} size="sm"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
               <path
                 d="M8 3v10M3 8h10"
                 stroke="currentColor"
                 strokeWidth="1.1"
                 strokeLinecap="round"
               />
-            </svg>
-          </button>
+            </svg></IconButton>
             </span>
           </>
         )}
@@ -309,25 +284,10 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                   });
                 }}
               >
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm folder-toggle"
-                  aria-label={collapsed ? '展开' : '收起'}
-                  aria-expanded={!collapsed}
-                  onClick={() => toggleCollapse(project.id)}
-                >
-                  <span className={`folder-icon${collapsed ? ' collapsed' : ''}`}>
+                <Button aria-expanded={!collapsed} onClick={() => toggleCollapse(project.id)} variant="ghost" size="sm" className="folder-toggle"><span className={`folder-icon${collapsed ? ' collapsed' : ''}`}>
                     <IconChevron size={12} direction="down" />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--link folder-name-btn"
-                  onClick={() => props.onOpenAssistant(project.id)}
-                  title={project.displayPath}
-                >
-                  <span className="folder-name">{project.name}</span>
-                </button>
+                  </span></Button>
+                <TextButton onClick={() => props.onOpenAssistant(project.id)} className="folder-name-btn"><span className="folder-name">{project.name}</span></TextButton>
               </div>
 
               {!collapsed && (
@@ -348,9 +308,9 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                           ? { title: `这一批共 ${group.batchSize} 个 Agent` }
                           : {})}
                       >
-                        <button
-                          type="button"
-                          className={`thread-item${selected ? ' active' : ''}`}
+                        <ListItem
+                          variant="thread-item"
+                          selected={selected}
                           onClick={() => props.onOpenExecutor(project.id, executor.id)}
                           onContextMenu={(e) => {
                             e.preventDefault();
@@ -371,7 +331,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                           <span className={`thread-status${running ? ' busy' : ''}`}>
                             {running ? summarize(executor.metrics) : EXECUTOR_STATUS_LABEL[executor.status]}
                           </span>
-                        </button>
+                        </ListItem>
                       </li>
                     );
                   })}
@@ -386,9 +346,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         <span className={`dot${props.connected ? ' ok' : ' bad'}`} />
         <span>{props.connected ? '已连接' : '未连接'}</span>
         {props.connectionDetail && <span className="muted small">{props.connectionDetail}</span>}
-        <button type="button" className="btn btn--link" onClick={props.onOpenSettings}>
-          设置
-        </button>
+        <TextButton onClick={props.onOpenSettings}>设置
+        </TextButton>
       </div>
 
       {/* 拖拽把手：放在最右侧，2px 宽也够点中 */}
@@ -407,80 +366,45 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         >
           {menu.kind === 'executor' && (
             <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
+              <MenuItem onClick={() => {
                   props.onOpenExecutor(menu.projectId, menu.executor.id);
                   setMenu(null);
-                }}
-              >
-                打开会话
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
+                }}>打开会话
+              </MenuItem>
+              <MenuItem onClick={() => {
                   void navigator.clipboard?.writeText(menu.executor.id);
                   setMenu(null);
-                }}
-              >
-                复制会话 ID
-              </button>
+                }}>复制会话 ID
+              </MenuItem>
               <div className="ctx-sep" />
-              <button
-                type="button"
-                role="menuitem"
-                className="danger"
-                disabled={isRunning(menu.executor.status)}
-                title={isRunning(menu.executor.status) ? '正在运行，先停止再删除' : '删除这条会话'}
-                onClick={() => {
+              <MenuItem disabled={isRunning(menu.executor.status)} title={isRunning(menu.executor.status) ? '正在运行，先停止再删除' : '删除这条会话'} onClick={() => {
                   const target = menu.executor;
                   setMenu(null);
                   props.onDeleteExecutor?.(menu.projectId, target.id);
-                }}
-              >
-                删除会话
-              </button>
+                }} danger>删除会话
+              </MenuItem>
             </>
           )}
 
           {menu.kind === 'project' && (
             <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
+              <MenuItem onClick={() => {
                   props.onOpenAssistant(menu.projectId);
                   setMenu(null);
-                }}
-              >
-                打开 Assistant
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
+                }}>打开 Assistant
+              </MenuItem>
+              <MenuItem onClick={() => {
                   void navigator.clipboard?.writeText(menu.projectName);
                   setMenu(null);
-                }}
-              >
-                复制项目名
-              </button>
+                }}>复制项目名
+              </MenuItem>
               <div className="ctx-sep" />
-              <button
-                type="button"
-                role="menuitem"
-                className="danger"
-                title="从工作区移除（不删除磁盘文件）"
-                onClick={() => {
+              <MenuItem title="从工作区移除（不删除磁盘文件）" onClick={() => {
                   const target = menu.projectId;
                   setMenu(null);
                   props.onRemoveProject?.(target);
-                }}
-              >
-                移除项目
-              </button>
+                }} danger>移除项目
+              </MenuItem>
             </>
           )}
         </div>
