@@ -517,23 +517,54 @@ select:disabled {
    5. 颜色一律走语义令牌，不写裸色值。
    ============================================================ */
 
+/**
+ * ============================================================
+ *  按钮规格（唯一来源）
+ *  ------------------------------------------------------------
+ *  | 档位 | 高度 | 内边距  | 字号      | 圆角    |
+ *  | sm   | 22px | 0 8px   | --fs-sm   | --r-xs  |
+ *  | md   | 26px | 0 10px  | --fs-sm   | --r-xs  |
+ *  | lg   | 32px | 0 14px  | --fs-md   | --r-sm  |
+ *
+ *  三条以前没写清、导致按钮"做不好"的规矩：
+ *
+ *  1. **sm/md 用 --fs-sm 而不是 --fs-md。**
+ *     之前 md 用 --fs-md（16.2px），比同屏正文还大，按钮显得笨重；
+ *     而 sm 也用 --fs-sm（14.04px），两档字号几乎一样，尺寸档形同虚设。
+ *     现在只有 lg 用正文级字号，它本来就是主操作按钮。
+ *
+ *  2. **所有按钮都有 line-height: 1。**
+ *     之前是 `normal`（随字体浮动，实测 1.2 上下），
+ *     导致图标和文字的中线对不齐，且不同字号档的垂直居中程度不一致。
+ *
+ *  3. **边框始终占位。**
+ *     之前 primary/ghost 写 `border: 0.5px solid transparent`，
+ *     但实测渲染成 `1px`——有别的规则覆盖了。宽度不一致会让
+ *     相邻按钮"看起来差 1px"，这里统一钉死。
+ * ============================================================ */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--g-1);
+  /* 边框常驻但透明：切换变体时不产生 0.5px 的跳动 */
   border: 0.5px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   font-family: inherit;
+  font-weight: 500;
+  /* 见上方第 2 条 */
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
+  /* 按钮不参与文本选中：拖选时选区穿过按钮很脏 */
+  user-select: none;
   transition:
     background-color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease);
 }
 
-/* ---- 尺寸 ---- */
+/* ---- 尺寸：三档，只有 lg 用正文级字号 ---- */
 .btn--sm {
   height: var(--h-sm);
   padding: 0 var(--g-2);
@@ -542,14 +573,35 @@ select:disabled {
 
 .btn--md {
   height: var(--h-md);
-  padding: 0 var(--g-3);
-  font-size: var(--fs-md);
+  padding: 0 calc(var(--g-2) + var(--g-05));
+  font-size: var(--fs-sm);
 }
 
 .btn--lg {
   height: var(--h-lg);
-  padding: 0 var(--g-4);
+  padding: 0 calc(var(--g-3) + var(--g-05));
   font-size: var(--fs-md);
+  border-radius: var(--r-sm);
+}
+
+/**
+ * 纯图标：**正方形**，宽度跟着高度走。
+ *
+ * 之前宽度没约束，实测出现 22px 和 19px 两种——取决于里面是
+ * 14px 图标还是 12px 图标。图标按钮应该只看尺寸档。
+ */
+.btn--icon {
+  width: var(--h-sm);
+  padding: 0;
+  gap: 0;
+}
+
+.btn--md.btn--icon {
+  width: var(--h-md);
+}
+
+.btn--lg.btn--icon {
+  width: var(--h-lg);
 }
 
 /* ---- 变体 ---- */
@@ -622,9 +674,17 @@ select:disabled {
   border-radius: var(--r-full);
 }
 
-/* ---- 统一五态 ---- */
+/* ---- 状态：五态齐全，且**互斥不打架** ---- */
+/*
+ * 顺序有意义：hover → active → focus-visible → disabled。
+ * - active 在 hover 之后：按住时不该还显示悬停态
+ * - focus-visible 单独画轮廓，不影响背景/文字
+ * - disabled 最后压住一切交互反馈
+ */
 .btn:active:not(:disabled) {
-  transform: scale(0.97);
+  /* 按压反馈只做**位移**，不缩放：
+     缩放会让相邻按钮产生 0.05 的错位感，密集工具栏里很刺眼。 */
+  transform: translateY(0.5px);
 }
 
 .btn:focus-visible {
@@ -635,6 +695,32 @@ select:disabled {
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  /* 禁用态不该有任何位移反馈 */
+  transform: none;
+}
+
+/* ---- 加载态：文字保留，右侧加转圈 ----
+   不给"点击后按钮消失"这种处理——用户会以为点丢了。 */
+.btn[data-loading='true'] {
+  cursor: progress;
+  pointer-events: none;
+}
+
+.btn[data-loading='true']::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  margin-left: var(--g-1);
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--r-full);
+  animation: btn-spin 0.7s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 宽度修饰：与 .btn 搭配使用（原 button.wide） */

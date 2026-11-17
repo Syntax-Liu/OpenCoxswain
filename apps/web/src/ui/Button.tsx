@@ -55,6 +55,16 @@ export interface ButtonProps
    */
   readonly iconOnly?: boolean;
   /**
+   * **加载态**。
+   *
+   * 只加转圈、**不移除文字**——按钮突然变成空白或变成"…"，
+   * 用户会以为自己点丢了。文字保留，右边多个圈就够了。
+   *
+   * 加载期间自动禁用（`disabled` + `pointer-events: none`），
+   * 避免重复提交。
+   */
+  readonly loading?: boolean;
+  /**
    * **附加上下文类**，例如 `active` / `rail-toggle` / `view-tab`。
    *
    * 只允许"给元素打标记"的类（状态、业务容器）。**不允许**再写 `btn--*`：
@@ -111,13 +121,15 @@ function renderButton(
   ref: ForwardedRef<HTMLButtonElement>,
 ): JSX.Element {
   assertAccessibleName(props);
-  const { size = 'md', wide, pill, iconOnly, className, children, ...rest } = props;
+  const { size = 'md', wide, pill, iconOnly, loading, className, children, ...rest } = props;
   return (
     <button
       ref={ref}
       {...rest}
       type="button"
       className={buttonClassName({ variant, size, wide, pill, iconOnly, extra: className })}
+      // 屏幕阅读器要知道它在忙，光有转圈不够
+      {...(loading ? { 'data-loading': 'true', 'aria-busy': 'true', disabled: true } : {})}
     >
       {children}
     </button>

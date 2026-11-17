@@ -98,9 +98,17 @@ describe('**尺寸来自令牌，不硬编码**', () => {
     }
   });
 
-  it('圆角统一 --r-sm（胶囊显式声明）', () => {
-    assert.match(rule('.btn'), /border-radius:\s*var\(--r-sm\)/);
-    assert.match(rule('.btn--pill'), /border-radius:\s*var\(--r-full\)/);
+  it('圆角来自令牌，且小中两档一致、大档略大', () => {
+    /**
+     * 这条测试以前写死 `--r-sm`。但规格后来变了：
+     * 实测发现 8px 圆角放在 22/26px 高的按钮上"太软"，
+     * 工具型界面需要更方的边角，所以 sm/md 收到 `--r-xs`，只有 lg 用 `--r-sm`。
+     *
+     * 要守的是**"用令牌 + 档位有规律"**，不是某个具体令牌名。
+     */
+    assert.match(rule('.btn'), /border-radius:\s*var\(--r-/, '.btn 圆角必须用令牌');
+    assert.match(rule('.btn--lg'), /border-radius:\s*var\(--r-/, '.btn--lg 圆角必须用令牌');
+    assert.match(rule('.btn--pill'), /border-radius:\s*var\(--r-full\)/, '胶囊要显式声明');
   });
 });
 
