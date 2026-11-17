@@ -5802,15 +5802,37 @@ body.is-resizing {
 
 .rail-empty-card {
   display: flex;
-  align-items: flex-start;
+  /**
+   * **居中，不是 flex-start。**
+   *
+   * 卡片有两行文字（标题 + 说明）配一个 26px 图标。
+   * 用 flex-start 时图标钉在顶部，文字块整体偏下，
+   * 视觉上像"图标浮在卡片上沿外面"——用户截图里看到的就是这个。
+   */
+  align-items: center;
   gap: var(--g-2);
   padding: var(--g-3);
+  /**
+   * **必须把它继承来的固定高度改成 auto。**
+   *
+   * `.list-item` 基类写了 `height: var(--h-md)`（26px），那是给单行列表项用的。
+   * 这张卡片 padding 12px + 图标 26px = 至少要 50px，
+   * 被按在 26px 里装不下 → 图标和文字溢出卡片上下沿。
+   *
+   * 用户截图里"图标压着一条横线"就是卡片边框从图标中间穿过去。
+   */
+  height: auto;
+  min-height: var(--h-lg);
   background: var(--color-surface-panel);
   border: 0.5px solid var(--color-border-subtle);
   border-radius: var(--r-md);
   color: var(--color-label-primary);
   text-align: left;
   cursor: pointer;
+  /* 卡片里是两行说明文字，不是单行按钮——覆盖 .btn 的 line-height: 1，
+     否则两行文字会挤成一团。 */
+  line-height: 1.5;
+  white-space: normal;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
