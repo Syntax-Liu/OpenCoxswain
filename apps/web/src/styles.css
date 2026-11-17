@@ -831,6 +831,30 @@ select:disabled {
    仍留在原来的类里，所以这一轮视觉零变化。
    ============================================================ */
 
+/**
+ * ============================================================
+ *  列表行规格（唯一来源）
+ *  ------------------------------------------------------------
+ *  | 档位    | 类                   | 高度 | 字号     | 圆角   |
+ *  | compact | list-item--compact   | 22px | --fs-sm  | --r-xs |
+ *  | normal  | （默认）              | 26px | --fs-sm  | --r-xs |
+ *  | roomy   | list-item--roomy     | 32px | --fs-md  | --r-sm |
+ *
+ *  三条以前缺失、导致"列表行长得各不一样"的规矩：
+ *
+ *  1. **圆角必须统一。**
+ *     实测四种场景是 0 / 0 / 12 / 20px——侧栏导航是直角，
+ *     右栏卡片是 20px 大圆角，同一屏里两种极端。
+ *     全站统一到 --r-xs，只有 roomy 档（大卡片）用 --r-sm。
+ *
+ *  2. **行高必须统一为 --lh-tight。**
+ *     实测 3 种（normal / normal / 24.3）。`normal` 随字体浮动，
+ *     同一份代码换个字体就变样；卡片用 1.5 又比列表松一截。
+ *
+ *  3. **多行变体必须显式覆盖固定尺寸。**
+ *     `.list-item` 有 `height`，卡片那种多行内容要自己写 `height: auto`
+ *     + `min-height`，否则内容溢出（见 ui-dev-guide 7.8）。
+ * ============================================================ */
 .list-item {
   display: flex;
   align-items: center;
@@ -842,10 +866,11 @@ select:disabled {
   padding: 0 var(--g-2);
   background: transparent;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   color: var(--color-label-primary);
   font-family: inherit;
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
   text-align: left;
   cursor: pointer;
   transition:
@@ -856,10 +881,31 @@ select:disabled {
 .list-item--compact {
   height: var(--h-sm);
   font-size: var(--fs-sm);
+  border-radius: var(--r-xs);
 }
 
 .list-item--roomy {
   height: var(--h-lg);
+  font-size: var(--fs-md);
+  border-radius: var(--r-sm);
+}
+
+/**
+ * 多行变体：**必须显式解除固定高度**。
+ *
+ * `.list-item` 的 `height` 是给单行列表项的。带说明文字的卡片
+ * （onboarding-card / rail-empty-card）内容更高，继承 26px 会溢出，
+ * 表现成"图标压着边框、文字偏下"（见 ui-dev-guide 7.8）。
+ *
+ * 这类变体统一在这里给出骨架，场景类只需补自己的 padding / 背景。
+ */
+.onboarding-card,
+.rail-empty-card {
+  height: auto;
+  min-height: var(--h-lg);
+  align-items: center;
+  line-height: var(--lh-normal);
+  white-space: normal;
 }
 
 .list-item:hover:not(:disabled) {
@@ -933,14 +979,12 @@ select:disabled {
      漏了这一行，内容会被按钮默认的 `justify-content: center` 居中，
      Supervisor / 添加项目 就比「新会话」缩进一大截。 */
   justify-content: flex-start;
-  height: 30px;
   gap: var(--g-2);
   background: transparent;
   border: none;
   color: var(--text);
   text-align: left;
   padding: 0 var(--g-25);
-  border-radius: 0;
   font-weight: 500;
 }
 
@@ -1013,9 +1057,6 @@ select:disabled {
   color: var(--text);
   text-align: left;
   border-radius: 0;
-  font-size: var(--fs-md);
-  line-height: 34px;
-  height: 34px;
 }
 
 .project-folder:hover {
@@ -1067,7 +1108,6 @@ select:disabled {
   gap: var(--g-2);
   /* 给状态标签的绝对定位做参照 */
   position: relative;
-  height: 32px;
   width: 100%;
   background: transparent;
   border: none;
@@ -1077,7 +1117,6 @@ select:disabled {
      右内边距留给状态标签。
      （DSH 用 42px 统一缩进；我们的项目名左侧有箭头，退到箭头右边就够） */
   padding: 0 var(--g-3) 0 var(--g-5);
-  border-radius: 0;
   font-size: var(--fs-sm);
 }
 
@@ -2610,10 +2649,6 @@ button.small {
 
 /* 项目行加一点左内边距，和线程形成层次 */
 /* 侧栏顶部导航和"添加项目"更像命令面板里的条目 */
-.nav-item {
-  font-size: var(--fs-md); /* 和第一处一致，16px */
-}
-
 /* ============================================================
    DSH 布局 + VS Code 视觉
    ------------------------------------------------------------
@@ -4390,7 +4425,7 @@ body.is-resizing {
   padding: 12px 14px;
   background: var(--bg-elevated);
   border: 0.5px solid var(--border);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-sm);
   text-align: left;
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease);
@@ -5825,7 +5860,7 @@ body.is-resizing {
   min-height: var(--h-lg);
   background: var(--color-surface-panel);
   border: 0.5px solid var(--color-border-subtle);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--color-label-primary);
   text-align: left;
   cursor: pointer;

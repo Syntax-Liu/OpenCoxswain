@@ -45,27 +45,42 @@ function mergedRule(selector: string): string {
 }
 
 describe('**行高对齐 DSH**', () => {
-  // 导航行从 22 提到 30：字号提到 16px 之后，22px 的行高会把文字挤住。
-  // DSH 侧栏的导航行实测 22px，但那是 14px 字号；我们字号大一号，
-  // 行高要相应加大才不挤。
-  it('导航行 30px', () => {
-    assert.match(rule('.nav-item'), /height:\s*30px/);
+  /**
+   * 以前这里断言 `.nav-item` 写死 `height: 30px`，理由是"字号 16px 需要更大行高"。
+   *
+   * 但字号已经并回 `--fs-sm`（14px），30px 就变成纯浪费；
+   * 更要紧的是**四种 ListItem 场景出现了 26 / 30 / 32 三种高度**。
+   *
+   * 现在高度由 density 档决定（22 / 26 / 32），场景类不许自己写死。
+   * 这条测试改成守"不许写死高度"。
+   */
+  it('导航行不许自己写死高度（交给 density 档）', () => {
+    assert.doesNotMatch(
+      rule('.nav-item'),
+      /height:\s*\d+px/,
+      '.nav-item 不该写死 px 高度，高度由 .list-item 的 density 档决定',
+    );
   });
 
-  it('**项目行 34px**（文字只有 20px，剩下是留白）', () => {
-    assert.match(rule('.project-folder'), /height:\s*34px/);
+  it('**项目行也不许写死高度**', () => {
+    assert.doesNotMatch(
+      rule('.project-folder'),
+      /height:\s*\d+px/,
+      '.project-folder 不该写死 px 高度',
+    );
   });
 
-  it('**会话行 32px**（同理）', () => {
-    assert.match(rule('.thread-item'), /height:\s*32px/);
-  });
-
-  it('行高比文字高度大——这是"宽松感"的来源', () => {
-    const projectH = parseInt(/height:\s*(\d+)px/.exec(rule('.project-folder'))?.[1] ?? '0', 10);
-    const threadH = parseInt(/height:\s*(\d+)px/.exec(rule('.thread-item'))?.[1] ?? '0', 10);
-    // 文字是 20px（14px 字号 × 1.4 行高）
-    assert.ok(projectH >= 30, `项目行高 ${projectH}px 太矮，看起来会挤`);
-    assert.ok(threadH >= 30, `会话行高 ${threadH}px 太矮`);
+  it('行高统一来自 density 档（22 / 26 / 32）', () => {
+    /**
+     * 以前这里是"项目行 34px / 会话行 32px / 导航行 30px"三条独立断言，
+     * 结果三种行高共存，同一屏里列表节奏不一致。
+     *
+     * 现在只有三档，由 `.list-item` 的 density 类决定。
+     */
+    const skeleton = rule('.list-item');
+    assert.match(skeleton, /height:\s*var\(--h-md\)/, 'normal 档应为 --h-md');
+    assert.match(rule('.list-item--compact'), /height:\s*var\(--h-sm\)/);
+    assert.match(rule('.list-item--roomy'), /height:\s*var\(--h-lg\)/);
   });
 });
 

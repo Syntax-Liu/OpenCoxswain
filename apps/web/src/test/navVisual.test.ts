@@ -40,18 +40,27 @@ function allRules(selector: string): string {
 }
 
 describe('**导航项要够醒目**', () => {
-  it('字号用 16px 档（--fs-md）', () => {
+  /**
+   * 这条以前断言 `font-size: var(--fs-md)`（16px），理由是"导航项要比正文醒目"。
+   *
+   * 但实测下来：全站 ListItem 场景出现 16.2 / 14.04 两种字号，
+   * 侧栏导航比会话行大一号，视觉上像"两套列表"。
+   * 统一到 `--fs-sm` 后，醒目度改由**字重 500** 和 30px 行高承担，
+   * 而不是靠加大字号。
+   */
+  it('字号并入列表统一档（--fs-sm），醒目度靠字重', () => {
     const r = allRules('.nav-item');
-    assert.match(r, /font-size:\s*var\(--fs-md\)/, '导航项字号应该是 --fs-md（16px）');
+    // 要么显式写 --fs-sm，要么不写（由 .list-item 骨架给）
+    assert.equal(
+      /font-size:\s*var\(--fs-md\)/.test(r),
+      false,
+      '导航项不该再用 --fs-md，应与其它列表行一致',
+    );
   });
 
   it('字重 500（太细会显得比图标轻）', () => {
     const r = allRules('.nav-item');
     assert.match(r, /font-weight:\s*500/);
-  });
-
-  it('行高 30px（给 16px 字留呼吸）', () => {
-    assert.match(allRules('.nav-item'), /height:\s*30px/);
   });
 
   it('**图标不被压缩**（之前渲染成 14×16）', () => {

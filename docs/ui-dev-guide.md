@@ -536,8 +536,71 @@ grep -cE '^\.md-body([ ,:{]|$)' apps/web/src/styles.css
 **现象**：改完首页很好看，设置页排版塌了没人发现。
 
 **防法**：
-- `pnpm ui:audit` 覆盖 6 视图 × 2 主题 × 2 状态
+- `pnpm ui:audit` 覆盖 8 视图 × 2 主题 × 2 状态
 - 新增视图时同步更新体检脚本
+
+---
+
+### 7.7 测量工具挂了，却当成功用
+
+**现象**：连续几轮"量了数据、确认没问题"，实际审计服务早就停了。
+截图全是一张 `ERR_CONNECTION_REFUSED` 错误页，而脚本里
+`document.querySelector('.rail')` 返回 null，被当成"这个状态没有右栏"
+静默通过。
+
+**这是最坏的一类错误**：比不测更糟——不测你知道自己在猜，
+假成功让你以为有证据。
+
+**防法**：
+
+1. **每次测量前先探活**
+   ```js
+   const res = await fetch(`${BASE}/api/health`).catch(() => null);
+   if (!res?.ok) throw new Error('审计服务没起来，先 pnpm runtime --serve');
+   ```
+2. **对"应该有"的元素做断言，不要静默跳过**
+   ```js
+   if (cards.length === 0) return 'no cards';  // ← 这行会让错误变成"正常"
+   ```
+   改成：`assert(cards.length > 0, '右栏应该有卡片，实际 0 个')`
+3. **服务用托管后台任务启动**（`run_in_background`），不要 `nohup ... &`——
+   后者在会话结束时会被回收，而你不会收到通知
+
+---
+
+### 7.8 组件继承了不该继承的固定尺寸
+
+**现象**：右栏三张功能卡片（图标 + 两行文字）图标压着一条横线、文字偏下。
+那条"横线"其实是**卡片边框从图标中间穿过去**。
+
+**根因**：`.rail-empty-card` 是 `.list-item` 的变体，而 `.list-item` 写了
+`height: var(--h-md)`（26px），那是给**单行**列表项用的。
+卡片实际需要 `padding 12×2 + 图标 26 = 50px`，被按在 26px 里装不下。
+
+**为什么难发现**：`height` 是继承来的，"我写的这条规则里没有 height"
+会让人完全想错方向。加上 `align-items: flex-start`，文字块比图标矮，
+看上去像"文字偏下"，而不是"卡片装不下"。
+
+**防法**：
+
+1. **变体复用基类时，把基类的固定尺寸显式覆盖掉**
+   ```css
+   .rail-empty-card {
+     height: auto;            /* ← 覆盖继承来的 26px，必须写 */
+     min-height: var(--h-lg);
+     align-items: center;     /* 多行内容要居中，不是 flex-start */
+     line-height: 1.5;        /* 覆盖 .btn 的 line-height: 1 */
+     white-space: normal;     /* 多行要允许换行 */
+   }
+   ```
+2. **继承类的四件套**：`height` / `line-height` / `white-space` / `align-items`。
+   单行基类改成多行变体时，这四条几乎都要覆盖。
+3. **量几何，不要只看截图**：
+   ```js
+   card.getBoundingClientRect().height            // 实际多高
+   icon.top - card.top, card.bottom - icon.bottom // 上下留白是否相等
+   ```
+   截图里"看起来挤"很难判断是 padding 问题还是高度问题，数字一秒说清。
 
 ---
 
