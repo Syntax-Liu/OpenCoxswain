@@ -119,6 +119,58 @@ const VIEWS = [
       { type: 'sleep', ms: 700 },
     ],
   },
+  /**
+   * 轨迹页（TraceView）。
+   *
+   * **之前漏了**：原来只有 6 个视图，而 A / F / H 三份方案改的主要就是
+   * TraceView 和 ChangePage——体检不覆盖它们，改坏了也发现不了。
+   *
+   * 先落一次对话，让"轨迹"标签出现（没有消息时它可能是空的）。
+   */
+  {
+    id: 'trace',
+    label: '轨迹',
+    setup: [
+      {
+        type: 'fill',
+        selector: 'textarea.composer-input, .composer textarea, textarea',
+        text: '把登录页重构一下，重点看看导出为什么卡住',
+      },
+      { type: 'click', selector: '.composer .btn--primary, .composer-send, button.send' },
+      { type: 'sleep', ms: 2500 },
+      {
+        type: 'evaluate',
+        script: `(() => {
+          const tab = [...document.querySelectorAll('[role="tab"]')]
+            .find((b) => /轨迹/.test(b.textContent || ''));
+          tab?.click();
+          return !!tab;
+        })()`,
+      },
+      { type: 'sleep', ms: 700 },
+    ],
+  },
+  /**
+   * 改动页（ChangePage）。
+   *
+   * 同样是之前漏掉的。它和 TraceView 是 A / F 方案的主要落点。
+   */
+  {
+    id: 'changes',
+    label: '改动',
+    setup: [
+      {
+        type: 'evaluate',
+        script: `(() => {
+          const btn = [...document.querySelectorAll('button, [role="tab"]')]
+            .find((b) => /改动/.test(b.textContent || ''));
+          btn?.click();
+          return !!btn;
+        })()`,
+      },
+      { type: 'sleep', ms: 700 },
+    ],
+  },
 ];
 
 const THEMES = ['dark', 'light'];

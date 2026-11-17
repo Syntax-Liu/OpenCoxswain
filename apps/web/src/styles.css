@@ -125,6 +125,17 @@
   --color-surface-raised: var(--c-neutral-800);
   --color-surface-hover: var(--c-neutral-750);
   --color-surface-selected: var(--c-neutral-700);
+  /**
+   * 弱填充：选中/悬停背景的"更淡一档"。
+   *
+   * **这个令牌被用了 14 处却从未定义**（2026-11-17 由 `ui:audit`
+   * 扩充到 8 个视图后发现）。未定义时 `background` 直接失效——
+   * 那些元素的背景退回父级颜色，导致 `.rail-tab` 这类非选中标签
+   * 的对比度掉到 3.28:1（AA 要求 4.5）。
+   *
+   * 取值略浅于 `--color-surface-hover`，用途相同但强度更弱。
+   */
+  --color-fill-subtle: var(--c-neutral-820);
 
   /* 文字 */
   --color-label-primary: var(--c-neutral-300);
@@ -922,6 +933,16 @@ select:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /**
+   * **必须显式给颜色，不能用 inherit。**
+   *
+   * 父级是 `.btn--link`（`.folder-name-btn`），它把颜色设成
+   * `--color-action-text`（橙色）。子元素继承到的就是橙色，
+   * 在亮色主题的选中态浅灰底上只有 3.63:1，不达 AA。
+   *
+   * 项目名是**内容**不是链接，不该跟着按钮的强调色走。
+   */
+  color: var(--color-label-primary);
 }
 
 .thread-list {
@@ -2639,6 +2660,16 @@ button.small {
   display: flex;
   align-items: center;
   gap: var(--g-2);
+  /* **flex 子项必须能收缩**，否则它们按内容宽度撑开，
+     把 .header-side 顶破——外层即使写了 overflow: hidden 也拦不住
+     （那是"溢出隐藏"，不是"收缩"）。项目路径一长就会复现。 */
+  min-width: 0;
+}
+
+/* 子项同样要能收缩，这是 min-width:0 的连锁要求 */
+.header-side > * {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* ---------- 标签页（DSH） ---------- */
@@ -4840,6 +4871,18 @@ body.is-resizing {
   border-radius: var(--r-sm);
   color: var(--color-label-secondary);
   white-space: nowrap;
+  /**
+   * **必须显式给透明背景。**
+   *
+   * 这些标签是 `<button>`，不写 background 时会用浏览器默认的按钮底色
+   * （实测 Chromium 是 rgb(240,240,240)）——在暗色主题下就是一块浅灰，
+   * 文字 `--color-label-secondary` 压上去只有 3.28:1，不达 AA。
+   *
+   * 2026-11-17 由 `ui:audit` 扩充到 8 个视图后发现：之前只测 6 个视图，
+   * 右栏展开态一直没被覆盖。
+   */
+  background: transparent;
+  border: none;
 }
 
 .rail-tab:hover {

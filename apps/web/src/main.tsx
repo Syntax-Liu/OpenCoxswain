@@ -10,6 +10,8 @@ import {
 } from './components/fontScale.js';
 import { THEME_STORAGE_KEY, applyTheme, parseTheme } from './components/theme.js';
 import './styles.css';
+import './styles-preview.css';
+import { mountStyleSwitcherIfRequested } from './uiPreview/StyleSwitcher.js';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('找不到 #root 挂载点');
@@ -27,6 +29,9 @@ try {
 } catch {
   applyTheme(parseTheme(null));
 }
+
+// 九套风格预览：只有 URL 带 ?ui= 参数时才挂载，正常使用看不到。
+mountStyleSwitcherIfRequested();
 
 createRoot(root).render(
   <StrictMode>

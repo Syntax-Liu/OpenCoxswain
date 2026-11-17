@@ -1,0 +1,392 @@
+/* ============================================================
+   九套风格方案预览（A–I）
+   ------------------------------------------------------------
+   用法：<html data-style="a">   默认无属性 = 当前正式风格
+
+   ## 为什么这样做
+
+   `ui-draft/` 里的九份方案本质上是**同一个界面在不同维度上的
+   不同取值**：色调台阶、圆角、行高、字重、密度、边框去留。
+   所以不需要九份代码，只需要九组令牌覆盖。
+
+   这样你可以在**真实界面**里逐套对比，而不是看静态样张。
+
+   ## 守住的边界
+
+   - **只覆盖令牌**，不写新的组件规则 → 不会引入两套并行的样式体系
+   - 不改三栏结构、不改导航、不改术语
+   - 每套都必须同时定义暗色和亮色（否则某一主题下会露馅）
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   A｜VS Code 工作台：证据优先、密度可控、装饰让位内容
+   ------------------------------------------------------------
+   气质来源：VS Code 2026 工作台外壳、Warp、Zed。
+   做法：中性灰台阶更平（层级差小），圆角收紧，边框变实。
+   ------------------------------------------------------------ */
+:root[data-style='a'] {
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 5px;
+  --lh-tight: 1.35;
+  --lh-normal: 1.5;
+  --lh-loose: 1.65;
+  --color-surface-canvas: var(--c-neutral-950);
+  --color-surface-panel: var(--c-neutral-880);
+  --color-surface-raised: var(--c-neutral-850);
+  --color-border-subtle: var(--c-neutral-800);
+  --color-border-divider: var(--c-neutral-820);
+  --color-border-strong: var(--c-neutral-750);
+}
+:root[data-style='a'][data-theme='light'] {
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 5px;
+  --color-surface-canvas: var(--c-neutral-0);
+  --color-surface-panel: var(--c-neutral-50);
+  --color-border-strong: var(--c-neutral-300);
+}
+
+/* ------------------------------------------------------------
+   B｜Linear 高密度克制：色调台阶 + 层级不塌，暗色优先
+   ------------------------------------------------------------
+   气质来源：Linear。
+   做法：**台阶更多但更平**——每一层只差一点点明度，
+   靠细微差异叠出层级，而不是靠粗边框。圆角适中偏小。
+   ------------------------------------------------------------ */
+:root[data-style='b'] {
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 7px;
+  --r-lg: 9px;
+  --lh-tight: 1.4;
+  --lh-normal: 1.5;
+  --lh-loose: 1.6;
+  /* 台阶：画布 → 面板 → 抬起，每级 ~4% 明度差 */
+  --color-surface-canvas: #0b0c0e;
+  --color-surface-panel: #101114;
+  --color-surface-raised: #16181c;
+  --color-surface-hover: #1c1f24;
+  --color-surface-selected: #22262d;
+  --color-border-subtle: #1e2126;
+  --color-border-divider: #23262c;
+  --color-border-strong: #2e323a;
+}
+:root[data-style='b'][data-theme='light'] {
+  --color-surface-canvas: #fbfbfc;
+  --color-surface-panel: #f5f6f8;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #eef0f3;
+  --color-border-subtle: #e8eaee;
+  --color-border-divider: #e2e5ea;
+  --color-border-strong: #cfd4dc;
+}
+
+/* ------------------------------------------------------------
+   C｜macOS + Raycast：暖尺寸节奏、柔角浮层、键帽感
+   ------------------------------------------------------------
+   气质来源：macOS 原生 + Raycast 命令面板。
+   做法：**圆角明显更大**，间距更松，浮层带柔和阴影。
+   ------------------------------------------------------------ */
+:root[data-style='c'] {
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --lh-tight: 1.42;
+  --lh-normal: 1.58;
+  --lh-loose: 1.72;
+  --g-1: 5px;
+  --g-2: 9px;
+  --g-3: 13px;
+  --color-surface-raised: #1b1c20;
+  --color-border-subtle: #24262b;
+  --color-border-divider: #2b2d33;
+  --color-border-strong: #3a3d45;
+  --shadow-menu: 0 10px 32px rgb(0 0 0 / 55%), 0 0 0 0.5px rgb(255 255 255 / 8%);
+  --shadow-modal: 0 16px 48px rgb(0 0 0 / 60%), 0 0 0 0.5px rgb(255 255 255 / 10%);
+}
+:root[data-style='c'][data-theme='light'] {
+  --color-surface-raised: #ffffff;
+  --color-border-subtle: #eceef1;
+  --color-border-divider: #e3e6ea;
+  --color-border-strong: #ccd1d8;
+  --shadow-menu: 0 10px 32px rgb(0 0 0 / 12%), 0 0 0 0.5px rgb(0 0 0 / 6%);
+  --shadow-modal: 0 16px 48px rgb(0 0 0 / 16%), 0 0 0 0.5px rgb(0 0 0 / 8%);
+}
+
+/* ------------------------------------------------------------
+   D｜Windows 11 / Fluent 2：平台令牌块，标题栏五态
+   ------------------------------------------------------------
+   气质来源：Windows 11 Fluent 2。
+   做法：**直角偏方、边框更实、强调色更克制**。
+   注意：这一套是平台补丁，Windows 上更自然，别的平台会显得硬。
+   ------------------------------------------------------------ */
+:root[data-style='d'] {
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  --lh-tight: 1.4;
+  --lh-normal: 1.52;
+  --lh-loose: 1.64;
+  --color-surface-raised: #1f1f1f;
+  --color-border-subtle: #2b2b2b;
+  --color-border-divider: #333333;
+  --color-border-strong: #454545;
+  --color-border-focus: #6cb4ee;
+}
+:root[data-style='d'][data-theme='light'] {
+  --color-surface-raised: #ffffff;
+  --color-border-subtle: #ebebeb;
+  --color-border-divider: #e0e0e0;
+  --color-border-strong: #d6d6d6;
+  --color-border-focus: #005fb8;
+}
+
+/* ------------------------------------------------------------
+   E｜Claude 温暖人文：阅读优先、启动第一帧、减少动效
+   ------------------------------------------------------------
+   气质来源：Claude Desktop（奶油底、书卷气）。
+   做法：**暖色底 + 行高最松 + 圆角适中**。
+   这是九份里唯一从"读起来累不累"出发的。
+   ------------------------------------------------------------ */
+:root[data-style='e'] {
+  --r-xs: 4px;
+  --r-sm: 7px;
+  --r-md: 9px;
+  --r-lg: 12px;
+  /* 长文最松：这是 E 的核心主张 */
+  --lh-tight: 1.45;
+  --lh-normal: 1.62;
+  --lh-loose: 1.78;
+  --color-surface-canvas: #1c1a17;
+  --color-surface-panel: #211f1b;
+  --color-surface-raised: #292620;
+  --color-surface-hover: #2f2b24;
+  --color-border-subtle: #332f28;
+  --color-border-divider: #3a352d;
+  --color-border-strong: #4a443a;
+  --color-label-primary: #eee9e1;
+  --color-label-secondary: #b8b1a5;
+  --color-label-tertiary: #8f887c;
+}
+:root[data-style='e'][data-theme='light'] {
+  /* 奶油底：这是 E 最容易被认出来的特征 */
+  --color-surface-canvas: #faf8f4;
+  --color-surface-panel: #f5f2ec;
+  --color-surface-raised: #fffdf9;
+  --color-surface-hover: #f0ece4;
+  --color-border-subtle: #eae5db;
+  --color-border-divider: #e3ddd1;
+  --color-border-strong: #d3cbbb;
+  --color-label-primary: #2c2823;
+  --color-label-secondary: #6b6357;
+  --color-label-tertiary: #948b7d;
+}
+
+/* ------------------------------------------------------------
+   F｜Figma 画布 / 检查器：chrome 退隐，让内容说话
+   ------------------------------------------------------------
+   气质来源：Figma 工作台。
+   做法：**边框几乎消失**，靠留白和明度分组。
+   这是九份里对"装饰"最狠的一份。
+   ------------------------------------------------------------ */
+:root[data-style='f'] {
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --lh-tight: 1.4;
+  --lh-normal: 1.54;
+  --lh-loose: 1.68;
+  /* 边框全部弱化：F 的核心主张是"连框都不要" */
+  --color-border-subtle: transparent;
+  --color-border-divider: rgb(255 255 255 / 7%);
+  --color-border-strong: rgb(255 255 255 / 12%);
+  --color-surface-panel: #1e1e1e;
+  --color-surface-raised: #2c2c2c;
+  --color-surface-hover: #383838;
+}
+:root[data-style='f'][data-theme='light'] {
+  --color-border-subtle: transparent;
+  --color-border-divider: rgb(0 0 0 / 7%);
+  --color-border-strong: rgb(0 0 0 / 12%);
+  --color-surface-canvas: #ffffff;
+  --color-surface-panel: #f5f5f5;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #ebebeb;
+}
+
+/* ------------------------------------------------------------
+   G｜Vercel 黑白编辑：只有黑白灰 + 字重，亮色优先
+   ------------------------------------------------------------
+   气质来源：Vercel / Geist。
+   做法：**近白画布 + 墨黑文字**，层级全靠字重与间距，
+   颜色只留给状态。这是唯一把亮色当主基线的一份。
+   ------------------------------------------------------------ */
+:root[data-style='g'] {
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --lh-tight: 1.38;
+  --lh-normal: 1.5;
+  --lh-loose: 1.62;
+  --color-surface-canvas: #000000;
+  --color-surface-panel: #0a0a0a;
+  --color-surface-raised: #111111;
+  --color-surface-hover: #1a1a1a;
+  --color-surface-selected: #1f1f1f;
+  --color-border-subtle: #1a1a1a;
+  --color-border-divider: #222222;
+  --color-border-strong: #333333;
+  --color-label-primary: #ededed;
+  --color-label-secondary: #a1a1a1;
+  --color-label-tertiary: #7a7a7a;
+}
+:root[data-style='g'][data-theme='light'] {
+  --color-surface-canvas: #ffffff;
+  --color-surface-panel: #fafafa;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #f2f2f2;
+  --color-surface-selected: #ebebeb;
+  --color-border-subtle: #f0f0f0;
+  --color-border-divider: #eaeaea;
+  --color-border-strong: #d4d4d4;
+  --color-label-primary: #000000;
+  --color-label-secondary: #666666;
+  --color-label-tertiary: #8f8f8f;
+}
+
+/* ------------------------------------------------------------
+   H｜Cloudscape 状态驱动：状态是第一词汇表
+   ------------------------------------------------------------
+   气质来源：AWS Cloudscape。
+   做法：**密度最高、对比最明确**，为了让状态一眼可辨。
+   牺牲一点"好看"换"少误判"。
+   ------------------------------------------------------------ */
+:root[data-style='h'] {
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  /* 最紧的行高 + 最密的间距：信息密度优先 */
+  --lh-tight: 1.3;
+  --lh-normal: 1.45;
+  --lh-loose: 1.58;
+  --g-1: 3px;
+  --g-2: 6px;
+  --g-3: 10px;
+  --g-4: 14px;
+  --color-surface-canvas: #0f1419;
+  --color-surface-panel: #161d24;
+  --color-surface-raised: #1d262e;
+  --color-border-subtle: #222c35;
+  --color-border-divider: #2a3540;
+  --color-border-strong: #3b4954;
+  /* 状态色更饱和：一眼区分成功/警告/失败 */
+  --color-success: #2ea043;
+  --color-warn: #d29922;
+  --color-danger: #da3633;
+}
+:root[data-style='h'][data-theme='light'] {
+  --color-surface-canvas: #f2f3f3;
+  --color-surface-panel: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-border-subtle: #e9ebed;
+  --color-border-divider: #d1d5db;
+  --color-border-strong: #b6bcc4;
+  --color-success: #037f0c;
+  --color-warn: #8b6a00;
+  --color-danger: #d13212;
+}
+
+/* ------------------------------------------------------------
+   I｜M3 Expressive 情绪动效：**仅作对照，不推荐采用**
+   ------------------------------------------------------------
+   气质来源：Material 3 Expressive。
+   做法：大圆角 + 弹簧感 + 更饱和的强调色。
+   保留它的目的是**在对比里看出来为什么不该用它**——
+   Agent 界面需要的是"少错快判"，不是"鲜活有触感"。
+   ------------------------------------------------------------ */
+:root[data-style='i'] {
+  --r-xs: 8px;
+  --r-sm: 14px;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --lh-tight: 1.45;
+  --lh-normal: 1.6;
+  --lh-loose: 1.75;
+  --g-1: 6px;
+  --g-2: 12px;
+  --g-3: 18px;
+  --color-surface-raised: #2b2930;
+  --color-border-subtle: #35323b;
+  --color-border-divider: #3d3a45;
+  --color-border-strong: #4f4b59;
+  --color-action: #d0bcff;
+  --color-on-accent: #381e72;
+}
+:root[data-style='i'][data-theme='light'] {
+  --color-surface-canvas: #fef7ff;
+  --color-surface-panel: #f7f2fa;
+  --color-surface-raised: #ece6f0;
+  --color-border-subtle: #ece6f0;
+  --color-border-divider: #e0dae7;
+  --color-border-strong: #cac4d0;
+  --color-action: #6750a4;
+  --color-on-accent: #ffffff;
+}
+
+/* ------------------------------------------------------------
+   风格切换器（仅 ?ui= 时出现）
+   ------------------------------------------------------------
+   它是一个**开发态工具**，但同样遵守项目规则：
+   用 ui/ 的 Button，不自绘按钮。
+   ------------------------------------------------------------ */
+.style-switcher-shell {
+  position: fixed;
+  right: var(--g-3);
+  bottom: var(--g-3);
+  z-index: 99999;
+}
+
+.style-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+  padding: var(--g-2);
+  min-width: 240px;
+  max-width: 280px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-menu);
+  font-size: var(--fs-xs);
+  color: var(--color-label-primary);
+}
+
+.style-switcher-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  margin-bottom: var(--g-1);
+}
+
+.style-switcher-hint {
+  margin: 0 0 var(--g-1);
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.style-switcher-key {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: var(--g-1);
+  color: var(--color-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}

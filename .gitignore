@@ -122,3 +122,8 @@ shot-*.png
 # 已归档的旧架构（不参与构建、零引用），本地保留以便回查
 /legacy/
 /legacy-icons/
+
+# 九套风格预览的截图与演示项目（生成物）
+.ui-styles/
+.ui-demo-project/
+.css-snapshot/
