@@ -14,6 +14,7 @@ import type { LoopEvent } from '../session/loop.js';
 import type { SkillSummary } from '../skills/index.js';
 import type { SnapshotStore } from '../security/snapshot.js';
 import type { McpTool } from '../mcp/client.js';
+import { describeStep, type StepDescription } from './step.js';
 import {
   isExecutorTerminal,
   newId,
@@ -81,6 +82,15 @@ export interface ExecutorRunnerDeps {
    * 它跑了几十步、读了哪些文件、得出了什么初步结论，全都没有浮出来。
    */
   readonly onPartialText?: (executorId: string, text: string) => void;
+  /**
+   * 每次工具调用时回调「当前在做什么」。
+   *
+   * 用户看到的侧栏原本只有「执行中」——不知道在做什么，30 秒后就会怀疑卡死。
+   * 这里把每一步翻译成人话上报（见 `step.ts` 的 `describeStep`）。
+   *
+   * 不提供就不上报（保持向后兼容，测试里可以省略）。
+   */
+  readonly onStep?: (executorId: string, step: StepDescription) => void;
   /** 用户扩展（geek 自定义口）。 */
   readonly extensions?: ExecutorToolHostOptions['extensions'];
 }
@@ -169,8 +179,11 @@ export async function runExecutorOnce(
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       drainInputs: () => deps.drainInputs(executor.id),
       // 轨迹落库：每一步工具调用都记下来，供"打开原会话"查看。
-      onEvent: traceHandler(store, executor.sessionId, (text) =>
-        deps.onPartialText?.(executor.id, text),
+      onEvent: traceHandler(
+        store,
+        executor.sessionId,
+        (text) => deps.onPartialText?.(executor.id, text),
+        (step) => deps.onStep?.(executor.id, step),
       ),
       // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
       onProgressMetrics: (partial) => deps.onProgressMetrics(executor.id, partial),
@@ -207,6 +220,8 @@ export function traceHandler(
   sessionId: string,
   /** 每轮文本回调：用于在中断时保住进展。 */
   onPartial?: (text: string) => void,
+  /** 每次工具调用时回调「当前在做什么」。 */
+  onStep?: (step: StepDescription) => void,
 ): (event: LoopEvent) => void {
   return (event) => {
     // **上下文压缩**：记一条轨迹，让用户知道历史被压缩过。
@@ -236,6 +251,10 @@ export function traceHandler(
         source: 'tool',
         at: Date.now(),
       });
+      // 「当前在做什么」上报给界面。
+      // **和写轨迹是两件事**：轨迹要完整（给事后查），
+      // 步骤只要一句话（给人实时看）。之前只写了轨迹，界面上就只剩「执行中」。
+      onStep?.(describeStep(event.name, (event.args ?? {}) as Record<string, unknown>));
     } else if (event.type === 'tool_result') {
       void store.appendMessage(sessionId, {
         id: newId('msg'),
@@ -315,8 +334,11 @@ export async function resumeExecutorOnce(
       ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
       ...(deps.commandTimeoutMs !== undefined ? { commandTimeoutMs: deps.commandTimeoutMs } : {}),
       priorMessages: request.priorMessages as never,
-      onEvent: traceHandler(store, executor.sessionId, (text) =>
-        deps.onPartialText?.(executor.id, text),
+      onEvent: traceHandler(
+        store,
+        executor.sessionId,
+        (text) => deps.onPartialText?.(executor.id, text),
+        (step) => deps.onStep?.(executor.id, step),
       ),
       onProgressMetrics: (partial) => deps.onProgressMetrics(executor.id, partial),
       onMetrics: (metrics) => {

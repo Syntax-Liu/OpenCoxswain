@@ -155,9 +155,24 @@ export function applyEvent(state: AppState, seq: number, event: RuntimeEventDto)
     }
     case 'executor_settled': {
       if (event.projectId !== state.currentProjectId) return next;
+      // 服务端快照整体替换，**天然清掉 currentStep**：
+      // 跑完了还显示"正在修改 xxx"是明显的错。
       return {
         ...next,
         executors: upsertExecutor(next.executors, event.executor),
+      };
+    }
+    case 'executor_step': {
+      if (event.projectId !== state.currentProjectId) return next;
+      // 只更新 `currentStep`，其余字段保持原样——
+      // 这些事件高频（虽已节流），整体替换会无谓地重建对象。
+      const exists = next.executors.some((e) => e.id === event.executorId);
+      if (!exists) return next;
+      return {
+        ...next,
+        executors: next.executors.map((e) =>
+          e.id === event.executorId ? { ...e, currentStep: event.step } : e,
+        ),
       };
     }
     case 'report': {

@@ -73,6 +73,8 @@ const BOUNDED_TEXTS = [
   'project-picker-name',
   // 标题栏面包屑：项目名 + 视图名
   'title-bar-crumb',
+  // 批次块里的「当前步骤」：文件名/命令长度不可控（UD-01 新增）
+  'batch-task-step',
 ];
 
 describe('**内容不可控的文本必须能截断**', () => {

@@ -34,6 +34,20 @@ export interface ProjectDto {
   readonly needsUser?: number;
 }
 
+/**
+ * Agent 的当前步骤（一句话）。
+ *
+ * 来自 runtime 的 `executor_step` 事件，由 `describeStep` 生成。
+ * 只用于**运行中**的实时反馈；`label` 已经过 runtime 侧截断。
+ */
+export interface StepDto {
+  /** 用户可读的一句话，例如「修改 login.tsx」。 */
+  readonly label: string;
+  /** 原始工具名（诊断用，界面不显示）。 */
+  readonly tool: string;
+  readonly at: number;
+}
+
 export interface ExecutorDto {
   readonly id: string;
   readonly projectId: string;
@@ -44,6 +58,13 @@ export interface ExecutorDto {
   readonly access?: 'readwrite' | 'readonly';
   readonly writeScope: readonly string[];
   readonly status: ExecutorStatus;
+  /**
+   * 当前正在做什么（运行中才有）。
+   *
+   * 由 `executor_step` 事件实时更新，`executor_settled` 时清空。
+   * 没有它就是还没开始跑第一步，或被老版本 runtime 提供。
+   */
+  readonly currentStep?: StepDto;
   readonly summary: string | null;
   readonly blockedReason: string | null;
   /** 运行指标（不做计费，只反映真实用量）。 */
@@ -176,6 +197,18 @@ export type RuntimeEventDto =
       readonly projectId: string;
       readonly executor: ExecutorDto;
       readonly ok: boolean;
+    }
+  /**
+   * Agent 的当前步骤变了。
+   *
+   * runtime 侧做了 300ms 节流，所以收到的是「合并后的最新一步」。
+   * 老版本 runtime 不发这个事件，`applyEvent` 会走 default 分支忽略掉。
+   */
+  | {
+      readonly type: 'executor_step';
+      readonly projectId: string;
+      readonly executorId: string;
+      readonly step: StepDto;
     }
   | { readonly type: 'report'; readonly projectId: string; readonly report: ReportDto }
   | {

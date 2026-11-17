@@ -52,17 +52,28 @@ export function BatchBlock(props: BatchBlockProps): JSX.Element {
       <ul className="batch-tasks">
         {props.batch.agents.map((agent) => {
           const line = toTaskLine(agent);
+          // 运行中且有当前步骤时，用步骤文字替换掉泛泛的「执行中」。
+          // 用户看到"修改 login.tsx"比"执行中"有用得多，而且不用额外占一行。
+          const step = agent.status === 'running' ? agent.currentStep?.label : undefined;
           return (
             <li key={agent.id}>
               <ListItem
                 variant="batch-task"
                 extraStatus={line.status}
                 onClick={() => props.onOpen(agent.id)}
-                title={agent.goal}
+                title={step ? `${agent.goal} · ${step}` : agent.goal}
               >
                 <span className={`batch-dot ${statusDotClass(line.status)}`} aria-hidden />
                 <span className="batch-task-label">{line.label}</span>
-                <span className="batch-task-status">{STATUS_LABEL[line.status] ?? ''}</span>
+                <span className="batch-task-status">
+                  {step ? (
+                    // 步骤可能很长（长文件名/长命令），必须能截断。
+                    // 完整内容在 title 里。
+                    <span className="batch-task-step text-truncate">{step}</span>
+                  ) : (
+                    STATUS_LABEL[line.status] ?? ''
+                  )}
+                </span>
                 <span className="batch-task-duration">{line.duration ?? ''}</span>
               </ListItem>
             </li>

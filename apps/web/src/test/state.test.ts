@@ -182,3 +182,95 @@ describe('乐观更新与列表', () => {
     assert.deepEqual(visible.map((e) => e.id), ['mid', 'run']);
   });
 });
+
+describe('**当前步骤事件（UD-01）**', () => {
+  /** 造一个已经有一个 Agent 在跑的状态。 */
+  function runningState() {
+    return applySnapshot({ ...initialState, currentProjectId: 'prj_1' }, {
+      projects: [],
+      messages: [],
+      executors: [executor()],
+      lastSeq: 1,
+    });
+  }
+
+  it('收到 executor_step 后更新对应 Agent 的 currentStep', () => {
+    const base = runningState();
+    const next = applyEvent(base, 2, {
+      type: 'executor_step',
+      projectId: 'prj_1',
+      executorId: 'exe_1',
+      step: { label: '修改 login.tsx', tool: 'edit_file', at: 2 },
+    } as never);
+    assert.equal(next.executors[0]?.currentStep?.label, '修改 login.tsx');
+  });
+
+  it('只更新目标 Agent，不影响同批其他 Agent', () => {
+    const base = applySnapshot({ ...initialState, currentProjectId: 'prj_1' }, {
+      projects: [],
+      messages: [],
+      executors: [executor({ id: 'a' }), executor({ id: 'b' })],
+      lastSeq: 1,
+    });
+    const next = applyEvent(base, 2, {
+      type: 'executor_step',
+      projectId: 'prj_1',
+      executorId: 'a',
+      step: { label: '读取 x.ts', tool: 'read_file', at: 2 },
+    } as never);
+    assert.equal(next.executors.find((e) => e.id === 'a')?.currentStep?.label, '读取 x.ts');
+    assert.equal(next.executors.find((e) => e.id === 'b')?.currentStep, undefined);
+  });
+
+  it('不同项目的步骤事件被忽略', () => {
+    const base = runningState();
+    const next = applyEvent(base, 2, {
+      type: 'executor_step',
+      projectId: 'prj_other',
+      executorId: 'exe_1',
+      step: { label: '不该出现', tool: 'x', at: 2 },
+    } as never);
+    assert.equal(next.executors[0]?.currentStep, undefined);
+  });
+
+  it('**settled 后清空 currentStep**（跑完了还显示"正在修改"是错的）', () => {
+    const base = runningState();
+    const withStep = applyEvent(base, 2, {
+      type: 'executor_step',
+      projectId: 'prj_1',
+      executorId: 'exe_1',
+      step: { label: '修改 login.tsx', tool: 'edit_file', at: 2 },
+    } as never);
+    assert.ok(withStep.executors[0]?.currentStep);
+
+    const settled = applyEvent(withStep, 3, {
+      type: 'executor_settled',
+      projectId: 'prj_1',
+      executor: executor({ status: 'done', endedAt: 3 }),
+      ok: true,
+    } as never);
+    assert.equal(settled.executors[0]?.currentStep, undefined);
+  });
+
+  it('事件早于 Agent 创建时安全忽略（不崩、不凭空造 Agent）', () => {
+    const base = runningState();
+    const next = applyEvent(base, 2, {
+      type: 'executor_step',
+      projectId: 'prj_1',
+      executorId: 'not_exists_yet',
+      step: { label: 'x', tool: 'y', at: 2 },
+    } as never);
+    assert.equal(next.executors.length, 1);
+  });
+
+  it('老版本 runtime 不发这个事件时不影响其他逻辑', () => {
+    const base = runningState();
+    const next = applyEvent(base, 2, {
+      type: 'assistant_text',
+      projectId: 'prj_1',
+      text: '好的',
+      final: true,
+    } as never);
+    assert.equal(next.executors[0]?.currentStep, undefined);
+  });
+});

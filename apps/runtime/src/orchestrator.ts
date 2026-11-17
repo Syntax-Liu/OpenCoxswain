@@ -35,6 +35,7 @@ import {
 } from './ticket/source.js';
 import { classifyBlock, executorSystemPrompt, type BlockKind, type ExecutorToolHostOptions } from './executor/executor.js';
 import { runExecutorOnce, resumeExecutorOnce, priorMessagesFrom, type ExecutorRunnerDeps } from './executor/runner.js';
+import type { StepDescription } from './executor/step.js';
 import { runLoop, type LoopEvent, type ToolHost } from './session/loop.js';
 import { assistantSystemPrompt, assistantTools } from './assistant/prompt.js';
 import { judgeConflict, AssistantSession } from './assistant/session.js';
@@ -198,6 +199,21 @@ export type RuntimeEvent =
   | { readonly type: 'executor_started'; readonly projectId: string; readonly executor: ExecutorRow }
   | { readonly type: 'executor_queued'; readonly projectId: string; readonly executor: ExecutorRow; readonly reason: string }
   | { readonly type: 'executor_settled'; readonly projectId: string; readonly executor: ExecutorRow; readonly ok: boolean }
+  /**
+   * Agent 的**当前步骤**变了（正在读哪个文件、跑什么命令）。
+   *
+   * 为什么单独一个事件而不是改 `executor_started`：
+   * 那个只在开始时发一次。用户需要的是**过程中**的持续反馈——
+   * 「执行中」三个字撑不过 10 秒（NN/g 响应时间阈值）。
+   *
+   * 高频：每个 tool_call 一条，所以发送侧做了 300ms 节流。
+   */
+  | {
+      readonly type: 'executor_step';
+      readonly projectId: string;
+      readonly executorId: string;
+      readonly step: StepDescription;
+    }
   | { readonly type: 'report'; readonly projectId: string; readonly report: ReportRow }
   | {
       readonly type: 'approval_requested';
@@ -290,6 +306,12 @@ export class Orchestrator extends EventEmitter {
   private readonly assistants = new Map<string, AssistantSession>();
   /** Agent 的中途输入通道：executorId → 待注入文本。 */
   private readonly executorInputs = new Map<string, string[]>();
+  /** 上次成功发出 `executor_step` 的时间戳（节流用）。 */
+  private readonly lastStepEmit = new Map<string, number>();
+  /** 节流窗口内积压的最新一步（窗口结束时补发）。 */
+  private readonly pendingStep = new Map<string, { step: StepDescription; projectId: string }>();
+  /** 每个 Agent 的补发定时器。 */
+  private readonly stepTimers = new Map<string, NodeJS.Timeout>();
   /** Agent 的中止控制器。 */
   private readonly executorAborts = new Map<string, AbortController>();
   /** 本次运行中止是否由用量止损触发（用于写准确的失败原因）。 */
@@ -465,6 +487,55 @@ export class Orchestrator extends EventEmitter {
         const queue = this.executorInputs.get(executorId) ?? [];
         this.executorInputs.delete(executorId);
         return queue;
+      },
+      /**
+       * 「当前在做什么」→ 广播给界面。
+       *
+       * ## 为什么要节流
+       *
+       * 一个 Agent 可能连续调十几个工具，如果每个都发一条 SSE，
+       * 既浪费带宽也会让前端频繁重渲染。300ms 内的多次上报合并成最后一次——
+       * 用户感知不到差别（人眼分辨不了 300ms 内的文字变化），
+       * 但事件量会降一个数量级。
+       *
+       * ## 为什么用"最后一次"而不是"第一次"
+       *
+       * 若合并时保留第一条，界面会停在一个已经过时的步骤上。
+       * 保留最后一条才符合"现在在做什么"。
+       */
+      onStep: (executorId, step) => {
+        const now = Date.now();
+        const last = this.lastStepEmit.get(executorId) ?? 0;
+        if (now - last < 300) {
+          // 记住最新一条，等节流窗口结束再补发
+          this.pendingStep.set(executorId, { step, projectId: input.projectId });
+          if (!this.stepTimers.has(executorId)) {
+            const timer = setTimeout(() => {
+              this.stepTimers.delete(executorId);
+              const pending = this.pendingStep.get(executorId);
+              if (!pending) return;
+              this.pendingStep.delete(executorId);
+              this.lastStepEmit.set(executorId, Date.now());
+              this.emit('runtime', {
+                type: 'executor_step',
+                projectId: pending.projectId,
+                executorId,
+                step: pending.step,
+              } as RuntimeEvent);
+            }, 300);
+            // 不要让定时器拖住进程退出
+            timer.unref?.();
+            this.stepTimers.set(executorId, timer);
+          }
+          return;
+        }
+        this.lastStepEmit.set(executorId, now);
+        this.emit('runtime', {
+          type: 'executor_step',
+          projectId: input.projectId,
+          executorId,
+          step,
+        } as RuntimeEvent);
       },
       // 用量止损：每轮用量累积后检查，超线立即中止（不是等账单出来）。
       onProgressMetrics: (_executorId, partial) => {
