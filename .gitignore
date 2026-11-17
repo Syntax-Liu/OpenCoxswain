@@ -105,3 +105,16 @@ docs/self-developed-plan.md
 docs/project-status.md
 packages/dsh-bao/
 apps/web-legacy/
+
+# 根目录误提交的残留：cm-* 属于另一个项目（CourseMeow），其余是调研/逆推产物
+cm-app-tail.md
+cm-readme-app.md
+cm-readme-root.md
+cm-root-mid.md
+cm-root-tail.md
+cm-todo.md
+.dsh-tokens.json
+skills-research-report.md
+
+# 截图脚本（scripts/screenshot-theme.mjs）的默认输出
+shot-*.png
