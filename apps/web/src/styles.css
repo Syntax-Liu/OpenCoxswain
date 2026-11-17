@@ -2300,10 +2300,10 @@ button.small {
   color: var(--text);
   font-family: var(--font);
   font-size: var(--fs-md);
-  line-height: 1.55;
+  line-height: var(--lh-normal);
   /* 8px 和下面按钮的 0 8px 对齐——之前是 9px，和按钮差 1px，看着像没对齐 */
   padding: var(--g-1) var(--g-2);
-  border-radius: var(--r-sm);
+  border-radius: 0; /* 圆角在外层 .composer-box 上，内层再圆一次会让文字偏离边缘 */
 }
 
 .composer textarea::placeholder {
@@ -2843,7 +2843,7 @@ button.small {
   color: var(--text);
   resize: none;
   font-size: var(--fs-md);
-  line-height: 22px;
+  line-height: var(--lh-normal); /* 不写死像素，字号变了自动跟随 */
   min-height: 28px;
   padding: var(--g-1) 0;
   outline: none;
@@ -6834,4 +6834,142 @@ body.is-resizing {
 
 .btn--pill.btn--lg {
   border-radius: calc(var(--h-lg) / 2);
+}
+
+/* ============================================================
+   输入控件规格（唯一来源）
+   ------------------------------------------------------------
+   | 档位 | 高度 | 内边距 | 字号    | 圆角   |
+   | sm   | 22px | 0 8px  | --fs-sm | --r-xs |
+   | md   | 26px | 0 10px | --fs-sm | --r-xs |
+
+   四条以前缺失、导致"输入框各长各的"的规矩：
+
+   1. **`.input` 契约类**。之前只有 `.input--sm` / `.input--bare`，
+      基础样式全靠裸 `input {}`，textarea 更是完全没有样式。
+   2. **固定高度**。之前高度由 padding + 字号算出，26 / 30 不稳定。
+   3. **圆角与 Button 一致（--r-xs）**。之前是 8px，按钮是 4px，
+      同一行里按钮和输入框圆角不同。
+   4. **焦点用内描边，不用外轮廓**。`outline` 会让输入框周围多一圈
+      浮起来的框，那是按钮的语言；输入框应该"边框亮起来"。
+
+   textarea 例外：高度由 rows 决定，不设固定 height。
+
+   ## 为什么同时写裸 `input` / `textarea`
+
+   全仓 31 个 `<input>` 里**没有一处带 className**（Field.tsx 注释里写着）。
+   只写 `.input` 类的话，那 31 个一个都吃不到新规格。
+   所以裸选择器和 `.input` 并列——等调用方陆续迁到 TextInput 后，
+   裸选择器可以再删。
+   ============================================================ */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+.input {
+  display: block;
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 calc(var(--g-2) + var(--g-05));
+  background: var(--color-surface-sunken);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--r-xs);
+  color: var(--color-label-primary);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+/* textarea 高度交给 rows，吃满宽度但不定高 */
+textarea,
+textarea.input {
+  height: auto;
+  min-height: var(--h-lg);
+  padding: var(--g-1) calc(var(--g-2) + var(--g-05));
+  resize: vertical;
+  line-height: var(--lh-normal);
+}
+
+/* 尺寸档 */
+.input.input--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+textarea.input.input--sm {
+  height: auto;
+  padding: var(--g-05) var(--g-2);
+}
+
+/* 悬停：边框微微加深，不换背景 */
+input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
+textarea:hover:not(:disabled),
+.input:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+/* 焦点：**边框亮起 + 1px 内描边**，不用 outline */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 1px var(--color-border-focus);
+}
+
+/* 报错态：边框转危险色，焦点时也是危险色 */
+.field--error .input,
+.input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.field--error .input:focus,
+.field--error .input:focus-visible,
+.input[aria-invalid="true"]:focus {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 1px var(--color-danger);
+}
+
+/* 禁用：降透明度 + 禁止调整大小 */
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  resize: none;
+}
+
+/* ---- Field 布局：标签 / 控件 / 说明 的间距统一 ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+}
+
+.field-label {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  color: var(--color-label-secondary);
+}
+
+.field-required {
+  margin-left: 2px;
+  color: var(--color-danger);
+}
+
+.field-msg {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: var(--color-label-tertiary);
+}
+
+.field--error .field-msg {
+  color: var(--color-danger);
+}
+
+/* 连续曲率：输入框也吃上，和按钮一致 */
+@supports (corner-shape: squircle) {
+  .input {
+    corner-shape: squircle;
+  }
 }

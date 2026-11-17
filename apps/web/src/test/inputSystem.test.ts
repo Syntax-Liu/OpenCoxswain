@@ -72,17 +72,42 @@ describe('**各容器不再重复定义输入框外观**', () => {
     });
   }
 
-  it('**不许再出现「改 border-color 的焦点态」**', () => {
-    // 契约自身把边框设为 transparent 是正确做法（让 outline 独占焦点提示），
-    // 这里要防的是「各容器用 border-color 变色表达焦点」的回退。
+  it('**不许再出现「各容器各写一份焦点色」**', () => {
+    /**
+     * 契约层用 border-color + box-shadow 表达焦点是**正确做法**：
+     * 输入框的焦点应该"边框亮起来"，而不是像按钮那样跳出一个外轮廓。
+     *
+     * 这条要防的是「各容器自己写一份」的回退——
+     * `.sidebar-filter input:focus`、`.approval-actions input:focus` 之类。
+     *
+     * 所以豁免范围是**契约层选择器**（裸 input / textarea / .input），
+     * 不是某一个固定字符串。
+     */
+    const CONTRACT = [
+      /^textarea:focus/,
+      /^\.input:focus/,
+      /^input:not\(\[type=/,
+      // 报错态的焦点色也是契约的一部分（危险色），不是容器自行发挥
+      /^\.field--error \.input:focus/,
+      /^\.input\[aria-invalid="true"\]:focus/,
+    ];
     const bad = [...cleanCss.matchAll(/([^{}]*input[^{}]*:focus[^{]*)\{([^}]*)\}/g)]
       .filter((m) => {
         const selector = (m[1] ?? '').trim();
-        if (selector.startsWith('.input:focus')) return false; // 契约自身豁免
+        if (CONTRACT.some((re) => re.test(selector))) return false;
         return /border-color\s*:\s*var\(--/.test(m[2] ?? '');
       })
       .map((m) => (m[1] ?? '').trim());
-    assert.deepEqual(bad, [], '输入框焦点态又用回 border-color 变色');
+    assert.deepEqual(bad, [], '这些容器各自写了焦点色，应交给 .input 契约');
+  });
+
+  it('**textarea 焦点也归契约管**', () => {
+    // 之前 textarea 完全没有全局样式，焦点提示靠各场景类
+    assert.match(
+      cleanCss,
+      /textarea:focus[\s\S]{0,200}?border-color:\s*var\(--color-border-focus\)/,
+      'textarea 的焦点应该由契约层统一给',
+    );
   });
 });
 
