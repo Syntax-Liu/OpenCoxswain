@@ -799,6 +799,10 @@ select:disabled {
 .sidebar {
   display: flex;
   flex-direction: column;
+  flex: 0 0 auto;
+  width: 244px;
+  /* 拖动改宽度时作为定位参照 */
+  position: relative;
   background: var(--bg-sidebar);
   /* 和右栏一致：用 divider 档，保证一眼看出左边栏的边界 */
   border-right: 0.5px solid var(--color-border-divider);
@@ -852,8 +856,16 @@ select:disabled {
 }
 
 .workspace-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: var(--g-15);
+  padding: 10px 8px 4px 14px;
+  background: transparent;
   color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .workspace-tree {
@@ -875,7 +887,14 @@ select:disabled {
 }
 
 .project-folder {
+  display: flex;
+  align-items: center;
+  gap: var(--g-05);
   width: 100%;
+  /* padding: 0 —— 曾在这里设过 padding-left:12px，后被 padding:0 覆盖。
+     合并时以**最终生效**的 padding:0 为准，视觉不变。 */
+  padding: 0;
+  margin-top: var(--g-2);
   background: transparent;
   border: none;
   color: var(--text);
@@ -921,14 +940,20 @@ select:disabled {
   align-items: center;
   /* 同上：flex 子项靠左，否则被按钮默认的 center 居中 */
   justify-content: flex-start;
+  /* 会话和项目图标之间留一点呼吸 */
+  gap: var(--g-2);
+  /* 给状态标签的绝对定位做参照 */
+  position: relative;
   height: 32px;
   width: 100%;
   background: transparent;
   border: none;
   color: var(--text-muted);
   text-align: left;
-  /* 右内边距留给状态标签，左内边距和项目名对齐（12px + 图标宽度） */
-  padding: 0 var(--g-3) 0 28px;
+  /* 左侧留出"挂在项目下"的视觉暗示：和项目名的箭头对齐即可。
+     右内边距留给状态标签。
+     （DSH 用 42px 统一缩进；我们的项目名左侧有箭头，退到箭头右边就够） */
+  padding: 0 var(--g-3) 0 var(--g-5);
   border-radius: 0;
   font-size: var(--fs-sm);
 }
@@ -1009,8 +1034,6 @@ select:disabled {
 
 /* ---------- 对话区 ---------- */
 
-.conversation-header {
-}
 
 .header-main {
   flex: 1;
@@ -1039,6 +1062,20 @@ select:disabled {
 .messages {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
+  gap: var(--g-4);
+  padding: var(--g-4);
+  overflow-y: auto;
+  /* **预留滚动条槽位**（desktop-agent-ui：弹窗滚动槽位防抖）。
+   *
+   * 不预留时：打开设置页/弹窗 → 浮层盖住滚动条 → 槽位消失 →
+   * 整页内容横向跳 2~3px。关掉又跳回去。文字密集的对话区特别明显。
+   *
+   * 只用 `scrollbar-gutter`，**绝不用 `scrollbar-width`**——
+   * 后者会让 `::-webkit-scrollbar` 的宽度失效（controlSpec.test.ts 有断言守着）。 */
+  scrollbar-gutter: stable;
 }
 
 .hint-card {
@@ -1134,6 +1171,12 @@ select:disabled {
 
 .composer {
   flex: none;
+  /* 输入区底部：略收紧上边距，避免和最后一条消息贴太近 */
+  padding: 6px 24px 10px;
+  background: var(--bg);
+  border-top: none;
+  /* 模板浮层等相对它定位 */
+  position: relative;
 }
 
 .composer textarea {
@@ -1474,8 +1517,6 @@ select:disabled {
   font-size: var(--fs-md);
 }
 
-.field input:focus {
-}
 
 .modal-actions {
   display: flex;
@@ -1624,8 +1665,6 @@ select:disabled {
   font-size: var(--fs-sm);
 }
 
-.approval-actions input:focus {
-}
 
 /* ---------- 验收结果 ---------- */
 
@@ -1831,8 +1870,6 @@ button.small {
   font-size: var(--fs-sm);
 }
 
-.sidebar-filter input:focus {
-}
 
 .memory-tabs {
   display: flex;
@@ -2023,8 +2060,6 @@ button.small {
 }
 
 .template-form input:focus,
-.template-form textarea:focus {
-}
 
 .template-form button {
   align-self: flex-end;
@@ -2119,10 +2154,6 @@ button.small {
 }
 
 /* 消息区用正文底色，不用面板色——VS Code 的编辑区就是纯背景色 */
-.messages {
-  background: var(--bg);
-}
-
 /* 会话头部：VS Code 的编辑器标签栏质感 */
 
 /* 整个输入区底色 */
@@ -2204,11 +2235,6 @@ button.small {
 /* ---------- 最后一层细节：让它更像 VS Code 编辑器 ---------- */
 
 /* 会话头部做成编辑器标签栏的样子：左边一条强调线 */
-.conversation-header {
-  position: relative;
-  padding-left: 14px;
-}
-
 .conversation-header::before {
   content: '';
   position: absolute;
@@ -2230,11 +2256,7 @@ button.small {
 /* 消息更紧凑：VS Code 的行距偏紧 */
 
 /* 正文段落间距收紧 */
-.md-body p {
-}
 
-.md-body p:last-child {
-}
 
 .md-body ul,
 .md-body ol {
@@ -2463,15 +2485,7 @@ button.small {
   display: none;
 }
 
-.thread-item {
-  position: relative;
-}
-
 /* 项目行加一点左内边距，和线程形成层次 */
-.project-folder {
-  padding-left: 12px;
-}
-
 /* 侧栏顶部导航和"添加项目"更像命令面板里的条目 */
 .nav-item {
   font-size: var(--fs-md); /* 和第一处一致，16px */
@@ -2518,15 +2532,6 @@ button.small {
 
 /* ---------- 工作区标题行：文字 + 搜索/筛选/新建（DSH） ---------- */
 
-.workspace-head {
-  display: flex;
-  align-items: center;
-  gap: var(--g-15);
-  padding: 10px 8px 4px 14px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
 .workspace-title {
   font-size: var(--fs-xs);
   color: var(--text-dim);
@@ -2564,10 +2569,6 @@ button.small {
 
 /* ---------- 列表项：右对齐状态（DSH） ---------- */
 
-.thread-item {
-  gap: var(--g-2);
-}
-
 .thread-title {
   flex: 1;
   min-width: 0;
@@ -2582,14 +2583,8 @@ button.small {
 
 /* 去掉文件树的竖线引导（DSH 不用） */
 
-.thread-item {
-}
 
 /* ---------- 拖拽把手 ---------- */
-
-.sidebar {
-  position: relative;
-}
 
 .sidebar-resizer {
   position: absolute;
@@ -2616,6 +2611,11 @@ button.small {
      实测截图里「advmath …」和「对话 轨迹」重叠就是这个原因。 */
   flex: none;
   gap: var(--g-3);
+  /* 右侧留出指示线的定位参照 */
+  position: relative;
+  /* 顺序有意义：先 padding-left，再被整条 padding 覆盖（与合并前一致） */
+  padding-left: 14px;
+  padding: 14px 20px 6px;
   background: transparent;
   border-bottom: none;
 }
@@ -2665,14 +2665,6 @@ button.small {
 }
 
 /* ---------- 输入框：浮底大框（DSH 布局） ---------- */
-
-.composer {
-  border-top: none;
-}
-
-.composer-box {
-  transition: border-color var(--dur-fast) var(--ease);
-}
 
 .composer-box textarea {
   width: 100%;
@@ -2743,20 +2735,6 @@ button.small {
 }
 
 /* 消息区吃掉所有剩余高度，自己滚 */
-.messages {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  /* **预留滚动条槽位**（desktop-agent-ui：弹窗滚动槽位防抖）。
-   *
-   * 不预留时：打开设置页/弹窗 → 浮层盖住滚动条 → 槽位消失 →
-   * 整页内容横向跳 2~3px。关掉又跳回去。文字密集的对话区特别明显。
-   *
-   * 只用 `scrollbar-gutter`，**绝不用 `scrollbar-width`**——
-   * 后者会让 `::-webkit-scrollbar` 的宽度失效（controlSpec.test.ts 有断言守着）。 */
-  scrollbar-gutter: stable;
-}
-
 /* ============================================================
    按 DeepSeek Harness 源码校准的布局
    ------------------------------------------------------------
@@ -2765,18 +2743,10 @@ button.small {
    ============================================================ */
 
 /* 侧栏：DSH 源码里是固定 244px */
-.sidebar {
-  width: 244px;
-}
-
 /* 标签页：DSH 高 34px、padding 0 12px、圆角 md、
    选中态**只变字重和颜色**，没有下划线 */
 
 /* 主区头部：DSH 的 padding 是 22px 14px 12px 24px */
-.conversation-header {
-  padding: 14px 20px 6px;
-}
-
 /* 消息气泡：两种消息都要有容器感
    ------------------------------------------------------------
    早期照 DSH 去掉了左侧竖线（`border-left: none` + `padding-left: 0`），
@@ -2797,11 +2767,6 @@ button.small {
 /* 用户消息：灰底气泡，右对齐（DSH 的样子） */
 
 /* 消息之间的间距：DSH 更松 */
-.messages {
-  gap: var(--g-4);
-  padding: var(--g-4);
-}
-
 /* **内容少时贴底，不要顶在上方留一大片空白**
    ------------------------------------------------------------
    之前消息从顶部开始排，两条消息下面空出几百像素——
@@ -2817,11 +2782,6 @@ button.small {
 }
 
 /* 输入框：DSH 是**内嵌**样式，不是大圆角浮框 */
-.composer {
-  padding: 6px 24px 10px;
-  background: var(--bg);
-}
-
 .composer-box {
   /* 模板浮层相对这个盒子定位（浮在它上方） */
   position: relative;
@@ -2829,6 +2789,10 @@ button.small {
   border: 0.5px solid var(--border-strong);
   border-radius: var(--r-lg);
   padding: 6px 10px 4px;
+  /* 阅读宽度上限 + 居中（margin:0 auto 与 margin-left/right:auto 等价，合并成一处） */
+  max-width: var(--content-read);
+  margin: 0 auto;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
 /* 状态栏：DSH 的 footer 用右对齐 + 8px 间距 */
@@ -2838,14 +2802,8 @@ button.small {
 
 /* 正文最宽限制：DSH 的消息区也不是无限拉伸的。
    屏幕上太宽一行读起来很累，限制在 820px 并把整块居中。 */
-.messages > * {
-}
 
 /* 输入框同样限宽，和消息对齐 */
-.composer-box {
-  margin: 0 auto;
-}
-
 /* 状态栏同样限宽 */
 /* .status-bar 的其余定义已合并到第一处 */
 
@@ -2905,10 +2863,6 @@ button.small {
    侧栏自己变宽了，可网格列没变，所以看上去拖动毫无反应。
    改成 auto：列宽跟着侧栏走。 */
 
-.sidebar {
-  flex: 0 0 auto;
-}
-
 /* 拖拽把手：贴右边但别被裁掉 */
 
 /* 拖动时整页禁止选中，避免把文字刷成蓝色 */
@@ -2938,10 +2892,6 @@ body.is-resizing {
 .workspace-head:hover .workspace-search,
 
 /* 工作区标题行本身也不要底色 */
-.workspace-head {
-  background: transparent;
-}
-
 /* ---------- 修正：消息气泡对齐 + 去掉"你"标签 ---------- */
 
 /* "歪"的原因：给用户消息留了一条 2px 的 border-left 竖线（早期 VS Code 式设计），
@@ -3282,13 +3232,6 @@ body.is-resizing {
 
 /* 文件夹行拆成"箭头 + 名字"两个按钮：
    整行一个按钮的话，想折叠就会误进项目。 */
-.project-folder {
-  display: flex;
-  align-items: center;
-  gap: var(--g-05);
-  padding: 0;
-}
-
 /* 收起时箭头转向右 */
 .folder-icon.collapsed {
   transform: rotate(-90deg);
@@ -4003,10 +3946,6 @@ body.is-resizing {
 }
 
 /* composer 需要相对定位，拖入提示才能铺满 */
-.composer {
-  position: relative;
-}
-
 /* 历史消息里的图片 */
 .bubble-images {
   display: flex;
@@ -5085,10 +5024,6 @@ body.is-resizing {
    ============================================================ */
 
 /* 项目之间留白：这是"分组"的唯一视觉信号 */
-.project-folder {
-  margin-top: var(--g-2);
-}
-
 /* 第一个项目不要额外留白（上方已经有"工作区"标题的分隔） */
 .project-folder:first-of-type {
   margin-top: 0;
@@ -5097,14 +5032,6 @@ body.is-resizing {
 /* 项目名加粗一点，和下面的会话拉开层次 */
 .project-folder .folder-name-btn {
   font-weight: 500;
-}
-
-/* 会话：左侧留出"挂在项目下"的视觉暗示——
-   用一条和项目图标对齐的细线，而不是把文字缩进很多。
-   （DSH 用 42px 的统一缩进，我们的项目名左侧有箭头，
-     所以会话退到箭头右边即可） */
-.thread-item {
-  padding-left: var(--g-5);
 }
 
 /* 会话悬停：整行变色，让"这是一行可点的东西"更明确 */
@@ -5169,35 +5096,15 @@ body.is-resizing {
    曾经因为合并，.status-bar 的 display:flex 跑到 .composer-box 上，
    导致输入区三个子元素横排塌成一团。
    这里只共用宽度，所以拆成两条相同的规则。 */
-.composer-box {
-  max-width: var(--content-read);
-  margin-left: auto;
-  margin-right: auto;
-}
-
 .status-bar {
   max-width: var(--content-read);
   margin-left: auto;
   margin-right: auto;
 }
-/* 段落间距：DSH 实测 16px（上下各 16px，相邻段落之间实际 16px） */
-.md-body p {
-  margin: 0 0 var(--g-4);
-}
-
-.md-body p:last-child {
-  margin-bottom: 0;
-}
-
-/* 列表项之间：DSH 用 16px 的块间距 */
-.md-body li + li {
-  margin-top: var(--g-1);
-}
-
 /* 段落间距：DSH 实测 16px。
-   **不能只写 .md-body p**——纯文本消息的内容直接放在 .bubble 里，
+   **必须同时写 .bubble p**——纯文本消息的内容直接放在 .bubble 里，
    没有 .md-body 包裹（实测：父链是 div.bubble < div.message）。
-   漏了这条，16px 的规则对这些段落完全不生效。 */
+   只写 .md-body p 的话，16px 对纯文本消息完全不生效。 */
 .md-body p,
 .bubble p {
   margin: 0 0 var(--g-4);
@@ -5206,6 +5113,11 @@ body.is-resizing {
 .md-body p:last-child,
 .bubble p:last-child {
   margin-bottom: 0;
+}
+
+/* 列表项之间：DSH 用 16px 的块间距 */
+.md-body li + li {
+  margin-top: var(--g-1);
 }
 
 /* ============================================================
