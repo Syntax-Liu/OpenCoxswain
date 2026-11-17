@@ -46,9 +46,19 @@ function git(args, opts = {}) {
   return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', ...opts });
 }
 
-/** 工作区里被改动的已跟踪文件。 */
+/**
+ * 工作区里**真正需要检查**的文件。
+ *
+ * 只取状态为 `M`（内容改了）的文件。`D`（已从索引删除，本地还留着）
+ * 和 `A`（新增）都不该参与检查：
+ *
+ * - `D`：文件已经不属于仓库了，换行怎样都无所谓。
+ *   2026-11-17 清理开发文档时用 `git rm --cached` 保留了 191 个本地文件，
+ *   它们全被当成"改动"报出来——那不是违规，是误报。
+ * - `A`：新文件没有 HEAD 版本，下方按新文件处理。
+ */
 function changedFiles() {
-  const out = git(['diff', '--name-only', 'HEAD']);
+  const out = git(['diff', '--name-only', '--diff-filter=M', 'HEAD']);
   const untracked = git(['ls-files', '--others', '--exclude-standard']);
   const modified = out.split('\n').filter(Boolean);
   const added = untracked.split('\n').filter(Boolean);

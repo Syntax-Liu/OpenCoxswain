@@ -81,3 +81,27 @@ CON
 
 # 归档的本地安装包（出包后自动复制进来，不进版本库）
 dist-installers/
+
+# 开发过程资料：仅本地保留，不入库
+# 开源时这些内容不该出现在仓库里（竞品分析 / 内部排期 / 未完成方案）。
+# 本地文件仍然保留，随时可查。
+docs/dsh-api-findings.md
+docs/archive/
+docs/plugin-architecture.md
+docs/plan-approval.md
+docs/self-evolution.md
+docs/guidance-dsh-superagent.md
+docs/dsh-tokens.md
+docs/incident-spawn-claim.md
+docs/roadmap.md
+docs/next-steps.md
+docs/status.md
+docs/experiment-acceptance.md
+docs/verify/
+docs/ux-competitive-research.md
+docs/手动测试清单.md
+docs/open-source-plan.md
+docs/self-developed-plan.md
+docs/project-status.md
+packages/dsh-bao/
+apps/web-legacy/

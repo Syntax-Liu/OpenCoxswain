@@ -82,4 +82,4 @@ pnpm --filter @opencoxswain/shell build
 | 单实例锁 | 避免重复启动多个运行时抢 47900 端口 |
 | 托盘图标与「关闭到托盘」 | 当前关闭即退出 |
 
-后续发展方向见 [`docs/roadmap.md`](../../docs/roadmap.md)。
+架构与能力边界见 [`docs/architecture.md`](../../docs/architecture.md)。

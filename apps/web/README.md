@@ -70,7 +70,7 @@ src/
 
 ## 两个必须守住的规则
 
-### 1. 对话流只显示人和 C 说的话
+### 1. 对话流只显示用户和 Assistant 说的话
 
 `state.ts` 的过滤规则：
 
@@ -118,4 +118,4 @@ pnpm --filter @opencoxswain/web build
 | 移动端适配 | 当前按桌面宽度设计 |
 | 消息复制 / 重发 / 编辑 | 主流 Agent 软件都有 |
 
-后续发展方向见 [`docs/roadmap.md`](../../docs/roadmap.md)。
+架构与能力边界见 [`docs/architecture.md`](../../docs/architecture.md)。

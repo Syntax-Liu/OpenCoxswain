@@ -16,7 +16,6 @@ User ─────────→ Supervisor   跨项目统筹：全局视图�
 
 > 命名以 [docs/glossary.md](docs/glossary.md) 为准：
 > **User / Supervisor / Assistant / Agent**（文案一律首字母大写）。
-> 早期用 A/B/C/D 作为口述代号，现已全部废弃。
 
 ## 主推流程
 
@@ -161,9 +160,6 @@ pnpm e2e        # OCX_URL 默认指向 127.0.0.1:47910
 | `OPENCOXSWAIN_TELEGRAM_TOKEN` | 空 | 手机通道 bot token（优先于配置文件） |
 | `TAURI_SIGNING_PRIVATE_KEY` | 空 | **只用于发版构建**：自动更新签名私钥。见 [docs/release.md](docs/release.md) |
 
-## 后续方向
-
-见 [docs/roadmap.md](docs/roadmap.md)。
 
 ## 发布
 

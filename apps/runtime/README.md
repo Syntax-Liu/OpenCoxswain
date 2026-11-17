@@ -277,4 +277,4 @@ HTTP 层测试**真的起端口并用 `fetch` 打过去**；记忆测试**真的
 | 任务模板 / 定时任务 | 设计已明确（legacy 有），未移植 |
 | 自动更新 | 桌面壳尚未实现 |
 
-后续发展方向见 [`docs/roadmap.md`](../../docs/roadmap.md)。
+架构与能力边界见 [`docs/architecture.md`](../../docs/architecture.md)。

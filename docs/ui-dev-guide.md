@@ -549,4 +549,3 @@ grep -cE '^\.md-body([ ,:{]|$)' apps/web/src/styles.css
 | --- | --- |
 | [control-spec.md](control-spec.md) | 控件清单、尺度表、调用方式 |
 | [glossary.md](glossary.md) | 命名规范（User / Supervisor / Assistant / Agent） |
-| [next-steps.md](next-steps.md) | 项目层面的下一步计划 |
