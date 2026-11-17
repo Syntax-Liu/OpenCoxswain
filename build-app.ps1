@@ -138,27 +138,10 @@ if ($BuildOnly) {
 # ---------------------------------------------------------------------------
 # 5. 打包
 # ---------------------------------------------------------------------------
-Write-Step '打包桌面应用（首次会编译 Rust，可能需要几分钟）'
-Write-Host '  过程较长属于正常现象，请耐心等待…' -ForegroundColor DarkGray
+Write-Step '编译并打包桌面应用'
 
-Push-Location 'apps/shell/src-tauri'
-cargo build --release --offline
-$cargoExit = $LASTEXITCODE
-Pop-Location
-
-if ($cargoExit -ne 0) {
-  # 离线失败时可能是本地没缓存某些 crate，再联网试一次。
-  Write-Warn2 '离线编译失败，尝试联网重新编译…'
-  Push-Location 'apps/shell/src-tauri'
-  cargo build --release
-  $cargoExit = $LASTEXITCODE
-  Pop-Location
-  if ($cargoExit -ne 0) { Fail 'Rust release 编译失败。' '看上面的 error 行；常见原因是缺 MSVC 或 Windows SDK。' }
-}
-Write-Ok '可执行体编译完成'
-
-Write-Step '生成 NSIS 安装包'
 # 自动更新需要签名：没有私钥也能构建，只是不产出 .sig / latest.json。
+# **必须在 tauri build 之前设好**——它读的是环境变量。
 $signingKey = $env:TAURI_SIGNING_PRIVATE_KEY
 if (-not $signingKey) {
   $defaultKey = Join-Path $env:USERPROFILE '.opencoxswain\updater.key'
@@ -172,14 +155,49 @@ if (-not $signingKey) {
   }
 }
 
-pnpm --filter @opencoxswain/shell exec tauri build --no-bundle 2>&1 | Out-Null
-$bundleExit = $LASTEXITCODE
-if ($bundleExit -ne 0) {
-  # --no-bundle 不支持时回退到标准打包
-  pnpm --filter @opencoxswain/shell exec tauri build
+# **只调一次 tauri build**。
+#
+# 以前这里先手工 `cargo build --release --offline`，再跑 `tauri build --no-bundle`，
+# 而 tauri build 自己就会编译——同一份代码编了两遍，每次多花 2 分半。
+# 而且 `--no-bundle` 根本不是有效参数：它把一行正常的 Info 写到 stderr，
+# PowerShell 当成致命错误（NativeCommandError），脚本于是静默回退，又白跑一遍。
+#
+# 现在：tauri build 一次到位（编译 + 打包 + 签名），输出写进日志文件。
+# 不用 `2>&1 | Out-Null`——那是把 stderr 变成 PowerShell 错误记录的元凶。
+Write-Host '  首次编译 Rust 需要几分钟；之后增量编译通常几十秒…' -ForegroundColor DarkGray
+
+$logDir = 'dist-installers'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$buildLog = Join-Path $logDir "build-$appVersion.log"
+
+try {
+  # **用 cmd /c 做重定向，不要用 PowerShell 的 `*>` 或 `2>&1 |`。**
+  #
+  # Windows PowerShell 5.1 有个老毛病：只要原生命令往 stderr 写东西，
+  # 就会被包装成 NativeCommandError，配合 `$ErrorActionPreference='Stop'`
+  # 直接抛异常——而 tauri 往 stderr 写的是正常的 Info 行，不是错误。
+  #
+  # 交给 cmd 做重定向，PowerShell 只看退出码，问题消失。
+  # 日志路径用短路径（8.3）避免空格带来的引号嵌套——workdir 里没有空格时
+  # cmd 也不需要额外处理。
+  $oldPref = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  cmd /c "pnpm --filter @opencoxswain/shell exec tauri build 1> `"$buildLog`" 2>&1"
   $bundleExit = $LASTEXITCODE
+  $ErrorActionPreference = $oldPref
 }
-if ($bundleExit -ne 0) { Fail '安装包生成失败。' '看上面的输出；可能是 NSIS 下载失败（需要网络）。' }
+catch {
+  $bundleExit = 1
+  Add-Content -Path $buildLog -Value "`n[PowerShell] $($_.Exception.Message)"
+}
+
+if ($bundleExit -ne 0) {
+  Write-Host ''
+  Write-Host '  最近 30 行构建日志：' -ForegroundColor DarkGray
+  Get-Content $buildLog -Tail 30 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+  Fail '安装包生成失败。' "完整日志：$buildLog"
+}
+Write-Ok '编译与打包完成'
 
 # 有签名时顺手生成更新清单，发布到 GitHub Releases 需要它。
 $sigFiles = Get-ChildItem 'apps/shell/src-tauri/target/release/bundle/nsis' -Filter *.sig -ErrorAction SilentlyContinue
@@ -199,12 +217,33 @@ if (Test-Path $exe) {
   $size = [Math]::Round((Get-Item $exe).Length / 1MB, 1)
   Write-Ok "可执行体：$exe（$size MB）"
 }
+
+# ---------------------------------------------------------------------------
+# 归档到 dist-installers/
+# ---------------------------------------------------------------------------
+# 为什么归档：bundle/nsis 在 target/ 里，而 target/ 是 Cargo 的临时区——
+# 一次 cargo clean 或者手工清理，历史安装包就全没了（已经发生过一次：
+# 0.113.2~0.117.0 那 19 个包只剩签名，exe 全丢）。
+#
+# 逻辑放在 scripts/archive-installer.mjs 里，不在这里手写：
+# 那个脚本能单独跑（1 秒验证，不用重跑 6 分钟出包），也能被测试。
+$bundleDir = 'apps/shell/src-tauri/target/release/bundle/nsis'
+$installer = Join-Path $bundleDir "OpenCoxswain_${appVersion}_x64-setup.exe"
+
 if (Test-Path $bundleDir) {
-  Get-ChildItem $bundleDir -Filter *.exe | ForEach-Object {
-    $size = [Math]::Round($_.Length / 1MB, 1)
-    Write-Ok "安装包：$($_.FullName)（$size MB）"
+  Write-Step '归档安装包'
+  node scripts/archive-installer.mjs $appVersion
+  if ($LASTEXITCODE -ne 0) {
+    # 归档失败不阻断出包——包本身已经产出了，只是少一份副本
+    Write-Warn2 '归档未完成（不影响本次出包），见上面的输出。'
   }
-  Start-Process explorer.exe $bundleDir
+
+  if (Test-Path $installer) {
+    $size = [Math]::Round((Get-Item $installer).Length / 1MB, 1)
+    Write-Ok "安装包：$((Resolve-Path $installer).Path)（$size MB）"
+    Write-Ok "归档副本：$((Resolve-Path 'dist-installers').Path)"
+  }
+  Start-Process explorer.exe (Resolve-Path 'dist-installers').Path
 }
 
 Write-Host ""

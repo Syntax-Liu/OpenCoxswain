@@ -185,6 +185,59 @@ async function collect(dir, exts) {
 }
 
 // ---------------------------------------------------------------------------
+// 5. PowerShell 脚本的 UTF-8 BOM
+// ---------------------------------------------------------------------------
+/**
+ * 含中文的 .ps1 必须有 BOM，否则 Windows PowerShell 5.1 按 GBK 读，
+ * 中文变乱码、引号被吃掉、整个文件解析失败——但 `pnpm test` 完全看不见
+ * （它是 PowerShell，不是 JS）。
+ *
+ * 这个坑踩过两次：第二次是修好之后，编辑器改一行又把 BOM 丢了。
+ * 所以必须在健康检查里守着，否则"改一行就让出包脚本坏掉"会反复发生。
+ */
+async function checkPs1Bom() {
+  const skip = new Set(['node_modules', 'target', 'dist', 'dist-test', '.git', '.trae-html-share-packages']);
+  const found = [];
+
+  async function walk(dir) {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (skip.has(e.name)) continue;
+        await walk(full);
+      } else if (e.name.toLowerCase().endsWith('.ps1')) {
+        found.push(full);
+      }
+    }
+  }
+  await walk(ROOT);
+
+  if (found.length === 0) return;
+
+  let allOk = true;
+  for (const file of found) {
+    const buf = await readFile(file);
+    const hasBom = buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+    const text = buf.toString('utf8').replace(/^\uFEFF/, '');
+    const hasNonAscii = /[^\x00-\x7F]/.test(text);
+    if (hasNonAscii && !hasBom) {
+      bad(
+        `${path.relative(ROOT, file).replace(/\\/g, '/')} 含中文但没有 UTF-8 BOM`,
+        'PowerShell 5.1 会按 GBK 读它，解析直接失败。补三个字节 EF BB BF。',
+      );
+      allOk = false;
+    }
+  }
+  if (allOk) ok(`${found.length} 个 .ps1 的 BOM 都正确`);
+}
+
+// ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
 async function main() {
@@ -194,6 +247,7 @@ async function main() {
   await checkScripts();
   await checkBuildArtifacts();
   await checkImports();
+  await checkPs1Bom();
 
   for (const c of checks) {
     const icon = c.status === 'pass' ? '✓' : c.status === 'info' ? '·' : '✗';

@@ -78,3 +78,6 @@ OpenCoxswain_Github.txt
 
 # git 凭据提示被重定向到当前目录时产生的垃圾文件（Windows 保留名）
 CON
+
+# 归档的本地安装包（出包后自动复制进来，不进版本库）
+dist-installers/

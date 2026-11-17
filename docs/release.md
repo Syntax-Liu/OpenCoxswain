@@ -63,6 +63,28 @@ OpenCoxswain_<版本>_x64-setup.exe.sig   签名
 latest.json                             更新清单
 ```
 
+### 安装包同时归档到 `dist-installers/`
+
+`build-app.ps1` 出包成功后，会把**本次版本**的上面三个文件**复制**一份到仓库根目录：
+
+```
+dist-installers/
+    OpenCoxswain_0.118.0_x64-setup.exe
+    OpenCoxswain_0.118.1_x64-setup.exe
+    ...
+```
+
+**为什么要多这一份**：`bundle/nsis/` 在 `target/` 里面，而 `target/` 是 Cargo 的临时区——
+一次 `cargo clean` 或者手工清理，历史安装包就全没了。
+
+> 已经真丢过一次：2026-11-17 清理时发现 `0.113.2 ~ 0.117.0` 那 **19 个 `.sig` 还在，
+> 对应的 `.exe` 全部不见了**。那些版本现在只能重新 checkout 对应 commit 重编。
+
+`dist-installers/` 在 `.gitignore` 里（安装包不进版本库），但**不会被 Cargo 清掉**，
+所以适合当"我要装一下试试"的入口。自己装包时直接进这个目录找最新的那个。
+
+> 复制失败不会中断打包——包本身已经产出了，只是少一份副本，脚本会黄字告警。
+
 然后到 GitHub 建一个 **tag 形如 `v0.10.0`** 的 Release，把上面三个文件**一起**上传。
 
 > ⚠️ `latest.json` 里的下载地址是 `releases/download/v<版本>/...`，
