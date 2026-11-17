@@ -28,16 +28,67 @@
 
 export type ErrorKind = 'self-recoverable' | 'needs-user' | 'environment';
 
+/** 重试入口的形态。 */
+export type RetryKind = 'retry' | 'reopen';
+
 export interface ClassifiedError {
   readonly kind: ErrorKind;
   /** 一句标题：发生了什么。 */
   readonly title: string;
   /** 谁该做什么。 */
   readonly action: string;
+  /**
+   * 这次失败**没有毁掉**的东西。
+   *
+   * 用户出错时最关心的是"我的改动还在不在"，而不是错误码。
+   * **没有可靠信息时不要填**——宁可不说，也不能编造
+   * （见 docs/design-research/03-agent-ui-problems.md D2）。
+   */
+  readonly preserved?: string;
+  /**
+   * 怎么继续。
+   *
+   * `retry` = 真的重试这次动作；`reopen` = 只是把人带回能重新发起的地方。
+   * **两者不能混用**：明明不能重试却说"重试"，用户会反复点、反复失败。
+   *
+   * ## 目前还没有渲染它
+   *
+   * 现在界面只渲染 `preserved`。原因：真正可用的「重试」需要保存上一次的
+   * 输入原文（`App.tsx` 里没有留），凭空接一个"重试"按钮会让用户点了没反应。
+   * 等有真实重试能力时再接，**不先画一个假按钮**。
+   */
+  readonly retry?: { readonly label: string; readonly kind: RetryKind };
   /** 原始信息（可折叠展示）。 */
   readonly detail: string;
   /** 界面用的色调。 */
   readonly tone: 'muted' | 'warn' | 'danger';
+}
+
+/**
+ * 按错误类别补「保留了什么 / 怎么继续」的默认说法。
+ *
+ * 单独抽出来，是为了让 `classifyError` 的每个分支不用各写一遍——
+ * 之前 4 个分支重复结构，加字段时容易漏掉其中一个。
+ */
+function continueHint(kind: ErrorKind): Pick<ClassifiedError, 'preserved' | 'retry'> {
+  switch (kind) {
+    case 'self-recoverable':
+      // 临时性问题：已经写完的东西都落盘了，重试不会丢
+      return {
+        preserved: '已完成的改动都保存了',
+        retry: { label: '重试', kind: 'retry' },
+      };
+    case 'environment':
+      // 环境问题重试没用——不能给"重试"按钮，那是骗人
+      return {
+        retry: { label: '修好后重新发起', kind: 'reopen' },
+      };
+    case 'needs-user':
+      return {
+        preserved: '改动已保存，等你的答复',
+        retry: { label: '去处理', kind: 'reopen' },
+      };
+  }
 }
 
 /**
@@ -65,6 +116,7 @@ export function classifyError(message: string): ClassifiedError {
         : '按下面的提示修一下环境，然后重新发一次。这类问题重试没用。',
       detail: message,
       tone: 'danger',
+      ...continueHint('environment'),
     };
   }
 
@@ -76,6 +128,7 @@ export function classifyError(message: string): ClassifiedError {
       action: '通常是临时的，再发一次通常就好。连续失败再检查网络或额度。',
       detail: message,
       tone: 'muted',
+      ...continueHint('self-recoverable'),
     };
   }
 
@@ -87,6 +140,7 @@ export function classifyError(message: string): ClassifiedError {
       action: '打开设置（Ctrl+,）检查模型配置和密钥，然后重试。',
       detail: message,
       tone: 'warn',
+      ...continueHint('needs-user'),
     };
   }
 
@@ -98,6 +152,7 @@ export function classifyError(message: string): ClassifiedError {
       action: '看下面的说明，给它一个明确的答复。',
       detail: message,
       tone: 'warn',
+      ...continueHint('needs-user'),
     };
   }
 
@@ -108,6 +163,7 @@ export function classifyError(message: string): ClassifiedError {
     action: '看下面的原始信息。如果是它在重试，等一会儿；否则可能需要你处理。',
     detail: message,
     tone: 'warn',
+    ...continueHint('needs-user'),
   };
 }
 

@@ -1378,6 +1378,15 @@ export function App(): JSX.Element {
             </IconButton>
           </div>
           <p className="error-card-action">{errorInfo.action}</p>
+          {/* 三要素里的「保留了什么」。
+              用户出错时最关心"我的改动还在不在"，而不是错误码。
+              没有可靠信息时不渲染——宁可少说，不能编 */}
+          {errorInfo.preserved && (
+            <p className="error-card-preserved">
+              <span className="error-card-label">已保留</span>
+              {errorInfo.preserved}
+            </p>
+          )}
           <details className="error-card-detail">
             <summary>原始信息</summary>
             <pre>{errorInfo.detail}</pre>

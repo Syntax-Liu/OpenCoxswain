@@ -238,6 +238,41 @@ async function checkPs1Bom() {
 }
 
 // ---------------------------------------------------------------------------
+// 6. 换行风格（防止 diff 变成整文件重写）
+// ---------------------------------------------------------------------------
+/**
+ * 改动一个文件时，不许把它原本的换行风格换掉。
+ *
+ * 2026-11-17 踩过：编辑工具把 LF 文件整体转成 CRLF，
+ * 一个 26 行的改动画成了 1330 insertions / 820 deletions——
+ * 功能没坏，但评审彻底失效。
+ *
+ * 完整规则见 `scripts/check-eol.mjs`（也支持 `--fix` 自动还原）。
+ */
+async function checkEol() {
+  const script = path.join(ROOT, 'scripts/check-eol.mjs');
+  if (!(await exists(script))) {
+    checks.push({ status: 'info', msg: 'check-eol.mjs 不存在，跳过换行检查' });
+    return;
+  }
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const run = promisify(execFile);
+    const { stdout } = await run(process.execPath, [script], { cwd: ROOT, encoding: 'utf8' });
+    ok(stdout.trim().split('\n').pop() ?? '换行检查通过');
+  } catch (error) {
+    const stdout = String(error.stdout ?? '');
+    const stderr = String(error.stderr ?? '');
+    const detail = (stderr || stdout).trim();
+    bad(
+      '有文件的换行风格被改动了',
+      `${detail}\n修复：node scripts/check-eol.mjs --fix`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
 async function main() {
@@ -248,6 +283,7 @@ async function main() {
   await checkBuildArtifacts();
   await checkImports();
   await checkPs1Bom();
+  await checkEol();
 
   for (const c of checks) {
     const icon = c.status === 'pass' ? '✓' : c.status === 'info' ? '·' : '✗';

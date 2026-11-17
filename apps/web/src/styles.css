@@ -3462,6 +3462,8 @@ body.is-resizing {
 
 .settings-readonly-value {
   color: var(--text);
+  /* 「N 个项目」会变，等宽数字 */
+  font-variant-numeric: tabular-nums;
 }
 
 .settings-actions {
@@ -4491,6 +4493,25 @@ body.is-resizing {
   color: var(--text-muted);
   font-size: var(--fs-sm);
   line-height: 1.7;
+}
+
+/* 失败信息三要素之二：**保留了什么**。
+   用户出错时最关心"我的改动还在不在"，所以这一行要比 action 更靠前地读得清。 */
+.error-card-preserved {
+  margin: 0 0 8px;
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.error-card-label {
+  display: inline-block;
+  margin-right: var(--g-1);
+  padding: 0 var(--g-1);
+  border-radius: var(--r-xs);
+  background: var(--color-surface-raised);
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-xs);
 }
 
 /* 原始信息默认折叠：需要时看，不需要时不干扰 */
@@ -6441,6 +6462,8 @@ body.is-resizing {
   margin: var(--g-1) 0 0;
   font-size: var(--fs-sm);
   color: var(--color-label-secondary);
+  /* 里面的「N 个文件 / +N / -N」都会变，等宽数字防止横向抖动 */
+  font-variant-numeric: tabular-nums;
 }
 
 /* 左列表 + 右 Diff：左固定、右占满 */

@@ -459,12 +459,17 @@ grep -cE '^\.md-body([ ,:{]|$)' apps/web/src/styles.css
 
 **现象**：改一行，`git diff` 显示几百行全变了，评审时什么都看不出来。
 
-**数据**：该文件在 git 里是 **5831 行 CRLF + 521 行 LF 混排**。
+**数据**：仓库 **615 个文件是 LF、104 个是 CRLF、15 个混排**。
 
 **防法**：
+
 - 用**逐行**方式改（读成行数组，改目标行，写回），不要整文件重写
 - 改完看 `git diff --numstat`：删除行数应该接近 0
-- 如果发现整文件 churn，用 `git checkout` 还原重来
+- **`pnpm check:self` 现在会拦住换行被改的文件**（`scripts/check-eol.mjs`）
+- 被拦了就 `node scripts/check-eol.mjs --fix`——它把换行还原成 HEAD 的样子，内容不动
+
+> 2026-11-17 实测：改 `errorDisplay.ts` 时被编辑器转成 CRLF，
+> diff 从 56 行变成 175/119。守卫当场抓住，`--fix` 一步还原。
 
 ### 7.3 空数据下看不出的溢出
 
