@@ -6973,3 +6973,66 @@ textarea:focus,
     corner-shape: squircle;
   }
 }
+
+/* ============================================================
+   可选控件规格（唯一来源）
+   ------------------------------------------------------------
+   `.option-item` 之前**刻意不设任何样式**，外观全交给 6 个场景类。
+   实测结果：圆角 0 / 8 两种，padding 6 种，高度 26 / auto 两套。
+
+   这里补上公共契约，场景类只保留真正特有的（高度档、内边距、背景）。
+
+   与 .list-item 的区别：
+     .list-item   "能点的一行"，不一定有选中态
+     .option-item "选中了哪一项"，selected 会同步到 aria-selected
+   两者视觉骨架相同（同样的圆角/字号/行高），只是语义不同。
+   ============================================================ */
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+  width: 100%;
+  border: none;
+  border-radius: var(--r-xs);
+  color: var(--color-label-primary);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+/* 焦点：与 .list-item 同一套（整行高亮 + 内描边，不跳出外框） */
+.option-item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-border-focus);
+}
+
+/* 悬停：只有非选中项才变色，选中项保持自己的底色 */
+.option-item:hover:not(.active):not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* 禁用 */
+.option-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- 场景类的例外：设置页左侧整列导航 ---- */
+/*
+ * 它是**一列连续的条目**（像侧边栏），不是一张张独立的卡片。
+ * 加圆角会在条目之间留下锯齿缺口，所以保留直角。
+ * 这不是"没统一"，是有意的形态差异。
+ */
+.option-item.settings-nav-item {
+  border-radius: 0;
+}
+
+/* 连续曲率：与其它控件一致 */
+@supports (corner-shape: squircle) {
+  .option-item {
+    corner-shape: squircle;
+  }
+}
