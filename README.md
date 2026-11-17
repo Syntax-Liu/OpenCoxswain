@@ -4,6 +4,16 @@
 
 > **完全自研**：不依赖 dsh、TRAE 或任何外部 Agent 框架。只依赖 Node.js 与一个 OpenAI 兼容的模型端点。
 
+> ⚠️ **早期项目（0.x），可以日常用，但别指望它不出错。**
+>
+> 已知没做完的：
+> - **方案审批的「批准后自动推进」还没接**——现在批准方案不会自动往下走
+> - 自动更新依赖仓库公开（目前在私有仓库下 `latest.json` 取不到）
+> - 只在 Windows 上验证过，Linux / macOS 没有 CI
+>
+> 怎么跑起来、怎么参与见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+> 安全相关问题见 [SECURITY.md](SECURITY.md)，**不要开公开 issue**。
+
 ## 四层结构
 
 ```

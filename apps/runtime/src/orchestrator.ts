@@ -1542,7 +1542,7 @@ export class Orchestrator extends EventEmitter {
 
     // 方案把关：**默认 off**，开启后没批准的方案不许派活。
     //
-    // 这是 `plan-approval.md` D1「方案给用户看完才开工」在代码里的落点。
+    // 这是「方案给用户看完才开工」这条规矩在代码里的落点。
     // 之所以默认关闭：目前还没有「创建方案」的流程，
     // 一上来就拦会让所有派活失败（见 settings/planGate.ts 的说明）。
     //
