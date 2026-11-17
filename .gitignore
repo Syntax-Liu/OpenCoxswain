@@ -127,3 +127,6 @@ shot-*.png
 .ui-styles/
 .ui-demo-project/
 .css-snapshot/
+
+# 控件审计截图
+.ui-audit-shots/

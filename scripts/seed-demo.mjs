@@ -38,7 +38,7 @@ function readApiToken() {
   throw new Error('读不到 API token（~/.opencoxswain/token）');
 }
 
-const TOKEN = readApiToken();
+const TOKEN = process.env.OPENCOXSWAIN_TOKEN?.trim() || readApiToken();
 
 /** 造一个像真项目的小目录，让侧栏和"文件"页有内容。 */
 function makeDemoProject() {

@@ -19,7 +19,22 @@ describe('**空会话是欢迎页，不是提示卡**', () => {
 
   it('欢迎页有居中的大标题', () => {
     assert.match(css, /\.welcome\s*\{[^}]*align-items:\s*center/);
-    assert.match(css, /\.welcome-brand h1\s*\{[^}]*font-size:\s*24px/);
+    /**
+     * 标题要**明显大于正文**（--fs-lg 是 17px 档），但不写死具体实现。
+     *
+     * 原来这里断言 `font-size: 24px` 字面量——那把"必须用数字"也变成了
+     * 规矩，改成 `calc(24px * var(--font-scale))` 就红。
+     * 字号的真正要求是"大"，不是"写 24"。
+     */
+    const m = /\.welcome-brand h1\s*\{[^}]*font-size:\s*([^;]+);/.exec(css);
+    assert.ok(m, '找不到 .welcome-brand h1 的 font-size');
+    const value = (m[1] ?? '').trim();
+    // 接受两种写法：24px 字面量，或 calc(24px * var(--font-scale))
+    assert.match(
+      value,
+      /^(24px|calc\(\s*24px\s*\*\s*var\(--font-scale\)\s*\))$/,
+      `品牌标题应约为 24px，实际是 ${value}`,
+    );
   });
 });
 

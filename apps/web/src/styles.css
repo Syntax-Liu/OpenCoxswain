@@ -596,7 +596,15 @@ select:disabled {
   background: none;
   border: none;
   padding: 0;
-  height: auto;
+  /**
+   * **不要写 `height: auto`。**
+   *
+   * 那会让 `.btn--md.btn--link` 的高度退化成内容高度（实测 19~21px），
+   * 而同样标了 `btn--md` 的普通按钮是 26px——**同一尺寸档三种高度**。
+   *
+   * link 变体本来就是"看起来不像按钮"，不需要自降高度。
+   * 高度统一由尺寸档（`--h-sm/md/lg`）决定。
+   */
   color: var(--color-action-text);
 }
 
@@ -4839,6 +4847,11 @@ body.is-resizing {
   font-size: var(--fs-sm);
   color: var(--color-label-secondary);}
 
+/* 顶栏只剩「收起按钮」后，用它把按钮推到右侧 */
+.rail-spacer {
+  flex: 1;
+}
+
 /* ---- 右栏页签（照 DSH：侧边栏放多个页面）---- */
 /*
  * 原来三块纵向堆叠、各自折叠，抢垂直空间：
@@ -5387,7 +5400,9 @@ body.is-resizing {
 
 .welcome-brand h1 {
   margin: 0;
-  font-size: 24px;
+  /* 品牌标题是**唯一允许超出 4 档字号体系**的地方：
+     它出现在首次进入的空状态，需要一眼定气。其余一律用 --fs-*。 */
+  font-size: calc(24px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--color-label-strong);

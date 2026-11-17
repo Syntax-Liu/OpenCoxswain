@@ -97,12 +97,22 @@ export function RightRail(props: RightRailProps): JSX.Element {
 
   return (
     <aside className="rail" aria-label="侧边栏">
-      <div className="rail-top">
-        <span className="rail-label">开始</span>
-        {props.onClose && (
+      {/**
+       * **顶栏只放「收起」，不再重复页签名。**
+       *
+       * 原来这里写死「开始」，而下面第一个页签也叫「开始」——同一块区域
+       * 上下出现两个同名文字，用户会以为上面那个也能点。
+       *
+       * 改成"跟着当前页签走"也不行：那会变成「待决策」在标题栏和页签栏
+       * 各出现一次，还是重复。页签栏已经承担了"我在哪"的责任，
+       * 顶栏不必再说一遍。
+       */}
+      {props.onClose && (
+        <div className="rail-top">
+          <span className="rail-spacer" />
           <IconButton onClick={props.onClose} title="收起侧边栏" label={"收起侧边栏"}><IconClose size={14} /></IconButton>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 页签条：内容多时自己横向滚，不压缩标签文字 */}
       <div className="rail-tabs" role="tablist">
