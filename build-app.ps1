@@ -1,4 +1,4 @@
-# 一键出包（Windows）
+﻿# 一键出包（Windows）
 #
 # 用法：在本目录双击 build-app.cmd，或在 PowerShell 里运行：
 #   powershell -ExecutionPolicy Bypass -File .\build-app.ps1
