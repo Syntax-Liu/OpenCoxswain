@@ -142,3 +142,68 @@ export function diffStats(lines: readonly DiffLine[]): { added: number; removed:
   }
   return { added, removed };
 }
+
+/**
+ * 一段连续的差异（hunk），带 `@@ -a,b +c,d @@` 头。
+ *
+ * DSH 的改动视图就是这么分组的：文件很长时只显示有变化的那几段，
+ * 中间没动的部分折叠成头信息——一屏能看全所有改动。
+ *
+ * 上下文行数取 3，和 git / DSH 的默认一致。
+ */
+export interface DiffHunk {
+  /** `@@ -1,6 +1,6 @@` 这样的头；新建/删除文件时是 `@@ -0,0 +1,N @@`。 */
+  readonly header: string;
+  readonly lines: readonly DiffLine[];
+}
+
+/** 每段差异前后各保留多少行没变的上下文。 */
+const CONTEXT_LINES = 3;
+
+export function toHunks(lines: readonly DiffLine[]): DiffHunk[] {
+  const out: DiffHunk[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    // 跳过没变的行（直到下一个变化点前 CONTEXT_LINES 行）
+    if (lines[i]!.kind === 'same') {
+      i += 1;
+      continue;
+    }
+
+    // 变化段开始：往回带上下文
+    const start = Math.max(0, i - CONTEXT_LINES);
+    let end = i;
+
+    // 往后一直吃到"离下一个变化点超过 CONTEXT_LINES 行"为止
+    while (end < lines.length) {
+      if (lines[end]!.kind === 'same') {
+        let gap = end;
+        while (gap < lines.length && lines[gap]!.kind === 'same') gap += 1;
+        if (gap >= lines.length) break;
+        // **间隔太远就拆成两个 hunk**：中间那段没变的内容不显示，
+        // 否则一个几百行的文件改了两处，中间 300 行全铺出来，
+        // 用户得滚屏才能看到第二处改动。
+        if (gap - end > CONTEXT_LINES * 2) break;
+        end = gap;
+      } else {
+        end += 1;
+      }
+    }
+    const stop = Math.min(lines.length, end + CONTEXT_LINES);
+    const chunk = lines.slice(start, stop);
+
+    // 头信息：两边各自的起始行号和行数
+    const leftNos = chunk.map((l) => l.leftNo).filter((n): n is number => n !== null);
+    const rightNos = chunk.map((l) => l.rightNo).filter((n): n is number => n !== null);
+    const leftStart = leftNos.length > 0 ? Math.min(...leftNos) : 0;
+    const rightStart = rightNos.length > 0 ? Math.min(...rightNos) : 0;
+    out.push({
+      header: `@@ -${leftStart},${leftNos.length} +${rightStart},${rightNos.length} @@`,
+      lines: chunk,
+    });
+    i = stop;
+  }
+
+  return out;
+}

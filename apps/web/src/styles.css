@@ -6133,3 +6133,220 @@ body.is-resizing {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* ---- 主区标签栏（照 DSH）---- */
+.main-tabs {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--g-1);
+  padding: 0 var(--g-3);
+  height: var(--h-lg);
+  border-bottom: 0.5px solid var(--color-border-subtle);
+  overflow-x: auto;
+}
+
+.main-tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+.main-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-05);
+  height: var(--h-md);
+  padding: 0 var(--g-1) 0 var(--g-2);
+  border-radius: var(--r-sm);
+  color: var(--color-label-secondary);
+}
+
+.main-tab:hover {
+  background: var(--color-fill-subtle);
+}
+
+.main-tab.active {
+  background: var(--color-fill-subtle);
+  color: var(--color-label-primary);
+}
+
+.main-tab-label {
+  height: 100%;
+  padding: 0;
+  font-size: var(--fs-sm);
+  color: inherit;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.main-tab-close {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  color: var(--color-label-tertiary);
+}
+
+.main-tab-close:hover {
+  background: var(--color-fill-strong);
+  color: var(--color-label-primary);
+}
+
+/* ---- 主区改动页 ---- */
+.change-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.change-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--g-3);
+  padding: var(--g-3) var(--g-4);
+  border-bottom: 0.5px solid var(--color-border-subtle);
+}
+
+.change-head-main {
+  min-width: 0;
+}
+
+.change-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  color: var(--color-label-primary);
+  display: flex;
+  align-items: baseline;
+  gap: var(--g-2);
+}
+
+.change-agent {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  color: var(--color-label-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-summary {
+  margin: var(--g-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-label-secondary);
+}
+
+/* 左列表 + 右 Diff：左固定、右占满 */
+.change-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.change-files {
+  border-right: 0.5px solid var(--color-border-subtle);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.change-files ul {
+  list-style: none;
+  margin: 0;
+  padding: var(--g-1);
+}
+
+.change-file {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  height: auto;
+  min-height: var(--h-md);
+  padding: var(--g-1) var(--g-2);
+  border-radius: var(--r-sm);
+  text-align: left;
+  color: var(--color-label-secondary);
+  font-size: var(--fs-sm);
+}
+
+.change-file:hover {
+  background: var(--color-fill-subtle);
+}
+
+.change-file.active {
+  background: var(--color-fill-subtle);
+  color: var(--color-label-primary);
+}
+
+.change-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-file-stat {
+  flex: none;
+  display: inline-flex;
+  gap: var(--g-1);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.change-diff {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.change-diff-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-2);
+  padding: var(--g-2) var(--g-3);
+  border-bottom: 0.5px solid var(--color-border-subtle);
+  background: var(--color-fill-subtle);
+}
+
+.change-status {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--color-label-tertiary);
+}
+
+.change-diff-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.diff-hunk + .diff-hunk {
+  border-top: 0.5px solid var(--color-border-subtle);
+}
+
+/* hunk 头：像 git 那样的一行 @@ */
+.diff-hunk-head {
+  padding: var(--g-1) var(--g-3);
+  background: var(--color-fill-subtle);
+  color: var(--color-label-tertiary);
+  font-size: var(--fs-xs);
+  border-bottom: 0.5px solid var(--color-border-subtle);
+}
+
+/* 改动页里的行更宽，行号给 5ch 够四位数 */
+.change-diff-body .diff-row {
+  grid-template-columns: 5ch minmax(0, 1fr) 5ch minmax(0, 1fr);
+}

@@ -44,6 +44,10 @@ import { readIconTheme, writeIconTheme } from './iconTheme.js';
 import { DecisionPanel } from './components/DecisionPanel.js';
 import { RailEmptyState, RightRail } from './components/RightRail.js';
 import { ChangesPanel } from './components/ChangesPanel.js';
+import { ChangePage } from './components/ChangePage.js';
+import { MainTabBar } from './components/MainTabBar.js';
+import { CHAT_TAB_ID, changeTabTitle, closeTab, openTab, tabAfterClose } from './components/mainTabs.js';
+import type { MainTab } from './components/mainTabs.js';
 import { FilePanel } from './components/FilePanel.js';
 import { ProjectPicker } from './components/ProjectPicker.js';
 import { NewSession } from './components/NewSession.js';
@@ -167,6 +171,47 @@ export function App(): JSX.Element {
    */
   const [railWidth, setRailWidth] = useState(320);
   const [railCollapsed, setRailCollapsed] = useState(false);
+
+  /** 主区标签：对话 + 每个打开过的「第 N 轮改动」（照 DSH）。 */
+  const [mainTabs, setMainTabs] = useState<MainTab[]>([{ id: CHAT_TAB_ID, kind: 'chat', title: '对话' }]);
+  const [activeTab, setActiveTab] = useState<string>(CHAT_TAB_ID);
+  /** 改动标签的轮次号（按打开顺序编）。 */
+  const [roundOf, setRoundOf] = useState<Record<string, number>>({});
+
+  /**
+   * 为某个 Agent 打开（或切到）它的改动标签。
+   *
+   * 同一个 Agent 重复点只切过去，不再开一个——否则点三次有三个一样的标签。
+   */
+  const openChangeTab = (executorId: string): void => {
+    const id = 'change:' + executorId;
+    const existing = mainTabs.find((t) => t.id === id);
+    if (!existing) {
+      const nextRound = Object.keys(roundOf).length + 1;
+      setRoundOf((m) => ({ ...m, [id]: nextRound }));
+      setMainTabs((prev) =>
+        openTab(prev, {
+          id,
+          kind: 'change',
+          title: changeTabTitle(nextRound),
+          executorId,
+        }),
+      );
+    }
+    setActiveTab(id);
+  };
+
+  /** 关闭一个标签，并正确回退到邻居。 */
+  const closeMainTab = (id: string): void => {
+    setActiveTab((prev) => tabAfterClose(mainTabs, id, prev));
+    setMainTabs((prev) => closeTab(prev, id));
+  };
+
+  /** 当前标签指向的 Agent（不是改动标签时为 null）。 */
+  const onChangeTarget =
+    activeTab.startsWith('change:')
+      ? (state.executors.find((e) => e.id === activeTab.slice(7)) ?? null)
+      : null;
 
   /** 右栏当前页签（受控，让「工作区文件」卡片能跳到「文件」页）。 */
   const [railTab, setRailTab] = useState<string>('start');
@@ -1105,6 +1150,33 @@ export function App(): JSX.Element {
           />
         )}
 
+        {/* 主区标签栏（照 DSH）：对话 + 每个打开过的改动 */}
+        <MainTabBar
+          tabs={mainTabs}
+          activeId={activeTab}
+          onActivate={(id) => {
+            setActiveTab(id);
+            // 切回对话标签时把视图拨回 Assistant，否则主区还停在 Agent 页
+            if (id === CHAT_TAB_ID && currentProject) {
+              setView({ kind: 'assistant', projectId: currentProject.id });
+            }
+          }}
+          onClose={closeMainTab}
+        />
+
+        {/* 改动页：占满主区（**不是**塞在右栏里，那里太窄看不了双栏） */}
+        {/* 改动页占满主区；不显示它时下面的对话/Agent 页正常显示 */}
+        {(activeTab.startsWith('change:') ? onChangeTarget : null) ? (
+          <ChangePage
+            api={api}
+            executor={onChangeTarget!}
+            roundNo={roundOf[activeTab] ?? 1}
+            onClose={() => closeMainTab(activeTab)}
+          />
+        ) : null}
+
+        {!activeTab.startsWith('change:') && (
+        <>
         {view?.kind === 'assistant' && currentProject && (
           <>
             {/* 待决策面板已挪到右侧栏（见下面 <RightRail>）。
@@ -1173,6 +1245,8 @@ export function App(): JSX.Element {
             api={api}
           />
         )}
+        </>
+        )}
 
         {!view && <div className="empty">正在加载…</div>}
       </main>
@@ -1217,7 +1291,7 @@ export function App(): JSX.Element {
             <ChangesPanel
               api={api}
               executors={state.executors.filter((e) => e.projectId === currentProject.id)}
-              onOpenExecutor={(id) => void openExecutor(currentProject.id, id)}
+              onOpenChanges={(id) => openChangeTab(id)}
             />
           ) : null
         }
