@@ -6,6 +6,9 @@
 >
 > 配套文档：控件清单与尺度表见 [control-spec.md](control-spec.md)。
 > 本文是"操作手册"，那份是"规范说明"。
+>
+> **为什么这么设计、别人怎么做的、Agent 界面常踩的坑** → [design-research/](design-research/README.md)。
+> 那套资料里有 22 个常见问题和 10 个待办（UD-01~10），可以和本文的 P0/P1/P2 并行推进。
 
 ---
 

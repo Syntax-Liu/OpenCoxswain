@@ -51,6 +51,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [ui-dev-guide.md](ui-dev-guide.md) | **界面开发手册**：现状地图、令牌全表、打磨清单（P0/P1/P2）、五步改造流程、验收命令、常见坑 |
+| [design-research/](design-research/README.md) | **Agent 界面设计资料库**：行业权威框架、热门产品拆解、**22 个常见问题**、本项目的 10 个待办（UD-01~10） |
 | [control-spec.md](control-spec.md) | **控件唯一真相**：`src/ui/` 的组件清单、尺度表、"三件不许做" |
 | [shortcuts.md](shortcuts.md) | 键盘快捷键 |
 
