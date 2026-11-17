@@ -671,7 +671,8 @@ select:disabled {
 
 /* ---- 胶囊形态：显式声明，不靠意外继承 ---- */
 .btn--pill {
-  border-radius: var(--r-full);
+  /* 胶囊 = 高度的一半（50% 在细长元素上是椭圆） */
+  border-radius: calc(var(--h-md) / 2);
 }
 
 /* ---- 状态：五态齐全，且**互斥不打架** ---- */
@@ -6774,4 +6775,63 @@ body.is-resizing {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ============================================================
+   连续曲率圆角（squircle）
+   ------------------------------------------------------------
+   普通 border-radius 是一段圆弧，曲率在弧的起止点突变，
+   看着"方中带圆、过渡生硬"。连续曲率让曲率本身平滑过渡，
+   圆角更饱满、边缘更柔和（iOS / macOS 图标那种感觉）。
+
+   实现：Chromium 139+ 的 `corner-shape: squircle`。
+   不支持的浏览器会忽略这条，退回普通圆角——不会坏，只是不更圆。
+
+   **排除 50%（正圆）**：正圆再加超椭圆会变形。
+   ============================================================ */
+@supports (corner-shape: squircle) {
+  .btn,
+  .list-item,
+  .md-body pre,
+  .md-body code,
+  .composer-box,
+  .rail-empty-card,
+  .onboarding-card,
+  .rail-badge,
+  .error-card,
+  .approval-item,
+  .trace-stat,
+  .diff-hunk,
+  .ctx-menu,
+  .modal,
+  .view-tab,
+  .palette-item,
+  .settings-block {
+    corner-shape: squircle;
+  }
+}
+
+/* ============================================================
+   胶囊形状修正
+   ------------------------------------------------------------
+   `border-radius: 50%` 只对**正方形**元素才是正圆。
+   套在细长元素上会渲染成椭圆——实测 welcome-example-pill
+   是 91×22（宽高比 4.15），那个"丑椭圆"就是它。
+
+   胶囊应该用 `calc(height / 2)`：短边的一半，任何宽高比都是
+   两端半圆的胶囊。
+   ============================================================ */
+.welcome-example-pill,
+.welcome-example {
+  /* 高 22px → 圆角 11px；用 calc 表达，将来高度改了自动跟随 */
+  border-radius: calc(var(--h-sm) / 2);
+}
+
+/* 胶囊按钮的圆角跟着尺寸档走，否则 sm/lg 档会切成半截 */
+.btn--pill.btn--sm {
+  border-radius: calc(var(--h-sm) / 2);
+}
+
+.btn--pill.btn--lg {
+  border-radius: calc(var(--h-lg) / 2);
 }

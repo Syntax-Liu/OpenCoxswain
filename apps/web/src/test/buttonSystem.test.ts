@@ -108,7 +108,17 @@ describe('**尺寸来自令牌，不硬编码**', () => {
      */
     assert.match(rule('.btn'), /border-radius:\s*var\(--r-/, '.btn 圆角必须用令牌');
     assert.match(rule('.btn--lg'), /border-radius:\s*var\(--r-/, '.btn--lg 圆角必须用令牌');
-    assert.match(rule('.btn--pill'), /border-radius:\s*var\(--r-full\)/, '胶囊要显式声明');
+    /**
+     * 胶囊的圆角是 `calc(var(--h-*) / 2)`（高度一半），不是 `--r-full`(50%)。
+     *
+     * 因为 50% 在非正方形元素上渲染成椭圆——实测 176×26 的胶囊按钮
+     * 就是一个明显的椭圆。`高度/2` 才是"两端半圆"的正确表达。
+     */
+    assert.match(
+      rule('.btn--pill'),
+      /border-radius:\s*calc\(\s*var\(--h-[a-z]+\)\s*\/\s*2\s*\)/,
+      '胶囊应用 calc(高度/2)，不能用 50%',
+    );
   });
 });
 

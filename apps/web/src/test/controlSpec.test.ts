@@ -55,15 +55,76 @@ describe('**字号只有 4 档**', () => {
 });
 
 describe('**圆角只有 3 档**', () => {
-  it('border-radius 只用 token 或 0/50%', () => {
-    const hardcoded = [...css.matchAll(/border-radius:\s*([^;]+);/g)]
+  /**
+   * **必须先去掉注释**——正则 `[^;]+` 会跨越注释内容，
+   * 把注释里写的 `border-radius: 50%` 当成真规则匹配（踩过好几次）。
+   */
+  const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('border-radius 只用 token / 0 / 2px / calc(令牌)', () => {
+    const hardcoded = [...cssNoComment.matchAll(/border-radius:\s*([^;]+);/g)]
       .map((m) => (m[1] ?? '').trim())
-      .filter((v) => /^\d/.test(v) || v === '50%');
-    // **2px 是滚动条专用的**：长方形滚动条要小圆角，
-    // 50% 会变成胶囊（用户明确说"很丑"）。
-    const allowed = new Set(['0', '50%', '2px']);
-    const bad = hardcoded.filter((v) => !allowed.has(v) && !v.startsWith('var('));
+      .filter((v) => /^\d/.test(v) || v === '50%' || v.startsWith('calc('));
+
+    /**
+     * 允许的形态：
+     * - `var(--r-*)`  —— 档位令牌
+     * - `0`           —— 直角
+     * - `2px`         —— 滚动条专用（长方形滚动条不能用胶囊）
+     * - `calc(var(--h-*) / 2)` —— **胶囊的正确写法**
+     *
+     * ## 为什么 50% 不再允许
+     *
+     * `50%` 的语义是「横半径=宽的一半、纵半径=高的一半」，
+     * **只有正方形才是正圆**。套在 176×26 的按钮上是椭圆
+     * （用户截图里那个"丑椭圆"）。
+     */
+    const allowed = new Set(['0', '2px', '50%']);
+    const bad = hardcoded.filter(
+      (v) =>
+        !allowed.has(v) &&
+        !v.startsWith('var(') &&
+        !/^calc\(\s*var\(--h-[a-z]+\)\s*\/\s*2\s*\)$/.test(v),
+    );
     assert.deepEqual(bad, [], `这些圆角不在规范内: ${bad.join(', ')}`);
+  });
+
+  it('**50% 只允许出现在"天生正方形"的类上**', () => {
+    /**
+     * `50%` 本身没错——对正方形元素（状态点、圆形发送按钮）它才是正圆。
+     *
+     * 错的是把它套在细长元素上（实测 176×26 的胶囊按钮渲染成椭圆）。
+     * 静态检查无法知道运行时宽高，所以这里守住**已知是圆形的类**，
+     * 其余一律要求用 `calc(高度/2)`。
+     */
+    const CIRCULAR = new Set([
+      '.dot', // 连接状态点（7×7）
+      '.send-btn', // 圆形发送按钮（34×34）
+      '.avatar',
+      '.spin',
+      // 以下都是等宽高的小圆点（4~5px），已逐个核对
+      '.thread-dot',
+      '.trace-dot',
+      '.batch-dot',
+      '.typing i',
+      '.waiting-dots i',
+      '.thread-list li.batch-last::after',
+    ]);
+
+    const offenders = [];
+    for (const m of cssNoComment.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const selector = (m[1] ?? '').trim().split('\n').pop()?.trim() ?? '';
+      const body = m[2] ?? '';
+      if (!/border-radius:\s*50%/.test(body)) continue;
+      const first = selector.split(',')[0]?.trim() ?? '';
+      if (CIRCULAR.has(first)) continue;
+      offenders.push(selector);
+    }
+    assert.deepEqual(
+      offenders,
+      [],
+      `这些类的 50% 会渲染成椭圆（不是正方形），应改用 calc(高度/2)：\n  ${offenders.join('\n  ')}`,
+    );
   });
 });
 
