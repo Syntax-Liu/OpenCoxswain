@@ -187,11 +187,14 @@ describe('**侧栏与设置页必须左对齐**', () => {
   // 但漏了 `justify-content`，flex 子项就被按钮默认值居中，
   // 于是 Supervisor / 添加项目 比「新会话」缩进一大截。
   // `text-align` 对 flex 子项无效——这是个很容易漏的点。
+  //
+  // `.new-session` 已从清单移除：它是控件层统一前的旧类，
+  // TSX 里 0 引用（`navigation.test.ts` 早有断言"新会话不再是 new-session"），
+  // 对应规则已在 2026-11-18 删除。左对齐现在由 `.list-item` 承接。
   const flexLeftRules = [
     '.nav-item',
     '.thread-item',
     '.settings-nav-item',
-    '.new-session',
   ];
 
   for (const sel of flexLeftRules) {
@@ -208,6 +211,14 @@ describe('**侧栏与设置页必须左对齐**', () => {
       assert.ok(found, `找不到 ${sel} 的 flex 规则`);
     });
   }
+
+  it('**控件层骨架也左对齐**（旧类删掉后由它承接）', () => {
+    assert.match(
+      css,
+      /\.list-item\s*\{[^}]*justify-content:\s*flex-start/,
+      '.list-item 必须左对齐，否则列表项内容会被按钮默认值居中',
+    );
+  });
 });
 
 describe('**模板面板是浮层，不挤进工具栏**', () => {

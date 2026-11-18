@@ -2666,29 +2666,6 @@ button.small {
   flex: none;
 }
 
-.new-session {
-  /* **不要框**：和下面三个导航项统一成一样的行。
-     之前它有边框 + 底色 + 32px 高，下面三项是 22px 无框，
-     看起来像"一个按钮 + 三个菜单"，不是一组。 */
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  height: 22px;
-  padding: 0 var(--g-25);
-  background: transparent;
-  border: none;
-  border-radius: var(--r-sm);
-  color: var(--color-label-primary);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.new-session:hover {
-  background: var(--color-surface-hover);
-}
-
 /* ---------- 工作区标题行：文字 + 搜索/筛选/新建（DSH） ---------- */
 
 .workspace-title {
@@ -3109,11 +3086,11 @@ body.is-resizing {
   align-items: center;
   gap: var(--g-15);
   width: 100%;
-  height: 28px;
+  height: var(--h-md); /* 与内部输入框同高 */
   padding: 0 8px;
   background: var(--bg-input);
   border: 0.5px solid var(--border-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-xs); /* 与内部输入框同圆角 */
   box-sizing: border-box;
 }
 
@@ -5107,18 +5084,7 @@ body.is-resizing {
    - 尺寸由组件的 size 属性控制
    - 颜色继承 currentColor（由外层文字色决定）
    - 不允许被压缩 */
-.new-session svg,
-.nav-icon,
-.rail-toggle svg {
-  flex: none;
-  vertical-align: middle;
-}
-
 /* 图标和文字之间统一 6px——之前字符图标靠空格挤开，间距不匀 */
-.new-session {
-  gap: var(--g-15);
-}
-
 .nav-item svg {
   color: var(--color-label-tertiary);
 }
