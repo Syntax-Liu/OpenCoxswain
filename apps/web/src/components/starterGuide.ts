@@ -33,19 +33,20 @@ export const STARTER_EXAMPLES: readonly StarterExample[] = [
     id: 'explain',
     title: '介绍一下这个项目',
     prompt: '先通读项目结构和 README，然后用三句话说明这个项目是做什么的。',
-    hint: '最简单的开始：它会自己去读文件',
+    // unslop Pass 4：hint 说清"会发生什么"，不写"最简单的开始"这种自评
+    hint: '读项目文件和 README',
   },
   {
     id: 'find',
     title: '找出可以改进的地方',
     prompt: '通读 src 下的代码，找出三个最值得改进的地方，每条说明理由和影响。',
-    hint: '会派出 Agent 去读代码',
+    hint: '派一个 Agent 通读 src',
   },
   {
     id: 'parallel',
     title: '同时做两件独立的活',
     prompt: '并行做两件事：一是整理根目录下的文档，二是检查有没有明显的拼写错误。做完分别汇报。',
-    hint: '体验并发：两个 Agent 同时跑，谁先完成谁先报',
+    hint: '两个 Agent 并行，谁先完成先报谁',
   },
 ];
 

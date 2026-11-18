@@ -591,7 +591,7 @@ export function Conversation(props: ConversationProps): JSX.Element {
             {contextUsage.level === 'compacted' ? 'ⓘ' : '⚠'}
           </span>
           <span className="context-banner-text">{contextUsage.message}</span>
-          <TextButton onClick={() => setDismissedBanner(true)} className="context-banner-close">知道了
+          <TextButton onClick={() => setDismissedBanner(true)} className="context-banner-close">关闭
           </TextButton>
         </div>
       )}

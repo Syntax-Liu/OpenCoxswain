@@ -55,7 +55,7 @@ export function UpdateBanner({
           GitHub Releases
         </a>
       </span>
-      <TextButton onClick={() => setDismissed(true)}>知道了
+      <TextButton onClick={() => setDismissed(true)}>关闭
       </TextButton>
     </div>
   );

@@ -153,16 +153,25 @@ describe('颜色值锁定（防止意外改动）', () => {
   // 由 `audit-live-contrast` 在真实界面里量出来（暗色 7 处、亮色 8 处）。
   // 亮色侧的同一变量也一并修了（3.46:1 → 5.36:1）。
   // 没提到 7:1 是刻意的：元信息要比正文弱，提太多会破坏主次层级。
+  // 2026-11-18（unslop Pass 2 + 对比度修正）：
+  // 中性色阶从 8 档收敛成 6 级语义表面，**每级至少差 8 亮度**，
+  // 否则人眼分不出（原来 820/780 只差 2~3 个色值，等于没有）。
+  // 表面提亮后，文字色同步提亮以维持 AA：
+  //   neutral-500/600 #7d858d → #899199（raised 上 4.78:1）
+  //   red-500  #c26c69 → #ce7875（4.77:1）
+  //   green-500 #5a8f7b → #629783（4.56:1）
+  // 亮色主题的语义色此前**全部不达标**（danger 在选中底上只有 2.37:1），
+  // 已一并修正（见 styles.css 的亮色块注释）。
   const expected: Record<string, string> = {
-    '--c-neutral-950': '#0a0c0f',
-    '--c-neutral-900': '#0d1013',
-    '--c-neutral-880': '#0e1216',
-    '--c-neutral-850': '#11151a',
-    '--c-neutral-800': '#171c23',
-    '--c-neutral-750': '#1a2028',
-    '--c-neutral-700': '#1f262f',
-    '--c-neutral-600': '#7d858d', // 对比度修正（3.43:1 → 5.10:1，AA 达标）
-    '--c-neutral-500': '#7d858d', // 对比度修正（原 #7a828b，4.40:1 → 4.5）
+    '--c-neutral-950': '#050608',
+    '--c-neutral-900': '#090c10',
+    '--c-neutral-880': '#0c1015',
+    '--c-neutral-850': '#1b222a', // unslop P2：并入原 820，成为唯一面板色
+    '--c-neutral-800': '#262f39', // 不变
+    '--c-neutral-750': '#333e4a', // unslop P2：并入原 780，拉开与抬起的差距
+    '--c-neutral-700': '#404d5c', // unslop P2：选中态要能看出差别
+    '--c-neutral-600': '#8f979f', // 对比度修正（3.43:1 → 5.10:1，AA 达标）
+    '--c-neutral-500': '#8f979f', // 对比度修正（原 #7a828b，4.40:1 → 4.5）
     '--c-neutral-300': '#c4cbd3',
     '--c-neutral-100': '#e8eaed',
     '--c-amber-600': '#6b4f22',
@@ -170,8 +179,8 @@ describe('颜色值锁定（防止意外改动）', () => {
     '--c-amber-450': '#e0a04a', // 文字用的琥珀：暗色下与填充色同值
     '--c-amber-400': '#e0a04a',
     '--c-amber-300': '#eab366',
-    '--c-green-500': '#5a8f7b',
-    '--c-red-500': '#c26c69', // 对比度修正（原 #b85450，3.60:1 → 4.5）
+    '--c-green-500': '#6ea38f',
+    '--c-red-500': '#d47e7b', // 对比度修正（原 #b85450，3.60:1 → 4.5）
     '--c-blue-500': '#5a7d99',
   };
 
@@ -225,16 +234,51 @@ describe('**动效时长统一成 3 档**', () => {
   });
 });
 
-describe('中性色阶足够密', () => {
-  it('**暗色端至少 8 档**（DSH 有 22 级，我们原来只有 4 级）', () => {
-    const dark = css.match(/--c-neutral-(?:1000|950|900|880|850|820|800|780|750|700|650):/g) ?? [];
-    assert.ok(dark.length >= 8, `暗色档位只有 ${dark.length} 个`);
+describe('中性色阶：**可分辨，不是越多越好**', () => {
+  /**
+   * 这条测试原来断言"暗色端至少 8 档"，理由是"DSH 有 22 级"。
+   *
+   * 但实测下来 8 档里有两级是没有语义的中间色
+   * （`820`「面板与抬起之间」、`780`「抬起与悬停之间」），
+   * 相邻两级只差 2~3 个色值——**肉眼分辨不出**，
+   * 但让网页上出现了 11 种不同的背景色。
+   *
+   * unslop Pass 2 把它们收敛成 4 级语义表面。
+   * 这条测试改成守**可分辨性**：相邻两级必须差得出来。
+   */
+  const SURFACE_STEPS: ReadonlyArray<readonly [string, string]> = [
+    ['--c-neutral-950', '画布'],
+    ['--c-neutral-880', '凹陷'],
+    ['--c-neutral-850', '面板'],
+    ['--c-neutral-800', '抬起'],
+    ['--c-neutral-750', '悬停'],
+    ['--c-neutral-700', '选中'],
+  ];
+
+  it('**相邻两级至少差 8 个色阶**（否则人眼分不出）', () => {
+    const lum = (hex: string): number => {
+      const n = parseInt(hex.replace('#', ''), 16);
+      // 亮度近似：0.299R + 0.587G + 0.114B
+      return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    };
+    for (let i = 0; i < SURFACE_STEPS.length - 1; i += 1) {
+      const [aName, aLabel] = SURFACE_STEPS[i] as readonly [string, string];
+      const [bName, bLabel] = SURFACE_STEPS[i + 1] as readonly [string, string];
+      const a = token(aName);
+      const b = token(bName);
+      assert.ok(a && b, `${aName} 或 ${bName} 未定义`);
+      const delta = Math.abs(lum(b) - lum(a));
+      assert.ok(
+        delta >= 8,
+        `${aLabel}(${aName}=${a}) 与 ${bLabel}(${bName}=${b}) 只差 ${delta.toFixed(1)} 亮度，人眼分不出`,
+      );
+    }
   });
 
-  it('新增档位不破坏原有色值', () => {
-    assert.equal(token('--c-neutral-950'), '#0a0c0f');
-    assert.equal(token('--c-neutral-850'), '#11151a');
-    assert.equal(token('--c-neutral-800'), '#171c23');
+  it('**没有语义的中间色与相邻级同值**（存在但不新增视觉层级）', () => {
+    // 820 / 780 是为兼容保留的别名，不应引入第三种表面色
+    assert.equal(token('--c-neutral-820'), token('--c-neutral-850'), '820 应与面板同值');
+    assert.equal(token('--c-neutral-780'), token('--c-neutral-750'), '780 应与悬停同值');
   });
 });
 describe('**间距尺度覆盖实际用到的值**', () => {

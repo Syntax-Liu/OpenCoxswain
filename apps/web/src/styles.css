@@ -51,20 +51,20 @@
      我们的暗色端之前只有 4 级（950/900/880/850/800/750/700 算 7 级），
      导致"比面板深一点""比悬停浅一点"这类需求只能新造颜色。
      这里把暗色端加密，相邻档位能看出差别但不会突兀。 */
-  --c-neutral-1000: #07080a;  /* 最深：遮罩底 */
-  --c-neutral-950: #0a0c0f;   /* 画布 */
-  --c-neutral-900: #0d1013;   /* 侧栏 */
-  --c-neutral-880: #0e1216;   /* 输入框（凹陷） */
-  --c-neutral-850: #11151a;   /* 面板 */
-  --c-neutral-820: #141920;   /* 面板与抬起之间 */
-  --c-neutral-800: #171c23;   /* 抬起的元素 */
-  --c-neutral-780: #191e26;   /* 抬起与悬停之间 */
-  --c-neutral-750: #1a2028;   /* 悬停 */
-  --c-neutral-700: #1f262f;   /* 选中 */
-  --c-neutral-650: #262e39;   /* 选中悬停 */
+  --c-neutral-1000: #030405;   /* 遮罩底：压到近黑 */
+  --c-neutral-950: #050608;   /* 画布：几乎纯黑，给上层腾空间 */
+  --c-neutral-900: #090c10;   /* 侧栏：画布与凹陷之间 */
+  --c-neutral-880: #0c1015;   /* 凹陷：输入框、代码块底 */
+  --c-neutral-850: #1b222a;   /* 面板：卡片、右栏、消息卡 */
+  --c-neutral-820: #1b222a;   /* 同面板（保留给 --color-fill-subtle） */
+  --c-neutral-800: #262f39;   /* 抬起：浮层、菜单、模态 */
+  --c-neutral-780: #333e4a;   /* 同悬停 */
+  --c-neutral-750: #333e4a;   /* 悬停：鼠标划过 */
+  --c-neutral-700: #404d5c;   /* 选中：当前项 */
+  --c-neutral-650: #4a586a;   /* 选中悬停 */
 
-  --c-neutral-600: #7d858d;   /* 元信息（3.43→5.10，AA 达标） */
-  --c-neutral-500: #7d858d;   /* 次要文字（4.40→4.5，raised 底上达标） */
+  --c-neutral-600: #8f979f;
+  --c-neutral-500: #8f979f;
   --c-neutral-300: #c4cbd3;   /* 正文 */
   --c-neutral-100: #e8eaed;   /* 标题、关键值 */
 
@@ -77,8 +77,8 @@
   --c-amber-300: #eab366;
 
   /* 功能色（低饱和，不与琥珀抢注意力） */
-  --c-green-500: #5a8f7b;
-  --c-red-500: #c26c69;
+  --c-green-500: #6ea38f;
+  --c-red-500: #d47e7b;
   --c-blue-500: #5a7d99;
 
   /* 边框：白色低透明度，靠背景透出来 */
@@ -5242,33 +5242,33 @@ body.is-resizing {
 
 :root[data-theme='light'] {
   /* 中性色：DSH 的 neutral-bluish 色阶，亮色端 */
-  --c-neutral-1000: #0f1115;  /* 最深：正文文字 */
+  --c-neutral-1000: #0b0d10;
   --c-neutral-950: #ffffff;   /* 画布 */
-  --c-neutral-900: #f9fafb;   /* 侧栏（DSH 实测） */
-  --c-neutral-880: #f5f7fa;   /* 输入框（凹陷感） */
-  --c-neutral-850: #f1f3f5;   /* 面板 */
-  --c-neutral-820: #ebeef2;   /* 面板与抬起之间 */
-  --c-neutral-800: #e9ecf2;   /* 抬起的元素 */
-  --c-neutral-780: #e5eaf0;
-  --c-neutral-750: #e1e5ee;   /* 悬停 */
-  --c-neutral-700: #cfd3d6;   /* 选中 */
-  --c-neutral-650: #c2c7cc;
+  --c-neutral-900: #f9fafb;   /* 侧栏 */
+  --c-neutral-880: #f1f4f7;   /* 凹陷 */
+  --c-neutral-850: #e3e8ee;   /* 面板 */
+  --c-neutral-820: #e3e8ee;
+  --c-neutral-800: #d6dce4;   /* 抬起 */
+  --c-neutral-780: #c9d1db;
+  --c-neutral-750: #c9d1db;   /* 悬停 */
+  --c-neutral-700: #bac3cf;   /* 选中 */
+  --c-neutral-650: #acb6c4;
 
-  --c-neutral-600: #64686e;   /* 元信息（3.46→5.36，AA 达标） */
-  --c-neutral-500: #676a70;   /* 次要文字（3.13→4.5） */
+  --c-neutral-600: #52565c;   /* 元信息：选中底上 4.70:1 */
+  --c-neutral-500: #52565c;   /* 次要文字：同上 */
   --c-neutral-300: #43454a;   /* 正文（暗色里的 #c4cbd3 反过来） */
   --c-neutral-100: #0f1115;   /* 标题（DSH 实测） */
 
   /* 琥珀：亮色下要更深才看得清 */
-  --c-amber-600: #b57615;
-  --c-amber-500: #c07524;
+  --c-amber-600: #854600;   /* 警告：选中底上 4.65:1 */
+  --c-amber-500: #8a3f00;   /* 警告：选中底上 4.79:1 */
   --c-amber-400: #a8620a;
   /* 文字用的深琥珀：压在浅底上要过 AA（5.23:1），比填充色更深 */
-  --c-amber-450: #9a5a08;
+  --c-amber-450: #965604;
   --c-amber-300: #a8620a;
 
   /* 功能色：亮色下压暗 */
-  --c-green-500: #1d7248;
+  --c-green-500: #156a40;   /* 成功：抬起底上 4.80:1 */
   --c-red-500: #b3211c;
   --c-blue-500: #2563eb;
 
@@ -6664,3 +6664,46 @@ body.is-resizing {
   }
 }
 
+/* ============================================================
+   unslop Pass 8：批次线状态点（签名元素）
+   ------------------------------------------------------------
+   批次线表达的是本产品最核心的机制：一句话派多个 Agent，
+   谁先完成先报谁。它应该是界面上**唯一有颜色的地方**。
+
+   原来 5×5 的点在长对话里看不见，改成 7×7，并给"完成"
+   加一圈极淡的光晕——不是发光特效，是让状态能被扫到。
+   ============================================================ */
+.batch-dot {
+  width: 7px;
+  height: 7px;
+}
+
+/* 完成：绿点 + 极淡的绿色光晕，扫一眼就能看到哪几个跑完了 */
+.batch-dot.done {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 22%, transparent);
+}
+
+/* 阻塞：红点同样有一圈，但更紧——它需要被立刻注意到 */
+.batch-dot.blocked {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 26%, transparent);
+}
+
+/* 运行中：强调色 + 呼吸（保留原有动画，它表达"在动"） */
+.batch-dot.running {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/*
+ * 耗时数字等宽：这是签名细节。
+ * 一行行扫过去时，`0:51` / `1:12` 的冒号要对齐，
+ * 否则数字在跳动的过程中整行会抖。
+ */
+.batch-task-duration {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 批次摘要里的数字同样等宽 */
+.batch-summary {
+  font-variant-numeric: tabular-nums;
+}

@@ -26,17 +26,26 @@ export function Onboarding(props: OnboardingProps): JSX.Element {
   return (
     <div className="onboarding">
       <div className="onboarding-head">
-        <h3>试着让它干活</h3>
+        {/*
+          unslop Pass 4：标题从「试着让它干活」改成「说明要推进的事」。
+          「试着让它干活」是功能说明，不是标题——换成用户要做的事。
+        */}
+        <h3>说明要推进的事</h3>
         <TextButton onClick={() => {
             markOnboardingSeen();
             props.onDismiss();
-          }} className="onboarding-dismiss">知道了
+          }} className="onboarding-dismiss">关闭
         </TextButton>
       </div>
 
+      {/*
+        正文说清这个产品的**运作方式**，不是功能介绍：
+        你说一句，Assistant 派 Agent 去做，谁先完成先报谁。
+        「会真的开始干活」是强调语气，删掉——事实本身就够了。
+      */}
       <p className="onboarding-lead">
-        你可以直接对它说话，它会派出 Agent 去做。下面三条可以点——
-        每条都会真的开始干活。
+        对 Assistant 说一句要推进的事，它派 Agent 去做。
+        下面三条可以直接开始，谁先完成先报谁。
       </p>
 
       <div className="onboarding-examples">
