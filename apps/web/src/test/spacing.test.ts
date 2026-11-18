@@ -14,11 +14,12 @@
  * **关键发现**：DSH 的行容器比文字高 12-14px，
  * 那点多余高度就是"留白"。我们之前行高 = 文字高度，所以显得密。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 /** 取某选择器第一处规则体。 */
 function rule(selector: string): string {

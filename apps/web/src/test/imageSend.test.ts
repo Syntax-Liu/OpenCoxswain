@@ -19,6 +19,7 @@
  * 这类"参数被吃掉"的 bug，**只有端到端跑才会发现**，
  * 单看任何一层的代码都是对的。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
@@ -85,7 +86,7 @@ describe('**发送时图片不能丢**', () => {
 });
 
 describe('附件卡不溢出', () => {
-  const css = read('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
   const rule = (sel: string): string => {
     const m = new RegExp(`(?:^|\\n)\\s*${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(
       css,

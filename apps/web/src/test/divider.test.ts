@@ -23,11 +23,12 @@
  *
  * 修：外壳和 .rail 都明确撑满。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 function rule(selector: string): string {

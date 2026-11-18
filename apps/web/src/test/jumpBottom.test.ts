@@ -10,11 +10,12 @@
  * 3. 现在挂在 `.composer` 内部，`bottom: calc(100% + 8px)`
  *    → 永远在输入区上沿之外
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const conversation = readFileSync(new URL('../../src/components/Conversation.tsx', import.meta.url), 'utf8');
 

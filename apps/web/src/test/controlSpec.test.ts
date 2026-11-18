@@ -14,12 +14,13 @@
  *
  * 检查不了的（层叠、优先级）仍然要靠抓计算样式。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 // 测试编译到 dist-test/test/，CSS 在 src/ 下——用项目根定位，不依赖编译产物结构
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 /** 取某个选择器的所有声明（合并后的）。 */
 function declarationsOf(selector: string): string {

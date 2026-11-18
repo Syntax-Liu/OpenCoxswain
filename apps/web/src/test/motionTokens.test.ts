@@ -18,11 +18,12 @@
  *
  * WCAG 2.3.3 要求动画可被用户关掉。这条测试守住"以后加动画别忘"。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 /** 去掉注释，避免注释里的示例文字干扰断言。 */
 const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
 

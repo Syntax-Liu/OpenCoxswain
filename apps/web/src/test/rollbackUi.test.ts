@@ -6,6 +6,7 @@
  * 之前踩过：组件里写好了渲染代码，但 App 忘了传 props——
  * typecheck 不报错（props 可选），按钮永远不出现。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
@@ -13,7 +14,7 @@ import { describe, it } from 'node:test';
 const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
 const exec = readFileSync(new URL('../../src/components/ExecutorChat.tsx', import.meta.url), 'utf8');
 const api = readFileSync(new URL('../../src/api.ts', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 describe('**整轮回滚：App 真的接线了**', () => {
   it('有 handleRollbackAll', () => {

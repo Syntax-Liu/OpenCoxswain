@@ -12,11 +12,12 @@
  *   2. 颜色走语义令牌（不写裸值）；
  *   3. 尺寸只来自 --h-* 与 --r-sm（不再到处硬编码 px）。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 function rule(selector: string): string {

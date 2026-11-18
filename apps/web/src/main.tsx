@@ -10,6 +10,8 @@ import {
 } from './components/fontScale.js';
 import { THEME_STORAGE_KEY, applyTheme, parseTheme } from './components/theme.js';
 import './styles.css';
+// 控件层契约：必须在 styles.css **之后**，层叠结果才与拆分前一致
+import './ui.css';
 import './styles-preview.css';
 import { mountStyleSwitcherIfRequested } from './uiPreview/StyleSwitcher.js';
 

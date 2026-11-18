@@ -10,11 +10,12 @@
  *   2. 语义层（--color-*）只能引用原始层；
  *   3. 组件区（:root 与 :root[data-theme] 之外）零裸色值。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 const COLOR_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g;

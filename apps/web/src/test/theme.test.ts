@@ -3,6 +3,7 @@
  *
  * 核心约束：**切换主题只覆盖原始色板，不改组件规则**。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
@@ -14,7 +15,7 @@ import {
   parseTheme,
 } from '../components/theme.js';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 describe('档位', () => {
   it('两档：暗色 / 亮色', () => {

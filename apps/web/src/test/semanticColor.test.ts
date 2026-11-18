@@ -6,13 +6,14 @@
  * 之前一个颜色承担 5 种含义（待决定、链接、状态点、警告图标、性能指标），
  * 想表达"这里需要你注意"时已经没有更强的颜色了。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import { TONE_VAR, canUseAccent, toneForStatus } from '../components/semanticColor.js';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 describe('状态 → 语义色', () => {
   it('**进行中用琥珀**（需要用户关注）', () => {

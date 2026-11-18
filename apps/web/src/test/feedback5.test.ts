@@ -23,11 +23,12 @@
  * 第一轮我从 subtle 改成 strong，但 strong 只有 11% 白，看不出来。
  * 这次新增 20% 的 divider 档。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const conversation = readFileSync(new URL('../../src/components/Conversation.tsx', import.meta.url), 'utf8');
 const executor = readFileSync(new URL('../../src/components/ExecutorChat.tsx', import.meta.url), 'utf8');

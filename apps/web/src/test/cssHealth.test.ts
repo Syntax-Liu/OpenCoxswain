@@ -20,11 +20,12 @@
  * 不是要求每个选择器只出现一次。`:hover`、`.active`、媒体查询里的
  * 覆盖都是正当的重复。这里只拦住**失控增长**。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 /** 去掉注释，避免注释里的示例代码干扰。 */
 const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -111,11 +112,20 @@ describe('**样式文件规模**', () => {
    * `ui.css` 单独维护，`styles.css` 只留历史遗留部分。
    * 在那之前，这条测试只防止**不受控的增长**。
    */
-  it('不超过 7200 行', () => {
+  it('合并总量不超过 7200 行', () => {
+    /**
+     * 拆分后这里量的是 `allCss`（styles.css + ui.css 之和）。
+     *
+     * 拆分只改变了**组织方式**，没减少总行数：
+     * 6778 + 277 = 7055。
+     *
+     * 这条测试的意义是防止总量不受控地长。
+     * 真要减少，得合并历史遗留的重复规则，而不是继续拆文件。
+     */
     const lines = css.split('\n').length;
     assert.ok(
       lines <= 7200,
-      `styles.css 已 ${lines} 行。控件层规格块该单独拆成 ui.css 了。`,
+      `样式总量 ${lines} 行（styles.css + ui.css）。该合并历史遗留的重复规则了，不是继续拆文件。`,
     );
   });
 });

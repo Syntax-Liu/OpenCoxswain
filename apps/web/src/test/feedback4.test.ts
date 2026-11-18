@@ -20,12 +20,13 @@
  *
  * 新会话/Supervisor 缺展开按钮；无内容时仍占位。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 const app = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const sidebar = readFileSync(new URL('../../src/components/Sidebar.tsx', import.meta.url), 'utf8');
 const newSession = readFileSync(new URL('../../src/components/NewSession.tsx', import.meta.url), 'utf8');

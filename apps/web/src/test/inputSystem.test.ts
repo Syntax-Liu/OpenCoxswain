@@ -11,11 +11,12 @@
  *   2. 各容器不再重复定义背景/边框/圆角；
  *   3. 焦点态不再靠改 border-color。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 function rule(selector: string): string {

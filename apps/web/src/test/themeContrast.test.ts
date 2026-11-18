@@ -11,11 +11,12 @@
  *
  * 对应文档：docs/ui-consistency-plan.md §14
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 function parseBlock(source: string): Map<string, string> {
   const map = new Map<string, string>();

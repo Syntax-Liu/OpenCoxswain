@@ -11,11 +11,12 @@
  *   1. 文字链（编辑 / 重发 / 复制）—— 又长又不是 DSH 的样子
  *   2. 绝对定位 + 悬停才显示 —— 不占位了，但形态还是文字
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const actions = readFileSync(new URL('../../src/components/MessageActions.tsx', import.meta.url), 'utf8');
 const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');

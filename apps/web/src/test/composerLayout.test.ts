@@ -15,11 +15,12 @@
  *
  * 教训：**改 CSS 后必须整个删 dist 重建**，不能只依赖增量构建。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 function rule(selector: string): string {

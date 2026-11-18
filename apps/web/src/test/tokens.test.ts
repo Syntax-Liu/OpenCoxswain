@@ -11,11 +11,12 @@
  *
  * 核心约束：**只有原始层允许写十六进制颜色。**
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 /** 取 :root 里某个变量定义的整行。 */
 function token(name: string): string | null {

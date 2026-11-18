@@ -23,11 +23,12 @@
  * `IconSupervisor` 的绘制中线在 y=6.38（视口中心是 8），
  * 所以盒子中线对齐了也没用——图看起来还是偏上。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 const cleanCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const icons = readFileSync(new URL('../../src/components/icons.tsx', import.meta.url), 'utf8');
 const scrollHook = readFileSync(new URL('../../src/components/useAutoScroll.ts', import.meta.url), 'utf8');
@@ -253,7 +254,7 @@ describe('**输入法安全发送**', () => {
 });
 
 describe('**输入框高度自适应**', () => {
-  const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+  const css = allCss;
 
   it('用 field-sizing: content', () => {
     assert.match(css, /field-sizing:\s*content/, '没有自适应高度');

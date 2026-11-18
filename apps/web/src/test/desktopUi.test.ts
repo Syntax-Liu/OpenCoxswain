@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { allCss } from './_css.js';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
@@ -21,7 +22,7 @@ import { describe, it } from 'node:test';
  * 导致断言假失败。所有 CSS 断言都先过 `stripCssComments`。
  */
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 /** 剥掉 CSS 注释——注释里的花括号会让正则提前截断。 */
 const stripCssComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, '');

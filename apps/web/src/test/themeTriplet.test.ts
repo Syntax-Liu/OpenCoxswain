@@ -20,14 +20,12 @@
  * > 它只做 `var(--c-*)` 映射，色板一换它就跟着换了。
  * > 只有原始层需要重复。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8').replace(
-  /\/\*[\s\S]*?\*\//g,
-  '',
-);
+const css = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** 从指定块里抽出变量名 → 值。 */
 function varsIn(block: string): Map<string, string> {

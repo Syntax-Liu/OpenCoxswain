@@ -20,11 +20,12 @@
  * 解法不是"往下推图标"，而是把文字加到和图标匹配的分量：
  * 16px（模块化尺度里的一档）+ 字重 500。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8');
+const css = allCss;
 
 function rule(selector: string): string {
   // 取**最后一条**同名规则（后面的会覆盖前面的）

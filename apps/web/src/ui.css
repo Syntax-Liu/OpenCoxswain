@@ -1,0 +1,277 @@
+/**
+ * 控件层样式规格（Button / ListItem / Field / OptionItem）
+ *
+ * ## 这个文件为什么存在
+ *
+ * 这些规则原本追加在 `styles.css` 末尾——那是为了避免整块重写
+ * 前 6700 行的 CRLF 混排区（见 ui-dev-guide 7.2）。
+ * 但 `styles.css` 因此涨到 7000+ 行，改控件要在一堆历史遗留里翻。
+ *
+ * 拆出来之后：
+ *   styles.css  历史遗留（各场景类、一次性样式）
+ *   ui.css      **控件层契约**——改控件只看这个文件
+ *
+ * ## 加载顺序
+ *
+ * `main.tsx` 里在 `styles.css` **之后**导入，层叠结果与拆分前一致。
+ * 拆分时做过计算样式判等（178 元素 × 39 属性，零差异）。
+ */
+/* ============================================================
+   连续曲率圆角（squircle）
+   ------------------------------------------------------------
+   普通 border-radius 是一段圆弧，曲率在弧的起止点突变，
+   看着"方中带圆、过渡生硬"。连续曲率让曲率本身平滑过渡，
+   圆角更饱满、边缘更柔和（iOS / macOS 图标那种感觉）。
+
+   实现：Chromium 139+ 的 `corner-shape: squircle`。
+   不支持的浏览器会忽略这条，退回普通圆角——不会坏，只是不更圆。
+
+   **排除 50%（正圆）**：正圆再加超椭圆会变形。
+   ============================================================ */
+@supports (corner-shape: squircle) {
+  .btn,
+  .list-item,
+  .md-body pre,
+  .md-body code,
+  .composer-box,
+  .rail-empty-card,
+  .onboarding-card,
+  .rail-badge,
+  .error-card,
+  .approval-item,
+  .trace-stat,
+  .diff-hunk,
+  .ctx-menu,
+  .modal,
+  .view-tab,
+  .palette-item,
+  .settings-block {
+    corner-shape: squircle;
+  }
+}
+
+/* ============================================================
+   胶囊形状修正
+   ------------------------------------------------------------
+   `border-radius: 50%` 只对**正方形**元素才是正圆。
+   套在细长元素上会渲染成椭圆——实测 welcome-example-pill
+   是 91×22（宽高比 4.15），那个"丑椭圆"就是它。
+
+   胶囊应该用 `calc(height / 2)`：短边的一半，任何宽高比都是
+   两端半圆的胶囊。
+   ============================================================ */
+.welcome-example-pill,
+.welcome-example {
+  /* 高 22px → 圆角 11px；用 calc 表达，将来高度改了自动跟随 */
+  border-radius: calc(var(--h-sm) / 2);
+}
+
+/* 胶囊按钮的圆角跟着尺寸档走，否则 sm/lg 档会切成半截 */
+.btn--pill.btn--sm {
+  border-radius: calc(var(--h-sm) / 2);
+}
+
+.btn--pill.btn--lg {
+  border-radius: calc(var(--h-lg) / 2);
+}
+
+/* ============================================================
+   输入控件规格（唯一来源）
+   ------------------------------------------------------------
+   | 档位 | 高度 | 内边距 | 字号    | 圆角   |
+   | sm   | 22px | 0 8px  | --fs-sm | --r-xs |
+   | md   | 26px | 0 10px | --fs-sm | --r-xs |
+
+   四条以前缺失、导致"输入框各长各的"的规矩：
+
+   1. **`.input` 契约类**。之前只有 `.input--sm` / `.input--bare`，
+      基础样式全靠裸 `input {}`，textarea 更是完全没有样式。
+   2. **固定高度**。之前高度由 padding + 字号算出，26 / 30 不稳定。
+   3. **圆角与 Button 一致（--r-xs）**。之前是 8px，按钮是 4px，
+      同一行里按钮和输入框圆角不同。
+   4. **焦点用内描边，不用外轮廓**。`outline` 会让输入框周围多一圈
+      浮起来的框，那是按钮的语言；输入框应该"边框亮起来"。
+
+   textarea 例外：高度由 rows 决定，不设固定 height。
+
+   ## 为什么同时写裸 `input` / `textarea`
+
+   全仓 31 个 `<input>` 里**没有一处带 className**（Field.tsx 注释里写着）。
+   只写 `.input` 类的话，那 31 个一个都吃不到新规格。
+   所以裸选择器和 `.input` 并列——等调用方陆续迁到 TextInput 后，
+   裸选择器可以再删。
+   ============================================================ */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+.input {
+  display: block;
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 calc(var(--g-2) + var(--g-05));
+  background: var(--color-surface-sunken);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--r-xs);
+  color: var(--color-label-primary);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+/* textarea 高度交给 rows，吃满宽度但不定高 */
+textarea,
+textarea.input {
+  height: auto;
+  min-height: var(--h-lg);
+  padding: var(--g-1) calc(var(--g-2) + var(--g-05));
+  resize: vertical;
+  line-height: var(--lh-normal);
+}
+
+/* 尺寸档 */
+.input.input--sm {
+  height: var(--h-sm);
+  padding: 0 var(--g-2);
+  font-size: var(--fs-sm);
+}
+
+textarea.input.input--sm {
+  height: auto;
+  padding: var(--g-05) var(--g-2);
+}
+
+/* 悬停：边框微微加深，不换背景 */
+input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
+textarea:hover:not(:disabled),
+.input:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+/* 焦点：**边框亮起 + 1px 内描边**，不用 outline */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 1px var(--color-border-focus);
+}
+
+/* 报错态：边框转危险色，焦点时也是危险色 */
+.field--error .input,
+.input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.field--error .input:focus,
+.field--error .input:focus-visible,
+.input[aria-invalid="true"]:focus {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 1px var(--color-danger);
+}
+
+/* 禁用：降透明度 + 禁止调整大小 */
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  resize: none;
+}
+
+/* ---- Field 布局：标签 / 控件 / 说明 的间距统一 ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-1);
+}
+
+.field-label {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  color: var(--color-label-secondary);
+}
+
+.field-required {
+  margin-left: 2px;
+  color: var(--color-danger);
+}
+
+.field-msg {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: var(--color-label-tertiary);
+}
+
+.field--error .field-msg {
+  color: var(--color-danger);
+}
+
+/* 连续曲率：输入框也吃上，和按钮一致 */
+@supports (corner-shape: squircle) {
+  .input {
+    corner-shape: squircle;
+  }
+}
+
+/* ============================================================
+   可选控件规格（唯一来源）
+   ------------------------------------------------------------
+   `.option-item` 之前**刻意不设任何样式**，外观全交给 6 个场景类。
+   实测结果：圆角 0 / 8 两种，padding 6 种，高度 26 / auto 两套。
+
+   这里补上公共契约，场景类只保留真正特有的（高度档、内边距、背景）。
+
+   与 .list-item 的区别：
+     .list-item   "能点的一行"，不一定有选中态
+     .option-item "选中了哪一项"，selected 会同步到 aria-selected
+   两者视觉骨架相同（同样的圆角/字号/行高），只是语义不同。
+   ============================================================ */
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: var(--g-2);
+  width: 100%;
+  border: none;
+  border-radius: var(--r-xs);
+  color: var(--color-label-primary);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+/* 焦点：与 .list-item 同一套（整行高亮 + 内描边，不跳出外框） */
+.option-item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-border-focus);
+}
+
+/* 悬停：只有非选中项才变色，选中项保持自己的底色 */
+.option-item:hover:not(.active):not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* 禁用 */
+.option-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- 场景类的例外：设置页左侧整列导航 ---- */
+/*
+ * 它是**一列连续的条目**（像侧边栏），不是一张张独立的卡片。
+ * 加圆角会在条目之间留下锯齿缺口，所以保留直角。
+ * 这不是"没统一"，是有意的形态差异。
+ */
+.option-item.settings-nav-item {
+  border-radius: 0;
+}
+
+/* 连续曲率：与其它控件一致 */
+@supports (corner-shape: squircle) {
+  .option-item {
+    corner-shape: squircle;
+  }
+}

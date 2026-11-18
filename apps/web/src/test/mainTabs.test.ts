@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { allCss } from './_css.js';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
@@ -118,8 +119,7 @@ describe('**改动页在主区，不在右栏**', () => {
     new URL('../../src/components/ChangesPanel.tsx', import.meta.url),
     'utf8',
   );
-  const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
 
   it('右栏面板**不再**内联渲染 Diff', () => {
     // 第一版把 DiffView 塞在右栏，320px 宽根本读不了双栏

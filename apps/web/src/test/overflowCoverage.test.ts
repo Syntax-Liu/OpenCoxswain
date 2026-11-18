@@ -16,14 +16,12 @@
  * 白名单是这份文件里的 `BOUNDED_TEXTS`——新增一条就是做一次决定，
  * 而不是漏掉就漏掉了。
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8').replace(
-  /\/\*[\s\S]*?\*\//g,
-  '',
-);
+const css = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** 取某个选择器下的全部声明（同名规则合并）。 */
 function declarations(selector: string): string {

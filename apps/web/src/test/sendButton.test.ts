@@ -13,13 +13,14 @@
  *   新会话     文字 `↑`
  *   Supervisor 文字「帮我找」
  */
+import { allCss } from './_css.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 const read = (p: string): string => readFileSync(new URL(`../../src/${p}`, import.meta.url), 'utf8');
 
-const cssNoComment = read('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const cssNoComment = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
 
 interface Page {
   readonly name: string;
