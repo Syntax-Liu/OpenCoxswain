@@ -11,7 +11,7 @@ import { attachmentsToText, imageParts, useAttachments } from './attachments.js'
 import { groupBatches, isNotableBatch, type Batch } from './batches.js';
 import { editableText } from './messageCapabilities.js';
 import { describeContext, formatTokens } from './contextUsage.js';
-import { IconChevron, IconPlus, IconSend, IconSidebar } from './icons.js';
+import { IconChevron, IconSend, IconSidebar } from './icons.js';
 import { AppIcon } from './AppIcon.js';
 import { buildStatus } from './statusMetrics.js';
 import { PermissionPicker } from './PermissionPicker.js';
@@ -125,7 +125,6 @@ export function Conversation(props: ConversationProps): JSX.Element {
 
   // 附件：拖入 / 粘贴 / 选择
   const attachments = useAttachments();
-  const fileInput = useRef<HTMLInputElement>(null);
   // 轨迹条数（标签上的小数字）
   const traceCount = (props.traceMessages ?? props.messages).filter((m) => !m.internal).length;
 
@@ -547,18 +546,10 @@ export function Conversation(props: ConversationProps): JSX.Element {
             <div className="composer-left">
               {/* **权限随时可调**（照 DSH）：不用去设置页来回切 */}
               <PermissionPicker api={props.api} projectId={props.project.id} />
-              {/* 选择文件：拖入和粘贴之外的第三条路，
-                  也是唯一对不习惯拖拽的用户友好的入口 */}
-              <Button onClick={() => fileInput.current?.click()} variant="ghost" size="sm"><IconPlus size={14} /></Button>
-              <TextInput ref={fileInput}
-                type="file"
-                multiple
-                hidden
-                onChange={(e) => {
-                  if (e.target.files) void attachments.add(e.target.files);
-                  // 清空 value，否则选同一个文件第二次不会触发 change
-                  e.target.value = '';
-                }} />
+              {/* 附件入口：**只保留拖入和粘贴**。
+                  用户的判断：对话不一定要上传文件，输入区常驻一个「选择文件」
+                  按钮是噪音。而且那个原生控件在暗色下是白底的，视觉上很突兀。
+                  拖入（上面 onDrop）和粘贴（输入框 onPaste）两条路都还在。 */}
               {props.templatePicker}
               <Button onClick={props.onStop} variant="secondary" size="sm">停止
               </Button>

@@ -118,6 +118,22 @@ textarea,
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
+/**
+ * **`hidden` 必须真的隐藏。**
+ *
+ * 上面那条规则写了 `display: block`，选择器具体度（0,2,1）**高于**
+ * `[hidden]` 的 UA 样式（0,1,0），于是 `<input type="file" hidden>`
+ * 照样显示出来——用户截图里那个白底的"选择文件"控件就是它。
+ *
+ * 隐藏的上传入口是常见做法（真按钮触发 `fileInput.current.click()`），
+ * 这里补一条同具体度的规则把它藏回去。
+ */
+input[hidden],
+input[type="file"][hidden],
+textarea[hidden] {
+  display: none;
+}
+
 /* textarea 高度交给 rows，吃满宽度但不定高 */
 textarea,
 textarea.input {
@@ -230,9 +246,33 @@ textarea:focus,
   display: flex;
   align-items: center;
   gap: var(--g-2);
-  width: 100%;
+  /**
+   * **不要写 `width: 100%`。**
+   *
+   * 骨架刚建立时我写了满宽，结果把圆形按钮拉成了整行长条——
+   * `.jump-bottom`（回到底部）是 32×32 的正圆，套上 100% 就变成
+   * 一条横贯对话区的长条（用户截图里圈出来的那个）。
+   *
+   * 宽度应该由场景决定：
+   * - 列表/页签类要满宽 → 场景类自己写 `width: 100%`
+   * - 圆形/图标类要定尺 → 场景类自己写固定尺寸
+   *
+   * 这里给 `auto`，让场景类说了算。
+   */
+  width: auto;
   border: none;
-  border-radius: var(--r-xs);
+  /**
+   * **骨架不设圆角，由场景类决定。**
+   *
+   * 踩过两次：
+   * 1. 先写 `--r-xs` → 把 `.jump-bottom`（正圆）压成圆角方块
+   * 2. 再改成 `0` → 把所有场景的圆角全归零
+   *
+   * 两次都是同一个原因：`ui.css` 在 `styles.css` **之后**加载，
+   * 同具体度的规则后来者胜。骨架只要写了这条，就一定压过场景类。
+   *
+   * 所以正确做法是**根本不写**——让场景类的值生效。
+   */
   color: var(--color-label-primary);
   font-family: inherit;
   font-size: var(--fs-sm);
@@ -240,6 +280,17 @@ textarea:focus,
   text-align: left;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+/* ---- 满宽场景：列表行、页签、卡片 ----
+   这些要撑满容器；圆形/图标类不在此列（它们自己定尺寸）。 */
+.option-item.rail-tab,
+.option-item.ui-select-item,
+.option-item.template-card,
+.option-item.perm-picker-item,
+.option-item.model-item,
+.option-item.settings-nav-item {
+  width: 100%;
 }
 
 /* 焦点：与 .list-item 同一套（整行高亮 + 内描边，不跳出外框） */
