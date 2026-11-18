@@ -294,9 +294,8 @@ async function checkDocs() {
     const run = promisify(execFile);
     const { stdout } = await run(process.execPath, [script], { cwd: ROOT, encoding: 'utf8' });
     const lines = stdout.trim().split('\n');
-    const img = lines.find((l) => l.includes('图片')) ?? '';
-    const anchor = lines.find((l) => l.includes('锚点')) ?? '';
-    ok(`文档完整：${img}，${anchor}`);
+    const summary = lines.find((l) => l.includes('图片')) ?? '';
+    ok(`文档完整：${summary}`);
   } catch (error) {
     const detail = String(error.stdout ?? error.stderr ?? '').trim();
     bad('文档里有失效的图片或锚点', detail);
