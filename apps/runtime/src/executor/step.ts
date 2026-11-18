@@ -6,7 +6,7 @@
  * 用户看到侧栏写着"执行中"，但不知道**在做什么**。
  * 而工具调用本身是有的（`read_file`、`write_file`…），只是没翻译成用户能读的语言。
  *
- * 参考 [design-research/03 A1](../../../../docs/design-research/03-agent-ui-problems.md)：
+ * 参考 设计约束：
  *
  * > 命名当前步骤几乎不需要任何成本，并且会改变等待的时间。
  *

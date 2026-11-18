@@ -175,7 +175,7 @@ export function isNotableBatch(batch: Batch): boolean {
  * 现在侧栏只有「名字 + 状态 + 耗时」，想知道它**干了多少活**必须点进轨迹页。
  * 中间缺了一层：一句摘要就够了。
  *
- * 来源：design-research/03 A3 —— 默认给摘要，细节折叠。
+ * 来源：A3 —— 默认给摘要，细节折叠。
  *
  * ## 数据从哪来
  *

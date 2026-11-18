@@ -2,7 +2,7 @@
  * 完成态摘要（UD-02 中间层）与首次提示（UD-05）。
  *
  * 两者共同的原则：**只用真实数据，拿不到就不显示**。
- * 参考 [design-research/03](../../docs/design-research/03-agent-ui-problems.md) A3 / B5。
+ * 参考 A3（消息折叠）/ B5（审批不遮挡）两条设计约束。
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';

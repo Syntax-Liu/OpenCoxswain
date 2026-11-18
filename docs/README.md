@@ -35,7 +35,6 @@
 | --- | --- |
 | [ui-dev-guide.md](ui-dev-guide.md) | **界面开发手册**：现状地图、令牌全表、打磨清单、改造流程、验收命令、常见坑 |
 | [control-spec.md](control-spec.md) | **控件唯一真相**：`src/ui/` 的组件清单、尺度表、"三件不许做" |
-| [design-research/](design-research/README.md) | **Agent 界面设计资料库**：行业权威框架、热门产品拆解、常见问题、待办清单 |
 | [shortcuts.md](shortcuts.md) | 键盘快捷键 |
 | [usability-plan.md](usability-plan.md) | 易用性改造记录 |
 

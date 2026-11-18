@@ -1,7 +1,7 @@
 /**
  * 滚动跟随 / 冻结（UD-08）。
  *
- * 来源：[design-research/03-agent-ui-problems.md E2](https://github.com/Syntax-Liu/OpenCoxswain)
+ * 来源：E2 —— 滚到底部要粘住。
  *
  * > 用户在往上翻历史消息，新内容一来就被拽回底部。
  *

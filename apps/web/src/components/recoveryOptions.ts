@@ -18,7 +18,7 @@
  *
  * 所以这里做的是**如实告诉用户现在能做什么**，每一项都接真实能力。
  *
- * 参考 [design-research/03 B3](../../../docs/design-research/03-agent-ui-problems.md)
+ * 参考 设计约束
  * 与 [ui-dev-guide](../../ui-dev-guide.md) 的"不伪造"原则。
  */
 

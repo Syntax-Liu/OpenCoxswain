@@ -3,7 +3,7 @@
  *
  * ## 为什么
  *
- * 参考 [design-research/03 B5](../../../docs/design-research/03-agent-ui-problems.md)：
+ * 参考 设计约束：
  *
  * > 首次启动点过"同意"，之后 Agent 能力扩展了也不再问。
  *

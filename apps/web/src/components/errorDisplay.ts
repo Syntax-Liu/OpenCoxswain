@@ -42,7 +42,7 @@ export interface ClassifiedError {
    *
    * 用户出错时最关心的是"我的改动还在不在"，而不是错误码。
    * **没有可靠信息时不要填**——宁可不说，也不能编造
-   * （见 docs/design-research/03-agent-ui-problems.md D2）。
+   * （见 D2）。
    */
   readonly preserved?: string;
   /**

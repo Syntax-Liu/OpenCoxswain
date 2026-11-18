@@ -546,7 +546,7 @@ describe('Supervisor 图标和图标库风格统一', () => {
 });
 
 describe('**权限级别常驻可见（UD-04）**', () => {
-  // 来源：design-research/03 D3 —— 用户应该始终知道 Agent 现在被授权做什么。
+  // D3 —— 用户应该始终知道 Agent 现在被授权做什么。
   const picker = readFileSync(
     new URL('../../src/components/PermissionPicker.tsx', import.meta.url),
     'utf8',

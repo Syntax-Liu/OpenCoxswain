@@ -1,7 +1,7 @@
 /**
  * 失败信息三要素（UD-06）。
  *
- * 来源：[design-research/03-agent-ui-problems.md D2](https://github.com/Syntax-Liu/OpenCoxswain)
+ * 来源：D2 —— 失败要有可还原的下一步。
  *
  * 用户看到一行"出错了"时，真正想知道的是三件事：
  *

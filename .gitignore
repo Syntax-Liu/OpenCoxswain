@@ -106,6 +106,15 @@ docs/project-status.md
 packages/dsh-bao/
 apps/web-legacy/
 
+# 2026-11-18 从公开仓库移除：竞品分析 / PRD / 设计探索稿
+# 05-vs-dsh-source.md 详细分析了 DSH 源码的做法，不适合公开；
+# PRD 是内部规划；design-exploration 是过程稿。本地保留。
+docs/design-research/
+docs/prd/
+docs/design-exploration.html
+# 根目录 6 个中文名主题图标：与 apps/web/src/assets/icons/ 重复且未被引用
+/*.svg
+
 # 根目录误提交的残留：cm-* 属于另一个项目（CourseMeow），其余是调研/逆推产物
 cm-app-tail.md
 cm-readme-app.md
