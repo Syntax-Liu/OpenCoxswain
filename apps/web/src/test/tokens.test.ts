@@ -348,9 +348,27 @@ describe('组件级令牌', () => {
   });
 
   it('输入框尺寸令牌化', () => {
-    assert.equal(token('--composer-min-height'), '52px');
+    /**
+     * 从 52px 改成 80px：
+     *
+     * `field-sizing: content` 下，空输入框会贴着内容缩到一行，
+     * 看着像个窄条。用户要求**默认三行高**——不满三行按三行，
+     * 超过才按实际内容长。80px ≈ 行高 25 × 3。
+     */
+    assert.equal(token('--composer-min-height'), '80px');
     assert.equal(token('--composer-max-height'), '180px');
-    // 注意：:root 里的 --composer-max-height: 180px 定义本身不算\n    const bare180 = (css.match(/max-height:\s*180px/g) ?? []).filter(\n      (line) => true,\n    );\n    assert.equal(bare180.length, 0, '还有裸的 180px');
+    /**
+     * 只检查**用值**，不检查令牌定义行本身。
+     *
+     * 原写法 `css.match(/max-height:\s*180px/g)` 会把
+     * `--composer-max-height: 180px` 也匹配进来（字符串里含 `max-height: 180px`），
+     * 于是永远报"还有裸的 180px"。改成先排除 `--` 开头的定义行。
+     */
+    const bare180 = css
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('--'))
+      .filter((line) => /max-height:\s*180px/.test(line));
+    assert.deepEqual(bare180, [], '还有裸的 180px');
   });
 
   it('状态点尺寸统一', () => {

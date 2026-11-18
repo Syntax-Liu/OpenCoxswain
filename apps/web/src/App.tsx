@@ -1289,8 +1289,14 @@ export function App(): JSX.Element {
           <RailEmptyState
             onOpenFiles={currentProject ? () => setRailTab('files') : undefined}
             onOpenFolder={currentProject ? () => {
-              // 在资源管理器里打开项目目录
-              void navigator.clipboard?.writeText(currentProject.displayPath);
+              /*
+               * untrusted「打开项目目录」。
+               *
+               * 原来这里只写剪贴板：`navigator.clipboard?.writeText(...)`，
+               * **完全没有打开任何东西**——用户点了以为坏了。
+               * 现在走运行时执行系统命令（浏览器本身做不到）。
+               */
+              void api.revealPath(currentProject.displayPath);
             } : undefined}
             onOpenSettings={() => setShowSettings(true)}
           />

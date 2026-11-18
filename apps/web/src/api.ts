@@ -470,6 +470,17 @@ export class ApiClient {
     });
   }
 
+  /**
+   * 在系统文件管理器里打开目录。
+   *
+   * 浏览器没有打开本地文件管理器的能力，所以由运行时执行。
+   * 之前的实现只是往剪贴板写路径，**用户点了完全没反应**——
+   * 那是个坏掉的按钮，不是"设计成复制路径"。
+   */
+  revealPath(path: string): Promise<{ ok: boolean }> {
+    return this.request('/api/reveal', { method: 'POST', body: { path } });
+  }
+
   projectDetail(id: string): Promise<{
     project: ProjectDto;
     executors: ExecutorDto[];

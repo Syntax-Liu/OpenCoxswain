@@ -541,7 +541,14 @@ export function Conversation(props: ConversationProps): JSX.Element {
               e.preventDefault();
               submit();
             }}
-            rows={2} />
+            /*
+             * 默认三行高：不够三行也按三行算，超过三行才按内容长高。
+             *
+             * `field-sizing: content` 会让 textarea 贴着内容收缩，
+             * 空的时候只有一行高，输入框看起来像个窄条。
+             * 三行是"能写一句话"的最小高度，配合 min-height 保证下限。
+             */
+            rows={3} />
           <div className="composer-bar">
             <div className="composer-left">
               {/* **权限随时可调**（照 DSH）：不用去设置页来回切 */}

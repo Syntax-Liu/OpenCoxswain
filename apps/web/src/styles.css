@@ -346,7 +346,13 @@
   --content-wide: 820px;    /* 宽版：输入框、状态栏（要和输入框对齐） */
 
   /* ---- 输入区 ---- */
-  --composer-min-height: 52px;    /* textarea 起始高度 */
+  /*
+   * 默认三行高。`field-sizing: content` 下，空输入框会贴着内容缩到一行，
+   * 看起来像个窄条——所以用 min-height 保证下限。
+   *
+   * 80px ≈ 三行：行高 25 × 3 = 75，加一点上下呼吸。
+   */
+  --composer-min-height: 80px;    /* textarea 起始高度（三行） */
   --composer-max-height: 180px;   /* textarea 长到多高就不再长 */
   --composer-pad-y: var(--g-15);
   --composer-pad-x: var(--g-25);
@@ -1347,6 +1353,18 @@ select:disabled {
   position: relative;
 }
 
+/*
+ * `.composer .composer-box textarea`——比 ui.css 里的
+ * `textarea, textarea.input { min-height: var(--h-lg) }` 具体度高一级。
+ *
+ * ui.css 在 styles.css 之后加载，同具体度时它胜出，
+ * 结果 80px 的三行下限被 32px 压掉。这里提高一级具体度把它拿回来。
+ */
+.composer .composer-box textarea {
+  min-height: var(--composer-min-height);
+  field-sizing: content;
+}
+
 .composer textarea {
   width: 100%;
   /* **高度随内容自适应**（desktop-agent-ui：input 自适应高度验收）。
@@ -1356,8 +1374,11 @@ select:disabled {
    
      `height: auto` + `field-sizing: content` 让浏览器按内容算高度，
      到 max-height 就停止增长并转为内部滚动——正是要的行为。
+
+     **下限是三行**（rows={3} + min-height: 80px）：
+     空的时候也留出"能写一句话"的空间，不会缩成窄条。
      
-     不支持的浏览器退回 rows=2 的固定高度，不会更差。 */
+     不支持的浏览器退回 rows=3 的固定高度，不会更差。 */
   height: auto;
   field-sizing: content;
   min-height: var(--composer-min-height);
@@ -2826,7 +2847,7 @@ button.small {
   resize: none;
   font-size: var(--fs-md);
   line-height: var(--lh-normal); /* 不写死像素，字号变了自动跟随 */
-  min-height: 28px;
+  min-height: var(--composer-min-height); /* 三行，由令牌统一 */
   padding: var(--g-1) 0;
   outline: none;
 }

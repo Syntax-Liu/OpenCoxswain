@@ -534,6 +534,51 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       });
     }
 
+    /*
+     * 在系统文件管理器里打开目录。
+     *
+     * 前端做不了这件事（浏览器没有打开本地文件管理器的 API），
+     * 所以按钮一直是"往剪贴板写路径"——用户点了没反应，以为是坏的。
+     *
+     * 这里由运行时代为执行系统命令。**只接受绝对路径且必须是目录**，
+     * 避免变成任意的命令执行入口。
+     */
+    if (method === 'POST' && url.pathname === '/api/reveal') {
+      const body = await readJson(req);
+      const target = str(body.path);
+      if (!target) return deny(400, '缺少 path');
+
+      const { isAbsolute, resolve } = await import('node:path');
+      if (!isAbsolute(target)) return deny(400, '必须是绝对路径');
+
+      const { stat, } = await import('node:fs/promises');
+      let info;
+      try {
+        info = await stat(resolve(target));
+      } catch {
+        return deny(404, `目录不存在：${target}`);
+      }
+      if (!info.isDirectory()) return deny(400, '不是目录');
+
+      // 平台命令：Windows 用 explorer，macOS 用 open，Linux 用 xdg-open。
+      // detached + stdio ignore：不阻塞 HTTP 响应，也不持有子进程句柄。
+      const { spawn } = await import('node:child_process');
+      const [cmd, args] =
+        process.platform === 'win32'
+          ? ['explorer.exe', [resolve(target)]]
+          : process.platform === 'darwin'
+            ? ['open', [resolve(target)]]
+            : ['xdg-open', [resolve(target)]];
+
+      try {
+        const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+        child.unref();
+      } catch (error) {
+        return deny(500, `打开失败：${String(error)}`);
+      }
+      return reply(200, { ok: true });
+    }
+
     if (method === 'POST' && url.pathname === '/api/projects') {
       const body = await readJson(req);
       const rootPath = str(body.rootPath);
