@@ -17,36 +17,39 @@
  * 拆分时做过计算样式判等（178 元素 × 39 属性，零差异）。
  */
 /* ============================================================
-   连续曲率圆角（squircle）
+   连续曲率圆角
    ------------------------------------------------------------
    普通 border-radius 是一段圆弧，曲率在弧的起止点突变，
-   看着"方中带圆、过渡生硬"。连续曲率让曲率本身平滑过渡，
-   圆角更饱满、边缘更柔和（iOS / macOS 图标那种感觉）。
+   看着"方中带圆、过渡生硬"。连续曲率让曲率本身平滑过渡。
 
-   实现：Chromium 139+ 的 `corner-shape: squircle`。
-   不支持的浏览器会忽略这条，退回普通圆角——不会坏，只是不更圆。
+   参数：**superellipse(1.5)**
+     1   = 圆弧（默认）
+     1.5 = **这里用的**，介于圆弧与方角之间
+     2   = squircle（等于 CSS 的 `squircle` 关键字）
 
-   **排除 50%（正圆）**：正圆再加超椭圆会变形。
+   为什么不用 2：4~8px 的小圆角会"更方"，密集工具栏里显得硬。
+   1.5 只让曲率过渡更顺，不改变圆角本身的饱满度。
+
+   ## 为什么用通用选择器
+
+   `corner-shape` **不继承**，所以只能写 `*` 加 `::before`/`::after`。
+   原来手写了 17 个类名——漏掉的元素没有连续曲率，新增组件还得记得加。
+
+   ## 配套：全圆角必须 opt out
+
+   超椭圆会把正圆压方、把胶囊两端压平。每个 `border-radius: 50%`
+   或胶囊（`calc(--h-* / 2)`）的元素，都要在自己的规则里写
+   `corner-shape: round`。`cornerShape.test.ts` 强制这条配对。
    ============================================================ */
-@supports (corner-shape: squircle) {
-  .btn,
-  .list-item,
-  .md-body pre,
-  .md-body code,
-  .composer-box,
-  .rail-empty-card,
-  .onboarding-card,
-  .rail-badge,
-  .error-card,
-  .approval-item,
-  .trace-stat,
-  .diff-hunk,
-  .ctx-menu,
-  .modal,
-  .view-tab,
-  .palette-item,
-  .settings-block {
-    corner-shape: squircle;
+@supports (corner-shape: superellipse(1.5)) {
+  :root {
+    --corner-shape: superellipse(1.5);
+  }
+
+  *,
+  *::before,
+  *::after {
+    corner-shape: var(--corner-shape);
   }
 }
 
@@ -64,15 +67,18 @@
 .welcome-example {
   /* 高 22px → 圆角 11px；用 calc 表达，将来高度改了自动跟随 */
   border-radius: calc(var(--h-sm) / 2);
+  corner-shape: round; /* 胶囊/正圆：退出连续曲率 */
 }
 
 /* 胶囊按钮的圆角跟着尺寸档走，否则 sm/lg 档会切成半截 */
 .btn--pill.btn--sm {
   border-radius: calc(var(--h-sm) / 2);
+  corner-shape: round; /* 胶囊/正圆：退出连续曲率 */
 }
 
 .btn--pill.btn--lg {
   border-radius: calc(var(--h-lg) / 2);
+  corner-shape: round; /* 胶囊/正圆：退出连续曲率 */
 }
 
 /* ============================================================
@@ -222,12 +228,7 @@ textarea:focus,
   color: var(--color-danger);
 }
 
-/* 连续曲率：输入框也吃上，和按钮一致 */
-@supports (corner-shape: squircle) {
-  .input {
-    corner-shape: squircle;
-  }
-}
+
 
 /* ============================================================
    可选控件规格（唯一来源）
@@ -320,9 +321,4 @@ textarea:focus,
   border-radius: 0;
 }
 
-/* 连续曲率：与其它控件一致 */
-@supports (corner-shape: squircle) {
-  .option-item {
-    corner-shape: squircle;
-  }
-}
+

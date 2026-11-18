@@ -673,6 +673,7 @@ select:disabled {
 .btn--pill {
   /* 胶囊 = 高度的一半（50% 在细长元素上是椭圆） */
   border-radius: calc(var(--h-md) / 2);
+  corner-shape: round; /* 胶囊/正圆：退出连续曲率 */
 }
 
 /* ---- 状态：五态齐全，且**互斥不打架** ---- */
@@ -716,6 +717,7 @@ select:disabled {
   border-top-color: transparent;
   border-radius: var(--r-full);
   animation: btn-spin 0.7s linear infinite;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 @keyframes btn-spin {
@@ -1132,6 +1134,7 @@ select:disabled {
   border-radius: 50%;
   flex: none;
   opacity: 0.9;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .thread-status {
@@ -1185,6 +1188,7 @@ select:disabled {
   border-radius: 50%;
   background: var(--color-label-tertiary);
   flex: none;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .dot.ok {
@@ -1311,6 +1315,7 @@ select:disabled {
   border-radius: 50%;
   background: var(--text-muted);
   animation: blink 1.2s infinite ease-in-out;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .typing i:nth-child(2) {
@@ -3208,6 +3213,7 @@ body.is-resizing {
   border-radius: 50%;
   background: var(--text-dim);
   margin-bottom: 2px;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .trace-row.tool .trace-dot {
@@ -3917,6 +3923,7 @@ body.is-resizing {
   height: 5px;
   border-radius: 50%;
   border: 0.5px solid var(--text-dim);
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .batch-dot.done {
@@ -4447,6 +4454,7 @@ body.is-resizing {
   border-radius: 50%;
   background: var(--text-dim);
   animation: waiting-pulse 1.4s ease-in-out infinite;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .waiting-dots i:nth-child(2) {
@@ -4658,6 +4666,7 @@ body.is-resizing {
   background: var(--accent);
   pointer-events: none;
   bottom: calc(50% - 2px);
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .thread-list li.batch-first::after {
@@ -5028,6 +5037,7 @@ body.is-resizing {
   font-size: var(--fs-xs);
   line-height: 18px;
   text-align: center;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .rail-body {
@@ -5471,6 +5481,7 @@ body.is-resizing {
   color: var(--color-label-secondary);
   font-size: var(--fs-sm);
   cursor: pointer;
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .welcome-example:hover {
@@ -5487,6 +5498,7 @@ body.is-resizing {
   border: 0.5px solid var(--color-border-strong);
   border-radius: var(--r-full);
   color: var(--color-label-secondary);
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 /* 欢迎页的图标和标题：**视觉对齐，不是盒子对齐**。
@@ -5562,6 +5574,7 @@ body.is-resizing {
   cursor: pointer;
 
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .jump-bottom:hover {
@@ -6009,6 +6022,7 @@ body.is-resizing {
   transition:
     background-color var(--dur-fast) var(--ease),
     opacity var(--dur-fast) var(--ease);
+  corner-shape: round; /* 全圆角：退出连续曲率，否则被压方 */
 }
 
 .send-btn:hover:not(:disabled) {
