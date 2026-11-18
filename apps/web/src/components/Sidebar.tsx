@@ -2,7 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExecutorDto, ProjectDto } from '../api.js';
 import { isFiltering, isRunning, matchExecutor, matchesProject } from './matching.js';
-import { IconChevron, IconNewChat, IconSupervisor } from './icons.js';
+import {
+  IconChevron,
+  IconClose,
+  IconNewChat,
+  IconPlus,
+  IconSearch,
+  IconSort,
+  IconSupervisor,
+} from './icons.js';
 import { computeBatchPositions } from './sidebarBatches.js';
 import { EXECUTOR_STATUS_LABEL } from '../state.js';
 import { summarize } from '../metrics.js';
@@ -195,10 +203,13 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       <div className={`workspace-head${searchOpen ? ' searching' : ''}`}>
         {searchOpen ? (
           <span className="search-box">
-            <svg className="search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
-              <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
+            {/*
+              unslop Pass 3：图标统一。
+              原来 4 个内联 SVG 用了 11/13/14 三种尺寸、1.1/1.2 两种描边。
+              现在全部走 IconChart 的 16px 画布 + 1.5 描边，
+              显示尺寸由 className 或 size 控制，描边不再各写各的。
+            */}
+            <IconSearch size={13} className="search-icon" />
             <TextInput ref={searchRef}
               className="search-input"
               value={query}
@@ -214,35 +225,15 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             <IconButton title="关闭搜索" onClick={() => {
                 setQuery('');
                 setSearchOpen(false);
-              }} label={"关闭搜索"}><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg></IconButton>
+              }} label={"关闭搜索"}><IconClose size={11} /></IconButton>
           </span>
         ) : (
           <>
             <span className="workspace-title">工作区</span>
             <span className="workspace-actions">
-              <IconButton onClick={() => setSearchOpen(true)} label={"搜索"} size="sm"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-                  <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                </svg></IconButton>
-              <IconButton aria-pressed={onlyRunning} onClick={() => setOnlyRunning((v) => !v)} label={onlyRunning ? '显示全部' : '只看在跑'} size="sm" className={`${onlyRunning ? ' active' : ''}`}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-                  <path
-                    d="M4.5 2.5v11M4.5 13.5 2 11M4.5 13.5 7 11M11.5 13.5v-11M11.5 2.5 9 5M11.5 2.5 14 5"
-                    stroke="currentColor"
-                    strokeWidth="1.1"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg></IconButton>
-          <IconButton onClick={props.onOpenProject} label={"新建项目"} size="sm"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path
-                d="M8 3v10M3 8h10"
-                stroke="currentColor"
-                strokeWidth="1.1"
-                strokeLinecap="round"
-              />
-            </svg></IconButton>
+              <IconButton onClick={() => setSearchOpen(true)} label={"搜索"} size="sm"><IconSearch size={14} /></IconButton>
+              <IconButton aria-pressed={onlyRunning} onClick={() => setOnlyRunning((v) => !v)} label={onlyRunning ? '显示全部' : '只看在跑'} size="sm" className={`${onlyRunning ? ' active' : ''}`}><IconSort size={14} /></IconButton>
+          <IconButton onClick={props.onOpenProject} label={"新建项目"} size="sm"><IconPlus size={14} /></IconButton>
             </span>
           </>
         )}

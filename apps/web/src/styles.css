@@ -3815,8 +3815,16 @@ body.is-resizing {
 /* 时间用琥珀色：它是"派出"这个动作的锚点 */
 .batch-time {
   color: var(--accent);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  /*
+   * unslop Pass 5：去掉 600 字重和 letter-spacing。
+   *
+   * 原来是「强调色 + 600 字重 + 0.02em 字间距」三重强调，
+   * 在一行小字里堆了三种手段。技能要求：
+   * **层级来自字号和颜色，不来自字重**。
+   *
+   * 时间戳只需要用颜色区分——它是这一行里唯一带时间含义的信息。
+   */
+  font-variant-numeric: tabular-nums;
 }
 
 
@@ -4060,8 +4068,8 @@ body.is-resizing {
 }
 
 .attachment-warn {
+  /* unslop Pass 5：警告色已经足够醒目，不需要再加重 */
   color: var(--warn);
-  font-weight: 600;
 }
 
 /* composer 需要相对定位，拖入提示才能铺满 */
@@ -6663,7 +6671,7 @@ body.is-resizing {
     scroll-behavior: auto !important;
   }
 }
-
+
 /* ============================================================
    unslop Pass 8：批次线状态点（签名元素）
    ------------------------------------------------------------

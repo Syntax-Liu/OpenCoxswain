@@ -287,3 +287,29 @@ export function IconGlobe({ size = 16, className }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/**
+ * 搜索：放大镜。
+ *
+ * unslop Pass 3：从 Sidebar 的内联 SVG 提上来。
+ * 原来那处写死 `width="13"` + `strokeWidth="1.2"`，
+ * 现在走统一的 16px 画布 + 1.5 描边，显示尺寸由 `size` 控制。
+ */
+export function IconSearch({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="m10.5 10.5 3 3" />
+    </svg>
+  );
+}
+
+/** 排序：上下两个箭头，用于「只看在跑」这类筛选。 */
+export function IconSort({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size, className)}>
+      <path d="M4.5 2.5v11M4.5 13.5 2 11M4.5 13.5 7 11" />
+      <path d="M11.5 13.5v-11M11.5 2.5 9 5M11.5 2.5 14 5" />
+    </svg>
+  );
+}
