@@ -306,9 +306,9 @@
      归过去会改变现有视觉，那不是重构该做的事。 */
   --g-05: 2px;   /* 紧贴：图标与文字、徽章内外 */
   --g-1: 4px;
-  --g-15: 6px;   /* 紧凑：芯片内边距、小间隙 */
+  --g-15: 4px;   /* 紧凑间距：对齐 4px 网格（原 6px） */
   --g-2: 8px;
-  --g-25: 10px;  /* 行内边距、按钮水平内边距 */
+  --g-25: 8px;   /* 行内边距：对齐 4px 网格（原 10px） */
   --g-3: 12px;
   --g-4: 16px;
   --g-5: 24px;
@@ -573,13 +573,13 @@ select:disabled {
 
 .btn--md {
   height: var(--h-md);
-  padding: 0 calc(var(--g-2) + var(--g-05));
+  padding: 0 var(--g-2);
   font-size: var(--fs-sm);
 }
 
 .btn--lg {
   height: var(--h-lg);
-  padding: 0 calc(var(--g-3) + var(--g-05));
+  padding: 0 var(--g-3);
   font-size: var(--fs-md);
   border-radius: var(--r-sm);
 }
@@ -1012,7 +1012,7 @@ select:disabled {
   align-items: center;
   justify-content: space-between;
   gap: var(--g-15);
-  padding: 10px 8px 4px 14px;
+  padding: 8px 8px 4px 16px;
   background: transparent;
   color: var(--text-dim);
   font-size: var(--fs-sm);
@@ -1030,7 +1030,7 @@ select:disabled {
 }
 
 .empty-hint {
-  padding: 4px 10px;
+  padding: 4px 8px;
 }
 
 .project-group {
@@ -1170,7 +1170,7 @@ select:disabled {
   justify-content: space-between;
   gap: var(--g-2);
   border-top: 0.5px solid var(--border);
-  padding: var(--g-1) 14px;
+  padding: var(--g-1) var(--g-4);
   font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-top: auto;
@@ -1248,14 +1248,14 @@ select:disabled {
 .hint-card {
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--bg-elevated);
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
 
 .hint-card ul {
-  margin: 6px 0;
+  margin: 4px 0;
   padding-left: 18px;
 }
 
@@ -1340,7 +1340,7 @@ select:disabled {
 .composer {
   flex: none;
   /* 输入区底部：略收紧上边距，避免和最后一条消息贴太近 */
-  padding: 6px 24px 10px;
+  padding: 4px 24px 8px;
   background: var(--bg);
   border-top: none;
   /* 模板浮层等相对它定位 */
@@ -1371,7 +1371,7 @@ select:disabled {
   display: flex;
   align-items: center;
   gap: var(--g-15);
-  margin-top: 6px;
+  margin-top: 4px;
   justify-content: flex-end;
 }
 
@@ -1381,7 +1381,7 @@ select:disabled {
   border: 0.5px solid var(--border);
   border-left: 3px solid var(--accent-dim);
   border-radius: var(--r-sm);
-  padding: 10px 14px;
+  padding: 8px 16px;
   max-width: var(--content-read);
 }
 
@@ -1441,7 +1441,7 @@ select:disabled {
 .route-card {
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 14px 16px;
+  padding: 16px 16px;
   max-width: 640px;
 }
 
@@ -1477,7 +1477,7 @@ select:disabled {
 }
 
 .route-reasons {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   padding-left: 18px;
   color: var(--text-muted);
   font-size: var(--fs-sm);
@@ -1499,7 +1499,7 @@ select:disabled {
   background: var(--color-warn-dim);
   color: var(--warn);
   border-radius: var(--r-sm);
-  padding: 8px 10px;
+  padding: 8px 8px;
   font-size: var(--fs-sm);
   max-width: 640px;
 }
@@ -1507,7 +1507,7 @@ select:disabled {
 /* ---------- Markdown ---------- */
 
 .md-h {
-  margin: 10px 0 4px;
+  margin: 8px 0 4px;
   font-size: var(--fs-md);
   font-weight: 600;
 }
@@ -1550,8 +1550,8 @@ select:disabled {
   background: var(--color-code-inline);
   border: 0.5px solid var(--border);
   border-radius: var(--r-md);
-  padding: 8px 10px;
-  margin: 6px 0;
+  padding: 8px 8px;
+  margin: 4px 0;
   overflow-x: auto;
   font-size: var(--fs-sm);
   font-family: 'Cascadia Code', Consolas, monospace;
@@ -1574,7 +1574,7 @@ select:disabled {
 .md-table th,
 .md-table td {
   border: 0.5px solid var(--border);
-  padding: 4px 10px;
+  padding: 4px 8px;
   text-align: left;
 }
 
@@ -1623,7 +1623,7 @@ select:disabled {
 .advanced {
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 8px 10px;
+  padding: 8px 8px;
 }
 
 .advanced summary {
@@ -1701,7 +1701,7 @@ select:disabled {
   background: var(--color-danger-dim);
   border: 0.5px solid var(--color-danger);
   color: var(--color-danger);
-  padding: 9px 14px;
+  padding: 9px 16px;
   border-radius: var(--r-sm);
   display: flex;
   align-items: center;
@@ -1736,7 +1736,7 @@ select:disabled {
 .approval-banner {
   border-bottom: 0.5px solid var(--color-warn);
   background: var(--color-warn-dim);
-  padding: 10px 24px;
+  padding: 8px 24px;
   max-height: 42vh;
   overflow-y: auto;
   flex: 0 0 auto;
@@ -1785,7 +1785,7 @@ select:disabled {
   border: 0.5px solid var(--danger);
   color: var(--danger);
   border-radius: var(--r-md);
-  padding: 0 6px;
+  padding: 0 4px;
   flex: none;
 }
 
@@ -1812,7 +1812,7 @@ select:disabled {
   background: var(--bg);
   border: 0.5px solid var(--border);
   border-radius: var(--r-md);
-  padding: 8px 10px;
+  padding: 8px 8px;
   font-size: var(--fs-sm);
   font-family: 'Cascadia Code', Consolas, monospace;
   max-height: 160px;
@@ -1969,7 +1969,7 @@ select:disabled {
 }
 
 .memory-body > p {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
 }
 
 .memory-list {
@@ -1984,7 +1984,7 @@ select:disabled {
 .memory-list li {
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 8px 10px;
+  padding: 8px 8px;
   background: var(--bg);
 }
 
@@ -2000,11 +2000,11 @@ select:disabled {
   border: 0.5px solid var(--accent-dim);
   color: var(--accent);
   border-radius: var(--r-md);
-  padding: 0 6px;
+  padding: 0 4px;
 }
 
 .memory-text {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   font-size: var(--fs-md);
   line-height: 1.55;
 }
@@ -2027,7 +2027,7 @@ button.small {
 .sidebar-filter {
   display: flex;
   gap: var(--g-15);
-  padding: 0 10px 8px;
+  padding: 0 8px 8px;
   align-items: center;
 }
 
@@ -2074,7 +2074,7 @@ button.small {
 
 .im-settings {
   margin-top: 18px;
-  padding-top: 14px;
+  padding-top: 16px;
   border-top: 0.5px solid var(--border);
 }
 
@@ -2175,7 +2175,7 @@ button.small {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--g-05);
-  padding: 8px 10px;
+  padding: 8px 8px;
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg);
@@ -2366,7 +2366,7 @@ button.small {
   background: var(--color-code-block);
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 8px 10px;
+  padding: 8px 8px;
   overflow-x: auto;
   font-size: var(--fs-sm);
   line-height: 1.45;
@@ -2428,7 +2428,7 @@ button.small {
 
 .md-body ul,
 .md-body ol {
-  margin: 4px 0 6px;
+  margin: 4px 0 4px;
   padding-left: 20px;
 }
 
@@ -2440,7 +2440,7 @@ button.small {
 .md-body h2,
 .md-body h3,
 .md-body h4 {
-  margin: 10px 0 5px;
+  margin: 8px 0 5px;
   color: var(--text-strong);
   font-weight: 600;
   line-height: 1.3;
@@ -2452,8 +2452,8 @@ button.small {
 
 /* 引用块：VS Code 的注释色 */
 .md-body blockquote {
-  margin: 6px 0;
-  padding: 2px 10px;
+  margin: 4px 0;
+  padding: 2px 8px;
   border-left: 2px solid var(--border-strong);
   color: var(--text-muted);
 }
@@ -2463,7 +2463,7 @@ button.small {
   text-align: center;
   font-size: var(--fs-xs);
   color: var(--text-dim);
-  margin: 6px 0;
+  margin: 4px 0;
   user-select: none;
 }
 
@@ -2591,7 +2591,7 @@ button.small {
 
 .ctx-menu button {
   text-align: left;
-  padding: 4px 14px;
+  padding: 4px 16px;
   border-radius: 0;
   font-size: var(--fs-sm);
   color: var(--text);
@@ -2667,7 +2667,7 @@ button.small {
 /* ---------- 侧栏顶部：新会话大按钮（DSH） ---------- */
 
 .sidebar-top {
-  padding: 10px 12px 6px;
+  padding: 8px 12px 4px;
   flex: none;
 }
 
@@ -2700,7 +2700,7 @@ button.small {
 .workspace-head:hover .workspace-search,
 .workspace-search:focus {
   width: 96px;
-  padding: 2px 6px;
+  padding: 2px 4px;
   opacity: 1;
   border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
@@ -2755,8 +2755,8 @@ button.small {
   /* 右侧留出指示线的定位参照 */
   position: relative;
   /* 顺序有意义：先 padding-left，再被整条 padding 覆盖（与合并前一致） */
-  padding-left: 14px;
-  padding: 14px 20px 6px;
+  padding-left: 16px;
+  padding: 16px 20px 4px;
   background: transparent;
   border-bottom: none;
 }
@@ -2766,7 +2766,7 @@ button.small {
   color: var(--text-muted);
   border: 0.5px solid var(--border-strong);
   border-radius: var(--r-sm);
-  padding: 0 6px;
+  padding: 0 4px;
   line-height: 17px;
   white-space: nowrap;
 }
@@ -2939,7 +2939,7 @@ button.small {
   background: var(--bg-input);
   border: 0.5px solid var(--border-strong);
   border-radius: var(--r-lg);
-  padding: 6px 10px 4px;
+  padding: 4px 8px 4px;
   /* 阅读宽度上限 + 居中（margin:0 auto 与 margin-left/right:auto 等价，合并成一处） */
   max-width: var(--content-read);
   margin: 0 auto;
@@ -2974,7 +2974,7 @@ button.small {
 
 .field-group {
   border-top: 0.5px solid var(--border);
-  margin-top: 14px;
+  margin-top: 16px;
   padding-top: 12px;
 }
 
@@ -3083,7 +3083,7 @@ body.is-resizing {
 
 /* 展开后整行变成搜索框，标题和图标都让位 */
 .workspace-head.searching {
-  padding: 8px 10px 6px;
+  padding: 8px 8px 4px;
 }
 
 .search-box {
@@ -3158,7 +3158,7 @@ body.is-resizing {
   height: 14px;
   padding: 0 20px;
   flex: none;
-  margin: 6px 0;
+  margin: 4px 0;
   overflow: hidden;
 }
 
@@ -3272,8 +3272,8 @@ body.is-resizing {
 /* 展开后的完整内容 */
 .trace-detail {
   flex-basis: 100%;
-  margin: 4px 0 6px 60px;
-  padding: 8px 10px;
+  margin: 4px 0 4px 60px;
+  padding: 8px 8px;
   background: var(--color-code-block);
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
@@ -3434,7 +3434,7 @@ body.is-resizing {
 .settings-topbar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   height: 38px;
   flex: none;
   padding: 0 16px;
@@ -3458,7 +3458,7 @@ body.is-resizing {
 .settings-nav {
   border-right: 0.5px solid var(--border);
   background: var(--bg-sidebar);
-  padding: 10px 0;
+  padding: 8px 0;
   overflow-y: auto;
 }
 
@@ -3469,7 +3469,7 @@ body.is-resizing {
   /* 同 .nav-item：flex 子项必须明确靠左 */
   justify-content: flex-start;
   gap: var(--g-2);
-  padding: 6px 16px;
+  padding: 4px 16px;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -3508,7 +3508,7 @@ body.is-resizing {
   font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--text-strong);
-  margin: 0 0 6px;
+  margin: 0 0 4px;
 }
 
 .settings-subhead {
@@ -3530,7 +3530,7 @@ body.is-resizing {
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
   font-size: var(--fs-sm);
-  margin: 10px 0;
+  margin: 8px 0;
 }
 
 .settings-readonly-key {
@@ -3549,7 +3549,7 @@ body.is-resizing {
   justify-content: flex-end;
   gap: var(--g-3);
   margin-top: 20px;
-  padding-top: 14px;
+  padding-top: 16px;
   border-top: 0.5px solid var(--border);
 }
 
@@ -3617,7 +3617,7 @@ body.is-resizing {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
   gap: var(--g-4);
-  margin: 14px 0;
+  margin: 16px 0;
 }
 
 .model-list {
@@ -3636,7 +3636,7 @@ body.is-resizing {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 6px 10px;
+  padding: 4px 8px;
   text-align: left;
   background: transparent;
   border: none;
@@ -3659,7 +3659,7 @@ body.is-resizing {
    *   padding    → 全局是 `0 12px`，这里要上下留白 */
   height: auto;
   align-items: stretch;
-  padding: 6px 10px;
+  padding: 4px 8px;
 }
 
 .model-item:hover {
@@ -3692,7 +3692,7 @@ body.is-resizing {
 }
 
 .model-add {
-  margin-top: 6px;
+  margin-top: 4px;
   align-self: flex-start;
 }
 
@@ -3708,7 +3708,7 @@ body.is-resizing {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .model-detail-head h3 {
@@ -3734,7 +3734,7 @@ body.is-resizing {
   display: flex;
   align-items: center;
   gap: var(--g-2);
-  margin: 10px 0;
+  margin: 8px 0;
   font-size: var(--fs-md);
   cursor: pointer;
 }
@@ -3750,7 +3750,7 @@ body.is-resizing {
   display: flex;
   flex-direction: column;
   gap: var(--g-2);
-  margin: 10px 0;
+  margin: 8px 0;
 }
 
 .role-row {
@@ -3781,7 +3781,7 @@ body.is-resizing {
    ============================================================ */
 
 .batch-block {
-  margin: 6px 0 10px;
+  margin: 4px 0 8px;
   max-width: var(--content-wide);
   margin-left: auto;
   margin-right: auto;
@@ -3793,7 +3793,7 @@ body.is-resizing {
   display: flex;
   align-items: center;
   gap: var(--g-2);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .batch-rule {
@@ -3836,7 +3836,7 @@ body.is-resizing {
 .batch-tasks {
   list-style: none;
   margin: 0;
-  padding: 0 0 0 10px;
+  padding: 0 0 0 8px;
   display: flex;
   flex-direction: column;
   gap: var(--g-05);
@@ -3848,7 +3848,7 @@ body.is-resizing {
   align-items: center;
   gap: var(--g-2);
   width: 100%;
-  padding: 2px 8px 2px 6px;
+  padding: 2px 8px 2px 4px;
   background: transparent;
   border: none;
   border-radius: var(--r-sm);
@@ -4006,7 +4006,7 @@ body.is-resizing {
   display: flex;
   flex-wrap: wrap;
   gap: var(--g-2);
-  padding: 8px 10px 0;
+  padding: 8px 8px 0;
 }
 
 .attachment-chip {
@@ -4125,7 +4125,7 @@ body.is-resizing {
 
 .palette-input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 16px 16px;
   background: var(--bg-input);
   border: none;
   border-bottom: 0.5px solid var(--border);
@@ -4140,7 +4140,7 @@ body.is-resizing {
 
 .palette-list {
   overflow-y: auto;
-  padding: 6px 0;
+  padding: 4px 0;
 }
 
 .palette-group {
@@ -4243,7 +4243,7 @@ body.is-resizing {
   left: 10px;
   right: 10px;
   bottom: 100%;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   max-height: 260px;
   overflow-y: auto;
   background: var(--bg-elevated);
@@ -4258,7 +4258,7 @@ body.is-resizing {
   align-items: baseline;
   gap: var(--g-25);
   width: 100%;
-  padding: 6px 12px;
+  padding: 4px 12px;
   background: transparent;
   border: none;
   color: var(--text);
@@ -4285,7 +4285,7 @@ body.is-resizing {
 }
 
 .mention-empty {
-  padding: 14px 12px;
+  padding: 16px 12px;
   color: var(--text-dim);
   font-size: var(--fs-sm);
   text-align: center;
@@ -4381,7 +4381,7 @@ body.is-resizing {
   display: flex;
   flex-direction: column;
   gap: var(--g-1);
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--bg-elevated);
   border: 0.5px solid var(--border);
   border-radius: var(--r-sm);
@@ -4512,7 +4512,7 @@ body.is-resizing {
   bottom: 60px;
   width: 420px;
   max-width: calc(100vw - 40px);
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--bg-elevated);
   border: 0.5px solid var(--border-strong);
   border-left-width: 3px;
@@ -4538,12 +4538,12 @@ body.is-resizing {
   display: flex;
   align-items: baseline;
   gap: var(--g-2);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .error-card-kind {
   flex-shrink: 0;
-  padding: 1px 6px;
+  padding: 1px 4px;
   border-radius: var(--r-sm);
   font-size: var(--fs-xs);
   background: var(--bg-input);
@@ -4611,7 +4611,7 @@ body.is-resizing {
 }
 
 .error-card-detail pre {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   padding: var(--g-2);
   background: var(--bg-input);
   border-radius: var(--r-sm);
@@ -4720,7 +4720,7 @@ body.is-resizing {
   display: flex;
   align-items: baseline;
   gap: var(--g-15);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .approval-agent {

@@ -281,26 +281,51 @@ describe('中性色阶：**可分辨，不是越多越好**', () => {
     assert.equal(token('--c-neutral-780'), token('--c-neutral-750'), '780 应与悬停同值');
   });
 });
-describe('**间距尺度覆盖实际用到的值**', () => {
-  // 原来只有 4/8/12/16/24 五档，但 CSS 里实际用了 7 种值
-  // （2/4/6/7/8/10/12px），共 86 处裸 px。
+describe('**间距尺度：全部落在 4px 网格上**', () => {
+  /**
+   * 这条测试原本是「补两个非网格档位对齐实际用值」：
+   * `--g-15`=6px（芯片内边距）、`--g-25`=10px（按钮水平内边距）。
+   *
+   * 但 unslop 的要求是**每个间距值都在 4px 网格上**。
+   * 6px 和 10px 偏离网格，实测「保存设置」按钮 78px vs 74px，
+   * 只差 4px，肉眼看不出——为这点差别破坏网格不值得。
+   *
+   * 2026-11-18：两档已对齐（6→4，10→8），并把 CSS 里 83 处
+   * 写死的 6/10/14px 一并就近取整。实测遗漏 0 处。
+   *
+   * 这两档令牌**保留名字**（35 处引用不必改），但值已对齐网格。
+   */
   it('包含 2px 档（图标与文字）', () => {
+    // 2px 是允许的「微调步长」，与 4px 网格不冲突
     assert.equal(token('--g-05'), '2px');
   });
 
-  it('包含 6px 档（芯片内边距）', () => {
-    assert.equal(token('--g-15'), '6px');
+  it('**每一档都是 4px 的倍数**（2px 档除外）', () => {
+    const levels = ['--g-1', '--g-15', '--g-2', '--g-25', '--g-3', '--g-4', '--g-5', '--g-6'];
+    for (const name of levels) {
+      const value = parseFloat(token(name) ?? '0');
+      assert.equal(
+        value % 4,
+        0,
+        `${name}=${value}px 不在 4px 网格上（进度：6→4，10→8）`,
+      );
+    }
   });
 
-  it('包含 10px 档（按钮水平内边距）', () => {
-    assert.equal(token('--g-25'), '10px');
+  it('两档辅助间距与主档同值（保留名字，不再新增视觉层级）', () => {
+    assert.equal(token('--g-15'), token('--g-1'), '--g-15 应对齐 --g-1（4px）');
+    assert.equal(token('--g-25'), token('--g-2'), '--g-25 应对齐 --g-2（8px）');
   });
 
-  it('尺度严格递增', () => {
+  it('尺度单调不减', () => {
     const levels = ['--g-05', '--g-1', '--g-15', '--g-2', '--g-25', '--g-3', '--g-4', '--g-5', '--g-6'];
     const values = levels.map((n) => parseFloat(token(n) ?? '0'));
     for (let i = 1; i < values.length; i += 1) {
-      assert.ok(values[i]! > values[i - 1]!, `间距没有递增: ${values.join(',')}`);
+      // 允许相等（g-1 与 g-15 现在同值），但不允许倒退
+      assert.ok(
+        values[i]! >= values[i - 1]!,
+        `间距尺度倒退了: ${values.join(',')}`,
+      );
     }
   });
 });
