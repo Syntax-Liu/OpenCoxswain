@@ -17,6 +17,10 @@
 1. [这份文档怎么用](#1-这份文档怎么用)
 2. [现状地图](#2-现状地图)
 3. [设计令牌全表](#3-设计令牌全表)
+   - [3.9 控件规格：总览](#39-控件规格总览)
+   - [3.10 Button](#310-button) · [3.11 ListItem](#311-listitem) · [3.12 OptionItem](#312-optionitem)
+   - [3.13 SendButton](#313-sendbutton) · [3.14 Field + Input](#314-field-input)
+   - [3.15 控件层的边界](#315-边界控件层管什么不管什么) · [3.16 文字截断](#316-文字截断)
 4. [打磨清单](#4-打磨清单)
 5. [改造流程](#5-改造流程)
 6. [验收命令与判据](#6-验收命令与判据)
@@ -96,20 +100,24 @@
 
 **所有界面元素都必须从这里拿。** 裸写 `<button>` / `<input>` 会导致测试失败。
 
-| 导出 | 用于 |
-| --- | --- |
-| `Button` | 普通动作。变体：`primary` / `secondary` / `ghost` |
-| `DangerButton` | 删除、清空、拒绝 |
-| `TextButton` | 看起来像链接的按钮 |
-| `IconButton` | 纯图标，`label` 必填 |
-| `ListItem` | 列表行 / 导航项 |
-| `MenuItem` | 右键菜单项 |
-| `OptionItem` | 单选组 / 页签 / 可选中项 |
-| `SendButton` | 34×34 正圆发送键 |
-| `WindowButton` | 标题栏最小化/最大化/关闭 |
-| `Field` + `TextInput` / `Textarea` | 表单 |
-| `Select` | 下拉（自绘，不用原生 `<select>`） |
-| `Text` | 文字容器，`truncate` 自带截断四件套 |
+| 导出 | 用于 | 详细规格 |
+| --- | --- | --- |
+| `Button` | 普通动作。变体 `primary` / `secondary` / `ghost` | [§3.10](#310-button) |
+| `DangerButton` | 删除、清空、拒绝 | [§3.10](#310-button) |
+| `TextButton` | 看起来像链接的按钮 | [§3.10](#310-button) |
+| `IconButton` | 纯图标，`label` 必填 | [§3.10](#310-button) |
+| `ListItem` | 列表行 / 导航项 | [§3.11](#311-listitem) |
+| `MenuItem` | 右键菜单项 | [§3.11](#311-listitem) |
+| `OptionItem` | 单选组 / 页签 / 可选中项 | [§3.12](#312-optionitem) |
+| `SendButton` | 34×34 正圆发送键 | [§3.13](#313-sendbutton) |
+| `WindowButton` | 标题栏最小化 / 最大化 / 关闭 | — |
+| `Field` + `TextInput` / `Textarea` | 表单 | [§3.14](#314-field-input) |
+| `Select` | 下拉（自绘，不用原生 `<select>`） | — |
+| `Text` | 文字容器，`truncate` 自带截断四件套 | [§3.16](#316-文字截断) |
+
+> **规格的唯一来源是代码，不是这份文档。**
+> 下面的表格由 `node scripts/extract-specs.mjs` 从 `ui.css` / `styles.css`
+> 提取，改代码后请重跑并核对。数字腐烂是这类文档最常见的失效方式。
 
 ### 2.4 数据是运行时来的
 
@@ -122,27 +130,38 @@
 **含义**：改样式时用真实数据才看得见问题。空数据下不溢出的地方，
 填了长项目名就撑破——这正是过去反复出现的 bug。
 
-### 2.5 当前的 CSS 现状（改造的起点）
+### 2.5 当前的 CSS 现状
 
-> 以下为 **2026-11-17 清理后**的实测值（`grep -cE '^\.选择器([ ,:{]|$)'`）。
-> 左列是清理前的数字，右列是现在——**大部分重复已合并**。
-> 这些数字会随时间腐烂，以命令输出为准。
+> **2026-11-18 实测**。这些数字会随时间腐烂，以命令输出为准。
 
-| 指标 | 清理前 | 现在 | 说明 |
-| --- | --- | --- | --- |
-| `styles.css` 行数 | 6530 | **6568** | 一个文件装全部（净减 88 行，新增了注释） |
-| `.md-body` 规则块 | 27（含 2 块空壳） | **23** | 不同元素各一块，**不是**同一选择器重复 |
-| `.thread-list` | 14 | **14** | 大量是状态修饰（`:hover` / `.active`），属正常 |
-| `.composer` / `.composer-box` | 9 / 9 | **6 / 6** | 基础定义已各合并为 1 处 |
-| `.project-folder` / `.thread-item` | 8 / 8 | **5 / 4** | 同上 |
-| `.messages` | 7 | **3** | 同上 |
-| 空规则块 | 9 | **0** | 已全部删除 |
-| CSS 快照判等 | 无 | **`scripts/css-snapshot.mjs`** | 改前后比对计算样式 |
-| `.conversation-header` / `.effects-list` | **7** / **7** | |
-| 行高取值 | **15 种** | 1.3 / 1.4 / 1.45 / 1.5 / 1.55 / 1.6 / 1.625 / 1.7 / 1.8 / 1 / 17px / 18px / 20px / 22px / 34px |
+| 指标 | 值 | 说明 |
+| --- | --- | --- |
+| `styles.css` | **6685 行** | 历史遗留：各场景类、一次性样式 |
+| `ui.css` | **约 290 行** | **控件层契约**——改控件只看这个文件 |
+| 空规则块 | **0** | 已全部删除 |
+| 写死的 `font-size` | **0** | 全部令牌化 |
+| 写死的 `border-radius` | 1 | 是 `calc()` 计算值，非硬编码 |
 
-**这就是「细节总打磨不好」的结构性原因**——不是审美问题，是
-**同一个元素有十几条规则在抢**，改哪条生效取决于位置和优先级。
+#### 为什么拆成两个文件
+
+控件层重做时，每一轮都是"把带说明的规格块追加到 `styles.css` 末尾"。
+追加是刻意的——为了避开前 6700 行的 CRLF 混排区（见 [§7.2](#72-stylescss-混排-crlf-与-lf)），
+整块重写会产生几百行假 diff。但文件因此涨到 7000+ 行。
+
+现在这些规格块移到了 `ui.css`：
+
+```
+main.tsx 里：
+  import './styles.css';   ← 历史遗留，先加载
+  import './ui.css';       ← 控件契约，后加载（层叠上覆盖前者）
+```
+
+**加载顺序决定了层叠结果**，这一点在 [§7.1](#71-改-css-以为生效实际被覆盖) 里详述。
+
+> ⚠️ **注意**：正因为 `ui.css` 后加载，里面写的**每一条规则都会压过
+> `styles.css` 里的同名属性**。骨架类尤其要小心：
+> `.option-item` 曾经因为写了 `width: 100%` 和 `border-radius`，
+> 把场景类的形状全部覆盖掉（见 [§7.9](#79-骨架类覆盖了场景类的形状)）。
 
 ---
 
@@ -253,6 +272,309 @@
 > ⚠️ `--color-action` 是**填充色**（要亮，压白字），
 > `--color-action-text` 是**文字色**（要暗，压浅底）。
 > 混用会导致对比度不达标——这个 bug 犯过（亮色下 3.66:1）。
+
+---
+
+### 3.9 控件规格：总览
+
+控件层有 **5 个基础控件**，围绕它们再派生 7 个专用控件。
+所有控件的尺寸只从三档里选，不允许中间值。
+
+| 控件 | 尺寸档 | 高度 | 字号 | 圆角 |
+| --- | --- | --- | --- | --- |
+| Button | sm / md / lg | 22 / 26 / 32 | 14 / 14 / 16 | 4 / 4 / 8 |
+| IconButton | sm / md | 22×22 / 26×26 | — | 4 |
+| ListItem | compact / normal / roomy | 22 / 26 / 32 | 14 / 14 / 16 | 4 / 4 / 8 |
+| OptionItem | 由场景类决定 | 通常 26+ | 14 | 4（场景可覆盖） |
+| Input | sm / md | 22 / 26 | 14 | 4 |
+| SendButton | — | 34×34 | — | 50%（正圆） |
+
+### 三条跨控件的硬规矩
+
+1. **Button 与 Input 同高同圆角。** 一行里同时出现按钮和输入框时，
+   它们的顶边、底边、圆角必须对齐。
+2. **只有 lg 档用正文级字号**（`--fs-md`）。sm/md 用 `--fs-sm`——
+   小控件用大字号会显得笨重。
+3. **所有控件 `line-height: 1`**（不含多行内容）。
+   否则不同字号档的垂直居中程度不一致，图标和文字中线对不齐。
+
+---
+
+### 3.10 Button
+
+`src/ui/Button.tsx` · 样式在 `ui.css`
+
+![Button 暗色](assets/controls/dark-button.png)
+
+![Button 亮色](assets/controls/light-button.png)
+
+### 对外只暴露 3 个变体
+
+| 变体 | 用在哪 | 一屏数量 |
+| --- | --- | --- |
+| `primary` | 保存 / 确认 / 发送 | **只能一个** |
+| `secondary` | 取消 / 关闭 / 返回 | 任意 |
+| `ghost` | 展开 / 收起 / 更多 | 任意 |
+
+`danger`（删除）与 `link`（文字按钮）**不在公开面**：
+要用必须写 `<DangerButton>` / `<TextButton>` 这些名字。
+目的是拦住"随手一个红按钮"——写出这个名字就等于承认它会毁东西。
+
+### 尺寸
+
+| 档位 | 高度 | 内边距 | 字号 | 圆角 | 用在哪 |
+| --- | --- | --- | --- | --- | --- |
+| `sm` | 22px | 0 8px | 14px | 4px | 工具栏、行内动作 |
+| `md` | 26px | 0 10px | 14px | 4px | **默认** |
+| `lg` | 32px | 0 14px | 16px | 8px | 主操作、欢迎页 |
+
+### 五种状态
+
+| 状态 | 表现 |
+| --- | --- |
+| 默认 | 按变体着色 |
+| `:hover` | 背景加深一档（`--color-surface-hover`） |
+| `:active` | `translateY(0.5px)`——**只位移，不缩放** |
+| `:focus-visible` | `outline: 2px` + `offset: 2px` |
+| `:disabled` | `opacity: 0.45` + `cursor: not-allowed` |
+| `loading` | 保留文字 + 右侧转圈 + `aria-busy` + 自动禁用 |
+
+> **为什么 active 不用 `scale(0.97)`**：缩放在密集工具栏里会让相邻按钮
+> 产生错位感。位移只影响自己。
+
+> **为什么 loading 不移除文字**：按钮突然变空白或变成"…"，
+> 用户会以为自己点丢了。
+
+### 胶囊形态
+
+```css
+.btn--pill { border-radius: calc(var(--h-md) / 2); }        /* 26px 高 → 13px */
+.btn--pill.btn--sm { border-radius: calc(var(--h-sm) / 2); }
+.btn--pill.btn--lg { border-radius: calc(var(--h-lg) / 2); }
+```
+
+**不能用 `border-radius: 50%`**——它的语义是"横半径=宽的一半、纵半径=高的一半"，
+只有正方形才是正圆。套在 176×26 的按钮上就是一个明显的椭圆。
+
+---
+
+### 3.11 ListItem
+
+`src/ui/ListItem.tsx`
+
+![ListItem 暗色](assets/controls/dark-list-item.png)
+
+![ListItem 亮色](assets/controls/light-list-item.png)
+
+### 与 Button 的区别不是审美，是语义
+
+| | Button | ListItem |
+| --- | --- | --- |
+| 占位 | 有内边距的独立控件 | **撑满整行** |
+| 对齐 | 居中 | **左对齐**（图标 + 文字） |
+| 高度 | 22 / 26 / 32 | 22 / 26 / 32（同三档） |
+| 焦点 | 圆角描边 | 整行高亮 |
+| 用途 | 触发动作 | **选择一项** |
+
+### 密度档
+
+| 类名 | 高度 | 字号 | 圆角 |
+| --- | --- | --- | --- |
+| `list-item--compact` | 22px | 14px | 4px |
+| （默认） | 26px | 14px | 4px |
+| `list-item--roomy` | 32px | 16px | 8px |
+
+### 多行变体必须显式解除固定高度
+
+`.list-item` 有 `height`，那是给**单行**列表项的。
+带说明文字的卡片（`onboarding-card` / `rail-empty-card`）内容更高，
+继承 26px 会溢出，表现成"图标压着边框、文字偏下"。
+
+```css
+/* 这类变体统一在 ui.css 给出骨架 */
+.onboarding-card,
+.rail-empty-card {
+  height: auto;
+  min-height: var(--h-lg);
+  align-items: center;      /* 多行内容要居中，不是 flex-start */
+  line-height: var(--lh-normal);  /* 覆盖 .btn 的 line-height: 1 */
+  white-space: normal;      /* 多行要允许换行 */
+}
+```
+
+> **继承类的四件套**：`height` / `line-height` / `white-space` / `align-items`。
+> 单行基类改成多行变体时，这四条几乎都要覆盖。详见 [§7.8](#78-组件继承了不该继承的固定尺寸)。
+
+---
+
+### 3.12 OptionItem
+
+`src/ui/OptionItem.tsx`
+
+![OptionItem 暗色](assets/controls/dark-option-item.png)
+
+![OptionItem 亮色](assets/controls/light-option-item.png)
+
+### 与 ListItem 的区别
+
+`OptionItem` **一定要表达"选中了哪一项"**，`selected` 会自动同步到
+`aria-selected`。`ListItem` 只是"能点的一行"。
+
+### 骨架给骨架，形状归场景
+
+```css
+/* ui.css —— 骨架只写公共契约 */
+.option-item {
+  display: flex;
+  gap: var(--g-2);
+  width: auto;            /* ← 不写 100% */
+  /* border-radius 也不写 */
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+}
+
+/* 满宽交给场景类 */
+.option-item.rail-tab,
+.option-item.ui-select-item,
+.option-item.template-card,
+.option-item.perm-picker-item,
+.option-item.model-item,
+.option-item.settings-nav-item {
+  width: 100%;
+}
+```
+
+> **踩过两次的坑**：骨架里写 `width: 100%` 会把 `.jump-bottom`（32×32 正圆）
+> 拉成整行长条；写 `border-radius` 会压过所有场景类的圆角。
+> 原因见 [§7.9](#79-骨架类覆盖了场景类的形状)。
+
+### 有意的例外：`settings-nav-item` 是直角
+
+它是设置页**左侧整列导航**——一列连续条目，不是一张张独立卡片。
+加圆角会在条目之间留下锯齿缺口。这是形态差异，不是没统一。
+
+---
+
+### 3.13 SendButton
+
+`src/ui/OptionItem.tsx`（同文件）
+
+![SendButton](assets/controls/dark-send.png)
+
+**34×34 正圆。** 形状是与 Button 的**刻意差异**：
+
+> 通用按钮是胶囊/矩形语义，套上去会得到 40×26 的椭圆。
+> `.send-btn` 自己保证宽高相等 → 正圆。
+
+`aria-label` 必填——纯图标按钮没有名字，读屏用户找不到它。
+
+---
+
+### 3.14 Field + Input
+
+`src/ui/Field.tsx`
+
+![输入控件暗色](assets/controls/dark-input.png)
+
+![输入控件亮色](assets/controls/light-input.png)
+
+### 尺寸
+
+| 档位 | 高度 | 内边距 | 字号 | 圆角 |
+| --- | --- | --- | --- | --- |
+| `sm` | 22px | 0 8px | 14px | 4px |
+| `md` | 26px | 0 10px | 14px | 4px |
+
+**与 Button 完全对齐**——同高、同圆角。
+
+### 焦点用边框，不用 outline
+
+```css
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 1px var(--color-border-focus);
+}
+```
+
+> 按钮的焦点是"跳出一个外框"，**输入框的焦点应该是"边框亮起来"**。
+> 这是两种语言，混用会让输入区看起来像一堆按钮。
+
+### 报错态
+
+`.field--error` 或 `aria-invalid="true"` 时边框转危险色，焦点时保持危险色。
+
+### `hidden` 必须真的隐藏
+
+输入契约规则写的是 `display: block`，选择器具体度（0,2,1）
+**高于** `[hidden]` 的 UA 样式（0,1,0）。所以必须补：
+
+```css
+input[hidden],
+input[type="file"][hidden],
+textarea[hidden] {
+  display: none;
+}
+```
+
+> 不补的话，`<input type="file" hidden>` 会露出浏览器的原生控件——
+> 暗色界面上一个白底的"选择文件"，非常突兀。
+
+### Field 负责接线
+
+`Field` 用 render function 而不是直接传 children：
+
+```tsx
+<Field label="模型密钥" hint="只保存在本机">
+  {(ids) => (
+    <TextInput
+      id={ids.id}
+      aria-describedby={ids.describedBy}
+      aria-invalid={ids.invalid}
+    />
+  )}
+</Field>
+```
+
+控件的 `id` 要让 `<label for>` 指过去，`aria-describedby` 要指到说明上。
+这两根线如果让每个调用方自己接，迟早有地方漏接，读屏用户就读不到报错。
+
+---
+
+### 3.15 边界：控件层管什么，不管什么
+
+| 管 | 不管 |
+| --- | --- |
+| 尺寸、圆角、字号、行高 | 布局（flex/grid 排布） |
+| 五种状态的视觉 | 业务数据从哪来 |
+| 无障碍（aria、焦点、键盘） | 动画的具体内容 |
+| 子元素的相对位置 | 页面级的留白与分栏 |
+
+**判断标准**：如果一个属性在**任意页面**都应该是同一个值，
+它属于控件层；如果它取决于出现在哪个页面，它属于场景类。
+
+---
+
+### 3.16 文字截断
+
+`src/ui/Text.tsx` 的 `truncate` 自带截断四件套：
+
+```css
+.truncate {
+  min-width: 0;          /* ← 最容易被漏掉的一条 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+```
+
+> **`min-width: 0` 是必须的**：flex 子项默认 `min-width: auto`，
+> 不写这条，后面三条全部失效，长文字会撑破容器而不是显示省略号。
+
+新增会显示用户输入文字的元素时，必须登记到
+`apps/web/src/test/overflowCoverage.test.ts` 的 `BOUNDED_TEXTS`，
+否则体检不检查它。
 
 ---
 
@@ -601,6 +923,61 @@ grep -cE '^\.md-body([ ,:{]|$)' apps/web/src/styles.css
    icon.top - card.top, card.bottom - icon.bottom // 上下留白是否相等
    ```
    截图里"看起来挤"很难判断是 padding 问题还是高度问题，数字一秒说清。
+
+---
+
+### 7.9 骨架类覆盖了场景类的形状
+
+**现象**：给 `.option-item` 骨架补了公共规格（圆角、宽度）之后，
+「回到底部」按钮从小圆点变成了一条横贯对话区的**长条**；
+再改圆角，所有页签的圆角又全部消失。
+
+**根因**：`ui.css` 在 `styles.css` **之后**加载。
+
+```
+main.tsx:
+  import './styles.css';   ← 先加载（场景类在这里）
+  import './ui.css';       /* 后加载（骨架在这里）*/
+```
+
+CSS 层叠：**具体度相同时，后来者胜**。
+
+`.option-item`（0,1,0）和 `.jump-bottom`（0,1,0）具体度相同，
+所以骨架的 `width: 100%` / `border-radius` 一律压过场景类。
+
+**踩了三次**：
+
+| 改动 | 后果 |
+| --- | --- |
+| 骨架加 `width: 100%` | 32×32 正圆被拉成整行长条 |
+| 骨架圆角写 `--r-xs` | 正圆被压成 4px 圆角方块 |
+| 骨架圆角改 `0` | 所有场景圆角全归零 |
+
+**防法**：
+
+1. **骨架只写"所有场景都一样"的属性**：`display` / `gap` / `font-size` /
+   `line-height` / `color` / `cursor` / `transition`
+2. **形状类属性（`width` / `height` / `border-radius`）交给场景类**。
+   确实需要统一时，用**场景类列表**显式写：
+
+   ```css
+   /* 对，在 ui.css 里列出需要的场景 */
+   .option-item.rail-tab,
+   .option-item.ui-select-item,
+   .option-item.template-card {
+     width: 100%;
+   }
+   ```
+   （`.option-item.rail-tab` 具体度 0,2,0，高于单个场景类，不会打架）
+
+3. **改完必须量真实渲染**。这类问题肉眼很难判断——
+   "按钮变小了"和"被 CSS 覆盖了"看起来一样。
+
+   ```js
+   const el = document.querySelector('.jump-bottom');
+   console.log(el.getBoundingClientRect().width, getComputedStyle(el).borderRadius);
+   // 32 32 50%  ← 才对
+   ```
 
 ---
 

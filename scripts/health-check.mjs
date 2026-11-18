@@ -273,6 +273,37 @@ async function checkEol() {
 }
 
 // ---------------------------------------------------------------------------
+// 7. 文档完整性（图片存在、锚点有效）
+// ---------------------------------------------------------------------------
+/**
+ * 文档里的图片路径写错、锚点指向不存在的标题——
+ * 这两种腐烂只在别人点开时才发现。
+ *
+ * `ui-dev-guide.md` 现在有 9 张控件截图和 30 个站内锚点，
+ * 靠人肉核对不现实。
+ */
+async function checkDocs() {
+  const script = path.join(ROOT, 'scripts/check-doc.mjs');
+  if (!(await exists(script))) {
+    checks.push({ status: 'info', msg: 'check-doc.mjs 不存在，跳过文档检查' });
+    return;
+  }
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const run = promisify(execFile);
+    const { stdout } = await run(process.execPath, [script], { cwd: ROOT, encoding: 'utf8' });
+    const lines = stdout.trim().split('\n');
+    const img = lines.find((l) => l.includes('图片')) ?? '';
+    const anchor = lines.find((l) => l.includes('锚点')) ?? '';
+    ok(`文档完整：${img}，${anchor}`);
+  } catch (error) {
+    const detail = String(error.stdout ?? error.stderr ?? '').trim();
+    bad('文档里有失效的图片或锚点', detail);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
 async function main() {
@@ -284,6 +315,7 @@ async function main() {
   await checkImports();
   await checkPs1Bom();
   await checkEol();
+  await checkDocs();
 
   for (const c of checks) {
     const icon = c.status === 'pass' ? '✓' : c.status === 'info' ? '·' : '✗';
