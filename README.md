@@ -1,180 +1,158 @@
-# OpenCoxswain · 舵手
+# OpenCoxswain
 
-**本地优先的四层 AI 助理**。你只对 Assistant 说话，它把活派给 Agent 并行干，谁先完成先报谁。
+<p align="center">
+  <strong>A local-first coding assistant with a four-tier agent structure.</strong>
+</p>
 
-> **完全自研**：不依赖 dsh、TRAE 或任何外部 Agent 框架。只依赖 Node.js 与一个 OpenAI 兼容的模型端点。
+<p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-> ⚠️ **早期项目（0.x），可以日常用，但别指望它不出错。**
->
-> 已知没做完的：
-> - **方案审批的「批准后自动推进」还没接**——现在批准方案不会自动往下走
-> - 自动更新依赖仓库公开（目前在私有仓库下 `latest.json` 取不到）
-> - 只在 Windows 上验证过，Linux / macOS 没有 CI
->
-> 怎么跑起来、怎么参与见 [CONTRIBUTING.md](CONTRIBUTING.md)。
-> 安全相关问题见 [SECURITY.md](SECURITY.md)，**不要开公开 issue**。
+You talk to one Assistant. It splits the work across parallel Agents and reports each result as it lands.
 
-## 四层结构
+> **Status: 0.x, early.** Usable day to day on Windows. Expect rough edges.
+
+## How it works
 
 ```
-User ─────────→ Supervisor   跨项目统筹：全局视图、跨项目冲突、优先级裁决、跨项目记忆
+User ────────→ Supervisor   Cross-project view, conflict resolution, priority calls
   │
-  └─→ Assistant              一项目一常驻会话，项目的主人（主推入口）
+  └─→ Assistant             One persistent session per project. The main entry point.
         │
-        └─→ Agent            一事一 Agent，直接改代码，可被追问
+        └─→ Agent           One Agent per task. Edits code directly, accepts follow-ups.
 ```
 
-> 命名以 [docs/glossary.md](docs/glossary.md) 为准：
-> **User / Supervisor / Assistant / Agent**（文案一律首字母大写）。
+| Tier | Scope | Lifetime |
+| --- | --- | --- |
+| **Supervisor** | Every project at once | Global, backend only |
+| **Assistant** | One project | Persistent per project, survives restarts |
+| **Agent** | One task | Created per task, can be followed up |
 
-## 主推流程
+Naming follows [docs/glossary.md](docs/glossary.md). The tier names are always capitalized.
 
-```
-打开项目 → 对 Assistant 说："把登录页重构一下"
-  └─ Assistant 立刻回一句（不阻塞），然后派 Agent
-你又发（Assistant 还没答完）："顺便看看导出为什么卡住"
-  └─ 消息排队，不打断；Assistant 判断两件事不冲突 → 再派一个 Agent，并行
-Agent#1 先完成 → Assistant 立刻汇报 Agent#1，不等 Agent#2
-Agent#2 卡住 → Assistant 按卡点分类自己先推进；真要问你时只问一件
-```
+## Install
 
-## 快速开始
+There is no published installer yet. Build from source.
+
+Requirements: **Node.js ≥ 22** and **pnpm 10**. Rust 1.77+ is needed only for the desktop installer.
 
 ```bash
 pnpm install
 pnpm build
+```
 
-# 1. 命令行
+## Quick start
+
+```bash
+# Command line
 export OPENCOXSWAIN_LLM_API_KEY=sk-...
 pnpm runtime --project D:/work/my-app
 
-# 2. 带界面
+# With the web UI
 node apps/runtime/dist/cli.js --project D:/work/my-app --serve --static apps/web/dist
-# 打开 http://127.0.0.1:47900
+# open http://127.0.0.1:47900
 
-# 3. 桌面应用
-pnpm app:build        # 产物在 apps/shell/src-tauri/target/release/bundle/nsis/
+# Desktop app
+pnpm app:build     # output in apps/shell/src-tauri/target/release/bundle/nsis/
 ```
 
-## 安装时 Windows 会拦一下（正常现象）
+The runtime serves the API and the UI on the same port, so there is no second server and no CORS setup.
 
-安装包**没有购买代码签名证书**，所以首次运行 Windows 会显示：
+## Features
 
-> Windows 已保护你的电脑 —— Microsoft Defender SmartScreen 阻止了无法识别的应用启动
+- **Persistent Assistant.** One session per project. Close the app and reopen it; the conversation is still there.
+- **Parallel execution and independent reporting.** Each Agent settles and reports on its own, without waiting for the others.
+- **Concurrent messages without interruption.** New messages queue in an inbox and are read after the current turn.
+- **Read-only tasks never wait.** Tasks with `writeScope: ["readonly"]` run in parallel with everything. Writing tasks are mutually exclusive on overlapping write scopes.
+- **Ask the Agent again.** Open any Agent to inspect its full trace and continue with context.
+- **Blocker classification.** The Assistant sorts a stalled Agent into retryable, environment, or needs-your-decision, and only then interrupts you.
+- **Memory.** Local Markdown, global and per-project. Rejects temporary instructions, vague preferences, and secrets.
+- **Usage limits.** Set a per-task and daily token cap. The run actually stops when the cap is hit.
+- **Approval for irreversible actions.** Deletes, pushes, releases, payments, and outbound messages pause for your decision before running. Timeouts default to reject.
+- **Replayable SSE.** Reconnects with `?after=` replay missed events. If the backlog is too large, the client gets an explicit notice and refetches a snapshot.
+- **Task templates.** Bug fix, feature, docs, refactor, research. Templates prefill, they never dispatch.
 
-这是「**未知发布者**」，不是检测到病毒。点：
+## Configuration
 
-```
-更多信息  →  仍要运行
-```
+| Variable | Default | Description |
+| --- | --- | --- |
+| `OPENCOXSWAIN_LLM_API_KEY` | empty | Model key. `DEEPSEEK_API_KEY` is also accepted. Can be set in the UI instead. |
+| `OPENCOXSWAIN_LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI-compatible endpoint |
+| `OPENCOXSWAIN_LLM_MODEL` | `deepseek-chat` | Model name |
+| `OPENCOXSWAIN_LLM_FILE` | `~/.opencoxswain/llm.json` | Key file written by the UI. Environment variables take precedence. |
+| `OPENCOXSWAIN_DB` | `~/.opencoxswain/runtime.db` | SQLite database |
+| `OPENCOXSWAIN_MEMORY` | `~/.opencoxswain/memory` | Memory directory |
+| `OPENCOXSWAIN_PORT` | `47900` | HTTP port |
+| `OPENCOXSWAIN_TOKEN` | generated | Local API token. Usually leave alone. |
+| `OPENCOXSWAIN_IM_FILE` | `~/.opencoxswain/im.json` | Telegram channel config |
+| `OPENCOXSWAIN_TELEGRAM_TOKEN` | empty | Telegram bot token, takes precedence over the config file |
+| `TAURI_SIGNING_PRIVATE_KEY` | empty | Release builds only. See [docs/release.md](docs/release.md). |
 
-如果你不放心，可以自己从源码构建（`pnpm app:build`），产物与你下载的一致。
+## Security
 
-> 自动更新包的**签名**是有的——那个签名保证"更新是你装的这个应用发出的"，
-> 与 Windows 是否信任发布者是两件事。详见 [docs/release.md](docs/release.md)。
+The runtime binds to `127.0.0.1` only and requires `Authorization: Bearer <token>` on every API call. The token is generated on first start and stored in `~/.opencoxswain/token`.
 
-## 目录
+Model keys are encrypted with Windows DPAPI, which derives the key from the current user account. A copied key file does not decrypt on another machine or account.
 
-| 路径 | 说明 |
-| --- | --- |
-| `apps/runtime` | **运行时（产品本体）**：四层结构的全部业务逻辑 + HTTP/SSE 服务 |
-| `apps/web` | 工作台界面：项目 → 对 Assistant 说话 → 看 Agent 进展 |
-| `apps/shell` | Tauri 2 桌面壳：拉起运行时并加载其界面 |
-| `apps/daemon`、`apps/desktop` | **legacy**（旧的自研路线），不删、不再演进 |
-| `packages/{shared,core,adapters,memory,plugin-api}` | legacy 内核与业务包，按需抽取复用 |
-| `packages/dsh-bao` | **已冻结**的 dsh 插件，仅作设计参考 |
-| `docs/` | 方案、决策与实测记录，入口见 [docs/README.md](docs/README.md) |
-| `docs/project-status.md` | **项目全景快照**：四层结构、功能清单、代码结构、数据模型、API、决策记录、踩坑史 |
+CORS is restricted to the local UI origin. Any other web page you open cannot reach the API.
 
-## 关键机制
+> An early version shipped with `Access-Control-Allow-Origin: *` and no authentication. That allowed any page in your browser to call the local API and dispatch commands. The current version rejects those calls.
 
-| 机制 | 说明 |
-| --- | --- |
-| **Assistant 常驻** | 一项目一 `assistantSessionId`；关掉软件再打开，Assistant 带着原对话继续 |
-| **关窗口不退出** | 点 × 只是隐藏到托盘，Agent 继续跑；真正退出走托盘菜单「退出」 |
-| **任务模板** | 修缺陷 / 加功能 / 写文档 / 重构 / 调研五类，套用只预填，**不自动派活** |
-| **定时建议** | 到点只提醒，不自动开工——人拍板是产品前提 |
-| **连发不打断** | 新消息进 Inbox 排队，当前这轮跑完才被看到 |
-| **真正的并行** | 只读任务（`writeScope: ["readonly"]`）之间**永远不排队**；写任务按写域相交互斥 |
-| **Agent 可续聊** | 点开任何一个 Agent，看它的完整轨迹并带上下文继续追问 |
-| **先完成先报** | 每个 Agent 独立结算、独立汇报，互不等待 |
-| **卡点三分类** | 可自行重试 / 环境问题 / 需用户决定 —— Assistant 据此决定要不要打扰你 |
-| **记忆** | 本地 Markdown（全局 + 项目两级），写入有门槛：拒绝临时指令、模糊偏好、密钥 |
-| **运行指标** | 轮次 / 步数 / token / 吞吐 / 缓存命中 / 上下文占用。**不做计费**——单价随模型变动，估算只会误导 |
-| **用量止损** | 可设单任务与每日 token 上限，超了**真停**，防止失控 Agent 烧光额度 |
-| **危险动作审批** | 删除 / 推送 / 发布 / 付款 / 对外发送这类**不可逆**动作，**执行前**拦下等你拍板；超时自动拒绝 |
-| **SSE 可重放** | 断线重连带 `?after=` 补发；错过太多会明确告知并重拉快照 |
+Report vulnerabilities privately. See [SECURITY.md](SECURITY.md). Do not open a public issue.
 
-## 测试
+## Desktop app on Windows
+
+The installer is not code-signed, so SmartScreen shows "Windows protected your PC" on first run. Choose **More info → Run anyway**. The updater signature is separate and only proves that an update came from this application.
+
+## Development
 
 ```bash
-pnpm test        # 运行时 865 + 界面 66 = 931 条（不需要浏览器、不需要网络）
-pnpm e2e         # 真实 Chrome 跑 14 条交互用例（需要先 build + 起服务）
+pnpm test        # unit tests, no browser and no network
+pnpm e2e         # browser interaction tests against a running server
 pnpm typecheck
-pnpm app:check   # Rust 壳编译检查
+pnpm app:check   # Rust shell compile check
 ```
 
-**为什么分两层**：
-
-- `pnpm test` 跑纯逻辑与渲染契约，秒级完成，CI 里跑这个。
-- `pnpm e2e` 在真实 Chrome 里跑交互。为什么要单独一层：
-  受控组件（input / select / textarea）在 jsdom / happy-dom + React 18 下
-  **不可靠**——受控值更新后同步读到的 DOM 会与组件状态不一致，
-  写出来的测试时过时不过。真实浏览器没有这个问题。
-
-e2e 需要先构建并起服务：
+The e2e suite needs a built server:
 
 ```bash
 pnpm build
 node apps/runtime/dist/cli.js --serve --static apps/web/dist --port 47910
-pnpm e2e        # OCX_URL 默认指向 127.0.0.1:47910
+pnpm e2e
 ```
 
-运行时测试用**脚本化假模型**驱动，不需要网络，其中包含：
-- 端到端：用户 → Assistant → Agent → **Agent 真的在临时目录写出文件** → Assistant 汇报
-- 并行：**三条只读任务同时进入 running，零排队**（回归过"逐条串行"的缺陷）
-- 续聊：Agent 完成后追问，断言第二轮请求里**确实带着第一轮的目标与结论**
-- 存储：**同一套断言跑内存与 SQLite**，证明换后端不改行为
-- 重启恢复：模拟两次进程启动，断言第二次的上下文里**确实有第一次的对话**
-- 静态资源：路径穿越防护、缓存策略回归
+Unit tests are driven by a scripted fake model. They cover the full pipeline from user message to Agent writing a file and the Assistant reporting it, parallel read-only dispatch with no queueing, follow-up context retention, identical behaviour across the in-memory and SQLite stores, and restart recovery.
 
-## 安全
+Browser tests are separate because controlled inputs (`input`, `select`, `textarea`) misbehave under jsdom or happy-dom with React 18. Real browsers do not have that problem.
 
-| 机制 | 说明 |
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the code map and the contribution workflow.
+
+## Known limitations
+
+- **Plan approval does not auto-advance.** Approving a plan does not start the next step yet.
+- **Windows only.** Linux and macOS have no CI coverage.
+- **No published release.** Auto-update needs a public `latest.json`, which is not hosted yet.
+
+## Repository layout
+
+| Path | Description |
 | --- | --- |
-| **只监听 127.0.0.1** | 外部网络访问不到 |
-| **本机访问令牌** | API 需要 `Authorization: Bearer <token>`；令牌在 `~/.opencoxswain/token`，首次启动自动生成 |
-| **密钥加密（DPAPI）** | 模型密钥以 Windows DPAPI 密文存储，由当前用户账户派生，**拷到别的机器或别的用户下都解不开** |
-| **CORS 白名单** | 只允许本地界面自己的来源。**别的网页调不动这个 API** |
-| **危险动作审批** | 删除 / 推送 / 发布 / 付款 / 对外发送，执行前必须你点 |
-| **用量止损** | token 超上限直接停 |
-| **副作用台账** | 改了什么、跑了什么，全部有记录 |
+| `apps/runtime` | The runtime: all four tiers, plus the HTTP/SSE server |
+| `apps/web` | Workspace UI: pick a project, talk to the Assistant, watch Agents |
+| `apps/shell` | Tauri 2 desktop shell |
+| `apps/daemon`, `apps/desktop` | Legacy, kept but not developed |
+| `packages/{shared,core,adapters,memory,plugin-api}` | Legacy kernel and packages |
+| `packages/dsh-bao` | Frozen dsh plugin, kept as a design reference |
+| `docs/` | Design notes and records. Start at [docs/README.md](docs/README.md). |
+| `docs/project-status.md` | Full project snapshot: structure, features, data model, API |
 
-> 为什么需要令牌：运行时虽然只监听本机，但**同机上的任何程序都能访问它**。
-> 早期版本的 CORS 是 `*` 且无鉴权，意味着你浏览器里打开的任何网页
-> 都能跨源读取本地 API 并派活执行命令。已修复。
+## Documentation
 
-## 环境变量
-| 变量 | 默认 | 说明 |
-| --- | --- | --- |
-| `OPENCOXSWAIN_LLM_API_KEY` | 空 | 模型密钥（也接受 `DEEPSEEK_API_KEY`）；也可在界面设置里填 |
-| `OPENCOXSWAIN_LLM_FILE` | `~/.opencoxswain/llm.json` | 界面保存的密钥文件（**环境变量优先**） |
-| `OPENCOXSWAIN_LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
-| `OPENCOXSWAIN_LLM_MODEL` | `deepseek-chat` | 模型 |
-| `OPENCOXSWAIN_DB` | `~/.opencoxswain/runtime.db` | SQLite 库 |
-| `OPENCOXSWAIN_MEMORY` | `~/.opencoxswain/memory` | 记忆目录 |
-| `OPENCOXSWAIN_NODE_BIN` | 空 | 桌面壳启动运行时用的 node |
-| `OPENCOXSWAIN_PORT` | `47900` | 运行时 HTTP 端口（端口被占用时改这个） |
-| `OPENCOXSWAIN_TOKEN` | 自动生成 | 本机 API 访问令牌；一般不用手动设 |
-| `OPENCOXSWAIN_IM_FILE` | `~/.opencoxswain/im.json` | 手机通道（Telegram）配置 |
-| `OPENCOXSWAIN_TELEGRAM_TOKEN` | 空 | 手机通道 bot token（优先于配置文件） |
-| `TAURI_SIGNING_PRIVATE_KEY` | 空 | **只用于发版构建**：自动更新签名私钥。见 [docs/release.md](docs/release.md) |
+- [docs/architecture.md](docs/architecture.md): tier boundaries and module layout
+- [docs/glossary.md](docs/glossary.md): naming authority for code, docs, and UI
+- [docs/release.md](docs/release.md): release and update process
+- [docs/README.md](docs/README.md): full index
 
+## License
 
-## 发布
-
-见 [docs/release.md](docs/release.md)（密钥保管、发版流程、SmartScreen 说明）。
-
-## 许可证
-
-Apache-2.0，见 [LICENSE](LICENSE)。
+Apache-2.0. See [LICENSE](LICENSE).
